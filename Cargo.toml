@@ -1,0 +1,16 @@
+[workspace.package]
+version = "0.0.0"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+edition = "2021"
+rust-version = "1.71.0"
+
+[workspace]
+members = [
+    "sealable-trie",
+]
+
+[workspace.dependencies]
+base64 = { version = "0.21", default-features = false, features = ["alloc"] }
+derive_more = "0.99.17"
+sha2 = { version = "0.10.7", default-features = false }
+pretty_assertions = "1.4.0"
