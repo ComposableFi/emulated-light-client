@@ -8,6 +8,7 @@ rust-version = "1.71.0"
 members = [
     "sealable-trie",
 ]
+resolver = "2"
 
 [workspace.dependencies]
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
