@@ -419,25 +419,18 @@ unsafe fn forward_common_prefix_impl(
         (lhs, rhs)
     };
 
-    let n = (lhs[0] ^ rhs[0]) & Slice::masks(offset, max_length).0;
-    if n != 0 {
-        let length =
-            (n.leading_zeros() as u16).saturating_sub(u16::from(offset));
-        return (0, max_length.min(length));
-    }
-
-    let idx = 1 + lhs[1..]
-        .iter()
-        .zip(rhs[1..].iter())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let length = idx * 8 - usize::from(offset)
-        + if idx < lhs.len() {
-            (lhs[idx] ^ rhs[idx]).leading_zeros() as usize
-        } else {
-            0
-        };
-    (idx, max_length.min(length as u16))
+    let n = lhs.iter().zip(rhs.iter()).take_while(|(a, b)| a == b).count();
+    let total_bits_matched = if n == 0 {
+        ((lhs[0] ^ rhs[0]) & Slice::masks(offset, max_length).0).leading_zeros()
+    } else if n < lhs.len() {
+        n as u32 * 8 + (lhs[n] ^ rhs[n]).leading_zeros()
+    } else {
+        n as u32 * 8
+    }.min(u32::from(offset) + u32::from(max_length));
+    (
+        (total_bits_matched / 8) as usize,
+        total_bits_matched.saturating_sub(u32::from(offset)) as u16,
+    )
 }
 
 impl<'a> core::iter::IntoIterator for Slice<'a> {
