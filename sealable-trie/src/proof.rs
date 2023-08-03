@@ -1,7 +1,6 @@
-use crate::bits;
 use crate::hash::CryptoHash;
 use crate::nodes::{Node, ProofNode};
-use crate::trie;
+use crate::{bits, trie};
 
 /// Verifies proof of a value.
 pub fn verify(

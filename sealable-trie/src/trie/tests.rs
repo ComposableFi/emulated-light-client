@@ -5,13 +5,9 @@ use crate::memory::test_utils::TestAllocator;
 
 type Trie = super::Trie<TestAllocator>;
 
-fn make_hash(v: u8) -> CryptoHash {
-    CryptoHash([v; 32])
-}
+fn make_hash(v: u8) -> CryptoHash { CryptoHash([v; 32]) }
 
-fn make_trie(count: usize) -> Trie {
-    Trie::new(TestAllocator::new(count))
-}
+fn make_trie(count: usize) -> Trie { Trie::new(TestAllocator::new(count)) }
 
 #[test]
 fn test_sanity() {

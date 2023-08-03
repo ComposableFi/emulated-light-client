@@ -3,8 +3,7 @@ use core::fmt;
 #[cfg(test)]
 use pretty_assertions::assert_eq;
 
-use crate::nodes;
-use crate::stdx;
+use crate::{nodes, stdx};
 
 /// Representation of a slice of bits.
 ///
@@ -62,9 +61,8 @@ impl<'a> Slice<'a> {
         if offset >= 8 {
             return None;
         }
-        let has_bits = u32::try_from(bytes.len())
-            .unwrap_or(u32::MAX)
-            .saturating_mul(8);
+        let has_bits =
+            u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_mul(8);
         if length == 0 || (u32::from(length) + u32::from(offset) <= has_bits) {
             Some(Self {
                 offset,
@@ -105,9 +103,9 @@ impl<'a> Slice<'a> {
     pub(crate) fn from_raw(num: u16, bytes: &'a [u8]) -> Self {
         let (offset, length) = (num % 8, num / 8);
         debug_assert!(
-            length != 0
-                && usize::from(length + offset + 7) / 8
-                    < nodes::MAX_EXTENSION_KEY_SIZE,
+            length != 0 &&
+                usize::from(length + offset + 7) / 8 <
+                    nodes::MAX_EXTENSION_KEY_SIZE,
             "offset:{offset} length:{length}"
         );
 
@@ -153,14 +151,10 @@ impl<'a> Slice<'a> {
     }
 
     /// Returns length of the slice in bits.
-    pub fn len(&self) -> usize {
-        usize::from(self.length)
-    }
+    pub fn len(&self) -> usize { usize::from(self.length) }
 
     /// Returns whether the slice is empty.
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
+    pub fn is_empty(&self) -> bool { self.length == 0 }
 
     /// Returns the first bit in the slice advances the slice by position.
     ///
@@ -217,9 +211,7 @@ impl<'a> Slice<'a> {
     /// The final chunk may be shorter.  Note that due to offset the first chunk
     /// may be shorter than 272 bits (i.e. 34 * 8) however it will span full 34
     /// bytes.
-    pub fn chunks(&self) -> Chunks<'a> {
-        Chunks(*self)
-    }
+    pub fn chunks(&self) -> Chunks<'a> { Chunks(*self) }
 
     /// Removes prefix from the slice; returns `false` if slice doesn’t start
     /// with given prefix.
@@ -254,10 +246,7 @@ impl<'a> Slice<'a> {
         if self.offset != prefix.offset || self.length < prefix.length {
             return false;
         }
-        let subslice = Slice {
-            length: prefix.length,
-            ..*self
-        };
+        let subslice = Slice { length: prefix.length, ..*self };
         if subslice != prefix {
             return false;
         }
@@ -335,11 +324,11 @@ impl<'a> Slice<'a> {
     ) -> bool {
         let (front, back) = Self::masks(offset, length);
         let bytes_len = (usize::from(offset) + usize::from(length) + 7) / 8;
-        (!strict_length || bytes_len == bytes.len())
-            && bytes_len <= bytes.len()
-            && (bytes[0] & !front) == 0
-            && (bytes[bytes_len - 1] & !back) == 0
-            && bytes[bytes_len..].iter().all(|&b| b == 0)
+        (!strict_length || bytes_len == bytes.len()) &&
+            bytes_len <= bytes.len() &&
+            (bytes[0] & !front) == 0 &&
+            (bytes[bytes_len - 1] & !back) == 0 &&
+            bytes[bytes_len..].iter().all(|&b| b == 0)
     }
 
     /// Returns total number of underlying bits, i.e. bits in the slice plus the
@@ -426,7 +415,8 @@ unsafe fn forward_common_prefix_impl(
         n as u32 * 8 + (lhs[n] ^ rhs[n]).leading_zeros()
     } else {
         n as u32 * 8
-    }.min(u32::from(offset) + u32::from(max_length));
+    }
+    .min(u32::from(offset) + u32::from(max_length));
     (
         (total_bits_matched / 8) as usize,
         total_bits_matched.saturating_sub(u32::from(offset)) as u16,
@@ -438,9 +428,7 @@ impl<'a> core::iter::IntoIterator for Slice<'a> {
     type IntoIter = Iter<'a>;
 
     #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
 impl<'a> core::iter::IntoIterator for &'a Slice<'a> {
@@ -448,9 +436,7 @@ impl<'a> core::iter::IntoIterator for &'a Slice<'a> {
     type IntoIter = Iter<'a>;
 
     #[inline]
-    fn into_iter(self) -> Self::IntoIter {
-        (*self).iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { (*self).iter() }
 }
 
 impl core::cmp::PartialEq for Slice<'_> {
@@ -484,9 +470,9 @@ impl core::cmp::PartialEq for Slice<'_> {
         if len == 1 {
             ((lhs[0] ^ rhs[0]) & front & back) == 0
         } else {
-            ((lhs[0] ^ rhs[0]) & front) == 0
-                && ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0
-                && lhs[1..len - 1] == rhs[1..len - 1]
+            ((lhs[0] ^ rhs[0]) & front) == 0 &&
+                ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0 &&
+                lhs[1..len - 1] == rhs[1..len - 1]
         }
     }
 }
@@ -599,16 +585,12 @@ impl<'a> core::iter::Iterator for Iter<'a> {
     }
 
     #[inline]
-    fn count(self) -> usize {
-        usize::from(self.length)
-    }
+    fn count(self) -> usize { usize::from(self.length) }
 }
 
 impl<'a> core::iter::ExactSizeIterator for Iter<'a> {
     #[inline]
-    fn len(&self) -> usize {
-        usize::from(self.length)
-    }
+    fn len(&self) -> usize { usize::from(self.length) }
 }
 
 impl<'a> core::iter::FusedIterator for Iter<'a> {}
@@ -631,12 +613,7 @@ impl<'a> core::iter::Iterator for Chunks<'a> {
         // SAFETY: `ptr` points at a slice which is at least `bytes_len` bytes
         // long so it’s safe to advance it by that offset.
         slice.ptr = unsafe { slice.ptr.add(bytes_len) };
-        Some(Slice {
-            offset,
-            length,
-            ptr,
-            phantom: Default::default(),
-        })
+        Some(Slice { offset, length, ptr, phantom: Default::default() })
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {

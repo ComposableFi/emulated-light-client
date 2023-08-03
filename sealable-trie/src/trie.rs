@@ -83,9 +83,7 @@ pub enum Error {
 }
 
 impl From<memory::OutOfMemory> for Error {
-    fn from(_: memory::OutOfMemory) -> Self {
-        Self::OutOfMemory
-    }
+    fn from(_: memory::OutOfMemory) -> Self { Self::OutOfMemory }
 }
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
@@ -93,22 +91,14 @@ type Result<T, E = Error> = ::core::result::Result<T, E>;
 impl<A: memory::Allocator> Trie<A> {
     /// Creates a new trie using given allocator.
     pub fn new(alloc: A) -> Self {
-        Self {
-            root_ptr: None,
-            root_hash: EMPTY_TRIE_ROOT,
-            alloc,
-        }
+        Self { root_ptr: None, root_hash: EMPTY_TRIE_ROOT, alloc }
     }
 
     /// Returns hash of the root node.
-    pub fn hash(&self) -> &CryptoHash {
-        &self.root_hash
-    }
+    pub fn hash(&self) -> &CryptoHash { &self.root_hash }
 
     /// Returns whether the trie is empty.
-    pub fn is_empty(&self) -> bool {
-        self.root_hash == EMPTY_TRIE_ROOT
-    }
+    pub fn is_empty(&self) -> bool { self.root_hash == EMPTY_TRIE_ROOT }
 
     /// Retrieves value has at given key.
     ///
@@ -140,12 +130,8 @@ impl<A: memory::Allocator> Trie<A> {
         let (ptr, hash) = (self.root_ptr, self.root_hash.clone());
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         let proof_start_len = proof.as_ref().map_or(0, |v| v.len());
-        let mut ctx = SetContext {
-            key,
-            value_hash,
-            alloc: &mut self.alloc,
-            proof,
-        };
+        let mut ctx =
+            SetContext { key, value_hash, alloc: &mut self.alloc, proof };
         let (ptr, hash) = ctx.set(ptr, &hash)?;
         self.root_ptr = Some(ptr);
         self.root_hash = hash;
@@ -324,11 +310,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         // in-place.
         let owned_ref = self.handle_reference(children[usize::from(bit)])?;
         let child = owned_ref.to_raw_ref();
-        let children = if bit {
-            [children[0], child]
-        } else {
-            [child, children[1]]
-        };
+        let children =
+            if bit { [children[0], child] } else { [child, children[1]] };
         Ok(self.set_node(nref.0, RawNode::branch(children[0], children[1])))
         // let child = owned_ref.to_raw_ref();
         // let (left, right) = if bit == 0 {

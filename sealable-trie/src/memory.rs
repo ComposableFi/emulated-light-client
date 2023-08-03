@@ -127,7 +127,6 @@ pub trait Allocator {
 #[cfg(test)]
 pub(crate) mod test_utils {
     use super::*;
-
     use crate::stdx;
 
     pub struct TestAllocator {
@@ -142,11 +141,7 @@ pub(crate) mod test_utils {
             let capacity = capacity.min(1 << 30);
             let mut pool = alloc::vec::Vec::with_capacity(capacity);
             pool.push(RawNode([0xAA; 72]));
-            Self {
-                free: None,
-                pool,
-                allocated: Default::default(),
-            }
+            Self { free: None, pool, allocated: Default::default() }
         }
 
         /// Verifies that block has been allocated.  Panics if it hasn’t.

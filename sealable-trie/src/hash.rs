@@ -38,9 +38,7 @@ impl CryptoHash {
     /// Returns a builder which can be used to construct cryptographic hash by
     /// digesting bytes.
     #[inline]
-    pub fn builder() -> Builder {
-        Builder::default()
-    }
+    pub fn builder() -> Builder { Builder::default() }
 
     /// Returns hash of given bytes.
     #[inline]
@@ -61,15 +59,11 @@ impl CryptoHash {
     /// Returns whether the hash is all zero bits.  Equivalent to comparing to
     /// the default `CryptoHash` object.
     #[inline]
-    pub fn is_zero(&self) -> bool {
-        self.0.iter().all(|&byte| byte == 0)
-    }
+    pub fn is_zero(&self) -> bool { self.0.iter().all(|&byte| byte == 0) }
 
     /// Returns reference to the hash as slice of bytes.
     #[inline]
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0[..]
-    }
+    pub fn as_slice(&self) -> &[u8] { &self.0[..] }
 }
 
 impl core::fmt::Display for CryptoHash {
@@ -77,9 +71,8 @@ impl core::fmt::Display for CryptoHash {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         const ENCODED_LENGTH: usize = (CryptoHash::LENGTH + 2) / 3 * 4;
         let mut buf = [0u8; ENCODED_LENGTH];
-        let len = BASE64_ENGINE
-            .encode_slice(self.as_slice(), &mut buf[..])
-            .unwrap();
+        let len =
+            BASE64_ENGINE.encode_slice(self.as_slice(), &mut buf[..]).unwrap();
         debug_assert_eq!(buf.len(), len);
         // SAFETY: base64 fills the buffer with ASCII characters only.
         fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..]) })
@@ -103,9 +96,7 @@ impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for CryptoHash {
 
 impl From<&'_ CryptoHash> for [u8; CryptoHash::LENGTH] {
     #[inline]
-    fn from(hash: &'_ CryptoHash) -> Self {
-        hash.0.clone()
-    }
+    fn from(hash: &'_ CryptoHash) -> Self { hash.0.clone() }
 }
 
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for &'a CryptoHash {
@@ -170,15 +161,11 @@ pub struct Builder(sha2::Sha256);
 impl Builder {
     /// Process data, updating the internal state of the digest.
     #[inline]
-    pub fn update(&mut self, bytes: &[u8]) {
-        self.0.update(bytes)
-    }
+    pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
 
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
-    pub fn build(self) -> CryptoHash {
-        CryptoHash(self.0.finalize().into())
-    }
+    pub fn build(self) -> CryptoHash { CryptoHash(self.0.finalize().into()) }
 }
 
 #[test]
