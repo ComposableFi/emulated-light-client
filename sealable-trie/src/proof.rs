@@ -49,7 +49,7 @@ pub fn verify(
                 if our_key.is_empty() {
                     return our_hash == Some(value_hash);
                 } else if let Some(child) = child {
-                    node_hash = child;
+                    node_hash = child.hash;
                 } else {
                     return false;
                 }

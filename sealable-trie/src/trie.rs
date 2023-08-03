@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{Node, ProofNode, RawNode, RawRef};
+use crate::nodes::{Node, ProofNode, RawNode, RawNodeRef, RawRef};
 use crate::{bits, memory};
 
 #[cfg(test)]
@@ -223,8 +223,8 @@ impl<A: memory::Allocator> Trie<A> {
                     " Value {value_hash} {}",
                     if child.is_none() { '∅' } else { ' ' },
                 );
-                if let Some((ptr, hash)) = child {
-                    print_ref(RawRef::node(ptr, &hash), depth + 2);
+                if let Some(child) = child {
+                    print_ref(RawRef::from(child), depth + 2);
                 }
             }
         }
@@ -259,7 +259,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     ) -> Result<(Ptr, CryptoHash)> {
         if let Some(ptr) = root_ptr {
             // Trie is non-empty, handle normally.
-            self.handle((Some(ptr), root_hash))
+            self.handle(RawNodeRef { ptr: Some(ptr), hash: root_hash })
         } else if *root_hash != EMPTY_TRIE_ROOT {
             // Trie is sealed (it’s not empty but ptr is None).
             Err(Error::Sealed)
@@ -274,12 +274,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         }
     }
 
-    /// Inserts value into the trie starting at `node_ptr`.
-    fn handle(
-        &mut self,
-        nref: (Option<Ptr>, &CryptoHash),
-    ) -> Result<(Ptr, CryptoHash)> {
-        let nref = (nref.0.ok_or(Error::Sealed)?, nref.1);
+    /// Inserts value into the trie starting at node pointed by given reference.
+    fn handle(&mut self, nref: RawNodeRef) -> Result<(Ptr, CryptoHash)> {
+        let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
         let raw_node = self.alloc.get(nref.0);
         match Node::from(&raw_node) {
             Node::Branch { children } => self.handle_branch(nref, children),
@@ -390,7 +387,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         &mut self,
         nref: (Ptr, &CryptoHash),
         existing_value: &CryptoHash,
-        child: Option<(Option<Ptr>, &CryptoHash)>,
+        child: Option<RawNodeRef>,
     ) -> Result<(Ptr, CryptoHash)> {
         let node = if self.key.is_empty() {
             RawNode::value(self.value_hash, child)
@@ -404,7 +401,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                 // already.
                 unreachable!()
             };
-            RawNode::value(existing_value, Some((Some(ptr), &hash)))
+            let child = RawNodeRef::new(Some(ptr), &hash);
+            RawNode::value(existing_value, Some(child))
         };
         Ok(self.set_node(nref.0, node))
     }
@@ -419,7 +417,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                 // Handle node references recursively.  We cannot special handle
                 // our key being empty because we need to handle cases where the
                 // reference points at a Value node correctly.
-                self.handle((ptr, hash)).map(|(p, h)| OwnedRef::Node(p, h))
+                self.handle(RawNodeRef::new(ptr, hash))
+                    .map(|(p, h)| OwnedRef::Node(p, h))
             }
             RawRef::Value { hash } => {
                 // It’s a value reference so we just need to update it
@@ -428,8 +427,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                 match self.insert_value()? {
                     owned_ref @ OwnedRef::Value(_) => Ok(owned_ref),
                     OwnedRef::Node(p, h) => {
-                        let child = Some((Some(p), &h));
-                        let node = RawNode::value(hash, child);
+                        let child = RawNodeRef::new(Some(p), &h);
+                        let node = RawNode::value(hash, Some(child));
                         self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
                     }
                 }
@@ -488,7 +487,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         ptr: Ptr,
         hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
-        self.alloc_node(RawNode::value(value_hash, Some((Some(ptr), hash))))
+        let child = RawNodeRef::new(Some(ptr), hash);
+        self.alloc_node(RawNode::value(value_hash, Some(child)))
     }
 
     /// Sets value of a node cell at given address and returns its hash.

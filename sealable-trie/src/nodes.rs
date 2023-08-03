@@ -31,18 +31,18 @@ type Result<T, E = ()> = core::result::Result<T, E>;
 /// key.  This reference is never a value reference.
 ///
 /// A node reference either points at another Node or is hash of the stored
-/// value.  The reference is represented by the `T` generic argument.
+/// value.  The reference is represented by the `R` generic argument.
 ///
 /// [`Node`] object can be constructed either from a [`RawNode`] or
 /// [`ProofNode`].
 ///
-/// The two generic arguments are `R` which specifies how references and `N`
-/// which specifies how node references are represented.  References can point
-/// either at a node or a value.  For example a Branch node contains two
-/// references.  Node reference points at a node and is used with Value nodes
+/// The generic argument `R` specifies how references are represented.
+/// References can point either at a node or a value.  `R` must implement
+/// [`AsReference`] trait which also dictates a node reference representation
+/// (in the form of `R::NodeRef` type.  Th elatter is used with Value nodes
 /// whose optional child cannot point at value but must point at a node.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Node<'a, R = RawRef<'a>, N = (Option<Ptr>, &'a CryptoHash)> {
+#[derive(Clone, Copy, Debug)]
+pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
     Branch {
         /// Children of the branch.  Both are always set.
         children: [R; 2],
@@ -55,7 +55,7 @@ pub enum Node<'a, R = RawRef<'a>, N = (Option<Ptr>, &'a CryptoHash)> {
     },
     Value {
         value_hash: &'a CryptoHash,
-        child: Option<N>,
+        child: Option<R::NodeRef>,
     },
 }
 
@@ -107,39 +107,11 @@ pub enum Node<'a, R = RawRef<'a>, N = (Option<Ptr>, &'a CryptoHash)> {
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; 72]);
 
-/// Reference which is either hash of a trie node or hash of stored value.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Ref<'a> {
-    pub is_value: bool,
-    pub hash: &'a CryptoHash,
-}
-
-/// Node reference as parsed from the raw node representation.  It can either
-/// point at a node or directly hold hash of the value stored at the index.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum RawRef<'a> {
-    Node { ptr: Option<Ptr>, hash: &'a CryptoHash },
-    Value { hash: &'a CryptoHash },
-}
-
-/// Trait defining interface to objects which can be converted into [`Ref`].
-#[doc(hidden)]
-pub trait AsReference<'a> {
-    fn as_reference(&self) -> Ref<'a>;
-}
-
-/// Trait defining interface to objects which can be converted into a node
-/// reference, i.e. a hash.
-#[doc(hidden)]
-pub trait AsNodeHash<'a> {
-    fn as_node_hash(&self) -> &'a CryptoHash;
-}
-
 /// Binary representation of the node as transmitted in proofs.
 ///
 /// Compared to the [`RawNode`] representation, it doesn’t contain pointers to
-/// the allocated nodes and it’s also the representation that is used for
-/// hashing the nodes.
+/// the allocated nodes nor have indications whether values are sealed or not.
+/// This is the representation which is used when calculating hashes of nodes.
 //
 // ```ignore
 // Branch:    0b0000_00vv <hash-1> <hash-2>
@@ -155,7 +127,53 @@ pub trait AsNodeHash<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ProofNode(Box<[u8]>);
 
-impl<'a, R, N> Node<'a, R, N> {
+/// Node reference as parsed from the raw node representation.  It can either
+/// point at a node or directly hold hash of the value stored at the index.
+#[derive(Clone, Copy, Debug)]
+pub enum RawRef<'a> {
+    Node { ptr: Option<Ptr>, hash: &'a CryptoHash },
+    Value { hash: &'a CryptoHash },
+}
+
+/// Reference to a node with given pointer and hash as parse from the raw node
+/// representation.
+#[derive(Clone, Copy, Debug)]
+pub struct RawNodeRef<'a> {
+    pub ptr: Option<Ptr>,
+    pub hash: &'a CryptoHash,
+}
+
+/// Reference which is either hash of a trie node or hash of stored value.
+#[derive(Clone, Copy, Debug)]
+pub struct Ref<'a> {
+    pub is_value: bool,
+    pub hash: &'a CryptoHash,
+}
+
+/// Reference to a node with given hash.
+#[derive(Clone, Copy, Debug)]
+pub struct NodeRef<'a> {
+    pub hash: &'a CryptoHash,
+}
+
+/// Trait defining interface to objects which can be converted into [`Ref`].
+#[doc(hidden)]
+pub trait AsReference<'a> {
+    type NodeRef: AsNodeRef<'a> + Sized;
+    fn as_reference(&self) -> Ref<'a>;
+}
+
+/// Trait defining interface to objects which can be converted into a node
+/// reference, i.e. a hash.
+#[doc(hidden)]
+pub trait AsNodeRef<'a> {
+    fn as_node_reference(&self) -> NodeRef<'a>;
+}
+
+// =============================================================================
+// Implementations
+
+impl<'a, R: AsReference<'a>> Node<'a, R> {
     /// Constructs a Branch node with specified children.
     pub fn branch(left: R, right: R) -> Self {
         Self::Branch { children: [left, right] }
@@ -172,7 +190,10 @@ impl<'a, R, N> Node<'a, R, N> {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value_hash: &'a CryptoHash, child: Option<N>) -> Self {
+    pub fn value(
+        value_hash: &'a CryptoHash,
+        child: Option<R::NodeRef>,
+    ) -> Self {
         Self::Value { value_hash, child }
     }
 
@@ -184,23 +205,16 @@ impl<'a, R, N> Node<'a, R, N> {
     ///
     /// If the given node cannot be encoded (which happens if it’s an extension
     /// with a key whose byte buffer is longer than 34 bytes), returns `None`.
-    pub fn hash(&self) -> Option<CryptoHash>
-    where
-        R: AsReference<'a>,
-        N: AsNodeHash<'a>,
-    {
+    pub fn hash(&self) -> Option<CryptoHash> {
         proof_from_node(&mut [0; 68], self).map(CryptoHash::digest)
     }
 
     /// Maps node references in the node using given functions.
-    pub fn map_node_refs<R2, N2, RM, NM>(
-        self,
-        ref_map: RM,
-        node_map: NM,
-    ) -> Node<'a, R2, N2>
+    pub fn map_refs<R2, RM, NM>(self, ref_map: RM, node_map: NM) -> Node<'a, R2>
     where
+        R2: AsReference<'a>,
         RM: Fn(R) -> R2,
-        NM: Fn(N) -> N2,
+        NM: Fn(R::NodeRef) -> R2::NodeRef,
     {
         match self {
             Node::Branch { children: [left, right] } => {
@@ -218,7 +232,7 @@ impl<'a, R, N> Node<'a, R, N> {
 
 impl RawNode {
     /// Constructs a Branch node with specified children.
-    pub fn branch(left: RawRef<'_>, right: RawRef<'_>) -> Self {
+    pub fn branch(left: RawRef, right: RawRef) -> Self {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
         *lft = left.encode_raw();
@@ -231,7 +245,7 @@ impl RawNode {
     /// Fails and returns `None` if the key is empty or its underlying bytes
     /// slice is too long.  The slice must not exceed [`MAX_EXTENSION_KEY_SIZE`]
     /// to be valid.
-    pub fn extension(key: Slice<'_>, child: RawRef<'_>) -> Option<Self> {
+    pub fn extension(key: Slice, child: RawRef) -> Option<Self> {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
         key.try_encode_into(lft)?;
@@ -241,20 +255,16 @@ impl RawNode {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(
-        value_hash: &CryptoHash,
-        child: Option<(Option<Ptr>, &CryptoHash)>,
-    ) -> Self {
+    pub fn value(value_hash: &CryptoHash, child: Option<RawNodeRef>) -> Self {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
         let (tag, value) = stdx::split_array_mut::<4, 32, 36>(lft);
         *tag = 0xC000_0000_u32.to_be_bytes();
         *value = value_hash.into();
-        *rht = match child {
-            Some((ptr, hash)) => RawRef::Node { ptr, hash },
-            None => RawRef::Value { hash: &CryptoHash::DEFAULT },
-        }
-        .encode_raw();
+        *rht = child
+            .map(RawRef::from)
+            .unwrap_or(RawRef::Value { hash: &CryptoHash::DEFAULT })
+            .encode_raw();
         res
     }
 
@@ -288,29 +298,15 @@ impl ProofNode {
     pub fn hash(&self) -> CryptoHash { CryptoHash::digest(&*self.0) }
 }
 
-impl<'a> Ref<'a> {
-    /// Creates a new node reference.
-    pub fn new<T: Into<&'a CryptoHash>>(is_value: bool, hash: T) -> Self {
-        let hash = hash.into();
-        Self { is_value, hash }
-    }
-}
-
-impl<'a> AsReference<'a> for Ref<'a> {
-    fn as_reference(&self) -> Ref<'a> { self.clone() }
-}
-
-impl<'a> AsNodeHash<'a> for &'a CryptoHash {
-    fn as_node_hash(&self) -> &'a CryptoHash { *self }
-}
-
 impl<'a> RawRef<'a> {
     /// Creates a new reference pointing at given node.
+    #[inline]
     pub fn node(ptr: Option<Ptr>, hash: &'a CryptoHash) -> Self {
         Self::Node { ptr, hash }
     }
 
     /// Creates a new reference pointing at value with given hash.
+    #[inline]
     pub fn value(hash: &'a CryptoHash) -> Self { Self::Value { hash } }
 
     /// Parses bytes to form a raw node reference representation.
@@ -349,7 +345,42 @@ impl<'a> RawRef<'a> {
     }
 }
 
+impl<'a> RawNodeRef<'a> {
+    /// Constructs a new node reference.
+    #[inline]
+    pub fn new(ptr: Option<Ptr>, hash: &'a CryptoHash) -> Self {
+        Self { ptr, hash }
+    }
+}
+
+impl<'a> Ref<'a> {
+    /// Creates a new node reference.
+    #[inline]
+    pub fn new<T: Into<&'a CryptoHash>>(is_value: bool, hash: T) -> Self {
+        let hash = hash.into();
+        Self { is_value, hash }
+    }
+}
+
+// =============================================================================
+// Trait implementations
+
+impl<'a> AsReference<'a> for Ref<'a> {
+    type NodeRef = NodeRef<'a>;
+
+    #[inline]
+    fn as_reference(&self) -> Ref<'a> { self.clone() }
+}
+
+impl<'a> AsNodeRef<'a> for NodeRef<'a> {
+    #[inline]
+    fn as_node_reference(&self) -> NodeRef<'a> { *self }
+}
+
 impl<'a> AsReference<'a> for RawRef<'a> {
+    type NodeRef = RawNodeRef<'a>;
+
+    #[inline]
     fn as_reference(&self) -> Ref<'a> {
         let (is_value, hash) = match self {
             Self::Node { hash, .. } => (false, hash),
@@ -359,16 +390,44 @@ impl<'a> AsReference<'a> for RawRef<'a> {
     }
 }
 
-impl<'a> AsNodeHash<'a> for (Option<Ptr>, &'a CryptoHash) {
-    fn as_node_hash(&self) -> &'a CryptoHash { self.1 }
+impl<'a> AsNodeRef<'a> for RawNodeRef<'a> {
+    #[inline]
+    fn as_node_reference(&self) -> NodeRef<'a> { NodeRef { hash: self.hash } }
 }
 
 impl<'a, T: AsReference<'a>> AsReference<'a> for &T {
+    type NodeRef = T::NodeRef;
+
+    #[inline]
     fn as_reference(&self) -> Ref<'a> { (**self).as_reference() }
 }
 
-impl<'a, T: AsNodeHash<'a>> AsNodeHash<'a> for &T {
-    fn as_node_hash(&self) -> &'a CryptoHash { (**self).as_node_hash() }
+impl<'a, T: AsNodeRef<'a>> AsNodeRef<'a> for &T {
+    #[inline]
+    fn as_node_reference(&self) -> NodeRef<'a> { (**self).as_node_reference() }
+}
+
+impl<'a> From<&'a RawNode> for Node<'a> {
+    /// Decodes raw node into a [`Node`] assuming that raw bytes are trusted and
+    /// thus well formed.
+    ///
+    /// The function is safe even if the bytes aren’t well-formed.
+    #[inline]
+    fn from(node: &'a RawNode) -> Self { decode_raw(node) }
+}
+
+impl<'a> TryFrom<&'a ProofNode> for Node<'a, Ref<'a>> {
+    type Error = ();
+
+    /// Decodes a node as represented in a proof.
+    ///
+    /// Verifies that the node is in canonical representation.  Returns error if
+    /// decoding fails or is malformed (which usually means that unused bits
+    /// which should be zero were not set to zero).
+    #[inline]
+    fn try_from(node: &'a ProofNode) -> Result<Self, Self::Error> {
+        decode_proof(node).ok_or(())
+    }
 }
 
 impl<'a> TryFrom<Node<'a, RawRef<'a>>> for RawNode {
@@ -391,26 +450,23 @@ impl<'a> TryFrom<&Node<'a, RawRef<'a>>> for RawNode {
     }
 }
 
-impl<'a> From<&'a RawNode> for Node<'a> {
-    /// Decodes raw node into a [`Node`] assuming that raw bytes are trusted and
-    /// thus well formed.
-    ///
-    /// The function is safe even if the bytes aren’t well-formed.
-    #[inline]
-    fn from(node: &'a RawNode) -> Self { decode_raw(node) }
-}
-
-impl<'a> TryFrom<&'a ProofNode> for Node<'a, Ref<'a>, &'a CryptoHash> {
+impl<'a, R: AsReference<'a>> TryFrom<Node<'a, R>> for ProofNode {
     type Error = ();
 
-    /// Decodes a node as represented in a proof.
-    ///
-    /// Verifies that the node is in canonical representation.  Returns error if
-    /// decoding fails or is malformed (which usually means that unused bits
-    /// which should be zero were not set to zero).
+    /// Builds proof representation for given node.
     #[inline]
-    fn try_from(node: &'a ProofNode) -> Result<Self, Self::Error> {
-        decode_proof(node).ok_or(())
+    fn try_from(node: Node<'a, R>) -> Result<Self, Self::Error> {
+        Self::try_from(&node)
+    }
+}
+
+impl<'a, R: AsReference<'a>> TryFrom<&Node<'a, R>> for ProofNode {
+    type Error = ();
+
+    /// Builds proof representation for given node.
+    #[inline]
+    fn try_from(node: &Node<'a, R>) -> Result<Self, Self::Error> {
+        Ok(Self(Box::from(proof_from_node(&mut [0; 68], node).ok_or(())?)))
     }
 }
 
@@ -428,46 +484,136 @@ impl From<&RawNode> for ProofNode {
     }
 }
 
-impl<'a, R: AsReference<'a>, N: AsNodeHash<'a>> TryFrom<Node<'a, R, N>>
-    for ProofNode
-{
-    type Error = ();
-
-    /// Builds proof representation for given node.
-    fn try_from(node: Node<'a, R, N>) -> Result<Self, Self::Error> {
-        Self::try_from(&node)
-    }
-}
-
-impl<'a, R: AsReference<'a>, N: AsNodeHash<'a>> TryFrom<&Node<'a, R, N>>
-    for ProofNode
-{
-    type Error = ();
-
-    /// Builds proof representation for given node.
-    fn try_from(node: &Node<'a, R, N>) -> Result<Self, Self::Error> {
-        Ok(Self(Box::from(proof_from_node(&mut [0; 68], node).ok_or(())?)))
-    }
-}
-
 impl<'a> From<RawRef<'a>> for Ref<'a> {
     /// Converts a reference by dropping pointer to node.
     #[inline]
-    fn from(node_ref: RawRef<'a>) -> Self { node_ref.as_reference() }
+    fn from(rf: RawRef<'a>) -> Self { rf.as_reference() }
 }
 
-impl<'a> From<&RawRef<'a>> for Ref<'a> {
+impl<'a> From<RawNodeRef<'a>> for NodeRef<'a> {
     /// Converts a reference by dropping pointer to node.
     #[inline]
-    fn from(node_ref: &RawRef<'a>) -> Self { node_ref.as_reference() }
+    fn from(rf: RawNodeRef<'a>) -> Self { rf.as_node_reference() }
 }
 
-impl<'a> From<(Option<Ptr>, &'a CryptoHash)> for RawRef<'a> {
+impl<'a> From<NodeRef<'a>> for Ref<'a> {
     /// Constructs a raw reference from node’s pointer and hash.
     #[inline]
-    fn from((ptr, hash): (Option<Ptr>, &'a CryptoHash)) -> Self {
-        Self::Node { ptr, hash }
+    fn from(nref: NodeRef<'a>) -> Self {
+        Ref { is_value: false, hash: nref.hash }
     }
+}
+
+impl<'a> From<RawNodeRef<'a>> for RawRef<'a> {
+    /// Constructs a raw reference from node’s pointer and hash.
+    #[inline]
+    fn from(nref: RawNodeRef<'a>) -> Self {
+        RawRef::Node { ptr: nref.ptr, hash: nref.hash }
+    }
+}
+
+impl<'a> TryFrom<Ref<'a>> for NodeRef<'a> {
+    type Error = &'a CryptoHash;
+
+    /// If reference is to a node, returns it as node reference.  Otherwise
+    /// returns hash of the value as `Err`.
+    #[inline]
+    fn try_from(rf: Ref<'a>) -> Result<NodeRef<'a>, Self::Error> {
+        match rf.is_value {
+            false => Ok(Self { hash: rf.hash }),
+            true => Err(rf.hash),
+        }
+    }
+}
+
+impl<'a> TryFrom<RawRef<'a>> for RawNodeRef<'a> {
+    type Error = &'a CryptoHash;
+
+    /// If reference is to a node, returns it as node reference.  Otherwise
+    /// returns hash of the value as `Err`.
+    #[inline]
+    fn try_from(rf: RawRef<'a>) -> Result<RawNodeRef<'a>, Self::Error> {
+        match rf {
+            RawRef::Node { ptr, hash } => Ok(Self { ptr, hash }),
+            RawRef::Value { hash } => Err(hash),
+        }
+    }
+}
+
+// =============================================================================
+// PartialEq
+
+// Are those impls dumb? Yes, they absolutely are.  However, when I used
+// #[derive(PartialEq)] I run into lifetime issues.
+//
+// My understanding is that derive would create implementation for the same
+// lifetime on LHS and RHS types (e.g. `impl<'a> PartialEq<Ref<'a>> for
+// Ref<'a>`).  As a result, when comparing two objects Rust would try to match
+// their lifetimes which wasn’t always possible.
+
+impl<'a, 'b, T, U> core::cmp::PartialEq<Node<'b, U>> for Node<'a, T>
+where
+    T: AsReference<'a> + PartialEq<U>,
+    U: AsReference<'b>,
+    T::NodeRef: PartialEq<U::NodeRef>,
+{
+    fn eq(&self, rhs: &Node<'b, U>) -> bool {
+        match (self, rhs) {
+            (
+                Node::Branch { children: lhs },
+                Node::Branch { children: rhs },
+            ) => lhs == rhs,
+            (
+                Node::Extension { key: lhs_key, child: lhs_child },
+                Node::Extension { key: rhs_key, child: rhs_child },
+            ) => lhs_key == rhs_key && lhs_child == rhs_child,
+            (
+                Node::Value { value_hash: lhs, .. },
+                Node::Value { value_hash: rhs, .. },
+            ) if lhs != rhs => false,
+            (
+                Node::Value { child: None, .. },
+                Node::Value { child: None, .. },
+            ) => true,
+            (
+                Node::Value { child: Some(lhs), .. },
+                Node::Value { child: Some(rhs), .. },
+            ) => lhs == rhs,
+            _ => false,
+        }
+    }
+}
+
+impl<'a, 'b> core::cmp::PartialEq<RawRef<'b>> for RawRef<'a> {
+    fn eq(&self, rhs: &RawRef<'b>) -> bool {
+        match (self, rhs) {
+            (
+                RawRef::Node { ptr: lhs_ptr, hash: lhs_hash },
+                RawRef::Node { ptr: rhs_ptr, hash: rhs_hash },
+            ) => lhs_ptr == rhs_ptr && lhs_hash == rhs_hash,
+            (
+                RawRef::Value { hash: lhs_hash },
+                RawRef::Value { hash: rhs_hash },
+            ) => lhs_hash == rhs_hash,
+            _ => false,
+        }
+    }
+}
+
+impl<'a, 'b> core::cmp::PartialEq<RawNodeRef<'b>> for RawNodeRef<'a> {
+    fn eq(&self, rhs: &RawNodeRef<'b>) -> bool {
+        self.ptr == rhs.ptr && self.hash == rhs.hash
+    }
+}
+
+impl<'a, 'b> core::cmp::PartialEq<Ref<'b>> for Ref<'a> {
+    fn eq(&self, rhs: &Ref<'b>) -> bool {
+        self.is_value == rhs.is_value && self.hash == rhs.hash
+    }
+}
+
+impl<'a, 'b> core::cmp::PartialEq<NodeRef<'b>> for NodeRef<'a> {
+    fn eq(&self, rhs: &NodeRef<'b>) -> bool { self.hash == rhs.hash }
 }
 
 // =============================================================================
@@ -500,21 +646,15 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
         // Value
         let (_, value) = stdx::split_array_ref::<4, 32, 36>(left);
         let value_hash = value.into();
-        let child = match RawRef::from_raw(right) {
-            RawRef::Node { ptr, hash } => Some((ptr, hash)),
-            RawRef::Value { hash } => {
-                debug_assert_eq!(CryptoHash::default(), *hash);
-                None
-            }
-        };
+        let child = RawNodeRef::try_from(RawRef::from_raw(right))
+            .map_err(|hash| debug_assert_eq!(CryptoHash::default(), *hash))
+            .ok();
         Node::Value { value_hash, child }
     }
 }
 
 /// Decodes a node as represented in a proof.
-fn decode_proof<'a>(
-    node: &'a ProofNode,
-) -> Option<Node<'a, Ref<'a>, &'a CryptoHash>> {
+fn decode_proof<'a>(node: &'a ProofNode) -> Option<Node<'a, Ref<'a>>> {
     let bytes = &*node.0;
     let (&first, rest) = bytes.split_first()?;
     if first & !3 == 0 {
@@ -541,7 +681,7 @@ fn decode_proof<'a>(
         let child = if rest.is_empty() {
             None
         } else if let Ok(hash) = <&[u8; 32]>::try_from(rest) {
-            Some(hash.into())
+            Some(NodeRef { hash: hash.into() })
         } else {
             return None;
         };
@@ -587,9 +727,9 @@ fn proof_from_raw<'a>(dest: &'a mut [u8; 68], node: &RawNode) -> &'a [u8] {
 /// (node representation used in proofs is variable-length).  If the given node
 /// cannot be encoded (which happens if it’s an extension with a key whose byte
 /// buffer is longer than 34 bytes), returns `None`.
-fn proof_from_node<'a, 'b, R: AsReference<'a>, N: AsNodeHash<'a>>(
+fn proof_from_node<'a, 'b, R: AsReference<'a>>(
     dest: &'b mut [u8; 68],
-    node: &Node<'a, R, N>,
+    node: &Node<'a, R>,
 ) -> Option<&'b [u8]> {
     let len = match node {
         Node::Branch { children: [left, right] } => {
@@ -602,7 +742,8 @@ fn proof_from_node<'a, 'b, R: AsReference<'a>, N: AsNodeHash<'a>>(
             dest[0] = 0xC0;
             dest[1..33].copy_from_slice(value_hash.as_slice());
             if let Some(child) = child {
-                dest[33..65].copy_from_slice(child.as_node_hash().as_slice());
+                dest[33..65]
+                    .copy_from_slice(child.as_node_reference().hash.as_slice());
                 65
             } else {
                 33
@@ -612,11 +753,7 @@ fn proof_from_node<'a, 'b, R: AsReference<'a>, N: AsNodeHash<'a>>(
     Some(&dest[..len])
 }
 
-fn build_proof_branch(
-    dest: &mut [u8; 68],
-    left: Ref<'_>,
-    right: Ref<'_>,
-) -> usize {
+fn build_proof_branch(dest: &mut [u8; 68], left: Ref, right: Ref) -> usize {
     dest[0] = (u8::from(left.is_value) << 1) | u8::from(right.is_value);
     dest[1..33].copy_from_slice(left.hash.as_slice());
     dest[33..65].copy_from_slice(right.hash.as_slice());
@@ -625,8 +762,8 @@ fn build_proof_branch(
 
 fn build_proof_extension(
     dest: &mut [u8; 68],
-    key: Slice<'_>,
-    child: Ref<'_>,
+    key: Slice,
+    child: Ref,
 ) -> Option<usize> {
     let len =
         key.try_encode_into(stdx::split_array_mut::<36, 32, 68>(dest).0)?;

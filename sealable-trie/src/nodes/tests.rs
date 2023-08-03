@@ -24,11 +24,11 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 /// Converts `Node` into `RawNode` and then back into `Node`.  Panics if the
 /// first and last objects aren’t equal.  Returns the raw node.
 #[track_caller]
-fn raw_from_node(node: &Node<'_, RawRef<'_>>) -> RawNode {
+fn raw_from_node(node: &Node) -> RawNode {
     let raw = RawNode::try_from(node).unwrap();
     let decoded = Node::from(&raw);
     assert_eq!(
-        node, &decoded,
+        *node, decoded,
         "Node → RawNode → Node gave different result:\n Raw: {raw:?}"
     );
     raw
@@ -40,8 +40,8 @@ fn raw_from_node(node: &Node<'_, RawRef<'_>>) -> RawNode {
 /// `ProofNode` and then back into `Node`.  Panics if the first and last
 /// objects aren’t equal.  Returns the proof node.
 #[track_caller]
-fn proof_from_node(node: &Node<'_>) -> ProofNode {
-    let node = node.map_node_refs(Ref::from, |(_ptr, hash)| hash);
+fn proof_from_node(node: &Node) -> ProofNode {
+    let node = node.map_refs(Ref::from, NodeRef::from);
     let proof = ProofNode::try_from(node).unwrap();
     let decoded = Node::try_from(&proof).unwrap();
     assert_eq!(
@@ -60,11 +60,7 @@ fn proof_from_node(node: &Node<'_>) -> ProofNode {
 /// 3. Checks that adding or subtracting one byte from the proof representation
 ///    results in failure to decode the proof.
 #[track_caller]
-fn check_node_encoding(
-    node: Node<'_, RawRef<'_>>,
-    want_raw: [u8; 72],
-    want_proof: &[u8],
-) {
+fn check_node_encoding(node: Node, want_raw: [u8; 72], want_proof: &[u8]) {
     let raw = raw_from_node(&node);
     assert_eq!(want_raw, raw.0, "Unexpected raw representation");
     let proof = proof_from_node(&node);
@@ -214,7 +210,7 @@ fn test_value_encoding() {
 
     check_node_encoding(Node::Value {
         value_hash: &ONE,
-        child: Some((Some(BEEF), &TWO)),
+        child: Some(RawNodeRef::new(Some(BEEF), &TWO)),
     }, [
         /* tag:   */ 0xC0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
