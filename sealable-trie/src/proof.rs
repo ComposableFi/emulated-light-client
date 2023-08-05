@@ -45,7 +45,7 @@ pub fn verify(
                 }
                 node_hash = child.hash;
             }
-            Ok(Node::Value { value_hash, child }) => {
+            Ok(Node::Value { is_sealed: _, value_hash, child }) => {
                 if our_key.is_empty() {
                     return our_hash == Some(value_hash);
                 } else if let Some(child) = child {

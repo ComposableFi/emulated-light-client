@@ -6,7 +6,8 @@ use crate::bits;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
 use crate::nodes::{
-    Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref,
+    Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref, Sealed,
+    Unsealed,
 };
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
@@ -72,7 +73,7 @@ fn check_node_encoding(node: Node, want_raw: [u8; 72], want_proof: &[u8]) {
     let proof = proof_from_node(&node);
     assert_eq!(want_proof, &proof[..], "Unexpected proof representation");
 
-    assert_eq!(proof, ProofNode::from(raw), "Bad Raw → Proof conversion");
+    assert_eq!(node, Node::from(&RawNode(want_raw)), "Bad Raw→Node conversion");
 
     let mut bad_proof = want_proof.to_vec();
     bad_proof.push(0);
@@ -97,12 +98,12 @@ fn test_branch_encoding() {
     check_node_encoding(Node::Branch {
         children: [
             RawRef::node(Some(DEAD), &ONE),
-            RawRef::node(Some(BEEF), &TWO),
+            RawRef::node(None, &TWO),
         ],
     }, [
         /* ptr1:  */ 0, 0, 0xDE, 0xAD,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr2:  */ 0, 0, 0xBE, 0xEF,
+        /* ptr2:  */ 0, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
     ], &[
         /* tag:   */ 0,
@@ -114,7 +115,7 @@ fn test_branch_encoding() {
     check_node_encoding(Node::Branch {
         children: [
             RawRef::node(Some(DEAD), &ONE),
-            RawRef::value(&TWO),
+            RawRef::value(Unsealed, &TWO),
         ],
     }, [
         /* ptr1:  */ 0, 0, 0xDE, 0xAD,
@@ -130,11 +131,11 @@ fn test_branch_encoding() {
     // Branch with first child being a value and second being a node.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::value(&ONE),
+            RawRef::value(Sealed, &ONE),
             RawRef::node(Some(BEEF), &TWO),
         ],
     }, [
-        /* ptr1:  */ 0x40, 0, 0, 0,
+        /* ptr1:  */ 0x60, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr2:  */ 0, 0, 0xBE, 0xEF,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
@@ -147,13 +148,13 @@ fn test_branch_encoding() {
     // Branch with both children being values.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::value(&ONE),
-            RawRef::value(&TWO),
+            RawRef::value(Unsealed, &ONE),
+            RawRef::value(Sealed, &TWO),
         ],
     }, [
         /* ptr1:  */ 0x40, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr2:  */ 0x40, 0, 0, 0,
+        /* ptr2:  */ 0x60, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
     ], &[
         /* tag:   */ 3,
@@ -180,12 +181,25 @@ fn test_extension_encoding() {
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ]);
 
+    // Extension pointing at a sealed node
+    check_node_encoding(Node::Extension {
+        key: bits::Slice::new(&[0xFF; 34], 5, 25).unwrap(),
+        child: RawRef::node(None, &ONE),
+    }, [
+        /* tag:  */ 0x80, 0xCD,
+        /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        /* ptr:  */ 0, 0, 0, 0,
+        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ], &[
+        /* tag:  */ 0x80, 0xCD,
+        /* key:  */ 0x07, 0xFF, 0xFF, 0xFC,
+        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ]);
+
     // Extension pointing at a value
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
-        child: RawRef::Value {
-            hash: &ONE,
-        },
+        child: RawRef::value(Unsealed, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
         /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -199,12 +213,30 @@ fn test_extension_encoding() {
         /*       */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ]);
+
+    check_node_encoding(Node::Extension {
+        key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
+        child: RawRef::value(Sealed, &ONE),
+    }, [
+        /* tag:  */ 0x87, 0xC4,
+        /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        /*       */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
+        /*       */ 0x00, 0x00,
+        /* ptr:  */ 0x60, 0, 0, 0,
+        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ], &[
+        /* tag:  */ 0x97, 0xC4,
+        /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        /*       */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
+        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ]);
 }
 
 #[test]
 #[rustfmt::skip]
 fn test_value_encoding() {
     check_node_encoding(Node::Value {
+        is_sealed: Unsealed,
         value_hash: &ONE,
         child: None,
     }, [
@@ -218,6 +250,7 @@ fn test_value_encoding() {
     ]);
 
     check_node_encoding(Node::Value {
+        is_sealed: Unsealed,
         value_hash: &ONE,
         child: Some(RawNodeRef::new(Some(BEEF), &TWO)),
     }, [
@@ -229,6 +262,20 @@ fn test_value_encoding() {
         /* tag:   */ 0xC0,
         /* hash:  */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+    ]);
+
+    check_node_encoding(Node::Value {
+        is_sealed: Sealed,
+        value_hash: &ONE,
+        child: None,
+    }, [
+        /* tag:   */ 0xE0, 0, 0, 0,
+        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr:   */ 0x40, 0, 0, 0,
+        /* chash: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ], &[
+        /* tag:   */ 0xC0,
+        /* hash:  */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ]);
 }
 

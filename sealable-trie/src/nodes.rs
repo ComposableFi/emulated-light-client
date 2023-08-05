@@ -56,10 +56,20 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
         child: R,
     },
     Value {
+        is_sealed: IsSealed,
         value_hash: &'a CryptoHash,
         child: Option<R::NodeRef>,
     },
 }
+
+/// Flag indicating whether value or node is sealed or not.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum IsSealed {
+    Unsealed,
+    Sealed,
+}
+
+pub use IsSealed::*;
 
 /// Binary representation of the node as kept in the persistent storage.
 ///
@@ -79,7 +89,7 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
 //    36-byte array which holds the key extension.  Only `o..o+k` bits in it
 //    are the actual key; others are set to zero.
 //
-// Value:     1100_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
+// Value:     11s0_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
 //    <vhash> is the hash of the stored value.  `s` is zero if the value hasn’t
 //    been sealed or one otherwise.
 //
@@ -87,24 +97,25 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
 //    a prefix of another key) the <node-ref> is a references the child (as in
 //    Branch).  Otherwise, the first byte of <node-ref> is 0x40 (which normally
 //    indicates that the reference is to a value) and rest are set to zero.
-//
-//    TODO(mina86): Implement handling of sealed values.
 // ```
 //
 // A Reference is a 36-byte sequence consisting of a 4-byte pointer and
-// a 32-byte hash.  The most significant bit of the pointer is always set to
-// zero (this is so that Branch nodes can be distinguished from other nodes).
-// The second most significant bit is zero if the reference is to a node and one
-// if it’s a hash of a value.  In the latter case, the other bits of the pointer
-// are always zero if the value isn’t sealed or one if it has been sealed:
+// a 32-byte hash.  The most significant bit of the pointer is always zero (this
+// is so that Branch nodes can be distinguished from other nodes).  The second
+// most significant bit is zero if the reference is a node reference and one if
+// it’s a value reference.
 //
 // ```ignore
-// Node Ref:  0b0cpp_pppp pppp_pppp pppp_pppp pppp_pppp <hash>
+// Node Ref:  0b00pp_pppp pppp_pppp pppp_pppp pppp_pppp <hash>
+//    `ppp` is the pointer to the node.  If it’s zero than the node is sealed
+//    the it’s not stored anywhere.
+//
+// Value Ref: 0b01s0_0000 0000_0000 0000_0000 0000_0000 <hash>
+//    `s` determines whether the value is sealed or not.  If it is, it cannot be
+//    changed.
 // ```
 //
 // The actual pointer value is therefore 30-bit long.
-//
-// TODO(mina86): Implement handling of sealed values.
 #[derive(Clone, Copy, PartialEq, derive_more::Deref)]
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; 72]);
@@ -134,7 +145,7 @@ pub struct ProofNode(Box<[u8]>);
 #[derive(Clone, Copy, Debug)]
 pub enum RawRef<'a> {
     Node { ptr: Option<Ptr>, hash: &'a CryptoHash },
-    Value { hash: &'a CryptoHash },
+    Value { is_sealed: IsSealed, hash: &'a CryptoHash },
 }
 
 /// Reference to a node with given pointer and hash as parse from the raw node
@@ -193,10 +204,11 @@ impl<'a, R: AsReference<'a>> Node<'a, R> {
 
     /// Constructs a Value node with given value hash and child.
     pub fn value(
+        is_sealed: IsSealed,
         value_hash: &'a CryptoHash,
         child: Option<R::NodeRef>,
     ) -> Self {
-        Self::Value { value_hash, child }
+        Self::Value { is_sealed, value_hash, child }
     }
 
     /// Returns a hash of the node.
@@ -225,9 +237,19 @@ impl<'a, R: AsReference<'a>> Node<'a, R> {
             Node::Extension { key, child } => {
                 Node::Extension { key, child: ref_map(child) }
             }
-            Node::Value { value_hash, child } => {
-                Node::Value { value_hash, child: child.map(node_map) }
+            Node::Value { is_sealed, value_hash, child } => {
+                let child = child.map(node_map);
+                Node::Value { is_sealed, value_hash, child }
             }
+        }
+    }
+}
+
+impl IsSealed {
+    pub fn new(is_sealed: bool) -> Self {
+        match is_sealed {
+            false => Self::Unsealed,
+            true => Self::Sealed,
         }
     }
 }
@@ -257,16 +279,22 @@ impl RawNode {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value_hash: &CryptoHash, child: Option<RawNodeRef>) -> Self {
+    pub fn value(
+        is_sealed: IsSealed,
+        value_hash: &CryptoHash,
+        child: Option<RawNodeRef>,
+    ) -> Self {
+        const NO_CHILD: [u8; 36] = {
+            let mut res = [0; 36];
+            res[0] = 0x40;
+            res
+        };
+
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
-        let (tag, value) = stdx::split_array_mut::<4, 32, 36>(lft);
-        *tag = 0xC000_0000_u32.to_be_bytes();
-        *value = value_hash.into();
-        *rht = child
-            .map(RawRef::from)
-            .unwrap_or(RawRef::Value { hash: &CryptoHash::DEFAULT })
-            .encode_raw();
+        *lft = RawRef::value(is_sealed, value_hash).encode_raw();
+        lft[0] |= 0x80;
+        *rht = child.map_or(NO_CHILD, |nref| RawRef::from(nref).encode_raw());
         res
     }
 
@@ -309,7 +337,9 @@ impl<'a> RawRef<'a> {
 
     /// Creates a new reference pointing at value with given hash.
     #[inline]
-    pub fn value(hash: &'a CryptoHash) -> Self { Self::Value { hash } }
+    pub fn value(is_sealed: IsSealed, hash: &'a CryptoHash) -> Self {
+        Self::Value { is_sealed, hash }
+    }
 
     /// Parses bytes to form a raw node reference representation.
     ///
@@ -317,9 +347,12 @@ impl<'a> RawRef<'a> {
     /// significant bit is zero or that if second bit is one than pointer value
     /// must be zero.
     ///
-    /// In debug builds panics if `bytes` is an invalid raw node representation,
-    /// i.e. if any unused bits (which must be cleared) are set.
-    fn from_raw(bytes: &'a [u8; 36]) -> Self {
+    /// In debug builds, panics if `bytes` has non-canonical representation,
+    /// i.e. any unused bits are set.  `value_high_bit` in this case determines
+    /// whether for value reference the most significant bit should be set or
+    /// not.  This is to facilitate decoding Value nodes.  The argument is
+    /// ignored in builds with debug assertions disabled.
+    fn from_raw(bytes: &'a [u8; 36], value_high_bit: bool) -> Self {
         let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
         let ptr = u32::from_be_bytes(*ptr);
         let hash = hash.into();
@@ -333,10 +366,12 @@ impl<'a> RawRef<'a> {
             Self::Node { ptr, hash }
         } else {
             debug_assert_eq!(
-                0x4000_0000, ptr,
+                0x4000_0000 | (u32::from(value_high_bit) << 31),
+                ptr & !0x2000_0000,
                 "Failed decoding RawRef: {bytes:?}"
             );
-            Self::Value { hash }
+            let is_sealed = IsSealed::new(ptr & 0x2000_0000 != 0);
+            Self::Value { is_sealed, hash }
         }
     }
 
@@ -344,7 +379,13 @@ impl<'a> RawRef<'a> {
     fn encode_raw(&self) -> [u8; 36] {
         let (ptr, hash) = match self {
             Self::Node { ptr, hash } => (ptr.map_or(0, |ptr| ptr.get()), *hash),
-            Self::Value { hash } => (0x4000_0000, *hash),
+            Self::Value { is_sealed, hash } => {
+                let ptr = match is_sealed {
+                    Unsealed => 0x4000_0000,
+                    Sealed => 0x6000_0000,
+                };
+                (ptr, *hash)
+            }
         };
         let mut buf = [0; 36];
         let (left, right) = stdx::split_array_mut::<4, 32, 36>(&mut buf);
@@ -366,8 +407,7 @@ impl<'a> Ref<'a> {
     /// Creates a new node reference.
     #[inline]
     pub fn new<T: Into<&'a CryptoHash>>(is_value: bool, hash: T) -> Self {
-        let hash = hash.into();
-        Self { is_value, hash }
+        Self { is_value, hash: hash.into() }
     }
 }
 
@@ -392,8 +432,8 @@ impl<'a> AsReference<'a> for RawRef<'a> {
     #[inline]
     fn as_reference(&self) -> Ref<'a> {
         let (is_value, hash) = match self {
-            Self::Node { hash, .. } => (false, hash),
-            Self::Value { hash } => (true, hash),
+            Self::Node { hash, .. } => (false, *hash),
+            Self::Value { hash, .. } => (true, *hash),
         };
         Ref { is_value, hash }
     }
@@ -536,15 +576,15 @@ impl<'a> TryFrom<Ref<'a>> for NodeRef<'a> {
 }
 
 impl<'a> TryFrom<RawRef<'a>> for RawNodeRef<'a> {
-    type Error = &'a CryptoHash;
+    type Error = (IsSealed, &'a CryptoHash);
 
     /// If reference is to a node, returns it as node reference.  Otherwise
-    /// returns hash of the value as `Err`.
+    /// returns is_sealed flag hash of the value as `Err`.
     #[inline]
     fn try_from(rf: RawRef<'a>) -> Result<RawNodeRef<'a>, Self::Error> {
         match rf {
             RawRef::Node { ptr, hash } => Ok(Self { ptr, hash }),
-            RawRef::Value { hash } => Err(hash),
+            RawRef::Value { is_sealed, hash } => Err((is_sealed, hash)),
         }
     }
 }
@@ -601,9 +641,9 @@ impl<'a, 'b> core::cmp::PartialEq<RawRef<'b>> for RawRef<'a> {
                 RawRef::Node { ptr: rhs_ptr, hash: rhs_hash },
             ) => lhs_ptr == rhs_ptr && lhs_hash == rhs_hash,
             (
-                RawRef::Value { hash: lhs_hash },
-                RawRef::Value { hash: rhs_hash },
-            ) => lhs_hash == rhs_hash,
+                RawRef::Value { is_sealed: lhs_sealed, hash: lhs_hash },
+                RawRef::Value { is_sealed: rhs_sealed, hash: rhs_hash },
+            ) => lhs_sealed == rhs_sealed && lhs_hash == rhs_hash,
             _ => false,
         }
     }
@@ -635,12 +675,11 @@ impl<'a, 'b> core::cmp::PartialEq<NodeRef<'b>> for NodeRef<'a> {
 /// unused bits (which must be cleared) are set.
 fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
     let (left, right) = node.halfs();
+    let right = RawRef::from_raw(right, false);
     let tag = node.first() >> 6;
     if tag == 0 || tag == 1 {
         // Branch
-        Node::Branch {
-            children: [RawRef::from_raw(left), RawRef::from_raw(right)],
-        }
+        Node::Branch { children: [RawRef::from_raw(left, false), right] }
     } else if tag == 2 {
         // Extension
         let (num, key) =
@@ -649,23 +688,31 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
         debug_assert_eq!(0x8000, num & 0xF000, "Failed decoding raw: {node:?}");
         Node::Extension {
             key: Slice::from_raw(num & 0x0FFF, key),
-            child: RawRef::from_raw(right),
+            child: right,
         }
     } else {
         // Value
-        let (_, value) = stdx::split_array_ref::<4, 32, 36>(left);
+        let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
+        let num = u32::from_be_bytes(*num);
+        debug_assert_eq!(
+            0xC000_0000,
+            num & !0x2000_0000,
+            "Failed decoding raw node: {node:?}",
+        );
+        let is_sealed = IsSealed::new(num & 0x2000_0000 != 0);
         let value_hash = value.into();
-        let child = RawNodeRef::try_from(RawRef::from_raw(right))
-            .map_err(|hash| {
+        let child = match right {
+            RawRef::Node { ptr, hash } => Some(RawNodeRef::new(ptr, hash)),
+            RawRef::Value { is_sealed, hash } => {
                 debug_assert_eq!(
-                    CryptoHash::default(),
-                    *hash,
-                    "Failed decoding raw node: {:?}",
-                    node.0
-                )
-            })
-            .ok();
-        Node::Value { value_hash, child }
+                    (Unsealed, &CryptoHash::default()),
+                    (is_sealed, hash),
+                    "Failed decoding raw node: {node:?}",
+                );
+                None
+            }
+        };
+        Node::Value { is_sealed, value_hash, child }
     }
 }
 
@@ -700,7 +747,7 @@ fn decode_proof<'a>(bytes: &'a [u8]) -> Option<Node<'a, Ref<'a>>> {
         } else {
             return None;
         };
-        Some(Node::Value { value_hash, child })
+        Some(Node::Value { is_sealed: Unsealed, value_hash, child })
     } else {
         None
     }
@@ -718,8 +765,8 @@ fn raw_from_node<'a>(node: &Node<'a, RawRef<'a>>) -> Option<RawNode> {
             Some(RawNode::branch(*left, *right))
         }
         Node::Extension { key, child } => RawNode::extension(*key, *child),
-        Node::Value { value_hash, child } => {
-            Some(RawNode::value(value_hash, *child))
+        Node::Value { is_sealed, value_hash, child } => {
+            Some(RawNode::value(*is_sealed, value_hash, *child))
         }
     }
 }
@@ -753,7 +800,7 @@ fn proof_from_node<'a, 'b, R: AsReference<'a>>(
         Node::Extension { key, child } => {
             build_proof_extension(dest, *key, child.as_reference())?
         }
-        Node::Value { value_hash, child } => {
+        Node::Value { is_sealed: _, value_hash, child } => {
             dest[0] = 0xC0;
             dest[1..33].copy_from_slice(value_hash.as_slice());
             if let Some(child) = child {
@@ -788,7 +835,30 @@ fn build_proof_extension(
 }
 
 // =============================================================================
-// Debug
+// Formatting
+
+impl core::fmt::Debug for IsSealed {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        fmtr.write_str(match self {
+            Unsealed => "unsealed",
+            Sealed => "sealed",
+        })
+    }
+}
+
+impl core::fmt::Display for IsSealed {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let val = match (fmtr.alternate(), self) {
+            (true, Unsealed) => return Ok(()),
+            (true, Sealed) => " (sealed)",
+            (_, Unsealed) => "unsealed",
+            (_, Sealed) => "sealed",
+        };
+        fmtr.write_str(val)
+    }
+}
 
 impl core::fmt::Debug for RawNode {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
