@@ -23,7 +23,7 @@ fn test_sanity() {
     trie.print();
     println!("----");
 
-    // trie.set(b"2", &make_hash(2), None).unwrap();
-    // trie.print();
-    // println!("----");
+    trie.set(b"2", &make_hash(2), None).unwrap();
+    trie.print();
+    println!("----");
 }

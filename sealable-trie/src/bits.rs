@@ -358,6 +358,9 @@ impl<'a> Slice<'a> {
     /// Returns `None` if the slice is empty or too long and won’t fit in the
     /// destination buffer.
     pub(crate) fn try_encode_into(&self, dest: &mut [u8; 36]) -> Option<usize> {
+        if self.length == 0 {
+            return None;
+        }
         let bytes = self.bytes();
         if bytes.is_empty() || bytes.len() > nodes::MAX_EXTENSION_KEY_SIZE {
             return None;
