@@ -7,6 +7,8 @@ use crate::stdx;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_rand;
 
 pub(crate) const MAX_EXTENSION_KEY_SIZE: usize = 34;
 
@@ -77,7 +79,7 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
 //    36-byte array which holds the key extension.  Only `o..o+k` bits in it
 //    are the actual key; others are set to zero.
 //
-// Value:     1100_0000 0000_0000 0000_0000 0000_000s <vhash> <node-ref>
+// Value:     1100_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
 //    <vhash> is the hash of the stored value.  `s` is zero if the value hasn’t
 //    been sealed or one otherwise.
 //
@@ -103,7 +105,7 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
 // The actual pointer value is therefore 30-bit long.
 //
 // TODO(mina86): Implement handling of sealed values.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, PartialEq, derive_more::Deref)]
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; 72]);
 
@@ -124,7 +126,7 @@ pub struct RawNode(pub(crate) [u8; 72]);
 //    If the node is also a prefix of another key, <hash> is hash of the node
 //    that continues the key.  Otherwise it’s not present.
 // ```
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq, derive_more::Deref)]
 pub struct ProofNode(Box<[u8]>);
 
 /// Node reference as parsed from the raw node representation.  It can either
@@ -322,11 +324,18 @@ impl<'a> RawRef<'a> {
         let ptr = u32::from_be_bytes(*ptr);
         let hash = hash.into();
         if ptr & 0x4000_0000 == 0 {
-            debug_assert_eq!(0, ptr & 0xC000_0000);
+            debug_assert_eq!(
+                0,
+                ptr & 0xC000_0000,
+                "Failed decoding RawRef: {bytes:?}"
+            );
             let ptr = Ptr::new_truncated(ptr);
             Self::Node { ptr, hash }
         } else {
-            debug_assert_eq!(0x4000_0000, ptr);
+            debug_assert_eq!(
+                0x4000_0000, ptr,
+                "Failed decoding RawRef: {bytes:?}"
+            );
             Self::Value { hash }
         }
     }
@@ -426,7 +435,7 @@ impl<'a> TryFrom<&'a ProofNode> for Node<'a, Ref<'a>> {
     /// which should be zero were not set to zero).
     #[inline]
     fn try_from(node: &'a ProofNode) -> Result<Self, Self::Error> {
-        decode_proof(node).ok_or(())
+        decode_proof(&*node.0).ok_or(())
     }
 }
 
@@ -647,15 +656,21 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
         let (_, value) = stdx::split_array_ref::<4, 32, 36>(left);
         let value_hash = value.into();
         let child = RawNodeRef::try_from(RawRef::from_raw(right))
-            .map_err(|hash| debug_assert_eq!(CryptoHash::default(), *hash))
+            .map_err(|hash| {
+                debug_assert_eq!(
+                    CryptoHash::default(),
+                    *hash,
+                    "Failed decoding raw node: {:?}",
+                    node.0
+                )
+            })
             .ok();
         Node::Value { value_hash, child }
     }
 }
 
 /// Decodes a node as represented in a proof.
-fn decode_proof<'a>(node: &'a ProofNode) -> Option<Node<'a, Ref<'a>>> {
-    let bytes = &*node.0;
+fn decode_proof<'a>(bytes: &'a [u8]) -> Option<Node<'a, Ref<'a>>> {
     let (&first, rest) = bytes.split_first()?;
     if first & !3 == 0 {
         // In branch the first byte is 0b0000_00vv.
@@ -770,4 +785,102 @@ fn build_proof_extension(
     dest[0] |= 0x80 | (u8::from(child.is_value) << 4);
     dest[len..len + 32].copy_from_slice(child.hash.as_slice());
     Some(len + 32)
+}
+
+// =============================================================================
+// Debug
+
+impl core::fmt::Debug for RawNode {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        fn write_raw_key(
+            fmtr: &mut core::fmt::Formatter,
+            separator: &str,
+            bytes: &[u8; 36],
+        ) -> core::fmt::Result {
+            let (tag, key) = stdx::split_array_ref::<2, 34, 36>(bytes);
+            write!(fmtr, "{separator}{:04x}", u16::from_be_bytes(*tag))?;
+            write_binary(fmtr, ":", key)
+        }
+
+        fn write_raw_ptr(
+            fmtr: &mut core::fmt::Formatter,
+            separator: &str,
+            bytes: &[u8; 36],
+        ) -> core::fmt::Result {
+            let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
+            let ptr = u32::from_be_bytes(*ptr);
+            let hash = <&CryptoHash>::from(hash);
+            write!(fmtr, "{separator}{ptr:08x}:{hash}")
+        }
+
+        let (left, right) = self.halfs();
+        if self.first() & 0xC0 == 0x80 {
+            write_raw_key(fmtr, "", left)
+        } else {
+            write_raw_ptr(fmtr, "", left)
+        }?;
+        write_raw_ptr(fmtr, ":", right)
+    }
+}
+
+impl core::fmt::Debug for ProofNode {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write_proof(fmtr, &self.0[..])
+    }
+}
+
+#[cfg(test)]
+pub(crate) struct BorrowedProofNode<'a>(pub &'a [u8]);
+
+#[cfg(test)]
+impl core::fmt::Debug for BorrowedProofNode<'_> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write_proof(fmtr, self.0)
+    }
+}
+
+fn write_proof(
+    fmtr: &mut core::fmt::Formatter,
+    bytes: &[u8],
+) -> core::fmt::Result {
+    let first = match bytes.first() {
+        Some(byte) => *byte,
+        None => return fmtr.write_str("∅"),
+    };
+    let len = bytes.len();
+    if first & 0x80 == 0 && len == 65 {
+        let bytes = <&[u8; 64]>::try_from(&bytes[1..]).unwrap();
+        let (left, right) = stdx::split_array_ref::<32, 32, 64>(bytes);
+        let left = <&CryptoHash>::from(left);
+        let right = <&CryptoHash>::from(right);
+        write!(fmtr, "{first:02x}:{left}:{right}")
+    } else if first & 0xC0 == 0x80 && len >= 35 {
+        let (tag, bytes) = stdx::split_at::<2>(bytes).unwrap();
+        let (key, hash) = stdx::rsplit_at::<32>(bytes).unwrap();
+        write!(fmtr, "{:04x}", u16::from_be_bytes(*tag))?;
+        write_binary(fmtr, ":", key)?;
+        write!(fmtr, ":{}", <&CryptoHash>::from(hash))
+    } else if first & 0xC0 == 0xC0 && (len == 33 || len == 65) {
+        let (hash, rest) = stdx::split_at::<32>(&bytes[1..]).unwrap();
+        write!(fmtr, "{first:02x}:{}", <&CryptoHash>::from(hash))?;
+        if !rest.is_empty() {
+            let hash = <&[u8; 32]>::try_from(rest).unwrap();
+            write!(fmtr, "{}", <&CryptoHash>::from(hash))?;
+        }
+        Ok(())
+    } else {
+        write_binary(fmtr, "", bytes)
+    }
+}
+
+fn write_binary(
+    fmtr: &mut core::fmt::Formatter,
+    mut separator: &str,
+    bytes: &[u8],
+) -> core::fmt::Result {
+    for byte in bytes {
+        write!(fmtr, "{separator}{byte:02x}")?;
+        separator = "_";
+    }
+    Ok(())
 }

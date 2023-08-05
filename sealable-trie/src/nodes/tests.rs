@@ -2,10 +2,12 @@ use alloc::boxed::Box;
 
 use pretty_assertions::assert_eq;
 
-use super::*;
 use crate::bits;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
+use crate::nodes::{
+    Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref,
+};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
     Ok(Some(ptr)) => ptr,
@@ -24,8 +26,9 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 /// Converts `Node` into `RawNode` and then back into `Node`.  Panics if the
 /// first and last objects aren’t equal.  Returns the raw node.
 #[track_caller]
-fn raw_from_node(node: &Node) -> RawNode {
-    let raw = RawNode::try_from(node).unwrap();
+pub(super) fn raw_from_node(node: &Node) -> RawNode {
+    let raw = RawNode::try_from(node)
+        .unwrap_or_else(|()| panic!("Failed encoding node as raw: {node:?}"));
     let decoded = Node::from(&raw);
     assert_eq!(
         *node, decoded,
@@ -40,10 +43,13 @@ fn raw_from_node(node: &Node) -> RawNode {
 /// `ProofNode` and then back into `Node`.  Panics if the first and last
 /// objects aren’t equal.  Returns the proof node.
 #[track_caller]
-fn proof_from_node(node: &Node) -> ProofNode {
+pub(super) fn proof_from_node(node: &Node) -> ProofNode {
     let node = node.map_refs(Ref::from, NodeRef::from);
-    let proof = ProofNode::try_from(node).unwrap();
-    let decoded = Node::try_from(&proof).unwrap();
+    let proof = ProofNode::try_from(node)
+        .unwrap_or_else(|()| panic!("Failed encoding node as proof: {node:?}"));
+    let decoded = Node::try_from(&proof).unwrap_or_else(|()| {
+        panic!("Failed round-trip proof decoding of: {:?}", proof)
+    });
     assert_eq!(
         node, decoded,
         "Node → ProofNode → Node gave different result:\n Proof: {proof:?}"
@@ -64,7 +70,7 @@ fn check_node_encoding(node: Node, want_raw: [u8; 72], want_proof: &[u8]) {
     let raw = raw_from_node(&node);
     assert_eq!(want_raw, raw.0, "Unexpected raw representation");
     let proof = proof_from_node(&node);
-    assert_eq!(want_proof, &proof.0[..], "Unexpected proof representation");
+    assert_eq!(want_proof, &proof[..], "Unexpected proof representation");
 
     assert_eq!(proof, ProofNode::from(raw), "Bad Raw → Proof conversion");
 
@@ -77,8 +83,11 @@ fn check_node_encoding(node: Node, want_raw: [u8; 72], want_proof: &[u8]) {
 
 #[track_caller]
 fn check_invalid_proof_node(bytes: &[u8]) {
-    let node = ProofNode(Box::from(bytes));
-    assert_eq!(Err(()), Node::try_from(&node));
+    assert_eq!(
+        Err(()),
+        Node::try_from(&ProofNode(Box::from(bytes))),
+        "Unexpectedly parsed invalid proof node: {bytes:x?}"
+    );
 }
 
 #[test]

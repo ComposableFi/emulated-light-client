@@ -63,7 +63,7 @@ impl<'a> Slice<'a> {
         }
         let has_bits =
             u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_mul(8);
-        if length == 0 || (u32::from(length) + u32::from(offset) <= has_bits) {
+        if u32::from(length) + u32::from(offset) <= has_bits {
             Some(Self {
                 offset,
                 length,
@@ -104,7 +104,7 @@ impl<'a> Slice<'a> {
         let (offset, length) = (num % 8, num / 8);
         debug_assert!(
             length != 0 &&
-                usize::from(length + offset + 7) / 8 <
+                usize::from(length + offset + 7) / 8 <=
                     nodes::MAX_EXTENSION_KEY_SIZE,
             "offset:{offset} length:{length}"
         );
@@ -240,7 +240,7 @@ impl<'a> Slice<'a> {
     /// assert_eq!(bits::Slice::new(&[0x20], 2, 2).unwrap(), slice);
     ///
     /// assert!(slice.strip_prefix(slice.clone()));
-    /// assert_eq!(bits::Slice::new(&[], 4, 0).unwrap(), slice);
+    /// assert_eq!(bits::Slice::new(&[0x00], 4, 0).unwrap(), slice);
     /// ```
     pub fn strip_prefix(&mut self, prefix: Slice<'_>) -> bool {
         if self.offset != prefix.offset || self.length < prefix.length {

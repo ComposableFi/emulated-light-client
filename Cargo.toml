@@ -13,5 +13,6 @@ resolver = "2"
 [workspace.dependencies]
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 derive_more = "0.99.17"
-sha2 = { version = "0.10.7", default-features = false }
 pretty_assertions = "1.4.0"
+rand = { version = "0.8.5" }
+sha2 = { version = "0.10.7", default-features = false }

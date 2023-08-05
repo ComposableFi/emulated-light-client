@@ -54,4 +54,4 @@ jobs:
         run: cargo test
 
       - name: Run tests with Miri
-        run: cargo miri test
+        run: STRESS_TEST_ITERATIONS=5 cargo miri test

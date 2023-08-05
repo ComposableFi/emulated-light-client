@@ -62,7 +62,7 @@ impl Ptr {
     /// Two most significant bits of the address are masked out thus ensuring
     /// that the value is never too large.
     pub(crate) fn new_truncated(ptr: u32) -> Option<Ptr> {
-        NonZeroU32::new(ptr & 0x3FFF_FFF).map(Self)
+        NonZeroU32::new(ptr & (u32::MAX >> 2)).map(Self)
     }
 }
 
