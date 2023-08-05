@@ -20,8 +20,11 @@ jobs:
           toolchain: nightly
           components: rustfmt
 
-      - name: Check Formatting
+      - name: Check formatting
         run: cargo fmt --all --check
+
+      - name: Check bans etc.
+      - run cargo deny check advisories ban sources
 
   stable:
     name: Tests on stable
