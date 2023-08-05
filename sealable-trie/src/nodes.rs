@@ -294,21 +294,6 @@ impl<'a> Ref<'a> {
         let hash = hash.into();
         Self { is_value, hash }
     }
-
-    /// Parses bytes to form a raw node reference representation.
-    ///
-    /// In debug builds panics if the representation is invalid.
-    #[inline]
-    fn from_raw(bytes: &'a [u8; 36]) -> Self {
-        let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
-        let is_value = (ptr[0] & 0x40) != 0;
-        if is_value {
-            debug_assert_eq!(&[0x40, 0, 0, 0], ptr);
-        } else {
-            debug_assert_eq!(0, ptr[0] & 0xC0);
-        }
-        Self { is_value, hash: hash.into() }
-    }
 }
 
 impl<'a> AsReference<'a> for Ref<'a> {
@@ -506,6 +491,7 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
         let (num, key) =
             stdx::split_array_ref::<2, MAX_EXTENSION_KEY_SIZE, 36>(left);
         let num = u16::from_be_bytes(*num);
+        debug_assert_eq!(0x8000, num & 0xF000, "Failed decoding raw: {node:?}");
         Node::Extension {
             key: Slice::from_raw(num & 0x0FFF, key),
             child: RawRef::from_raw(right),
@@ -592,38 +578,7 @@ fn raw_from_node<'a>(node: &Node<'a, RawRef<'a>>) -> Option<RawNode> {
 /// In debug builds panics if `node` holds malformed representation, i.e. if any
 /// unused bits (which must be cleared) are set.
 fn proof_from_raw<'a>(dest: &'a mut [u8; 68], node: &RawNode) -> &'a [u8] {
-    let tag = node.first() >> 6;
-    let (left, right) = node.halfs();
-    let len = if tag == 0 || tag == 1 {
-        // Branch
-        let left = Ref::from_raw(left);
-        let right = Ref::from_raw(right);
-        build_proof_branch(dest, left, right)
-    } else if tag == 2 {
-        // Extension
-        let (tag, key) =
-            stdx::split_array_ref::<2, MAX_EXTENSION_KEY_SIZE, 36>(left);
-        let tag = u16::from_be_bytes(*tag);
-        debug_assert_eq!(0x8000, tag & 0xF000, "{tag}");
-        build_proof_extension(
-            dest,
-            Slice::from_raw(tag & 0x0FFF, key),
-            Ref::from_raw(right),
-        )
-        .unwrap()
-    } else {
-        // Value
-        debug_assert_eq!(&[0xC0, 0, 0, 0], &left[..4]);
-        dest[0] = 0xC0;
-        dest[1..33].copy_from_slice(&left[4..]);
-        if let RawRef::Node { hash, .. } = RawRef::from_raw(right) {
-            dest[33..65].copy_from_slice(hash.as_slice());
-            65
-        } else {
-            33
-        }
-    };
-    &dest[..len]
+    proof_from_node(dest, &decode_raw(node)).unwrap()
 }
 
 /// Builds proof representation for given node.
