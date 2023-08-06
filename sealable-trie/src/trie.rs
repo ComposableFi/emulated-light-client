@@ -80,7 +80,7 @@ pub enum Error {
     OutOfMemory,
     #[display(fmt = "Key longer than 8191 bytes")]
     KeyTooLong,
-    #[display(fmt = "Tried to change sealed node")]
+    #[display(fmt = "Tried to access sealed node")]
     Sealed,
 }
 
@@ -107,10 +107,68 @@ impl<A: memory::Allocator> Trie<A> {
     /// If `proof` is specified, stores proof nodes into the provided vector.
     pub fn get(
         &mut self,
-        _key: &[u8],
-        _proof: Option<&mut Vec<ProofNode>>,
+        key: &[u8],
+        mut proof: Option<&mut Vec<ProofNode>>,
     ) -> Result<Option<CryptoHash>> {
-        todo!()
+        let mut key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        if self.root_hash == EMPTY_TRIE_ROOT {
+            return Ok(None);
+        }
+
+        let mut ptr = self.root_ptr;
+        loop {
+            let node = match ptr {
+                None => return Ok(None),
+                Some(ptr) => self.alloc.get(ptr),
+            };
+            let node = Node::from(&node);
+            if let Some(proof) = proof.as_mut() {
+                proof.push(ProofNode::try_from(node).unwrap())
+            }
+
+            let child = match (key.is_empty(), node) {
+                (_, Node::Value { is_sealed: Sealed, .. }) => {
+                    return Err(Error::Sealed)
+                }
+
+                (true, Node::Value { value_hash, .. }) => {
+                    return Ok(Some(value_hash.clone()))
+                }
+                (true, _) => return Ok(None),
+
+                (false, Node::Branch { children }) => match key.pop_front() {
+                    None => return Ok(None),
+                    Some(bit) => children[usize::from(bit)],
+                },
+                (false, Node::Extension { key: mut ext_key, child }) => {
+                    key.forward_common_prefix(&mut ext_key);
+                    if !ext_key.is_empty() {
+                        return Ok(None);
+                    }
+                    child
+                }
+                (false, Node::Value { child, .. }) => {
+                    if let Some(child) = child {
+                        ptr = child.ptr;
+                        continue;
+                    } else {
+                        return Ok(None);
+                    }
+                }
+            };
+
+            ptr = match (key.is_empty(), child) {
+                (_, RawRef::Value { is_sealed: Sealed, .. }) => {
+                    return Err(Error::Sealed)
+                }
+                (true, RawRef::Node { .. }) => return Ok(None),
+                (true, RawRef::Value { hash, .. }) => {
+                    return Ok(Some(hash.clone()))
+                }
+                (false, RawRef::Node { ptr, .. }) => ptr,
+                (false, RawRef::Value { .. }) => return Ok(None),
+            };
+        }
     }
 
     /// Inserts a new value hash at given key.
