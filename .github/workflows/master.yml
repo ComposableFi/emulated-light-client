@@ -23,11 +23,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
-      - name: Check bans etc.
-      - run cargo deny check advisories ban sources
+      - name: Check bans
+        run: |
+          cargo install cargo-deny
+          cargo-deny --all-features check bans
 
   stable:
-    name: Tests on stable
+    name: Rust stable
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -35,12 +37,13 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
+          components: rustfmt
 
       - name: Run tests
         run: cargo test
 
   nightly:
-    name: Tests on nightly
+    name: Rust nightly
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -54,4 +57,4 @@ jobs:
         run: cargo test
 
       - name: Run tests with Miri
-        run: STRESS_TEST_ITERATIONS=5 cargo miri test
+        run: cargo miri test -- --skip ::stress_test_

@@ -28,12 +28,10 @@ fn get_iteration_count() -> usize {
 
 /// Generates random raw representation and checks decode→encode round-trip.
 #[test]
-fn test_raw_encoding_round_trip() {
-    let iterations = get_iteration_count();
-
+fn stress_test_raw_encoding_round_trip() {
     let mut rng = rand::thread_rng();
     let mut raw = RawNode([0; 72]);
-    for _ in 0..iterations {
+    for _ in 0..get_iteration_count() {
         gen_random_raw_node(&mut rng, &mut raw.0);
         let node = Node::from(&raw);
 
@@ -103,12 +101,10 @@ fn gen_random_raw_node(rng: &mut impl rand::Rng, bytes: &mut [u8; 72]) {
 
 /// Generates random proof representation and checks decode→encode round trip.
 #[test]
-fn test_proof_encoding_round_trip() {
-    let iterations = get_iteration_count();
-
+fn stress_test_proof_encoding_round_trip() {
     let mut rng = rand::thread_rng();
     let mut buf = [0; 68];
-    for _ in 0..iterations {
+    for _ in 0..get_iteration_count() {
         let len = gen_random_proof_node(&mut rng, &mut buf);
         do_test_proof_encoding_round_trip(&buf[..len])
     }
@@ -185,12 +181,10 @@ fn gen_random_proof_node(
 
 /// Generates random node and tests encode→decode round trips.
 #[test]
-fn test_node_encoding_round_trip() {
-    let iterations = get_iteration_count();
-
+fn stress_test_node_encoding_round_trip() {
     let mut rng = rand::thread_rng();
     let mut buf = [0; 66];
-    for _ in 0..iterations {
+    for _ in 0..get_iteration_count() {
         let node = gen_random_node(&mut rng, &mut buf);
 
         let raw = super::tests::raw_from_node(&node);
