@@ -23,10 +23,11 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
+      - name: Install cargo-deny
+        run: cargo install cargo-deny
+
       - name: Check bans
-        run: |
-          cargo install cargo-deny
-          cargo-deny --all-features check bans
+        run: cargo-deny --all-features check bans
 
   stable:
     name: Rust stable
