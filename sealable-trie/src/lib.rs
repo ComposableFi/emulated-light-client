@@ -11,4 +11,7 @@ pub mod proof;
 pub(crate) mod stdx;
 pub mod trie;
 
+#[cfg(test)]
+mod test_utils;
+
 pub use trie::Trie;

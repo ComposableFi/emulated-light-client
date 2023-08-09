@@ -12,19 +12,8 @@ use crate::nodes::{
     self, IsSealed, Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref,
     Unsealed,
 };
+use crate::test_utils::get_iteration_count;
 use crate::{bits, stdx};
-
-/// Reads `STRESS_TEST_ITERATIONS` environment variable to determine how many
-/// iterations random tests should try.
-fn get_iteration_count() -> usize {
-    use core::str::FromStr;
-    match std::env::var_os("STRESS_TEST_ITERATIONS") {
-        None => 10_000,
-        Some(val) => usize::from_str(val.to_str().unwrap()).unwrap(),
-    }
-}
-
-// =============================================================================
 
 /// Generates random raw representation and checks decode→encode round-trip.
 #[test]
