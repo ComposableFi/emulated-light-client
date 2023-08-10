@@ -285,11 +285,11 @@ impl<'a> Slice<'a> {
     /// ```
     pub fn forward_common_prefix(&mut self, other: &mut Slice<'_>) -> Self {
         let offset = self.offset;
-        let length = self.length.min(other.length);
-        if length == 0 || offset != other.offset {
+        if offset != other.offset {
             return Self { length: 0, ..*self };
         }
 
+        let length = self.length.min(other.length);
         // SAFETY: offset is common offset of both slices and length is shorter
         // of either slice, which means that both pointers point to at least
         // offset+length bits.
@@ -402,24 +402,32 @@ unsafe fn forward_common_prefix_impl(
     offset: u8,
     max_length: u16,
 ) -> (usize, u16) {
-    // SAFETY: Caller promises that both pointers point to at least
-    // offset+max_length bits.
+    let max_length = u32::from(max_length) + u32::from(offset);
+    // SAFETY: Caller promises that both pointers point to at least offset +
+    // max_length bits.
     let (lhs, rhs) = unsafe {
-        let len = (usize::from(max_length) + usize::from(offset) + 7) / 8;
-        let lhs = core::slice::from_raw_parts(lhs, len);
-        let rhs = core::slice::from_raw_parts(rhs, len);
+        let len = ((max_length + 7) / 8) as usize;
+        let lhs = core::slice::from_raw_parts(lhs, len).split_first();
+        let rhs = core::slice::from_raw_parts(rhs, len).split_first();
         (lhs, rhs)
     };
 
-    let n = lhs.iter().zip(rhs.iter()).take_while(|(a, b)| a == b).count();
-    let total_bits_matched = if n == 0 {
-        ((lhs[0] ^ rhs[0]) & Slice::masks(offset, max_length).0).leading_zeros()
-    } else if n < lhs.len() {
-        n as u32 * 8 + (lhs[n] ^ rhs[n]).leading_zeros()
+    let (first, lhs, rhs) = match (lhs, rhs) {
+        (Some(lhs), Some(rhs)) => (lhs.0 ^ rhs.0, lhs.1, rhs.1),
+        _ => return (0, 0),
+    };
+    let first = first & (0xFF >> offset);
+
+    let total_bits_matched = if first != 0 {
+        first.leading_zeros()
+    } else if let Some(n) = lhs.iter().zip(rhs.iter()).position(|(a, b)| a != b)
+    {
+        8 + n as u32 * 8 + (lhs[n] ^ rhs[n]).leading_zeros()
     } else {
-        n as u32 * 8
+        8 + lhs.len() as u32 * 8
     }
-    .min(u32::from(offset) + u32::from(max_length));
+    .min(max_length);
+
     (
         (total_bits_matched / 8) as usize,
         total_bits_matched.saturating_sub(u32::from(offset)) as u16,
@@ -717,6 +725,19 @@ fn test_from_untrusted() {
     test(1, 4, &[!0x08], &[0x08]);
     test(1, 5, &[!0x04], &[0x04]);
     test(1, 6, &[!0x02], &[0x02]);
+}
+
+#[test]
+fn test_common_prefix() {
+    let mut lhs = Slice::new(&[0x86, 0xE9], 1, 15).unwrap();
+    let mut rhs = Slice::new(&[0x06, 0xE9], 1, 15).unwrap();
+    let got = lhs.forward_common_prefix(&mut rhs);
+    let want = (
+        Slice::new(&[0x06, 0xE9], 1, 15).unwrap(),
+        Slice::new(&[], 0, 0).unwrap(),
+        Slice::new(&[], 0, 0).unwrap(),
+    );
+    assert_eq!(want, (got, lhs, rhs));
 }
 
 #[test]

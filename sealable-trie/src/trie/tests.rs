@@ -1,61 +1,163 @@
+use std::collections::HashMap;
 use std::println;
 
 use rand::Rng;
 
 use crate::hash::CryptoHash;
 use crate::memory::test_utils::TestAllocator;
+use crate::stdx;
 
-type Trie = super::Trie<TestAllocator>;
+#[derive(Eq, Ord)]
+struct Key {
+    len: u8,
+    buf: [u8; 35],
+}
 
-fn make_hash(v: u8) -> CryptoHash { CryptoHash([v; 32]) }
+impl Key {
+    fn as_bytes(&self) -> &[u8] { &self.buf[..usize::from(self.len)] }
+}
 
-fn make_trie(count: usize) -> Trie { Trie::new(TestAllocator::new(count)) }
+impl core::cmp::PartialEq for Key {
+    fn eq(&self, other: &Self) -> bool { self.as_bytes() == other.as_bytes() }
+}
 
-fn set(trie: &mut Trie, key: &[u8], value: &CryptoHash) -> super::Result<()> {
-    trie.set(key, value, None)?;
-    let got = trie.get(key, None);
-    assert_eq!(Ok(Some(value.clone())), got, "Failed getting ‘{key:?}’");
-    Ok(())
+impl core::cmp::PartialOrd for Key {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.as_bytes().partial_cmp(other.as_bytes())
+    }
+}
+
+impl core::hash::Hash for Key {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.as_bytes().hash(state)
+    }
+}
+
+impl core::fmt::Debug for Key {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.as_bytes().fmt(fmtr)
+    }
+}
+
+struct TestTrie {
+    trie: super::Trie<TestAllocator>,
+    mapping: HashMap<Key, CryptoHash>,
+    count: usize,
+}
+
+impl TestTrie {
+    pub fn new(count: usize) -> Self {
+        Self {
+            trie: super::Trie::new(TestAllocator::new(count)),
+            mapping: Default::default(),
+            count: 0,
+        }
+    }
+
+    pub fn set(&mut self, key: &[u8], verbose: bool) {
+        assert!(key.len() <= 35);
+        let key = Key {
+            len: key.len() as u8,
+            buf: {
+                let mut buf = [0; 35];
+                buf[..key.len()].copy_from_slice(key);
+                buf
+            },
+        };
+
+        let value = self.next_value();
+        println!("{}Inserting {key:?}", if verbose { "\n" } else { "" });
+        self.trie
+            .set(key.as_bytes(), &value, None)
+            .unwrap_or_else(|err| panic!("Failed setting ‘{key:?}’: {err}"));
+        self.mapping.insert(key, value);
+        if verbose {
+            self.trie.print();
+        }
+        for (key, value) in self.mapping.iter() {
+            let key = key.as_bytes();
+            let got = self.trie.get(key, None).unwrap_or_else(|err| {
+                panic!("Failed getting ‘{key:?}’: {err}")
+            });
+            assert_eq!(Some(value), got.as_ref(), "Invalid value at ‘{key:?}’");
+        }
+    }
+
+    fn next_value(&mut self) -> CryptoHash {
+        const HASH_LEN: usize = CryptoHash::LENGTH;
+        const HEAD_LEN: usize = core::mem::size_of::<usize>();
+        const TAIL_LEN: usize = HASH_LEN - HEAD_LEN;
+
+        let mut value = CryptoHash::default();
+        self.count += 1;
+        let (head, tail) =
+            stdx::split_array_mut::<HEAD_LEN, TAIL_LEN, HASH_LEN>(&mut value.0);
+        *head = self.count.to_le_bytes();
+        tail.fill(0);
+        value
+    }
+}
+
+
+fn do_test_inserts<'a>(
+    keys: impl IntoIterator<Item = &'a [u8]>,
+    verbose: bool,
+) {
+    let keys = keys.into_iter();
+    let count = keys.size_hint().1.unwrap_or(1000).saturating_mul(4);
+    let mut trie = TestTrie::new(count);
+
+    for key in keys {
+        trie.set(key, verbose)
+    }
 }
 
 #[test]
-fn test_sanity() {
-    let mut trie = make_trie(1000);
-    trie.print();
-    println!("----");
+fn test_msb_difference() { do_test_inserts([&[0][..], &[0x80][..]], true) }
 
-    set(&mut trie, b"0", &make_hash(0)).unwrap();
-    trie.print();
-    println!("----");
+#[test]
+fn test_sequence() {
+    do_test_inserts(
+        b"'0123456789:;<=>?".iter().map(core::slice::from_ref),
+        true,
+    );
+}
 
-    set(&mut trie, b"1", &make_hash(1)).unwrap();
-    trie.print();
-    println!("----");
+#[test]
+fn test_2byte_extension() {
+    do_test_inserts([&[123, 40][..], &[134, 233][..]], true)
+}
 
-    set(&mut trie, b"2", &make_hash(2)).unwrap();
-    trie.print();
-    println!("----");
-
-    // Forces Extension split
-    trie.set(&[0x42; 40], &make_hash(3), None).unwrap();
-    trie.print();
-
-    assert_eq!(None, trie.get(b"x", None).unwrap());
+#[test]
+fn test_prefix() {
+    let key = b"xy";
+    do_test_inserts([&key[..], &key[..1]], true);
+    do_test_inserts([&key[..1], &key[..]], true);
 }
 
 #[test]
 fn stress_test() {
-    let mut rng = rand::thread_rng();
-    let iterations = crate::test_utils::get_iteration_count();
-    let mut trie = make_trie(iterations.saturating_mul(4));
-    let mut key = [0; 35];
-    let mut hash = CryptoHash::default();
-    for n in 0..iterations {
-        rng.fill(&mut key[..]);
-        hash.0[..8].copy_from_slice(&(n as u64).to_be_bytes());
-        let key = &key[..rng.gen_range(1..key.len())];
-        trie.set(key, &hash, None).unwrap();
+    struct RandKeys<'a> {
+        buf: &'a mut [u8; 35],
+        rng: rand::rngs::ThreadRng,
     }
 
-    trie.print();
+    impl<'a> Iterator for RandKeys<'a> {
+        type Item = &'a [u8];
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let len = self.rng.gen_range(1..self.buf.len());
+            let key = &mut self.buf[..len];
+            self.rng.fill(key);
+            let key = &key[..];
+            // Transmute lifetimes.  This is probably not sound in general but
+            // it works for our needs in this test.
+            unsafe { core::mem::transmute(key) }
+        }
+    }
+
+    let count = crate::test_utils::get_iteration_count();
+    let count = crate::test_utils::div_max_1(count, 100);
+    let keys = RandKeys { buf: &mut [0; 35], rng: rand::thread_rng() };
+    do_test_inserts(keys.take(count), false);
 }

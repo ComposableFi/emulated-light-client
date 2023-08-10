@@ -58,4 +58,4 @@ jobs:
         run: cargo test
 
       - name: Run tests with Miri
-        run: cargo miri test -- --skip ::stress_test_
+        run: cargo miri test -- --skip ::stress_test

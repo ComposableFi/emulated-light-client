@@ -8,7 +8,7 @@ use crate::stdx;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod tests_rand;
+mod stress_tests;
 
 pub(crate) const MAX_EXTENSION_KEY_SIZE: usize = 34;
 
