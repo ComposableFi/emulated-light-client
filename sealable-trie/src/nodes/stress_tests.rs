@@ -29,7 +29,8 @@ fn stress_test_raw_encoding_round_trip() {
 
         // Test RawNode→Proof→Node gives the same result as RawNode→Node.
         let proof = ProofNode::from(raw);
-        let node = node.map_refs(Ref::from, NodeRef::from);
+        let node =
+            node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
         assert_eq!(Ok(node), Node::try_from(&proof), "{raw:?}");
     }
 }
@@ -158,11 +159,9 @@ fn gen_random_proof_node(
 
         len + 32
     } else {
-        // Value.  First byte is 0xC0.  We’re using first bit to distinguish
-        // between value with and without hash.
-        let has_value = bytes[0] & 1 != 0;
+        // Value.  First byte is 0xC0.
         bytes[0] = 0xC0;
-        33 + usize::from(has_value) * 32
+        65
     }
 }
 
@@ -180,7 +179,8 @@ fn stress_test_node_encoding_round_trip() {
         assert_eq!(node, Node::from(&raw), "Failed decoding Raw: {raw:?}");
 
         let proof = super::tests::proof_from_node(&node);
-        let node = node.map_refs(Ref::from, NodeRef::from);
+        let node =
+            node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
         assert_eq!(Ok(node), Node::try_from(&proof));
     }
 }
@@ -216,10 +216,9 @@ fn gen_random_node<'a>(
         }
         2 => {
             let is_sealed = IsSealed::new(rng.gen::<u8>() & 1 == 1);
-            let num = rng.gen::<u32>();
-            let child = (num < 0x8000_0000).then(|| {
-                RawNodeRef::new(Ptr::new(num).ok().flatten(), right.into())
-            });
+            let num = rng.gen::<u32>() & 0x7FFF_FFFF;
+            let child =
+                RawNodeRef::new(Ptr::new(num).ok().flatten(), right.into());
             Node::value(is_sealed, left.into(), child)
         }
         _ => unreachable!(),

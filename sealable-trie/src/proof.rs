@@ -23,7 +23,7 @@ pub fn verify(
         if node_hash != &node.hash() {
             return false;
         }
-        match Node::try_from(node) {
+        node_hash = match Node::try_from(node) {
             Err(_) => return false,
             Ok(Node::Branch { children }) => {
                 let bit = if let Some(bit) = our_key.pop_front() {
@@ -35,7 +35,7 @@ pub fn verify(
                 if child.is_value {
                     return our_key.is_empty() && our_hash == Some(child.hash);
                 }
-                node_hash = child.hash;
+                child.hash
             }
             Ok(Node::Extension { key, child }) => {
                 if !our_key.strip_prefix(key) {
@@ -43,16 +43,13 @@ pub fn verify(
                 } else if child.is_value {
                     return our_key.is_empty() && our_hash == Some(child.hash);
                 }
-                node_hash = child.hash;
+                child.hash
             }
             Ok(Node::Value { is_sealed: _, value_hash, child }) => {
                 if our_key.is_empty() {
                     return our_hash == Some(value_hash);
-                } else if let Some(child) = child {
-                    node_hash = child.hash;
-                } else {
-                    return false;
                 }
+                child.hash
             }
         }
     }

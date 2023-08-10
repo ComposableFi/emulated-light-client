@@ -45,7 +45,7 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 /// objects aren’t equal.  Returns the proof node.
 #[track_caller]
 pub(super) fn proof_from_node(node: &Node) -> ProofNode {
-    let node = node.map_refs(Ref::from, NodeRef::from);
+    let node = node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
     let proof = ProofNode::try_from(node)
         .unwrap_or_else(|()| panic!("Failed encoding node as proof: {node:?}"));
     let decoded = Node::try_from(&proof).unwrap_or_else(|()| {
@@ -238,21 +238,7 @@ fn test_value_encoding() {
     check_node_encoding(Node::Value {
         is_sealed: Unsealed,
         value_hash: &ONE,
-        child: None,
-    }, [
-        /* tag:   */ 0xC0, 0, 0, 0,
-        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0x40, 0, 0, 0,
-        /* chash: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ], &[
-        /* tag:  */ 0xC0,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
-
-    check_node_encoding(Node::Value {
-        is_sealed: Unsealed,
-        value_hash: &ONE,
-        child: Some(RawNodeRef::new(Some(BEEF), &TWO)),
+        child: RawNodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xC0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -267,15 +253,16 @@ fn test_value_encoding() {
     check_node_encoding(Node::Value {
         is_sealed: Sealed,
         value_hash: &ONE,
-        child: None,
+        child: RawNodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xE0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0x40, 0, 0, 0,
-        /* chash: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        /* ptr:   */ 0, 0, 0xBE, 0xEF,
+        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
     ], &[
         /* tag:   */ 0xC0,
         /* hash:  */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
     ]);
 }
 

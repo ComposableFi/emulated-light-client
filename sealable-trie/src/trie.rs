@@ -76,12 +76,14 @@ pub struct Trie<A> {
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
 pub enum Error {
-    #[display(fmt = "Not enough space")]
-    OutOfMemory,
+    #[display(fmt = "Tried to access empty key")]
+    EmptyKey,
     #[display(fmt = "Key longer than 8191 bytes")]
     KeyTooLong,
     #[display(fmt = "Tried to access sealed node")]
     Sealed,
+    #[display(fmt = "Not enough space")]
+    OutOfMemory,
 }
 
 impl From<memory::OutOfMemory> for Error {
@@ -142,11 +144,9 @@ impl<A: memory::Allocator> Trie<A> {
                         return Err(Error::Sealed);
                     } else if key.is_empty() {
                         return Ok(Some(value_hash.clone()));
-                    } else if let Some(child) = child {
+                    } else {
                         node_ptr = child.ptr;
                         continue;
-                    } else {
-                        return Ok(None);
                     }
                 }
             };
@@ -276,13 +276,8 @@ impl<A: memory::Allocator> Trie<A> {
                 print_ref(child, depth + 2);
             }
             Node::Value { is_sealed, value_hash, child } => {
-                println!(
-                    " Value {value_hash}{is_sealed:#}{}",
-                    if child.is_none() { " ∅" } else { "" },
-                );
-                if let Some(child) = child {
-                    print_ref(RawRef::from(child), depth + 2);
-                }
+                println!(" Value {value_hash}{is_sealed:#}");
+                print_ref(RawRef::from(child), depth + 2);
             }
         }
     }
@@ -325,9 +320,10 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
             // value.
             Ok((ptr, hash))
         } else {
-            // Trie is empty but key is empty as well so we need to insert Value
-            // node.
-            self.alloc_node(RawNode::value(Unsealed, self.value_hash, None))
+            // If the key was non-empty, self.insert_value would have returned
+            // a node reference.  If it didn’t, it means key was empty which is
+            // an error condition.
+            Err(Error::EmptyKey)
         }
     }
 
@@ -485,22 +481,14 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         &mut self,
         nref: (Ptr, &CryptoHash),
         existing_value: &CryptoHash,
-        child: Option<RawNodeRef>,
+        child: RawNodeRef,
     ) -> Result<(Ptr, CryptoHash)> {
         let node = if self.key.is_empty() {
             RawNode::value(Unsealed, self.value_hash, child)
         } else {
-            let (ptr, hash) = if let Some(child) = child {
-                self.handle(child)?
-            } else if let OwnedRef::Node(ptr, hash) = self.insert_value()? {
-                (ptr, hash)
-            } else {
-                // Unreachable because we’ve handled self.key.is_empty() case
-                // already.
-                unreachable!()
-            };
+            let (ptr, hash) = self.handle(child)?;
             let child = RawNodeRef::new(Some(ptr), &hash);
-            RawNode::value(Unsealed, existing_value, Some(child))
+            RawNode::value(Unsealed, existing_value, child)
         };
         Ok(self.set_node(nref.0, node))
     }
@@ -527,7 +515,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                     owned_ref @ OwnedRef::Value(_) => Ok(owned_ref),
                     OwnedRef::Node(p, h) => {
                         let child = RawNodeRef::new(Some(p), &h);
-                        let node = RawNode::value(Unsealed, hash, Some(child));
+                        let node = RawNode::value(Unsealed, hash, child);
                         self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
                     }
                 }
@@ -587,7 +575,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
         let child = RawNodeRef::new(Some(ptr), hash);
-        self.alloc_node(RawNode::value(Unsealed, value_hash, Some(child)))
+        self.alloc_node(RawNode::value(Unsealed, value_hash, child))
     }
 
     /// Sets value of a node cell at given address and returns its hash.

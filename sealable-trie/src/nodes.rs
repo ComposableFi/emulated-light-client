@@ -6,9 +6,9 @@ use crate::memory::Ptr;
 use crate::stdx;
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod stress_tests;
+#[cfg(test)]
+mod tests;
 
 pub(crate) const MAX_EXTENSION_KEY_SIZE: usize = 34;
 
@@ -58,7 +58,7 @@ pub enum Node<'a, R: AsReference<'a> = RawRef<'a>> {
     Value {
         is_sealed: IsSealed,
         value_hash: &'a CryptoHash,
-        child: Option<R::NodeRef>,
+        child: R::NodeRef,
     },
 }
 
@@ -91,12 +91,9 @@ pub use IsSealed::*;
 //
 // Value:     11s0_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
 //    <vhash> is the hash of the stored value.  `s` is zero if the value hasn’t
-//    been sealed or one otherwise.
-//
-//    If the node has a child node (i.e.the value is stored at a key which is
-//    a prefix of another key) the <node-ref> is a references the child (as in
-//    Branch).  Otherwise, the first byte of <node-ref> is 0x40 (which normally
-//    indicates that the reference is to a value) and rest are set to zero.
+//    been sealed, one otherwise.  <node-ref> is a references the child node
+//    which points to the subtrie rooted at the key of the value.  Value node
+//    can only point at Branch or Extension node.
 // ```
 //
 // A Reference is a 36-byte sequence consisting of a 4-byte pointer and
@@ -133,9 +130,8 @@ pub struct RawNode(pub(crate) [u8; 72]);
 // Extension: 0b100v_kkkk_kkkk_kooo <key> <hash>
 //    <key> is of variable-length and it’s the shortest length that can
 //    fit the key. `v` is `1` if hash is of a value rather than hash of a node.
-// Value:     0b1100_0000 <value-hash> [<hash>]
-//    If the node is also a prefix of another key, <hash> is hash of the node
-//    that continues the key.  Otherwise it’s not present.
+// Value:     0b1100_0000 <value-hash> <hash>
+//    <hash> is hash of the node that continues the key.
 // ```
 #[derive(Clone, PartialEq, derive_more::Deref)]
 pub struct ProofNode(Box<[u8]>);
@@ -206,7 +202,7 @@ impl<'a, R: AsReference<'a>> Node<'a, R> {
     pub fn value(
         is_sealed: IsSealed,
         value_hash: &'a CryptoHash,
-        child: Option<R::NodeRef>,
+        child: R::NodeRef,
     ) -> Self {
         Self::Value { is_sealed, value_hash, child }
     }
@@ -238,10 +234,18 @@ impl<'a, R: AsReference<'a>> Node<'a, R> {
                 Node::Extension { key, child: ref_map(child) }
             }
             Node::Value { is_sealed, value_hash, child } => {
-                let child = child.map(node_map);
-                Node::Value { is_sealed, value_hash, child }
+                Node::Value { is_sealed, value_hash, child: node_map(child) }
             }
         }
+    }
+
+    /// If the object is a Value node, makes sure that it’s unsealed.
+    #[cfg(test)]
+    fn with_unsealed_value(mut self) -> Self {
+        if let Self::Value { is_sealed, .. } = &mut self {
+            *is_sealed = Unsealed;
+        }
+        self
     }
 }
 
@@ -282,19 +286,13 @@ impl RawNode {
     pub fn value(
         is_sealed: IsSealed,
         value_hash: &CryptoHash,
-        child: Option<RawNodeRef>,
+        child: RawNodeRef,
     ) -> Self {
-        const NO_CHILD: [u8; 36] = {
-            let mut res = [0; 36];
-            res[0] = 0x40;
-            res
-        };
-
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
         *lft = RawRef::value(is_sealed, value_hash).encode_raw();
         lft[0] |= 0x80;
-        *rht = child.map_or(NO_CHILD, |nref| RawRef::from(nref).encode_raw());
+        *rht = RawRef::from(child).encode_raw();
         res
     }
 
@@ -617,17 +615,17 @@ where
                 Node::Extension { key: rhs_key, child: rhs_child },
             ) => lhs_key == rhs_key && lhs_child == rhs_child,
             (
-                Node::Value { value_hash: lhs, .. },
-                Node::Value { value_hash: rhs, .. },
-            ) if lhs != rhs => false,
-            (
-                Node::Value { child: None, .. },
-                Node::Value { child: None, .. },
-            ) => true,
-            (
-                Node::Value { child: Some(lhs), .. },
-                Node::Value { child: Some(rhs), .. },
-            ) => lhs == rhs,
+                Node::Value {
+                    is_sealed: lhs_sealed,
+                    value_hash: lhs_hash,
+                    child: lhs,
+                },
+                Node::Value {
+                    is_sealed: rhs_sealed,
+                    value_hash: rhs_hash,
+                    child: rhs,
+                },
+            ) => lhs_sealed == rhs_sealed && lhs_hash == rhs_hash && lhs == rhs,
             _ => false,
         }
     }
@@ -701,16 +699,11 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a, RawRef<'a>> {
         );
         let is_sealed = IsSealed::new(num & 0x2000_0000 != 0);
         let value_hash = value.into();
-        let child = match right {
-            RawRef::Node { ptr, hash } => Some(RawNodeRef::new(ptr, hash)),
-            RawRef::Value { is_sealed, hash } => {
-                debug_assert_eq!(
-                    (Unsealed, &CryptoHash::default()),
-                    (is_sealed, hash),
-                    "Failed decoding raw node: {node:?}",
-                );
-                None
-            }
+        let child = if let RawRef::Node { ptr, hash } = right {
+            RawNodeRef::new(ptr, hash)
+        } else {
+            debug_assert!(false, "Failed decoding raw node: {node:?}");
+            RawNodeRef::new(None, &CryptoHash::DEFAULT)
         };
         Node::Value { is_sealed, value_hash, child }
     }
@@ -738,16 +731,13 @@ fn decode_proof<'a>(bytes: &'a [u8]) -> Option<Node<'a, Ref<'a>>> {
         let child = Ref::new(is_value, hash);
         Some(Node::Extension { key, child })
     } else if first == 0xC0 {
-        let (value_hash, rest) = stdx::split_at::<32>(rest)?;
-        let value_hash = value_hash.into();
-        let child = if rest.is_empty() {
-            None
-        } else if let Ok(hash) = <&[u8; 32]>::try_from(rest) {
-            Some(NodeRef { hash: hash.into() })
-        } else {
-            return None;
-        };
-        Some(Node::Value { is_sealed: Unsealed, value_hash, child })
+        let bytes = <&[u8; 64]>::try_from(rest).ok()?;
+        let (value, child) = stdx::split_array_ref(bytes);
+        Some(Node::Value {
+            is_sealed: Unsealed,
+            value_hash: value.into(),
+            child: NodeRef { hash: child.into() },
+        })
     } else {
         None
     }
@@ -803,13 +793,9 @@ fn proof_from_node<'a, 'b, R: AsReference<'a>>(
         Node::Value { is_sealed: _, value_hash, child } => {
             dest[0] = 0xC0;
             dest[1..33].copy_from_slice(value_hash.as_slice());
-            if let Some(child) = child {
-                dest[33..65]
-                    .copy_from_slice(child.as_node_reference().hash.as_slice());
-                65
-            } else {
-                33
-            }
+            dest[33..65]
+                .copy_from_slice(child.as_node_reference().hash.as_slice());
+            65
         }
     };
     Some(&dest[..len])
