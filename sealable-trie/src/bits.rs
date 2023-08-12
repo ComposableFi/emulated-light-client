@@ -156,16 +156,16 @@ impl<'a> Slice<'a> {
     /// Returns whether the slice is empty.
     pub fn is_empty(&self) -> bool { self.length == 0 }
 
-    /// Returns the first bit in the slice advances the slice by position.
+    /// Returns the first bit in the slice advances the slice by one position.
     ///
     /// ## Example
     ///
     /// ```
     /// # use sealable_trie::bits;
     ///
-    /// let mut slice = bits::Slice::new(&[0xA0], 0, 3).unwrap();
-    /// assert_eq!(Some(true), slice.pop_front());
+    /// let mut slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
     /// assert_eq!(Some(false), slice.pop_front());
+    /// assert_eq!(Some(true), slice.pop_front());
     /// assert_eq!(Some(true), slice.pop_front());
     /// assert_eq!(None, slice.pop_front());
     /// ```
@@ -183,6 +183,30 @@ impl<'a> Slice<'a> {
         }
         self.length -= 1;
         Some(bit)
+    }
+
+    /// Returns the last bit in the slice shrinking the slice by one bit.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let mut slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
+    /// assert_eq!(Some(true), slice.pop_back());
+    /// assert_eq!(Some(true), slice.pop_back());
+    /// assert_eq!(Some(false), slice.pop_back());
+    /// assert_eq!(None, slice.pop_back());
+    /// ```
+    pub fn pop_back(&mut self) -> Option<bool> {
+        self.length = self.length.checked_sub(1)?;
+        let total_bits = self.underlying_bits_length();
+        // SAFETY: `ptr` is guaranteed to point at offset + original length
+        // valid bits.  Furthermore, since original length was positive than
+        // there’s at least one byte we can read.
+        let byte = unsafe { self.ptr.add(total_bits / 8).read() };
+        let mask = 0x80 >> (total_bits % 8);
+        Some(byte & mask != 0)
     }
 
     /// Returns an iterator over bits in the bit slice.
@@ -832,121 +856,39 @@ fn test_chunks() {
 }
 
 #[test]
-fn test_masks() {
-    let mut got = alloc::vec::Vec::new();
-    for offset in 0..8 {
-        for length in 1..=(16 - u16::from(offset)) {
-            got.push((offset, length, Slice::masks(offset, length)));
+fn test_pop() {
+    use alloc::string::String;
+
+    const WANT: &str = concat!("11001110", "00011110", "00011111");
+    const BYTES: [u8; 3] = [0b1100_1110, 0b0001_1110, 0b0001_1111];
+
+    fn test(
+        want: &str,
+        mut slice: Slice,
+        reverse: bool,
+        pop: fn(&mut Slice) -> Option<bool>,
+    ) {
+        let got = core::iter::from_fn(move || pop(&mut slice))
+            .map(|bit| char::from(b'0' + u8::from(bit)))
+            .collect::<String>();
+        let want = if reverse {
+            want.chars().rev().collect()
+        } else {
+            String::from(want)
+        };
+        assert_eq!(want, got);
+    }
+
+    fn test_set(reverse: bool, pop: fn(&mut Slice) -> Option<bool>) {
+        for start in 0..8 {
+            for end in start..=24 {
+                let slice =
+                    Slice::new(&BYTES[..], start as u8, (end - start) as u16);
+                test(&WANT[start..end], slice.unwrap(), reverse, pop);
+            }
         }
     }
-    #[rustfmt::skip]
-    assert_eq!(&[
-        (0,  1, (0b1111_1111, 0b1000_0000)),
-        (0,  2, (0b1111_1111, 0b1100_0000)),
-        (0,  3, (0b1111_1111, 0b1110_0000)),
-        (0,  4, (0b1111_1111, 0b1111_0000)),
-        (0,  5, (0b1111_1111, 0b1111_1000)),
-        (0,  6, (0b1111_1111, 0b1111_1100)),
-        (0,  7, (0b1111_1111, 0b1111_1110)),
-        (0,  8, (0b1111_1111, 0b1111_1111)),
-        (0,  9, (0b1111_1111, 0b1000_0000)),
-        (0, 10, (0b1111_1111, 0b1100_0000)),
-        (0, 11, (0b1111_1111, 0b1110_0000)),
-        (0, 12, (0b1111_1111, 0b1111_0000)),
-        (0, 13, (0b1111_1111, 0b1111_1000)),
-        (0, 14, (0b1111_1111, 0b1111_1100)),
-        (0, 15, (0b1111_1111, 0b1111_1110)),
-        (0, 16, (0b1111_1111, 0b1111_1111)),
 
-        (1,  1, (0b0111_1111, 0b1100_0000)),
-        (1,  2, (0b0111_1111, 0b1110_0000)),
-        (1,  3, (0b0111_1111, 0b1111_0000)),
-        (1,  4, (0b0111_1111, 0b1111_1000)),
-        (1,  5, (0b0111_1111, 0b1111_1100)),
-        (1,  6, (0b0111_1111, 0b1111_1110)),
-        (1,  7, (0b0111_1111, 0b1111_1111)),
-        (1,  8, (0b0111_1111, 0b1000_0000)),
-        (1,  9, (0b0111_1111, 0b1100_0000)),
-        (1, 10, (0b0111_1111, 0b1110_0000)),
-        (1, 11, (0b0111_1111, 0b1111_0000)),
-        (1, 12, (0b0111_1111, 0b1111_1000)),
-        (1, 13, (0b0111_1111, 0b1111_1100)),
-        (1, 14, (0b0111_1111, 0b1111_1110)),
-        (1, 15, (0b0111_1111, 0b1111_1111)),
-
-        (2,  1, (0b0011_1111, 0b1110_0000)),
-        (2,  2, (0b0011_1111, 0b1111_0000)),
-        (2,  3, (0b0011_1111, 0b1111_1000)),
-        (2,  4, (0b0011_1111, 0b1111_1100)),
-        (2,  5, (0b0011_1111, 0b1111_1110)),
-        (2,  6, (0b0011_1111, 0b1111_1111)),
-        (2,  7, (0b0011_1111, 0b1000_0000)),
-        (2,  8, (0b0011_1111, 0b1100_0000)),
-        (2,  9, (0b0011_1111, 0b1110_0000)),
-        (2, 10, (0b0011_1111, 0b1111_0000)),
-        (2, 11, (0b0011_1111, 0b1111_1000)),
-        (2, 12, (0b0011_1111, 0b1111_1100)),
-        (2, 13, (0b0011_1111, 0b1111_1110)),
-        (2, 14, (0b0011_1111, 0b1111_1111)),
-
-        (3,  1, (0b0001_1111, 0b1111_0000)),
-        (3,  2, (0b0001_1111, 0b1111_1000)),
-        (3,  3, (0b0001_1111, 0b1111_1100)),
-        (3,  4, (0b0001_1111, 0b1111_1110)),
-        (3,  5, (0b0001_1111, 0b1111_1111)),
-        (3,  6, (0b0001_1111, 0b1000_0000)),
-        (3,  7, (0b0001_1111, 0b1100_0000)),
-        (3,  8, (0b0001_1111, 0b1110_0000)),
-        (3,  9, (0b0001_1111, 0b1111_0000)),
-        (3, 10, (0b0001_1111, 0b1111_1000)),
-        (3, 11, (0b0001_1111, 0b1111_1100)),
-        (3, 12, (0b0001_1111, 0b1111_1110)),
-        (3, 13, (0b0001_1111, 0b1111_1111)),
-
-        (4,  1, (0b0000_1111, 0b1111_1000)),
-        (4,  2, (0b0000_1111, 0b1111_1100)),
-        (4,  3, (0b0000_1111, 0b1111_1110)),
-        (4,  4, (0b0000_1111, 0b1111_1111)),
-        (4,  5, (0b0000_1111, 0b1000_0000)),
-        (4,  6, (0b0000_1111, 0b1100_0000)),
-        (4,  7, (0b0000_1111, 0b1110_0000)),
-        (4,  8, (0b0000_1111, 0b1111_0000)),
-        (4,  9, (0b0000_1111, 0b1111_1000)),
-        (4, 10, (0b0000_1111, 0b1111_1100)),
-        (4, 11, (0b0000_1111, 0b1111_1110)),
-        (4, 12, (0b0000_1111, 0b1111_1111)),
-
-        (5,  1, (0b0000_0111, 0b1111_1100)),
-        (5,  2, (0b0000_0111, 0b1111_1110)),
-        (5,  3, (0b0000_0111, 0b1111_1111)),
-        (5,  4, (0b0000_0111, 0b1000_0000)),
-        (5,  5, (0b0000_0111, 0b1100_0000)),
-        (5,  6, (0b0000_0111, 0b1110_0000)),
-        (5,  7, (0b0000_0111, 0b1111_0000)),
-        (5,  8, (0b0000_0111, 0b1111_1000)),
-        (5,  9, (0b0000_0111, 0b1111_1100)),
-        (5, 10, (0b0000_0111, 0b1111_1110)),
-        (5, 11, (0b0000_0111, 0b1111_1111)),
-
-        (6,  1, (0b0000_0011, 0b1111_1110)),
-        (6,  2, (0b0000_0011, 0b1111_1111)),
-        (6,  3, (0b0000_0011, 0b1000_0000)),
-        (6,  4, (0b0000_0011, 0b1100_0000)),
-        (6,  5, (0b0000_0011, 0b1110_0000)),
-        (6,  6, (0b0000_0011, 0b1111_0000)),
-        (6,  7, (0b0000_0011, 0b1111_1000)),
-        (6,  8, (0b0000_0011, 0b1111_1100)),
-        (6,  9, (0b0000_0011, 0b1111_1110)),
-        (6, 10, (0b0000_0011, 0b1111_1111)),
-
-        (7,  1, (0b0000_0001, 0b1111_1111)),
-        (7,  2, (0b0000_0001, 0b1000_0000)),
-        (7,  3, (0b0000_0001, 0b1100_0000)),
-        (7,  4, (0b0000_0001, 0b1110_0000)),
-        (7,  5, (0b0000_0001, 0b1111_0000)),
-        (7,  6, (0b0000_0001, 0b1111_1000)),
-        (7,  7, (0b0000_0001, 0b1111_1100)),
-        (7,  8, (0b0000_0001, 0b1111_1110)),
-        (7,  9, (0b0000_0001, 0b1111_1111)),
-    ], got.as_slice());
+    test_set(false, |slice| slice.pop_front());
+    test_set(true, |slice| slice.pop_back());
 }
