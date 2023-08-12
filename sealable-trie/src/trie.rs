@@ -189,9 +189,6 @@ impl<A: memory::Allocator> Trie<A> {
     /// [`Error::Sealed`] error.
     ///
     /// If `proof` is specified, stores proof nodes into the provided vector.
-    ///
-    /// TODO(mina86): Currently the trie doesn’t handle errors gracefully.  If
-    /// the method returns an error, the trie may be in an inconsistent state.
     pub fn set(
         &mut self,
         key: &[u8],

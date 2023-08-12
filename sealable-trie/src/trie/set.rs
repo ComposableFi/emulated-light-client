@@ -7,7 +7,7 @@ use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
 use crate::{bits, memory};
 
 /// Context for [`Trie::set`] operation.
-pub(super) struct SetContext<'a, A> {
+pub(super) struct SetContext<'a, A: memory::Allocator> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -18,7 +18,7 @@ pub(super) struct SetContext<'a, A> {
     value_hash: &'a CryptoHash,
 
     /// Allocator used to allocate new nodes.
-    alloc: &'a mut A,
+    wlog: memory::WriteLog<'a, A>,
 
     /// Accumulator to collect proof nodes.  `None` if user didn’t request
     /// proof.
@@ -32,37 +32,44 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         value_hash: &'a CryptoHash,
         proof: Option<&'a mut Vec<ProofNode>>,
     ) -> Self {
-        Self { key, value_hash, alloc, proof }
+        let wlog = memory::WriteLog::new(alloc);
+        Self { key, value_hash, wlog, proof }
     }
 
     /// Inserts value hash into the trie.
     pub(super) fn set(
-        &mut self,
+        mut self,
         root_ptr: Option<Ptr>,
         root_hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
-        if let Some(ptr) = root_ptr {
-            // Trie is non-empty, handle normally.
-            self.handle(NodeRef { ptr: Some(ptr), hash: root_hash })
-        } else if *root_hash != super::EMPTY_TRIE_ROOT {
-            // Trie is sealed (it’s not empty but ptr is None).
-            Err(Error::Sealed)
-        } else if let OwnedRef::Node(ptr, hash) = self.insert_value()? {
-            // Trie is empty and we’ve just inserted Extension leading to the
-            // value.
-            Ok((ptr, hash))
-        } else {
-            // If the key was non-empty, self.insert_value would have returned
-            // a node reference.  If it didn’t, it means key was empty which is
-            // an error condition.
-            Err(Error::EmptyKey)
+        let res = (|| {
+            if let Some(ptr) = root_ptr {
+                // Trie is non-empty, handle normally.
+                self.handle(NodeRef { ptr: Some(ptr), hash: root_hash })
+            } else if *root_hash != super::EMPTY_TRIE_ROOT {
+                // Trie is sealed (it’s not empty but ptr is None).
+                Err(Error::Sealed)
+            } else if let OwnedRef::Node(ptr, hash) = self.insert_value()? {
+                // Trie is empty and we’ve just inserted Extension leading to
+                // the value.
+                Ok((ptr, hash))
+            } else {
+                // If the key was non-empty, self.insert_value would have
+                // returned a node reference.  If it didn’t, it means key was
+                // empty which is an error condition.
+                Err(Error::EmptyKey)
+            }
+        })();
+        if res.is_ok() {
+            self.wlog.commit();
         }
+        res
     }
 
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let raw_node = self.alloc.get(nref.0);
+        let raw_node = self.wlog.allocator().get(nref.0);
         match Node::from(&raw_node) {
             Node::Branch { children } => self.handle_branch(nref, children),
             Node::Extension { key, child } => {
@@ -321,7 +328,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         if let Some(proof) = self.proof.as_mut() {
             proof.push(proof_node);
         }
-        self.alloc.set(ptr, node);
+        self.wlog.set(ptr, node);
         (ptr, hash)
     }
 
@@ -335,7 +342,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         if let Some(proof) = self.proof.as_mut() {
             proof.push(proof_node);
         }
-        let ptr = self.alloc.alloc(node)?;
+        let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }
 }
