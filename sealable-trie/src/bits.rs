@@ -209,6 +209,37 @@ impl<'a> Slice<'a> {
         Some(byte & mask != 0)
     }
 
+    /// Returns subslice from the end of the slice shrinking the slice by its
+    /// length.
+    ///
+    /// Returns `None` if the slice is too short.
+    ///
+    /// This is an ‘rpsilt_at’ operation but instead of returning two slices it
+    /// shortens the slice and returns the tail.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let mut slice = bits::Slice::new(&[0x81], 0, 8).unwrap();
+    /// let tail = slice.pop_back_slice(4).unwrap();
+    /// assert_eq!(bits::Slice::new(&[0x80], 0, 4), Some(slice));
+    /// assert_eq!(bits::Slice::new(&[0x01], 4, 4), Some(tail));
+    ///
+    /// assert_eq!(None, slice.pop_back_slice(5));
+    /// assert_eq!(bits::Slice::new(&[0x80], 0, 4), Some(slice));
+    /// ```
+    pub fn pop_back_slice(&mut self, length: u16) -> Option<Self> {
+        self.length = self.length.checked_sub(length)?;
+        let total_bits = self.underlying_bits_length();
+        // SAFETY: `ptr` is guaranteed to point at offset + original length
+        // valid bits.
+        let ptr = unsafe { self.ptr.add(total_bits / 8) };
+        let offset = (total_bits % 8) as u8;
+        Some(Self { ptr, offset, length, phantom: Default::default() })
+    }
+
     /// Returns an iterator over bits in the bit slice.
     ///
     /// ## Example
