@@ -293,6 +293,7 @@ pub(crate) mod test_utils {
 mod test_write_log {
     use super::test_utils::TestAllocator;
     use super::*;
+    use crate::hash::CryptoHash;
 
     fn make_allocator() -> (TestAllocator, Vec<Ptr>) {
         let mut alloc = TestAllocator::new(100);
@@ -303,8 +304,8 @@ mod test_write_log {
         (alloc, ptrs)
     }
 
-    fn make_node(num: u8) -> RawNode {
-        let hash = [num; 32].into();
+    fn make_node(num: usize) -> RawNode {
+        let hash = CryptoHash::test(num);
         let child = crate::nodes::Reference::node(None, &hash);
         RawNode::branch(child, child)
     }
@@ -314,12 +315,12 @@ mod test_write_log {
         count: usize,
         alloc: &TestAllocator,
         ptrs: &[Ptr],
-        offset: u8,
+        offset: usize,
     ) {
         assert_eq!(count, alloc.count());
         for (idx, ptr) in ptrs.iter().enumerate() {
             assert_eq!(
-                make_node(idx as u8 + offset),
+                make_node(idx + offset),
                 alloc.get(*ptr),
                 "Invalid value when reading {ptr}"
             );
@@ -331,7 +332,7 @@ mod test_write_log {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
         for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
-            wlog.set(ptr, make_node(idx as u8 + 10));
+            wlog.set(ptr, make_node(idx + 10));
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         wlog.commit();
@@ -344,7 +345,7 @@ mod test_write_log {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
         for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
-            wlog.set(ptr, make_node(idx as u8 + 10));
+            wlog.set(ptr, make_node(idx + 10));
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         core::mem::drop(wlog);

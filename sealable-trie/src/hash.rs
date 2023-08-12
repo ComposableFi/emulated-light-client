@@ -46,6 +46,22 @@ impl CryptoHash {
         builder.build()
     }
 
+
+    /// Creates a new hash with given number encoded in its first bytes.
+    ///
+    /// This is meant for tests which need to use arbitrary hash values.
+    #[cfg(test)]
+    pub(crate) const fn test(num: usize) -> CryptoHash {
+        let mut buf = [0; Self::LENGTH];
+        let num = (num as u32).to_be_bytes();
+        let mut idx = 0;
+        while idx < buf.len() {
+            buf[idx] = num[idx % num.len()];
+            idx += 1;
+        }
+        Self(buf)
+    }
+
     /// Returns whether the hash is all zero bits.  Equivalent to comparing to
     /// the default `CryptoHash` object.
     #[inline]

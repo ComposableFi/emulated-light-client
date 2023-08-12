@@ -5,7 +5,6 @@ use rand::Rng;
 
 use crate::hash::CryptoHash;
 use crate::memory::test_utils::TestAllocator;
-use crate::stdx;
 
 fn do_test_inserts<'a>(
     keys: impl IntoIterator<Item = &'a [u8]>,
@@ -174,16 +173,7 @@ impl TestTrie {
     }
 
     fn next_value(&mut self) -> CryptoHash {
-        const HASH_LEN: usize = CryptoHash::LENGTH;
-        const HEAD_LEN: usize = core::mem::size_of::<usize>();
-        const TAIL_LEN: usize = HASH_LEN - HEAD_LEN;
-
-        let mut value = CryptoHash::default();
         self.count += 1;
-        let (head, tail) =
-            stdx::split_array_mut::<HEAD_LEN, TAIL_LEN, HASH_LEN>(&mut value.0);
-        *head = self.count.to_le_bytes();
-        tail.fill(0);
-        value
+        CryptoHash::test(self.count)
     }
 }
