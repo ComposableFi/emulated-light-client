@@ -2,9 +2,7 @@ use alloc::vec::Vec;
 
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{
-    Node, ProofNode, RawNode, RawNodeRef, RawRef, Sealed, Unsealed, IsSealed,
-};
+use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
 use crate::{bits, memory};
 
 #[cfg(test)]
@@ -142,11 +140,11 @@ impl<A: memory::Allocator> Trie<A> {
                     child
                 }
 
-                Node::Value { is_sealed, value_hash, child } => {
-                    if is_sealed == Sealed {
+                Node::Value { value, child } => {
+                    if value.is_sealed {
                         return Err(Error::Sealed);
                     } else if key.is_empty() {
-                        return Ok(Some(value_hash.clone()));
+                        return Ok(Some(value.hash.clone()));
                     } else {
                         node_ptr = child.ptr;
                         continue;
@@ -155,12 +153,12 @@ impl<A: memory::Allocator> Trie<A> {
             };
 
             match child {
-                RawRef::Node { ptr, .. } => node_ptr = ptr,
-                RawRef::Value { is_sealed, hash } => {
-                    return if is_sealed == Sealed {
+                Reference::Node(node) => node_ptr = node.ptr,
+                Reference::Value(value) => {
+                    return if value.is_sealed {
                         Err(Error::Sealed)
                     } else if key.is_empty() {
-                        Ok(Some(hash.clone()))
+                        Ok(Some(value.hash.clone()))
                     } else {
                         Ok(None)
                     };
@@ -177,7 +175,7 @@ impl<A: memory::Allocator> Trie<A> {
     pub fn require(
         &self,
         key: &[u8],
-        proof: Option<&mut Vec<ProofNode>>
+        proof: Option<&mut Vec<ProofNode>>,
     ) -> Result<CryptoHash> {
         self.get(key, proof).and_then(|value| value.ok_or(Error::NotFound))
     }
@@ -231,17 +229,18 @@ impl<A: memory::Allocator> Trie<A> {
     /// at the key.  For example, if trie contains key `foobar` only, neither
     /// `foo` nor `qux` keys can be sealed.  In those cases, function returns
     /// an error.
-    pub fn seal(&mut self, key: &[u8], proof: Option<&mut Vec<ProofNode>>) -> Result<()> {
+    pub fn seal(
+        &mut self,
+        key: &[u8],
+        proof: Option<&mut Vec<ProofNode>>,
+    ) -> Result<()> {
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         if self.root_hash == EMPTY_TRIE_ROOT {
             return Err(Error::NotFound);
         }
 
-        let seal = SealContext {
-            alloc: &mut self.alloc,
-            key,
-            proof
-        }.seal(self.root_ptr)?;
+        let seal = SealContext { alloc: &mut self.alloc, key, proof }
+            .seal(self.root_ptr)?;
         if seal {
             self.root_ptr = None;
         }
@@ -256,23 +255,24 @@ impl<A: memory::Allocator> Trie<A> {
         if self.root_hash == EMPTY_TRIE_ROOT {
             println!("(empty)");
         } else {
-            self.print_impl(self.root_ptr, &self.root_hash, 0);
+            self.print_impl(NodeRef::new(self.root_ptr, &self.root_hash), 0);
         }
     }
 
     #[cfg(test)]
-    fn print_impl(&self, ptr: Option<Ptr>, hash: &CryptoHash, depth: usize) {
+    fn print_impl(&self, nref: NodeRef, depth: usize) {
         use std::{print, println};
 
-        let print_ref = |nref, depth| match nref {
-            RawRef::Value { is_sealed, hash } => {
-                println!("{:depth$}value {hash}{is_sealed:#}", "")
+        let print_ref = |rf, depth| match rf {
+            Reference::Node(node) => self.print_impl(node, depth),
+            Reference::Value(value) => {
+                let is_sealed = if value.is_sealed { " (sealed)" } else { "" };
+                println!("{:depth$}value {}{}", "", value.hash, is_sealed)
             }
-            RawRef::Node { ptr, hash } => self.print_impl(ptr, hash, depth),
         };
 
-        print!("{:depth$}«{hash}»", "");
-        let ptr = if let Some(ptr) = ptr {
+        print!("{:depth$}«{}»", "", nref.hash);
+        let ptr = if let Some(ptr) = nref.ptr {
             ptr
         } else {
             println!(" (sealed)");
@@ -289,9 +289,10 @@ impl<A: memory::Allocator> Trie<A> {
                 println!(" Extension {key}");
                 print_ref(child, depth + 2);
             }
-            Node::Value { is_sealed, value_hash, child } => {
-                println!(" Value {value_hash}{is_sealed:#}");
-                print_ref(RawRef::from(child), depth + 2);
+            Node::Value { value, child } => {
+                let is_sealed = if value.is_sealed { " (sealed)" } else { "" };
+                println!(" Value {}{}", value.hash, is_sealed);
+                print_ref(Reference::from(child), depth + 2);
             }
         }
     }
@@ -330,23 +331,26 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         let result = match node {
             Node::Branch { children } => self.seal_branch(children),
             Node::Extension { key, child } => self.seal_extension(key, child),
-            Node::Value { is_sealed, value_hash, child } => self.seal_value(is_sealed, value_hash, child),
+            Node::Value { value, child } => self.seal_value(value, child),
         }?;
 
         match result {
             SealResult::Replace(node) => {
                 self.alloc.set(ptr, node);
                 Ok(false)
-            },
+            }
             SealResult::Free => {
                 self.alloc.free(ptr);
                 Ok(true)
-            },
+            }
             SealResult::Done => Ok(false),
         }
     }
 
-    fn seal_branch(&mut self, mut children: [RawRef; 2]) -> Result<SealResult> {
+    fn seal_branch(
+        &mut self,
+        mut children: [Reference; 2],
+    ) -> Result<SealResult> {
         let side = match self.key.pop_front() {
             None => return Err(Error::NotFound),
             Some(bit) => usize::from(bit),
@@ -362,7 +366,11 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         }
     }
 
-    fn seal_extension(&mut self, ext_key: bits::Slice, child: RawRef) -> Result<SealResult> {
+    fn seal_extension(
+        &mut self,
+        ext_key: bits::Slice,
+        child: Reference,
+    ) -> Result<SealResult> {
         if !self.key.strip_prefix(ext_key) {
             return Err(Error::NotFound);
         }
@@ -374,35 +382,40 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         })
     }
 
-    fn seal_value(&mut self, is_sealed: IsSealed, value_hash: &CryptoHash, child: RawNodeRef) -> Result<SealResult> {
-        if is_sealed == Sealed {
+    fn seal_value(
+        &mut self,
+        value: ValueRef,
+        child: NodeRef,
+    ) -> Result<SealResult> {
+        if value.is_sealed {
             Err(Error::Sealed)
         } else if self.key.is_empty() {
             prune(self.alloc, child.ptr);
             Ok(SealResult::Free)
         } else if self.seal(child.ptr)? {
-            let child = RawNodeRef::new(None, child.hash);
-            let node = RawNode::value(Unsealed, value_hash, child);
+            let child = NodeRef::new(None, child.hash);
+            let node = RawNode::value(value, child);
             Ok(SealResult::Replace(node))
         } else {
             Ok(SealResult::Done)
         }
     }
 
-    fn seal_child<'b>(&mut self, child: RawRef<'b>) -> Result<Option<RawRef<'b>>> {
+    fn seal_child<'b>(
+        &mut self,
+        child: Reference<'b>,
+    ) -> Result<Option<Reference<'b>>> {
         match child {
-            RawRef::Node { ptr, hash } => {
-                Ok(if self.seal(ptr)? {
-                    Some(RawRef::node(None, hash))
-                } else {
-                    None
-                })
-            },
-            RawRef::Value { is_sealed, hash } => {
-                if is_sealed == Sealed {
+            Reference::Node(node) => Ok(if self.seal(node.ptr)? {
+                Some(Reference::Node(node.sealed()))
+            } else {
+                None
+            }),
+            Reference::Value(value) => {
+                if value.is_sealed {
                     Err(Error::Sealed)
                 } else if self.key.is_empty() {
-                    Ok(Some(RawRef::value(Sealed, hash)))
+                    Ok(Some(value.sealed().into()))
                 } else {
                     Err(Error::NotFound)
                 }
@@ -442,10 +455,10 @@ fn prune(alloc: &mut impl memory::Allocator, ptr: Option<Ptr>) {
 }
 
 fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
-    fn get_ptr(child: RawRef) -> Option<Ptr> {
+    fn get_ptr(child: Reference) -> Option<Ptr> {
         match child {
-            RawRef::Node { ptr, .. } => ptr,
-            RawRef::Value { .. } => None,
+            Reference::Node(node) => node.ptr,
+            Reference::Value { .. } => None,
         }
     }
 
@@ -485,7 +498,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     ) -> Result<(Ptr, CryptoHash)> {
         if let Some(ptr) = root_ptr {
             // Trie is non-empty, handle normally.
-            self.handle(RawNodeRef { ptr: Some(ptr), hash: root_hash })
+            self.handle(NodeRef { ptr: Some(ptr), hash: root_hash })
         } else if *root_hash != EMPTY_TRIE_ROOT {
             // Trie is sealed (it’s not empty but ptr is None).
             Err(Error::Sealed)
@@ -502,7 +515,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     }
 
     /// Inserts value into the trie starting at node pointed by given reference.
-    fn handle(&mut self, nref: RawNodeRef) -> Result<(Ptr, CryptoHash)> {
+    fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
         let raw_node = self.alloc.get(nref.0);
         match Node::from(&raw_node) {
@@ -510,9 +523,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
             Node::Extension { key, child } => {
                 self.handle_extension(nref, key, child)
             }
-            Node::Value { is_sealed: Sealed, .. } => Err(Error::Sealed),
-            Node::Value { is_sealed: Unsealed, value_hash, child } => {
-                self.handle_value(nref, value_hash, child)
+            Node::Value { value, child } => {
+                self.handle_value(nref, value, child)
             }
         }
     }
@@ -521,7 +533,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn handle_branch(
         &mut self,
         nref: (Ptr, &CryptoHash),
-        children: [RawRef<'_>; 2],
+        children: [Reference<'_>; 2],
     ) -> Result<(Ptr, CryptoHash)> {
         let bit = if let Some(bit) = self.key.pop_front() {
             bit
@@ -534,11 +546,11 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         // Figure out which direction the key leads and update the node
         // in-place.
         let owned_ref = self.handle_reference(children[usize::from(bit)])?;
-        let child = owned_ref.to_raw_ref();
+        let child = owned_ref.to_ref();
         let children =
             if bit { [children[0], child] } else { [child, children[1]] };
         Ok(self.set_node(nref.0, RawNode::branch(children[0], children[1])))
-        // let child = owned_ref.to_raw_ref();
+        // let child = owned_ref.to_ref();
         // let (left, right) = if bit == 0 {
         //     (child, children[1])
         // } else {
@@ -554,7 +566,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         &mut self,
         nref: (Ptr, &CryptoHash),
         mut key: bits::Slice<'_>,
-        child: RawRef<'_>,
+        child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
         // If key is empty, insert a new Value node with this node as a child.
         //
@@ -582,8 +594,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         //           C                 C′
         if suffix.is_empty() {
             let owned_ref = self.handle_reference(child)?;
-            let node =
-                RawNode::extension(prefix, owned_ref.to_raw_ref()).unwrap();
+            let node = RawNode::extension(prefix, owned_ref.to_ref()).unwrap();
             return Ok(self.set_node(nref.0, node));
         }
 
@@ -605,7 +616,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
             let (ptr, hash) = self.alloc_extension_node(suffix, child)?;
             let (ptr, hash) =
                 self.alloc_value_node(self.value_hash, ptr, &hash)?;
-            let child = RawRef::node(Some(ptr), &hash);
+            let child = Reference::node(Some(ptr), &hash);
             let node = RawNode::extension(prefix, child).unwrap();
             return Ok(self.set_node(nref.0, node));
         };
@@ -635,16 +646,16 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         let their_ref = if let Some(node) = RawNode::extension(suffix, child) {
             let (ptr, hash) = self.alloc_node(node)?;
             their_hash = hash;
-            RawRef::node(Some(ptr), &their_hash)
+            Reference::node(Some(ptr), &their_hash)
         } else {
             child
         };
         let mut children = [their_ref; 2];
-        children[our] = our_ref.to_raw_ref();
+        children[our] = our_ref.to_ref();
         let node = RawNode::branch(children[0], children[1]);
         let (ptr, hash) = self.set_node(nref.0, node);
 
-        match RawNode::extension(prefix, RawRef::node(Some(ptr), &hash)) {
+        match RawNode::extension(prefix, Reference::node(Some(ptr), &hash)) {
             Some(node) => self.alloc_node(node),
             None => Ok((ptr, hash)),
         }
@@ -654,15 +665,17 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn handle_value(
         &mut self,
         nref: (Ptr, &CryptoHash),
-        existing_value: &CryptoHash,
-        child: RawNodeRef,
+        value: ValueRef,
+        child: NodeRef,
     ) -> Result<(Ptr, CryptoHash)> {
+        if value.is_sealed {
+            return Err(Error::Sealed);
+        }
         let node = if self.key.is_empty() {
-            RawNode::value(Unsealed, self.value_hash, child)
+            RawNode::value(ValueRef::new(false, self.value_hash), child)
         } else {
             let (ptr, hash) = self.handle(child)?;
-            let child = RawNodeRef::new(Some(ptr), &hash);
-            RawNode::value(Unsealed, existing_value, child)
+            RawNode::value(value, NodeRef::new(Some(ptr), &hash))
         };
         Ok(self.set_node(nref.0, node))
     }
@@ -671,25 +684,26 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     ///
     /// Returns a new value for the reference updating it such that it points at
     /// the subtrie updated with the inserted value.
-    fn handle_reference(&mut self, child: RawRef<'_>) -> Result<OwnedRef> {
+    fn handle_reference(&mut self, child: Reference<'_>) -> Result<OwnedRef> {
         match child {
-            RawRef::Node { ptr, hash } => {
+            Reference::Node(node) => {
                 // Handle node references recursively.  We cannot special handle
                 // our key being empty because we need to handle cases where the
                 // reference points at a Value node correctly.
-                self.handle(RawNodeRef::new(ptr, hash))
-                    .map(|(p, h)| OwnedRef::Node(p, h))
+                self.handle(node).map(|(p, h)| OwnedRef::Node(p, h))
             }
-            RawRef::Value { is_sealed: Sealed, .. } => Err(Error::Sealed),
-            RawRef::Value { is_sealed: Unsealed, hash } => {
+            Reference::Value(value) => {
+                if value.is_sealed {
+                    return Err(Error::Sealed);
+                }
                 // It’s a value reference so we just need to update it
                 // accordingly.  One tricky thing is that we need to insert
                 // Value node with the old hash if our key isn’t empty.
                 match self.insert_value()? {
-                    owned_ref @ OwnedRef::Value(_) => Ok(owned_ref),
+                    rf @ OwnedRef::Value(_) => Ok(rf),
                     OwnedRef::Node(p, h) => {
-                        let child = RawNodeRef::new(Some(p), &h);
-                        let node = RawNode::value(Unsealed, hash, child);
+                        let child = NodeRef::new(Some(p), &h);
+                        let node = RawNode::value(value, child);
                         self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
                     }
                 }
@@ -709,8 +723,8 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         let mut hash = self.value_hash.clone();
         for chunk in self.key.chunks().rev() {
             let child = match ptr {
-                None => RawRef::value(Unsealed, &hash),
-                Some(_) => RawRef::node(ptr, &hash),
+                None => Reference::value(false, &hash),
+                Some(_) => Reference::node(ptr, &hash),
             };
             let (p, h) = self.alloc_extension_node(chunk, child)?;
             ptr = Some(p);
@@ -735,7 +749,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn alloc_extension_node(
         &mut self,
         key: bits::Slice<'_>,
-        child: RawRef<'_>,
+        child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
         self.alloc_node(RawNode::extension(key, child).unwrap())
     }
@@ -748,8 +762,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         ptr: Ptr,
         hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
-        let child = RawNodeRef::new(Some(ptr), hash);
-        self.alloc_node(RawNode::value(Unsealed, value_hash, child))
+        let value = ValueRef::new(false, value_hash);
+        let child = NodeRef::new(Some(ptr), hash);
+        self.alloc_node(RawNode::value(value, child))
     }
 
     /// Sets value of a node cell at given address and returns its hash.
@@ -786,10 +801,10 @@ enum OwnedRef {
 }
 
 impl OwnedRef {
-    fn to_raw_ref<'a>(&'a self) -> RawRef {
+    fn to_ref(&self) -> Reference {
         match self {
-            Self::Node(ptr, hash) => RawRef::node(Some(*ptr), &hash),
-            Self::Value(hash) => RawRef::value(Unsealed, &hash),
+            Self::Node(ptr, hash) => Reference::node(Some(*ptr), &hash),
+            Self::Value(hash) => Reference::value(false, &hash),
         }
     }
 }

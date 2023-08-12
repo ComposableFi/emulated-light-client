@@ -160,13 +160,17 @@ impl TestTrie {
 
     pub fn seal(&mut self, key: &[u8], verbose: bool) {
         println!("{}Sealing {key:?}", if verbose { "\n" } else { "" });
-        self.trie.seal(key, None)
+        self.trie
+            .seal(key, None)
             .unwrap_or_else(|err| panic!("Failed sealing ‘{key:?}’: {err}"));
         if verbose {
             self.trie.print();
         }
-        assert_eq!(Err(super::Error::Sealed), self.trie.get(key, None),
-                   "Unexpectedly can read ‘{key:?}’ after sealing")
+        assert_eq!(
+            Err(super::Error::Sealed),
+            self.trie.get(key, None),
+            "Unexpectedly can read ‘{key:?}’ after sealing"
+        )
     }
 
     fn next_value(&mut self) -> CryptoHash {

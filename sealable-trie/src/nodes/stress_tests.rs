@@ -9,8 +9,7 @@ use pretty_assertions::assert_eq;
 
 use crate::memory::Ptr;
 use crate::nodes::{
-    self, IsSealed, Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref,
-    Unsealed,
+    self, Node, NodeRef, ProofNode, RawNode, Reference, ValueRef,
 };
 use crate::test_utils::get_iteration_count;
 use crate::{bits, stdx};
@@ -29,9 +28,7 @@ fn stress_test_raw_encoding_round_trip() {
 
         // Test RawNode→Proof→Node gives the same result as RawNode→Node.
         let proof = ProofNode::from(raw);
-        let node =
-            node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
-        assert_eq!(Ok(node), Node::try_from(&proof), "{raw:?}");
+        assert_eq!(Ok(node.strip()), Node::try_from(&proof), "{raw:?}");
     }
 }
 
@@ -114,11 +111,8 @@ fn do_test_proof_encoding_round_trip(want: &[u8]) {
     assert_eq!(Some(&want[..]), got);
 
     let node = node.map_refs(
-        |child| match child.is_value {
-            false => RawRef::node(None, child.hash),
-            true => RawRef::value(Unsealed, child.hash),
-        },
-        |nref| RawNodeRef::new(None, nref.hash),
+        |nref| NodeRef::new(None, nref.hash),
+        |vref| ValueRef::new(false, vref.hash),
     );
 
     // Test Node→RawNode→Node (that’s done inside raw_from_node) and
@@ -179,9 +173,7 @@ fn stress_test_node_encoding_round_trip() {
         assert_eq!(node, Node::from(&raw), "Failed decoding Raw: {raw:?}");
 
         let proof = super::tests::proof_from_node(&node);
-        let node =
-            node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
-        assert_eq!(Ok(node), Node::try_from(&proof));
+        assert_eq!(Ok(node.strip()), Node::try_from(&proof));
     }
 }
 
@@ -193,12 +185,12 @@ fn gen_random_node<'a>(
     fn rand_ref<'a>(
         rng: &mut impl rand::Rng,
         hash: &'a [u8; 32],
-    ) -> RawRef<'a> {
+    ) -> Reference<'a> {
         let num = rng.gen::<u32>();
         if num < 0x8000_0000 {
-            RawRef::node(Ptr::new(num).ok().flatten(), hash.into())
+            Reference::node(Ptr::new(num).ok().flatten(), hash.into())
         } else {
-            RawRef::value(IsSealed::new(num & 1 != 0), hash.into())
+            Reference::value(num & 1 != 0, hash.into())
         }
     }
 
@@ -215,11 +207,12 @@ fn gen_random_node<'a>(
             Node::extension(key, rand_ref(rng, &right))
         }
         2 => {
-            let is_sealed = IsSealed::new(rng.gen::<u8>() & 1 == 1);
-            let num = rng.gen::<u32>() & 0x7FFF_FFFF;
-            let child =
-                RawNodeRef::new(Ptr::new(num).ok().flatten(), right.into());
-            Node::value(is_sealed, left.into(), child)
+            let num = rng.gen::<u32>();
+            let is_sealed = num & 0x8000_0000 != 0;
+            let value = ValueRef::new(is_sealed, left.into());
+            let ptr = Ptr::new(num & 0x7FFF_FFFF).ok().flatten();
+            let child = NodeRef::new(ptr, right.into());
+            Node::value(value, child)
         }
         _ => unreachable!(),
     }

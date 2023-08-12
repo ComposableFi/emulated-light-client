@@ -16,3 +16,4 @@ derive_more = "0.99.17"
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 sha2 = { version = "0.10.7", default-features = false }
+strum = { version = "0.25.0", default-features = false, features = ["derive"] }

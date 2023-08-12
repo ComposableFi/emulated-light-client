@@ -5,10 +5,7 @@ use pretty_assertions::assert_eq;
 use crate::bits;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{
-    Node, NodeRef, ProofNode, RawNode, RawNodeRef, RawRef, Ref, Sealed,
-    Unsealed,
-};
+use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
     Ok(Some(ptr)) => ptr,
@@ -45,14 +42,18 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 /// objects aren’t equal.  Returns the proof node.
 #[track_caller]
 pub(super) fn proof_from_node(node: &Node) -> ProofNode {
-    let node = node.map_refs(Ref::from, NodeRef::from).with_unsealed_value();
+    // let node = node.map_refs(
+    //     |nr| NodeRef::new((), nr.hash),
+    //     |vr| ValueRef::new((), vr.hash),
+    // );
     let proof = ProofNode::try_from(node)
         .unwrap_or_else(|()| panic!("Failed encoding node as proof: {node:?}"));
     let decoded = Node::try_from(&proof).unwrap_or_else(|()| {
         panic!("Failed round-trip proof decoding of: {:?}", proof)
     });
     assert_eq!(
-        node, decoded,
+        node.strip(),
+        decoded,
         "Node → ProofNode → Node gave different result:\n Proof: {proof:?}"
     );
     proof
@@ -97,8 +98,8 @@ fn test_branch_encoding() {
     // Branch with two node children.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::node(Some(DEAD), &ONE),
-            RawRef::node(None, &TWO),
+            Reference::node(Some(DEAD), &ONE),
+            Reference::node(None, &TWO),
         ],
     }, [
         /* ptr1:  */ 0, 0, 0xDE, 0xAD,
@@ -114,8 +115,8 @@ fn test_branch_encoding() {
     // Branch with first child being a node and second being a value.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::node(Some(DEAD), &ONE),
-            RawRef::value(Unsealed, &TWO),
+            Reference::node(Some(DEAD), &ONE),
+            Reference::value(false, &TWO),
         ],
     }, [
         /* ptr1:  */ 0, 0, 0xDE, 0xAD,
@@ -131,8 +132,8 @@ fn test_branch_encoding() {
     // Branch with first child being a value and second being a node.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::value(Sealed, &ONE),
-            RawRef::node(Some(BEEF), &TWO),
+            Reference::value(true, &ONE),
+            Reference::node(Some(BEEF), &TWO),
         ],
     }, [
         /* ptr1:  */ 0x60, 0, 0, 0,
@@ -148,8 +149,8 @@ fn test_branch_encoding() {
     // Branch with both children being values.
     check_node_encoding(Node::Branch {
         children: [
-            RawRef::value(Unsealed, &ONE),
-            RawRef::value(Sealed, &TWO),
+            Reference::value(false, &ONE),
+            Reference::value(true, &TWO),
         ],
     }, [
         /* ptr1:  */ 0x40, 0, 0, 0,
@@ -169,7 +170,7 @@ fn test_extension_encoding() {
     // Extension pointing at a node
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 5, 25).unwrap(),
-        child: RawRef::node(Some(DEAD), &ONE),
+        child: Reference::node(Some(DEAD), &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
         /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -184,7 +185,7 @@ fn test_extension_encoding() {
     // Extension pointing at a sealed node
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 5, 25).unwrap(),
-        child: RawRef::node(None, &ONE),
+        child: Reference::node(None, &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
         /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -199,7 +200,7 @@ fn test_extension_encoding() {
     // Extension pointing at a value
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
-        child: RawRef::value(Unsealed, &ONE),
+        child: Reference::value(false, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
         /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -216,7 +217,7 @@ fn test_extension_encoding() {
 
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
-        child: RawRef::value(Sealed, &ONE),
+        child: Reference::value(true, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
         /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -236,9 +237,8 @@ fn test_extension_encoding() {
 #[rustfmt::skip]
 fn test_value_encoding() {
     check_node_encoding(Node::Value {
-        is_sealed: Unsealed,
-        value_hash: &ONE,
-        child: RawNodeRef::new(Some(BEEF), &TWO),
+        value: ValueRef::new(false, &ONE),
+        child: NodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xC0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -251,9 +251,8 @@ fn test_value_encoding() {
     ]);
 
     check_node_encoding(Node::Value {
-        is_sealed: Sealed,
-        value_hash: &ONE,
-        child: RawNodeRef::new(Some(BEEF), &TWO),
+        value: ValueRef::new(true, &ONE),
+        child: NodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xE0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,

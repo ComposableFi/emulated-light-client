@@ -7,6 +7,7 @@ edition = "2021"
 base64.workspace = true
 derive_more.workspace = true
 sha2.workspace = true
+strum.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
