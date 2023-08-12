@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt;
 use core::num::NonZeroU32;
 
@@ -124,25 +125,110 @@ pub trait Allocator {
     fn free(&mut self, ptr: Ptr);
 }
 
+/// A write log which can be committed or rolled back.
+///
+/// Rather than writing data directly to the allocate, it keeps all changes in
+/// memory.  When committing, the changes are then applied.  Similarly, list of
+/// all allocated nodes are kept and during rollback all of those nodes are
+/// freed.
+///
+/// **Note:** *All* reads are passed directly to the underlying allocator.  This
+/// means reading a node that has been written to will return the old result.
+///
+/// Note that the write log doesn’t offer isolation.  Most notably, writes to
+/// the allocator performed outside of the write log are visible when accessing
+/// the nodes via the write log.  (To indicate that, the API doesn’t offer `get`
+/// method and instead all reads need to go through the underlying allocator).
+///
+/// Secondly, allocations done via the write log are visible outside of the
+/// write log.  The assumption is that nothing outside of the client of the
+/// write log knows the pointer thus in practice they cannot refer to those
+/// allocated but not-yet-committed nodes.
+pub struct WriteLog<'a, A: Allocator> {
+    /// Allocator to pass requests to.
+    alloc: &'a mut A,
+
+    /// List of changes in the transaction.
+    write_log: Vec<(Ptr, RawNode)>,
+
+    /// List pointers to nodes allocated during the transaction.
+    allocated: Vec<Ptr>,
+
+    /// List of nodes freed during the transaction.
+    freed: Vec<Ptr>,
+}
+
+impl<'a, A: Allocator> WriteLog<'a, A> {
+    pub fn new(alloc: &'a mut A) -> Self {
+        Self {
+            alloc,
+            write_log: Vec::new(),
+            allocated: Vec::new(),
+            freed: Vec::new(),
+        }
+    }
+
+    /// Commit all changes to the allocator.
+    ///
+    /// There’s no explicit rollback method.  To roll changes back, drop the
+    /// object.
+    pub fn commit(mut self) {
+        self.allocated.clear();
+        for (ptr, value) in self.write_log.drain(..) {
+            self.alloc.set(ptr, value)
+        }
+        for ptr in self.freed.drain(..) {
+            self.alloc.free(ptr)
+        }
+    }
+
+    /// Returns underlying allocator.
+    pub fn allocator(&self) -> &A { &*self.alloc }
+
+    pub fn alloc(&mut self, value: RawNode) -> Result<Ptr, OutOfMemory> {
+        let ptr = self.alloc.alloc(value)?;
+        self.allocated.push(ptr);
+        Ok(ptr)
+    }
+
+    pub fn set(&mut self, ptr: Ptr, value: RawNode) {
+        self.write_log.push((ptr, value))
+    }
+
+    pub fn free(&mut self, ptr: Ptr) { self.freed.push(ptr); }
+}
+
+impl<'a, A: Allocator> core::ops::Drop for WriteLog<'a, A> {
+    fn drop(&mut self) {
+        self.write_log.clear();
+        self.freed.clear();
+        for ptr in self.allocated.drain(..) {
+            self.alloc.free(ptr)
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod test_utils {
     use super::*;
     use crate::stdx;
 
     pub struct TestAllocator {
+        count: usize,
         free: Option<Ptr>,
         pool: alloc::vec::Vec<RawNode>,
         allocated: std::collections::HashMap<u32, bool>,
     }
 
     impl TestAllocator {
-        #[allow(dead_code)]
         pub fn new(capacity: usize) -> Self {
             let capacity = capacity.min(1 << 30);
             let mut pool = alloc::vec::Vec::with_capacity(capacity);
             pool.push(RawNode([0xAA; 72]));
-            Self { free: None, pool, allocated: Default::default() }
+            Self { count: 0, free: None, pool, allocated: Default::default() }
         }
+
+        pub fn count(&self) -> usize { self.count }
 
         /// Verifies that block has been allocated.  Panics if it hasn’t.
         fn check_allocated(&self, action: &str, ptr: Ptr) -> usize {
@@ -177,6 +263,7 @@ pub(crate) mod test_utils {
                 self.allocated.insert(ptr.get(), true) != Some(true),
                 "Internal error: Allocated the same block twice at {ptr}",
             );
+            self.count += 1;
             Ok(ptr)
         }
 
@@ -197,6 +284,121 @@ pub(crate) mod test_utils {
             *stdx::split_array_mut::<4, 68, 72>(&mut self.pool[idx].0).0 =
                 self.free.map_or(0, |ptr| ptr.get()).to_ne_bytes();
             self.free = Some(ptr);
+            self.count -= 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod test_write_log {
+    use super::test_utils::TestAllocator;
+    use super::*;
+
+    fn make_allocator() -> (TestAllocator, Vec<Ptr>) {
+        let mut alloc = TestAllocator::new(100);
+        let ptrs = (0..10)
+            .map(|num| alloc.alloc(make_node(num)).unwrap())
+            .collect::<Vec<Ptr>>();
+        assert_nodes(10, &alloc, &ptrs, 0);
+        (alloc, ptrs)
+    }
+
+    fn make_node(num: u8) -> RawNode {
+        let hash = [num; 32].into();
+        let child = crate::nodes::Reference::node(None, &hash);
+        RawNode::branch(child, child)
+    }
+
+    #[track_caller]
+    fn assert_nodes(
+        count: usize,
+        alloc: &TestAllocator,
+        ptrs: &[Ptr],
+        offset: u8,
+    ) {
+        assert_eq!(count, alloc.count());
+        for (idx, ptr) in ptrs.iter().enumerate() {
+            assert_eq!(
+                make_node(idx as u8 + offset),
+                alloc.get(*ptr),
+                "Invalid value when reading {ptr}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_set_commit() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
+            wlog.set(ptr, make_node(idx as u8 + 10));
+        }
+        assert_nodes(10, wlog.allocator(), &ptrs, 0);
+        wlog.commit();
+        assert_nodes(10, &alloc, &ptrs[..5], 10);
+        assert_nodes(10, &alloc, &ptrs[5..], 5);
+    }
+
+    #[test]
+    fn test_set_rollback() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
+            wlog.set(ptr, make_node(idx as u8 + 10));
+        }
+        assert_nodes(10, wlog.allocator(), &ptrs, 0);
+        core::mem::drop(wlog);
+        assert_nodes(10, &alloc, &ptrs, 0);
+    }
+
+    #[test]
+    fn test_alloc_commit() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        let new_ptrs = (10..20)
+            .map(|num| wlog.alloc(make_node(num)).unwrap())
+            .collect::<Vec<Ptr>>();
+        assert_nodes(20, &wlog.allocator(), &ptrs, 0);
+        assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
+        wlog.commit();
+        assert_nodes(20, &alloc, &ptrs, 0);
+        assert_nodes(20, &alloc, &new_ptrs, 10);
+    }
+
+    #[test]
+    fn test_alloc_rollback() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        let new_ptrs = (10..20)
+            .map(|num| wlog.alloc(make_node(num)).unwrap())
+            .collect::<Vec<Ptr>>();
+        assert_nodes(20, &wlog.allocator(), &ptrs, 0);
+        assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
+        core::mem::drop(wlog);
+        assert_nodes(10, &alloc, &ptrs, 0);
+    }
+
+    #[test]
+    fn test_free_commit() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        for num in 5..10 {
+            wlog.free(ptrs[num]);
+        }
+        assert_nodes(10, wlog.allocator(), &ptrs, 0);
+        wlog.commit();
+        assert_nodes(5, &alloc, &ptrs[..5], 0);
+    }
+
+    #[test]
+    fn test_free_rollback() {
+        let (mut alloc, ptrs) = make_allocator();
+        let mut wlog = WriteLog::new(&mut alloc);
+        for num in 5..10 {
+            wlog.free(ptrs[num]);
+        }
+        assert_nodes(10, wlog.allocator(), &ptrs, 0);
+        core::mem::drop(wlog);
+        assert_nodes(10, &alloc, &ptrs, 0);
     }
 }
