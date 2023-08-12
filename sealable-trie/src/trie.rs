@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{Node, ProofNode, Reference, NodeRef};
+use crate::nodes::{Node, NodeRef, ProofNode, Reference};
 use crate::{bits, memory};
 
 mod seal;
@@ -247,10 +247,7 @@ impl<A: memory::Allocator> Trie<A> {
         if self.root_hash == EMPTY_TRIE_ROOT {
             println!("(empty)");
         } else {
-            self.print_impl(
-                NodeRef::new(self.root_ptr, &self.root_hash),
-                0,
-            );
+            self.print_impl(NodeRef::new(self.root_ptr, &self.root_hash), 0);
         }
     }
 
