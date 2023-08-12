@@ -35,9 +35,10 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
     ///
     /// Returns `true` if node at `ptr` has been sealed.  This lets caller know
     /// that `ptr` has been freed and it has to update references to it.
-    pub(super) fn seal(&mut self, ptr: Option<Ptr>) -> Result<bool> {
-        let ptr = ptr.ok_or(Error::Sealed)?;
+    pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
+        let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = self.alloc.get(ptr);
+        debug_assert_eq!(*nref.hash, node.hash());
         let node = Node::from(&node);
         if let Some(proof) = self.proof.as_mut() {
             proof.push(ProofNode::try_from(node).unwrap())
@@ -107,7 +108,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         } else if self.key.is_empty() {
             prune(self.alloc, child.ptr);
             Ok(SealResult::Free)
-        } else if self.seal(child.ptr)? {
+        } else if self.seal(child)? {
             let child = NodeRef::new(None, child.hash);
             let node = RawNode::value(value, child);
             Ok(SealResult::Replace(node))
@@ -121,7 +122,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         child: Reference<'b>,
     ) -> Result<Option<Reference<'b>>> {
         match child {
-            Reference::Node(node) => Ok(if self.seal(node.ptr)? {
+            Reference::Node(node) => Ok(if self.seal(node)? {
                 Some(Reference::Node(node.sealed()))
             } else {
                 None

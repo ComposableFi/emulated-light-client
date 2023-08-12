@@ -70,6 +70,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
         let raw_node = self.wlog.allocator().get(nref.0);
+        debug_assert_eq!(*nref.1, raw_node.hash());
         match Node::from(&raw_node) {
             Node::Branch { children } => self.handle_branch(nref, children),
             Node::Extension { key, child } => {

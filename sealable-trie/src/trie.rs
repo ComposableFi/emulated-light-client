@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{Node, ProofNode, Reference};
+use crate::nodes::{Node, ProofNode, Reference, NodeRef};
 use crate::{bits, memory};
 
 mod seal;
@@ -122,8 +122,10 @@ impl<A: memory::Allocator> Trie<A> {
         }
 
         let mut node_ptr = self.root_ptr;
+        let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
+            debug_assert_eq!(node_hash, node.hash());
             let node = Node::from(&node);
             if let Some(proof) = proof.as_mut() {
                 proof.push(ProofNode::try_from(node).unwrap())
@@ -149,13 +151,17 @@ impl<A: memory::Allocator> Trie<A> {
                         return Ok(Some(value.hash.clone()));
                     } else {
                         node_ptr = child.ptr;
+                        node_hash = child.hash.clone();
                         continue;
                     }
                 }
             };
 
             match child {
-                Reference::Node(node) => node_ptr = node.ptr,
+                Reference::Node(node) => {
+                    node_ptr = node.ptr;
+                    node_hash = node.hash.clone();
+                }
                 Reference::Value(value) => {
                     return if value.is_sealed {
                         Err(Error::Sealed)
@@ -226,7 +232,7 @@ impl<A: memory::Allocator> Trie<A> {
         }
 
         let seal = seal::SealContext::new(&mut self.alloc, key, proof)
-            .seal(self.root_ptr)?;
+            .seal(NodeRef::new(self.root_ptr, &self.root_hash))?;
         if seal {
             self.root_ptr = None;
         }
@@ -242,14 +248,14 @@ impl<A: memory::Allocator> Trie<A> {
             println!("(empty)");
         } else {
             self.print_impl(
-                crate::nodes::NodeRef::new(self.root_ptr, &self.root_hash),
+                NodeRef::new(self.root_ptr, &self.root_hash),
                 0,
             );
         }
     }
 
     #[cfg(test)]
-    fn print_impl(&self, nref: crate::nodes::NodeRef, depth: usize) {
+    fn print_impl(&self, nref: NodeRef, depth: usize) {
         use std::{print, println};
 
         let print_ref = |rf, depth| match rf {
