@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
 use crate::nodes::{
-    Node, ProofNode, RawNode, RawNodeRef, RawRef, Sealed, Unsealed,
+    Node, ProofNode, RawNode, RawNodeRef, RawRef, Sealed, Unsealed, IsSealed,
 };
 use crate::{bits, memory};
 
@@ -82,6 +82,8 @@ pub enum Error {
     KeyTooLong,
     #[display(fmt = "Tried to access sealed node")]
     Sealed,
+    #[display(fmt = "Value not found")]
+    NotFound,
     #[display(fmt = "Not enough space")]
     OutOfMemory,
 }
@@ -104,11 +106,13 @@ impl<A: memory::Allocator> Trie<A> {
     /// Returns whether the trie is empty.
     pub fn is_empty(&self) -> bool { self.root_hash == EMPTY_TRIE_ROOT }
 
-    /// Retrieves value has at given key.
+    /// Retrieves value at given key.
     ///
-    /// If `proof` is specified, stores proof nodes into the provided vector.
+    /// Returns `None` if there’s no value at given key.  Returns an error if
+    /// the value (or its ancestor) has been sealed.  If `proof` is specified,
+    /// stores proof nodes into the provided vector.
     pub fn get(
-        &mut self,
+        &self,
         key: &[u8],
         mut proof: Option<&mut Vec<ProofNode>>,
     ) -> Result<Option<CryptoHash>> {
@@ -131,9 +135,8 @@ impl<A: memory::Allocator> Trie<A> {
                     Some(bit) => children[usize::from(bit)],
                 },
 
-                Node::Extension { key: mut ext_key, child } => {
-                    key.forward_common_prefix(&mut ext_key);
-                    if !ext_key.is_empty() {
+                Node::Extension { key: ext_key, child } => {
+                    if !key.strip_prefix(ext_key) {
                         return Ok(None);
                     }
                     child
@@ -166,6 +169,19 @@ impl<A: memory::Allocator> Trie<A> {
         }
     }
 
+    /// Retrieves value at given key and returns error if there's none.
+    ///
+    /// Behaves like [`Self::get`] except returns an error if value is not found
+    /// rather.
+    #[inline]
+    pub fn require(
+        &self,
+        key: &[u8],
+        proof: Option<&mut Vec<ProofNode>>
+    ) -> Result<CryptoHash> {
+        self.get(key, proof).and_then(|value| value.ok_or(Error::NotFound))
+    }
+
     /// Inserts a new value hash at given key.
     ///
     /// Sets value hash at given key to given to the provided one.  If the value
@@ -184,16 +200,11 @@ impl<A: memory::Allocator> Trie<A> {
     ) -> Result<()> {
         let (ptr, hash) = (self.root_ptr, self.root_hash.clone());
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
-        let proof_start_len = proof.as_ref().map_or(0, |v| v.len());
         let mut ctx =
             SetContext { key, value_hash, alloc: &mut self.alloc, proof };
         let (ptr, hash) = ctx.set(ptr, &hash)?;
         self.root_ptr = Some(ptr);
         self.root_hash = hash;
-        if let Some(proof) = ctx.proof.as_mut() {
-            // Reverse proof nodes so the first one is the root node.
-            proof[proof_start_len..].reverse()
-        }
         Ok(())
     }
 
@@ -213,25 +224,28 @@ impl<A: memory::Allocator> Trie<A> {
     /// Seals value at given key as well as all descendant values.
     ///
     /// Once value is sealed, its hash can no longer be retrieved nor can it be
-    /// changed.  Sealing a value also means sealing the entire subtrie rooted
-    /// at the key (that is, if key `foo` is sealed, `foobar` is also sealed).
+    /// changed.  Sealing a value seals the entire subtrie rooted at the key
+    /// (that is, if key `foo` is sealed, `foobar` is also sealed).
     ///
-    /// However, it is not possible to seal a subtrie unless there’s a value
-    /// stored at the key.  For example, if trie contains key `foobar` only,
-    /// it’s not possible to seal `foo`.  In those cases, function returns
-    /// false.
-    ///
-    /// Returns `true` if value has already been sealed.
-    ///
-    /// To simplify interface, treats keys which are too long as sealed.  Such
-    /// keys are kinda sealed since they cannot be read or modified.
-    pub fn seal_value_and_subtrie(&mut self, key: &[u8]) -> bool {
-        let _key = match bits::Slice::from_bytes(key) {
-            // If key is too long, treat it as if the value was already sealed.
-            None => return true,
-            Some(key) => key,
-        };
-        todo!()
+    /// However, it’s impossible to seal a subtrie unless there’s a value stored
+    /// at the key.  For example, if trie contains key `foobar` only, neither
+    /// `foo` nor `qux` keys can be sealed.  In those cases, function returns
+    /// an error.
+    pub fn seal(&mut self, key: &[u8], proof: Option<&mut Vec<ProofNode>>) -> Result<()> {
+        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        if self.root_hash == EMPTY_TRIE_ROOT {
+            return Err(Error::NotFound);
+        }
+
+        let seal = SealContext {
+            alloc: &mut self.alloc,
+            key,
+            proof
+        }.seal(self.root_ptr)?;
+        if seal {
+            self.root_ptr = None;
+        }
+        Ok(())
     }
 
     /// Prints the trie.  Used for testing and debugging only.
@@ -282,6 +296,166 @@ impl<A: memory::Allocator> Trie<A> {
         }
     }
 }
+
+/// Context for [`Trie::seal`] operation.
+struct SealContext<'a, A> {
+    /// Part of the key yet to be traversed.
+    ///
+    /// It starts as the key user provided and as trie is traversed bits are
+    /// removed from its front.
+    key: bits::Slice<'a>,
+
+    /// Allocator used to retrieve and free nodes.
+    alloc: &'a mut A,
+
+    /// Accumulator to collect proof nodes.  `None` if user didn’t request
+    /// proof.
+    proof: Option<&'a mut Vec<ProofNode>>,
+}
+
+impl<'a, A: memory::Allocator> SealContext<'a, A> {
+    /// Traverses the trie starting from node `ptr` to find node at context’s
+    /// key and seals it.
+    ///
+    /// Returns `true` if node at `ptr` has been sealed.  This lets caller know
+    /// that `ptr` has been freed and it has to update references to it.
+    fn seal(&mut self, ptr: Option<Ptr>) -> Result<bool> {
+        let ptr = ptr.ok_or(Error::Sealed)?;
+        let node = self.alloc.get(ptr);
+        let node = Node::from(&node);
+        if let Some(proof) = self.proof.as_mut() {
+            proof.push(ProofNode::try_from(node).unwrap())
+        }
+
+        let result = match node {
+            Node::Branch { children } => self.seal_branch(children),
+            Node::Extension { key, child } => self.seal_extension(key, child),
+            Node::Value { is_sealed, value_hash, child } => self.seal_value(is_sealed, value_hash, child),
+        }?;
+
+        match result {
+            SealResult::Replace(node) => {
+                self.alloc.set(ptr, node);
+                Ok(false)
+            },
+            SealResult::Free => {
+                self.alloc.free(ptr);
+                Ok(true)
+            },
+            SealResult::Done => Ok(false),
+        }
+    }
+
+    fn seal_branch(&mut self, mut children: [RawRef; 2]) -> Result<SealResult> {
+        let side = match self.key.pop_front() {
+            None => return Err(Error::NotFound),
+            Some(bit) => usize::from(bit),
+        };
+        match self.seal_child(children[side])? {
+            None => Ok(SealResult::Done),
+            Some(_) if children[1 - side].is_sealed() => Ok(SealResult::Free),
+            Some(child) => {
+                children[side] = child;
+                let node = RawNode::branch(children[0], children[1]);
+                Ok(SealResult::Replace(node))
+            }
+        }
+    }
+
+    fn seal_extension(&mut self, ext_key: bits::Slice, child: RawRef) -> Result<SealResult> {
+        if !self.key.strip_prefix(ext_key) {
+            return Err(Error::NotFound);
+        }
+        Ok(if let Some(child) = self.seal_child(child)? {
+            let node = RawNode::extension(ext_key, child).unwrap();
+            SealResult::Replace(node)
+        } else {
+            SealResult::Done
+        })
+    }
+
+    fn seal_value(&mut self, is_sealed: IsSealed, value_hash: &CryptoHash, child: RawNodeRef) -> Result<SealResult> {
+        if is_sealed == Sealed {
+            Err(Error::Sealed)
+        } else if self.key.is_empty() {
+            prune(self.alloc, child.ptr);
+            Ok(SealResult::Free)
+        } else if self.seal(child.ptr)? {
+            let child = RawNodeRef::new(None, child.hash);
+            let node = RawNode::value(Unsealed, value_hash, child);
+            Ok(SealResult::Replace(node))
+        } else {
+            Ok(SealResult::Done)
+        }
+    }
+
+    fn seal_child<'b>(&mut self, child: RawRef<'b>) -> Result<Option<RawRef<'b>>> {
+        match child {
+            RawRef::Node { ptr, hash } => {
+                Ok(if self.seal(ptr)? {
+                    Some(RawRef::node(None, hash))
+                } else {
+                    None
+                })
+            },
+            RawRef::Value { is_sealed, hash } => {
+                if is_sealed == Sealed {
+                    Err(Error::Sealed)
+                } else if self.key.is_empty() {
+                    Ok(Some(RawRef::value(Sealed, hash)))
+                } else {
+                    Err(Error::NotFound)
+                }
+            }
+        }
+    }
+}
+
+enum SealResult {
+    Free,
+    Replace(RawNode),
+    Done,
+}
+
+/// Frees node and all its descendants from the allocator.
+fn prune(alloc: &mut impl memory::Allocator, ptr: Option<Ptr>) {
+    let mut ptr = match ptr {
+        Some(ptr) => ptr,
+        None => return,
+    };
+    let mut queue = Vec::new();
+    loop {
+        let children = get_children(&alloc.get(ptr));
+        alloc.free(ptr);
+        match children {
+            (None, None) => match queue.pop() {
+                Some(p) => ptr = p,
+                None => break,
+            },
+            (Some(p), None) | (None, Some(p)) => ptr = p,
+            (Some(lhs), Some(rht)) => {
+                queue.push(lhs);
+                ptr = rht
+            }
+        }
+    }
+}
+
+fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
+    fn get_ptr(child: RawRef) -> Option<Ptr> {
+        match child {
+            RawRef::Node { ptr, .. } => ptr,
+            RawRef::Value { .. } => None,
+        }
+    }
+
+    match Node::from(node) {
+        Node::Branch { children: [lft, rht] } => (get_ptr(lft), get_ptr(rht)),
+        Node::Extension { child, .. } => (get_ptr(child), None),
+        Node::Value { child, .. } => (child.ptr, None),
+    }
+}
+
 
 /// Context for [`Trie::set`] operation.
 struct SetContext<'a, A> {

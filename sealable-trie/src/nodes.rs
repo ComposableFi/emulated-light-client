@@ -339,6 +339,15 @@ impl<'a> RawRef<'a> {
         Self::Value { is_sealed, hash }
     }
 
+    /// Returns whether the reference is to a sealed node or value.
+    #[inline]
+    pub fn is_sealed(&self) -> bool {
+        match self {
+            Self::Node { ptr, .. } => ptr.is_none(),
+            Self::Value { is_sealed, .. } => *is_sealed == Sealed,
+        }
+    }
+
     /// Parses bytes to form a raw node reference representation.
     ///
     /// Assumes that the bytes are trusted.  I.e. doesn’t verify that the most
