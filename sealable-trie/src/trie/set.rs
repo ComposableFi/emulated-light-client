@@ -60,6 +60,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                 Err(Error::EmptyKey)
             }
         })();
+        // if let Some(proof) = self.proof.as_mut() {
+        //     proof.reverse();
+        // }
         if res.is_ok() {
             self.wlog.commit();
         }
@@ -326,9 +329,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
         let proof_node = ProofNode::from(&node);
         let hash = proof_node.hash();
-        if let Some(proof) = self.proof.as_mut() {
-            proof.push(proof_node);
-        }
+        // if let Some(proof) = self.proof.as_mut() {
+        //     proof.push(proof_node);
+        // }
         self.wlog.set(ptr, node);
         (ptr, hash)
     }
@@ -340,9 +343,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
         let proof_node = ProofNode::from(&node);
         let hash = proof_node.hash();
-        if let Some(proof) = self.proof.as_mut() {
-            proof.push(proof_node);
-        }
+        // if let Some(proof) = self.proof.as_mut() {
+        //     proof.push(proof_node);
+        // }
         let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }

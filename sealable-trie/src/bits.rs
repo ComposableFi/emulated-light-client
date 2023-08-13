@@ -151,7 +151,7 @@ impl<'a> Slice<'a> {
     }
 
     /// Returns length of the slice in bits.
-    pub fn len(&self) -> usize { usize::from(self.length) }
+    pub fn len(&self) -> u16 { self.length }
 
     /// Returns whether the slice is empty.
     pub fn is_empty(&self) -> bool { self.length == 0 }

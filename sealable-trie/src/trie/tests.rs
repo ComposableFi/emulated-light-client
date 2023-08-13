@@ -122,7 +122,7 @@ struct TestTrie {
 impl TestTrie {
     pub fn new(count: usize) -> Self {
         Self {
-            trie: super::Trie::new(TestAllocator::new(count)),
+            trie: super::Trie::test(count),
             mapping: Default::default(),
             count: 0,
         }

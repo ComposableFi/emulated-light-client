@@ -184,9 +184,9 @@ impl<'a, P, S> Node<'a, P, S> {
 
     /// Returns a hash of the node.
     ///
-    /// Hash changes if and only if the value of the node (if any) and all child
-    /// nodes (if any) changes.  Sealing descendant nodes doesn’t affect hash of
-    /// nodes.
+    /// Hash changes if and only if the value of the node (if any) and any child
+    /// node changes.  Sealing or changing pointer value in a node reference
+    /// doesn’t count as changing the node.
     ///
     /// If the given node cannot be encoded (which happens if it’s an extension
     /// with a key whose byte buffer is longer than 34 bytes), returns `None`.
@@ -292,6 +292,13 @@ impl ProofNode {
     /// Calculates hash of the node
     #[inline]
     pub fn hash(&self) -> CryptoHash { CryptoHash::digest(&*self.0) }
+
+    #[inline]
+    /// Checks whether the node is a Branch.
+    pub fn is_branch(&self) -> bool {
+        // The first byte in Branch is 0b0000_00vv
+        self.0.get(0).filter(|first| *first & !3 == 0).is_some()
+    }
 }
 
 impl<'a, P, S> Reference<'a, P, S> {

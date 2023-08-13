@@ -1,8 +1,10 @@
 use alloc::vec::Vec;
+use core::num::NonZeroU16;
 
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
 use crate::nodes::{Node, NodeRef, ProofNode, Reference};
+use crate::proof::ProofItem;
 use crate::{bits, memory};
 
 mod seal;
@@ -11,11 +13,7 @@ mod set;
 mod tests;
 
 /// Root trie hash if the trie is empty.
-pub const EMPTY_TRIE_ROOT: CryptoHash = CryptoHash([
-    78, 24, 172, 250, 218, 226, 123, 232, 172, 249, 233, 169, 183, 47, 211,
-    133, 234, 222, 250, 43, 62, 158, 139, 97, 138, 120, 62, 182, 143, 172, 121,
-    239,
-]);
+pub const EMPTY_TRIE_ROOT: CryptoHash = CryptoHash::DEFAULT;
 
 /// A Merkle Patricia Trie with sealing/pruning feature.
 ///
@@ -94,6 +92,19 @@ impl From<memory::OutOfMemory> for Error {
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
 
+macro_rules! proof {
+    ($proof:ident.push($item:expr)) => {
+        if let Some(proof) = $proof.as_mut() {
+            proof.push($item);
+        }
+    };
+    ($proof:ident. $func:ident()) => {
+        if let Some(proof) = $proof.as_mut() {
+            proof.$func();
+        }
+    };
+}
+
 impl<A: memory::Allocator> Trie<A> {
     /// Creates a new trie using given allocator.
     pub fn new(alloc: A) -> Self {
@@ -114,42 +125,72 @@ impl<A: memory::Allocator> Trie<A> {
     pub fn get(
         &self,
         key: &[u8],
-        mut proof: Option<&mut Vec<ProofNode>>,
+        mut proof: Option<&mut Vec<ProofItem>>,
     ) -> Result<Option<CryptoHash>> {
-        let mut key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         if self.root_hash == EMPTY_TRIE_ROOT {
             return Ok(None);
         }
+        match self.get_impl(key, &mut proof) {
+            Ok(hash) => {
+                proof!(proof.reverse());
+                Ok(hash)
+            }
+            Err(err) => {
+                proof!(proof.clear());
+                Err(err)
+            }
+        }
+    }
 
+    fn get_impl(
+        &self,
+        mut key: bits::Slice,
+        proof: &mut Option<&mut Vec<ProofItem>>,
+    ) -> Result<Option<CryptoHash>> {
         let mut node_ptr = self.root_ptr;
         let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
             debug_assert_eq!(node_hash, node.hash());
             let node = Node::from(&node);
-            if let Some(proof) = proof.as_mut() {
-                proof.push(ProofNode::try_from(node).unwrap())
-            }
 
             let child = match node {
-                Node::Branch { children } => match key.pop_front() {
-                    None => return Ok(None),
-                    Some(bit) => children[usize::from(bit)],
-                },
-
-                Node::Extension { key: ext_key, child } => {
-                    if !key.strip_prefix(ext_key) {
+                Node::Branch { children } => {
+                    if let Some(us) = key.pop_front() {
+                        proof!(proof.push(ProofItem::branch(us, &children)));
+                        children[usize::from(us)]
+                    } else {
+                        proof!(proof.push(ProofItem::ReachedBranch(
+                            ProofNode::try_from(node).unwrap()
+                        )));
                         return Ok(None);
                     }
-                    child
+                }
+
+                Node::Extension { key: ext_key, child } => {
+                    if key.strip_prefix(ext_key) {
+                        proof!(proof.push(
+                            ProofItem::extension(ext_key.len()).unwrap()
+                        ));
+                        child
+                    } else {
+                        proof!(proof.push(ProofItem::ReachedExtension(
+                            key.len(),
+                            ProofNode::try_from(node).unwrap()
+                        )));
+                        return Ok(None);
+                    }
                 }
 
                 Node::Value { value, child } => {
                     if value.is_sealed {
                         return Err(Error::Sealed);
                     } else if key.is_empty() {
+                        proof!(proof.push(ProofItem::Value(child.hash.clone())));
                         return Ok(Some(value.hash.clone()));
                     } else {
+                        proof!(proof.push(ProofItem::Value(value.hash.clone())));
                         node_ptr = child.ptr;
                         node_hash = child.hash.clone();
                         continue;
@@ -165,10 +206,14 @@ impl<A: memory::Allocator> Trie<A> {
                 Reference::Value(value) => {
                     return if value.is_sealed {
                         Err(Error::Sealed)
-                    } else if key.is_empty() {
-                        Ok(Some(value.hash.clone()))
-                    } else {
+                    } else if let Some(len) = NonZeroU16::new(key.len()) {
+                        proof!(proof.push(ProofItem::LookupKeyLeft(
+                            len,
+                            value.hash.clone()
+                        )));
                         Ok(None)
+                    } else {
+                        Ok(Some(value.hash.clone()))
                     };
                 }
             };
@@ -183,7 +228,7 @@ impl<A: memory::Allocator> Trie<A> {
     pub fn require(
         &self,
         key: &[u8],
-        proof: Option<&mut Vec<ProofNode>>,
+        proof: Option<&mut Vec<ProofItem>>,
     ) -> Result<CryptoHash> {
         self.get(key, proof).and_then(|value| value.ok_or(Error::NotFound))
     }
@@ -287,5 +332,12 @@ impl<A: memory::Allocator> Trie<A> {
                 print_ref(Reference::from(child), depth + 2);
             }
         }
+    }
+}
+
+#[cfg(test)]
+impl Trie<memory::test_utils::TestAllocator> {
+    pub(crate) fn test(capacity: usize) -> Self {
+        Self::new(memory::test_utils::TestAllocator::new(capacity))
     }
 }
