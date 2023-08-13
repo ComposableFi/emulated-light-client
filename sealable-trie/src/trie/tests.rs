@@ -142,7 +142,7 @@ impl TestTrie {
         let value = self.next_value();
         println!("{}Inserting {key:?}", if verbose { "\n" } else { "" });
         self.trie
-            .set(key.as_bytes(), &value, None)
+            .set(key.as_bytes(), &value)
             .unwrap_or_else(|err| panic!("Failed setting ‘{key:?}’: {err}"));
         self.mapping.insert(key, value);
         if verbose {
@@ -150,7 +150,7 @@ impl TestTrie {
         }
         for (key, value) in self.mapping.iter() {
             let key = key.as_bytes();
-            let got = self.trie.get(key, None).unwrap_or_else(|err| {
+            let got = self.trie.get(key).unwrap_or_else(|err| {
                 panic!("Failed getting ‘{key:?}’: {err}")
             });
             assert_eq!(Some(value), got.as_ref(), "Invalid value at ‘{key:?}’");
@@ -160,14 +160,14 @@ impl TestTrie {
     pub fn seal(&mut self, key: &[u8], verbose: bool) {
         println!("{}Sealing {key:?}", if verbose { "\n" } else { "" });
         self.trie
-            .seal(key, None)
+            .seal(key)
             .unwrap_or_else(|err| panic!("Failed sealing ‘{key:?}’: {err}"));
         if verbose {
             self.trie.print();
         }
         assert_eq!(
             Err(super::Error::Sealed),
-            self.trie.get(key, None),
+            self.trie.get(key),
             "Unexpectedly can read ‘{key:?}’ after sealing"
         )
     }

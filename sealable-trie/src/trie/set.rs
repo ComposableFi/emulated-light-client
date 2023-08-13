@@ -1,5 +1,3 @@
-use alloc::vec::Vec;
-
 use super::{Error, Result};
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
@@ -19,10 +17,6 @@ pub(super) struct SetContext<'a, A: memory::Allocator> {
 
     /// Allocator used to allocate new nodes.
     wlog: memory::WriteLog<'a, A>,
-
-    /// Accumulator to collect proof nodes.  `None` if user didn’t request
-    /// proof.
-    proof: Option<&'a mut Vec<ProofNode>>,
 }
 
 impl<'a, A: memory::Allocator> SetContext<'a, A> {
@@ -30,10 +24,9 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         alloc: &'a mut A,
         key: bits::Slice<'a>,
         value_hash: &'a CryptoHash,
-        proof: Option<&'a mut Vec<ProofNode>>,
     ) -> Self {
         let wlog = memory::WriteLog::new(alloc);
-        Self { key, value_hash, wlog, proof }
+        Self { key, value_hash, wlog }
     }
 
     /// Inserts value hash into the trie.
@@ -60,9 +53,6 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
                 Err(Error::EmptyKey)
             }
         })();
-        // if let Some(proof) = self.proof.as_mut() {
-        //     proof.reverse();
-        // }
         if res.is_ok() {
             self.wlog.commit();
         }
@@ -324,28 +314,17 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     }
 
     /// Sets value of a node cell at given address and returns its hash.
-    ///
-    /// If proof is being collected, adds proof node to the trace.
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
         let proof_node = ProofNode::from(&node);
         let hash = proof_node.hash();
-        // if let Some(proof) = self.proof.as_mut() {
-        //     proof.push(proof_node);
-        // }
         self.wlog.set(ptr, node);
         (ptr, hash)
     }
 
     /// Allocates a new node and sets it to given value.
-    ///
-    /// If proof is being collected, adds proof node to the trace.  Returns
-    /// node’s pointer and hash.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
         let proof_node = ProofNode::from(&node);
         let hash = proof_node.hash();
-        // if let Some(proof) = self.proof.as_mut() {
-        //     proof.push(proof_node);
-        // }
         let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }

@@ -268,6 +268,31 @@ impl<'a> Slice<'a> {
     /// bytes.
     pub fn chunks(&self) -> Chunks<'a> { Chunks(*self) }
 
+    /// Returns whether the slice starts with given prefix.
+    ///
+    /// **Note**: If the `prefix` slice has a different bit offset it is not
+    /// considered a prefix even if it starts with the same bits.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let mut slice = bits::Slice::new(&[0xAA, 0xA0], 0, 12).unwrap();
+    ///
+    /// assert!(slice.starts_with(bits::Slice::new(&[0xAA], 0, 4).unwrap()));
+    /// assert!(!slice.starts_with(bits::Slice::new(&[0xFF], 0, 4).unwrap()));
+    /// // Different offset:
+    /// assert!(!slice.starts_with(bits::Slice::new(&[0xAA], 4, 4).unwrap()));
+    /// ```
+    pub fn starts_with(&self, prefix: Slice<'_>) -> bool {
+        if self.offset != prefix.offset || self.length < prefix.length {
+            return false;
+        }
+        let subslice = Slice { length: prefix.length, ..*self };
+        subslice == prefix
+    }
+
     /// Removes prefix from the slice; returns `false` if slice doesn’t start
     /// with given prefix.
     ///
@@ -298,11 +323,7 @@ impl<'a> Slice<'a> {
     /// assert_eq!(bits::Slice::new(&[0x00], 4, 0).unwrap(), slice);
     /// ```
     pub fn strip_prefix(&mut self, prefix: Slice<'_>) -> bool {
-        if self.offset != prefix.offset || self.length < prefix.length {
-            return false;
-        }
-        let subslice = Slice { length: prefix.length, ..*self };
-        if subslice != prefix {
+        if !self.starts_with(prefix) {
             return false;
         }
         let length = usize::from(prefix.length) + usize::from(prefix.offset);
@@ -310,7 +331,7 @@ impl<'a> Slice<'a> {
         unsafe { self.ptr = self.ptr.add(length / 8) };
         self.offset = (length % 8) as u8;
         self.length -= prefix.length;
-        return true;
+        true
     }
 
     /// Strips common prefix from two slices; returns new slice with the common

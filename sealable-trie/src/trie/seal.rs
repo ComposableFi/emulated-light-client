@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 
 use super::{Error, Result};
 use crate::memory::Ptr;
-use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
+use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 use crate::{bits, memory};
 
 /// Context for [`Trie::seal`] operation.
@@ -15,19 +15,11 @@ pub(super) struct SealContext<'a, A> {
 
     /// Allocator used to retrieve and free nodes.
     alloc: &'a mut A,
-
-    /// Accumulator to collect proof nodes.  `None` if user didn’t request
-    /// proof.
-    proof: Option<&'a mut Vec<ProofNode>>,
 }
 
 impl<'a, A: memory::Allocator> SealContext<'a, A> {
-    pub(super) fn new(
-        alloc: &'a mut A,
-        key: bits::Slice<'a>,
-        proof: Option<&'a mut Vec<ProofNode>>,
-    ) -> Self {
-        Self { key, alloc, proof }
+    pub(super) fn new(alloc: &'a mut A, key: bits::Slice<'a>) -> Self {
+        Self { key, alloc }
     }
 
     /// Traverses the trie starting from node `ptr` to find node at context’s
@@ -40,9 +32,6 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         let node = self.alloc.get(ptr);
         debug_assert_eq!(*nref.hash, node.hash());
         let node = Node::from(&node);
-        if let Some(proof) = self.proof.as_mut() {
-            proof.push(ProofNode::try_from(node).unwrap())
-        }
 
         let result = match node {
             Node::Branch { children } => self.seal_branch(children),
