@@ -1,7 +1,7 @@
 use super::{Error, Result};
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
+use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 use crate::{bits, memory};
 
 /// Context for [`Trie::set`] operation.
@@ -62,9 +62,10 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let raw_node = self.wlog.allocator().get(nref.0);
-        debug_assert_eq!(*nref.1, raw_node.hash());
-        match Node::from(&raw_node) {
+        let node = self.wlog.allocator().get(nref.0);
+        let node = Node::from(&node);
+        debug_assert_eq!(*nref.1, node.hash().unwrap());
+        match node {
             Node::Branch { children } => self.handle_branch(nref, children),
             Node::Extension { key, child } => {
                 self.handle_extension(nref, key, child)
@@ -315,16 +316,14 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
 
     /// Sets value of a node cell at given address and returns its hash.
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
-        let proof_node = ProofNode::from(&node);
-        let hash = proof_node.hash();
+        let hash = Node::from(&node).hash().unwrap();
         self.wlog.set(ptr, node);
         (ptr, hash)
     }
 
     /// Allocates a new node and sets it to given value.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
-        let proof_node = ProofNode::from(&node);
-        let hash = proof_node.hash();
+        let hash = Node::from(&node).hash().unwrap();
         let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }

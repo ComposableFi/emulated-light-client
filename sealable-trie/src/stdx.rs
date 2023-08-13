@@ -38,6 +38,7 @@ pub(crate) fn split_at<const L: usize>(xs: &[u8]) -> Option<(&[u8; L], &[u8])> {
 
 /// Splits `&[u8]` into `(&[u8], &[u8; R])`.  Returns `None` if input is too
 /// shorter.
+#[allow(dead_code)]
 pub(crate) fn rsplit_at<const R: usize>(
     xs: &[u8],
 ) -> Option<(&[u8], &[u8; R])> {

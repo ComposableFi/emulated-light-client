@@ -1,5 +1,3 @@
-use alloc::boxed::Box;
-
 use crate::bits::Slice;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
@@ -35,8 +33,7 @@ type Result<T, E = ()> = core::result::Result<T, E>;
 /// A node reference either points at another Node or is hash of the stored
 /// value.  The reference is represented by the `R` generic argument.
 ///
-/// [`Node`] object can be constructed either from a [`RawNode`] or
-/// [`ProofNode`].
+/// [`Node`] object can be constructed either from a [`RawNode`].
 ///
 /// The generic argument `P` specifies how pointers to nodes are represented and
 /// `S` specifies how value being sealed or not is encoded.  To represent value
@@ -108,25 +105,6 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; 72]);
 
-/// Binary representation of the node as transmitted in proofs.
-///
-/// Compared to the [`RawNode`] representation, it doesn’t contain pointers to
-/// the allocated nodes nor have indications whether values are sealed or not.
-/// This is the representation which is used when calculating hashes of nodes.
-//
-// ```ignore
-// Branch:    0b0000_00vv <hash-1> <hash-2>
-//    Each `v` indicates whether corresponding <hash> points at a node or is
-//    hash of a value.
-// Extension: 0b100v_kkkk_kkkk_kooo <key> <hash>
-//    <key> is of variable-length and it’s the shortest length that can
-//    fit the key. `v` is `1` if hash is of a value rather than hash of a node.
-// Value:     0b1100_0000 <value-hash> <hash>
-//    <hash> is hash of the node that continues the key.
-// ```
-#[derive(Clone, PartialEq, derive_more::Deref)]
-pub struct ProofNode(Box<[u8]>);
-
 /// Reference either to a node or a value as held in Branch or Extension nodes.
 ///
 /// See [`Node`] documentation for meaning of `P` and `S` generic arguments.
@@ -191,42 +169,30 @@ impl<'a, P, S> Node<'a, P, S> {
     /// If the given node cannot be encoded (which happens if it’s an extension
     /// with a key whose byte buffer is longer than 34 bytes), returns `None`.
     pub fn hash(&self) -> Option<CryptoHash> {
-        proof_from_node(&mut [0; 68], self).map(CryptoHash::digest)
-    }
-
-    /// Maps `Node<P, S>` to `Node<P2, S2>` by applying provided map functions.
-    #[cfg(test)]
-    pub(crate) fn map_refs<P2, S2>(
-        self,
-        node_map: impl Fn(NodeRef<'a, P>) -> NodeRef<'a, P2>,
-        value_map: impl Fn(ValueRef<'a, S>) -> ValueRef<'a, S2>,
-    ) -> Node<'a, P2, S2> {
-        let ref_map = |rf| match rf {
-            Reference::Node(node) => Reference::Node(node_map(node)),
-            Reference::Value(value) => Reference::Value(value_map(value)),
-        };
-
-        match self {
+        let mut buf = [0; 68];
+        let len = match self {
             Node::Branch { children: [left, right] } => {
-                Node::Branch { children: [ref_map(left), ref_map(right)] }
+                buf[0] =
+                    (u8::from(left.is_value()) << 1) | u8::from(right.is_value());
+                buf[1..33].copy_from_slice(left.hash().as_slice());
+                buf[33..65].copy_from_slice(right.hash().as_slice());
+                65
             }
             Node::Extension { key, child } => {
-                Node::Extension { key, child: ref_map(child) }
+                let len =
+                    key.encode_into(stdx::split_array_mut::<36, 32, 68>(&mut buf).0)?;
+                buf[0] |= 0x80 | (u8::from(child.is_value()) << 4);
+                buf[len..len + 32].copy_from_slice(child.hash().as_slice());
+                len + 32
             }
             Node::Value { value, child } => {
-                Node::Value { value: value_map(value), child: node_map(child) }
+                buf[0] = 0xC0;
+                buf[1..33].copy_from_slice(value.hash.as_slice());
+                buf[33..65].copy_from_slice(child.hash.as_slice());
+                65
             }
-        }
-    }
-
-    /// Maps `Node<P, S>` to `Node<(), ()>` by stripping pointer and sealed
-    /// information..
-    #[cfg(test)]
-    pub(crate) fn strip(self) -> Node<'a, (), ()> {
-        self.map_refs(
-            |nr| NodeRef::new((), nr.hash),
-            |vr| ValueRef::new((), vr.hash),
-        )
+        };
+        Some(CryptoHash::digest(&buf[..len]))
     }
 }
 
@@ -248,7 +214,7 @@ impl RawNode {
     pub fn extension(key: Slice, child: Reference) -> Option<Self> {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
-        key.try_encode_into(lft)?;
+        key.encode_into(lft)?;
         lft[0] |= 0x80;
         *rht = child.encode_raw();
         Some(res)
@@ -264,16 +230,6 @@ impl RawNode {
         res
     }
 
-    /// Returns a hash of the node.
-    ///
-    /// Hash changes if and only if the value of the node (if any) and all child
-    /// nodes (if any) changes.  Sealing descendant nodes doesn’t affect hash of
-    /// nodes.
-    #[inline]
-    pub fn hash(&self) -> CryptoHash {
-        CryptoHash::digest(proof_from_raw(&mut [0; 68], self))
-    }
-
     /// Returns the first byte in the raw representation.
     fn first(&self) -> u8 { self.0[0] }
 
@@ -285,19 +241,6 @@ impl RawNode {
     /// Splits the raw byte representation in two halfs.
     fn halfs_mut(&mut self) -> (&mut [u8; 36], &mut [u8; 36]) {
         stdx::split_array_mut::<36, 36, 72>(&mut self.0)
-    }
-}
-
-impl ProofNode {
-    /// Calculates hash of the node
-    #[inline]
-    pub fn hash(&self) -> CryptoHash { CryptoHash::digest(&*self.0) }
-
-    #[inline]
-    /// Checks whether the node is a Branch.
-    pub fn is_branch(&self) -> bool {
-        // The first byte in Branch is 0b0000_00vv
-        self.0.get(0).filter(|first| *first & !3 == 0).is_some()
     }
 }
 
@@ -441,20 +384,6 @@ impl<'a> From<&'a RawNode> for Node<'a> {
     fn from(node: &'a RawNode) -> Self { decode_raw(node) }
 }
 
-impl<'a> TryFrom<&'a ProofNode> for Node<'a, (), ()> {
-    type Error = ();
-
-    /// Decodes a node as represented in a proof.
-    ///
-    /// Verifies that the node is in canonical representation.  Returns error if
-    /// decoding fails or is malformed (which usually means that unused bits
-    /// which should be zero were not set to zero).
-    #[inline]
-    fn try_from(node: &'a ProofNode) -> Result<Self, Self::Error> {
-        decode_proof(&*node.0).ok_or(())
-    }
-}
-
 impl<'a> TryFrom<Node<'a>> for RawNode {
     type Error = ();
 
@@ -472,40 +401,6 @@ impl<'a> TryFrom<&Node<'a>> for RawNode {
     #[inline]
     fn try_from(node: &Node<'a>) -> Result<Self, Self::Error> {
         raw_from_node(node).ok_or(())
-    }
-}
-
-impl<'a, P, S> TryFrom<Node<'a, P, S>> for ProofNode {
-    type Error = ();
-
-    /// Builds proof representation for given node.
-    #[inline]
-    fn try_from(node: Node<'a, P, S>) -> Result<Self, Self::Error> {
-        Self::try_from(&node)
-    }
-}
-
-impl<'a, P, S> TryFrom<&Node<'a, P, S>> for ProofNode {
-    type Error = ();
-
-    /// Builds proof representation for given node.
-    #[inline]
-    fn try_from(node: &Node<'a, P, S>) -> Result<Self, Self::Error> {
-        Ok(Self(Box::from(proof_from_node(&mut [0; 68], node).ok_or(())?)))
-    }
-}
-
-impl From<RawNode> for ProofNode {
-    /// Converts raw node representation into proof representation.
-    #[inline]
-    fn from(node: RawNode) -> Self { Self::from(&node) }
-}
-
-impl From<&RawNode> for ProofNode {
-    /// Converts raw node representation into proof representation.
-    #[inline]
-    fn from(node: &RawNode) -> Self {
-        Self(Box::from(proof_from_raw(&mut [0; 68], node)))
     }
 }
 
@@ -620,39 +515,6 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a> {
     }
 }
 
-/// Decodes a node as represented in a proof.
-fn decode_proof<'a>(bytes: &'a [u8]) -> Option<Node<'a, (), ()>> {
-    let (&first, rest) = bytes.split_first()?;
-    if first & !3 == 0 {
-        // In branch the first byte is 0b0000_00vv.
-        let left_value = (first & 2) != 0;
-        let right_value = (first & 1) != 0;
-        let bytes = <&[u8; 64]>::try_from(rest).ok()?;
-        let (left, right) = stdx::split_array_ref::<32, 32, 64>(bytes);
-        let left = Reference::<(), ()>::new(left_value, left.into());
-        let right = Reference::<(), ()>::new(right_value, right.into());
-        Some(Node::Branch { children: [left, right] })
-    } else if (first & 0xE0) == 0x80 {
-        // In extension, the first two bytes are 0b100v_kkkk_kkkk_kooo.
-        let is_value = (first & 0x10) != 0;
-        let (num, rest) = stdx::split_at::<2>(bytes)?;
-        let (key, hash) = stdx::rsplit_at::<32>(rest)?;
-        let num = u16::from_be_bytes(*num) & 0x0FFF;
-        let key = Slice::from_untrusted(num, key)?;
-        let child = Reference::<(), ()>::new(is_value, hash.into());
-        Some(Node::Extension { key, child })
-    } else if first == 0xC0 {
-        let bytes = <&[u8; 64]>::try_from(rest).ok()?;
-        let (hash, child) = stdx::split_array_ref(bytes);
-        Some(Node::Value {
-            value: ValueRef { is_sealed: (), hash: hash.into() },
-            child: NodeRef { ptr: (), hash: child.into() },
-        })
-    } else {
-        None
-    }
-}
-
 /// Builds raw representation for given node.
 ///
 /// Returns reference to slice of the output buffer holding the representation
@@ -667,53 +529,6 @@ fn raw_from_node<'a>(node: &Node<'a>) -> Option<RawNode> {
         Node::Extension { key, child } => RawNode::extension(*key, *child),
         Node::Value { value, child } => Some(RawNode::value(*value, *child)),
     }
-}
-
-/// Converts raw node representation into proof representation stored in
-/// given buffer.
-///
-/// Returns reference to slice of the output buffer holding the representation
-/// (node representation used in proofs is variable-length).
-///
-/// In debug builds panics if `node` holds malformed representation, i.e. if any
-/// unused bits (which must be cleared) are set.
-fn proof_from_raw<'a>(dest: &'a mut [u8; 68], node: &RawNode) -> &'a [u8] {
-    proof_from_node(dest, &decode_raw(node)).unwrap()
-}
-
-/// Builds proof representation for given node.
-///
-/// Returns reference to slice of the output buffer holding the representation
-/// (node representation used in proofs is variable-length).  If the given node
-/// cannot be encoded (which happens if it’s an extension with a key whose byte
-/// buffer is longer than 34 bytes), returns `None`.
-fn proof_from_node<'a, 'b, P, S>(
-    dest: &'b mut [u8; 68],
-    node: &Node<'a, P, S>,
-) -> Option<&'b [u8]> {
-    let len = match node {
-        Node::Branch { children: [left, right] } => {
-            dest[0] =
-                (u8::from(left.is_value()) << 1) | u8::from(right.is_value());
-            dest[1..33].copy_from_slice(left.hash().as_slice());
-            dest[33..65].copy_from_slice(right.hash().as_slice());
-            65
-        }
-        Node::Extension { key, child } => {
-            let len = key
-                .try_encode_into(stdx::split_array_mut::<36, 32, 68>(dest).0)?;
-            dest[0] |= 0x80 | (u8::from(child.is_value()) << 4);
-            dest[len..len + 32].copy_from_slice(child.hash().as_slice());
-            len + 32
-        }
-        Node::Value { value, child } => {
-            dest[0] = 0xC0;
-            dest[1..33].copy_from_slice(value.hash.as_slice());
-            dest[33..65].copy_from_slice(child.hash.as_slice());
-            65
-        }
-    };
-    Some(&dest[..len])
 }
 
 // =============================================================================
@@ -749,56 +564,6 @@ impl core::fmt::Debug for RawNode {
             write_raw_ptr(fmtr, "", left)
         }?;
         write_raw_ptr(fmtr, ":", right)
-    }
-}
-
-impl core::fmt::Debug for ProofNode {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write_proof(fmtr, &self.0[..])
-    }
-}
-
-#[cfg(test)]
-pub(crate) struct BorrowedProofNode<'a>(pub &'a [u8]);
-
-#[cfg(test)]
-impl core::fmt::Debug for BorrowedProofNode<'_> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write_proof(fmtr, self.0)
-    }
-}
-
-fn write_proof(
-    fmtr: &mut core::fmt::Formatter,
-    bytes: &[u8],
-) -> core::fmt::Result {
-    let first = match bytes.first() {
-        Some(byte) => *byte,
-        None => return fmtr.write_str("∅"),
-    };
-    let len = bytes.len();
-    if first & 0x80 == 0 && len == 65 {
-        let bytes = <&[u8; 64]>::try_from(&bytes[1..]).unwrap();
-        let (left, right) = stdx::split_array_ref::<32, 32, 64>(bytes);
-        let left = <&CryptoHash>::from(left);
-        let right = <&CryptoHash>::from(right);
-        write!(fmtr, "{first:02x}:{left}:{right}")
-    } else if first & 0xC0 == 0x80 && len >= 35 {
-        let (tag, bytes) = stdx::split_at::<2>(bytes).unwrap();
-        let (key, hash) = stdx::rsplit_at::<32>(bytes).unwrap();
-        write!(fmtr, "{:04x}", u16::from_be_bytes(*tag))?;
-        write_binary(fmtr, ":", key)?;
-        write!(fmtr, ":{}", <&CryptoHash>::from(hash))
-    } else if first & 0xC0 == 0xC0 && (len == 33 || len == 65) {
-        let (hash, rest) = stdx::split_at::<32>(&bytes[1..]).unwrap();
-        write!(fmtr, "{first:02x}:{}", <&CryptoHash>::from(hash))?;
-        if !rest.is_empty() {
-            let hash = <&[u8; 32]>::try_from(rest).unwrap();
-            write!(fmtr, "{}", <&CryptoHash>::from(hash))?;
-        }
-        Ok(())
-    } else {
-        write_binary(fmtr, "", bytes)
     }
 }
 

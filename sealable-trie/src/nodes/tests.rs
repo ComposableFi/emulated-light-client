@@ -1,11 +1,11 @@
-use alloc::boxed::Box;
-
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+use base64::Engine;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::nodes::{Node, NodeRef, ProofNode, RawNode, Reference, ValueRef};
+use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
     Ok(Some(ptr)) => ptr,
@@ -35,61 +35,22 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
     raw
 }
 
-/// Converts `Node` into `ProofNode` while also checking inverse conversion.
+/// Checks raw encoding of given node.
 ///
-/// Strips pointers from node references in `Node` and then converts it into
-/// `ProofNode` and then back into `Node`.  Panics if the first and last
-/// objects aren’t equal.  Returns the proof node.
+/// 1. Encodes `node` into raw node node representation and compares the result
+///    with expected `want` slices.
+/// 2. Checks that parsing the raw representation to a `Node` produces the
+///    object equal to `node` (i.e. verifies Node→RawNode→Node round-trip
+///    conversion).
 #[track_caller]
-pub(super) fn proof_from_node(node: &Node) -> ProofNode {
-    // let node = node.map_refs(
-    //     |nr| NodeRef::new((), nr.hash),
-    //     |vr| ValueRef::new((), vr.hash),
-    // );
-    let proof = ProofNode::try_from(node)
-        .unwrap_or_else(|()| panic!("Failed encoding node as proof: {node:?}"));
-    let decoded = Node::try_from(&proof).unwrap_or_else(|()| {
-        panic!("Failed round-trip proof decoding of: {:?}", proof)
-    });
-    assert_eq!(
-        node.strip(),
-        decoded,
-        "Node → ProofNode → Node gave different result:\n Proof: {proof:?}"
-    );
-    proof
-}
-
-/// Checks raw and proof encoding of given node.
-///
-/// 1. Encodes the `node` into raw node and proof node representation and
-///    compares the result with expected `want_raw` and `want_proof` slices.
-/// 2. Checks that parsing the raw representation to a `ProofNode` produces the
-///    same result as converting `node` into a `ProofNode`.
-/// 3. Checks that adding or subtracting one byte from the proof representation
-///    results in failure to decode the proof.
-#[track_caller]
-fn check_node_encoding(node: Node, want_raw: [u8; 72], want_proof: &[u8]) {
+fn check_node_encoding(node: Node, want: [u8; 72], hash: &str) {
     let raw = raw_from_node(&node);
-    assert_eq!(want_raw, raw.0, "Unexpected raw representation");
-    let proof = proof_from_node(&node);
-    assert_eq!(want_proof, &proof[..], "Unexpected proof representation");
+    assert_eq!(want, raw.0, "Unexpected raw representation");
+    assert_eq!(node, Node::from(&RawNode(want)), "Bad Raw→Node conversion");
 
-    assert_eq!(node, Node::from(&RawNode(want_raw)), "Bad Raw→Node conversion");
-
-    let mut bad_proof = want_proof.to_vec();
-    bad_proof.push(0);
-    check_invalid_proof_node(&bad_proof);
-    bad_proof.truncate(bad_proof.len() - 2);
-    check_invalid_proof_node(&bad_proof);
-}
-
-#[track_caller]
-fn check_invalid_proof_node(bytes: &[u8]) {
-    assert_eq!(
-        Err(()),
-        Node::try_from(&ProofNode(Box::from(bytes))),
-        "Unexpectedly parsed invalid proof node: {bytes:x?}"
-    );
+    let hash = BASE64_ENGINE.decode(hash).unwrap();
+    let hash = <&[u8; 32]>::try_from(&*hash).unwrap().into();
+    assert_eq!(Some(hash), node.hash());
 }
 
 #[test]
@@ -106,11 +67,19 @@ fn test_branch_encoding() {
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr2:  */ 0, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 0,
+    ], "MvstRBYGfFv/BkI+GHFK04hDZde4FtNKd7M1J9hDhiQ=");
+
+    check_node_encoding(Node::Branch {
+        children: [
+            Reference::node(None, &ONE),
+            Reference::node(Some(DEAD), &TWO),
+        ],
+    }, [
+        /* ptr1:  */ 0, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr2:  */ 0, 0, 0xDE, 0xAD,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
+    ], "MvstRBYGfFv/BkI+GHFK04hDZde4FtNKd7M1J9hDhiQ=");
 
     // Branch with first child being a node and second being a value.
     check_node_encoding(Node::Branch {
@@ -123,11 +92,19 @@ fn test_branch_encoding() {
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr2:  */ 0x40, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 1,
+    ], "szHabsSdRUfZlCpnJ+USP2m+1aC5esFxz7/WIBQx/Po=");
+
+    check_node_encoding(Node::Branch {
+        children: [
+            Reference::node(None, &ONE),
+            Reference::value(true, &TWO),
+        ],
+    }, [
+        /* ptr1:  */ 0, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr2:  */ 0x60, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
+    ], "szHabsSdRUfZlCpnJ+USP2m+1aC5esFxz7/WIBQx/Po=");
 
     // Branch with first child being a value and second being a node.
     check_node_encoding(Node::Branch {
@@ -140,11 +117,19 @@ fn test_branch_encoding() {
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr2:  */ 0, 0, 0xBE, 0xEF,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 2,
+    ], "LGZgDJ1qtRlrhOX7OJQBVprw9OvP2sXOdj9Ow0xMQ18=");
+
+    check_node_encoding(Node::Branch {
+        children: [
+            Reference::value(false, &ONE),
+            Reference::node(None, &TWO),
+        ],
+    }, [
+        /* ptr1:  */ 0x40, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr2:  */ 0, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
+    ], "LGZgDJ1qtRlrhOX7OJQBVprw9OvP2sXOdj9Ow0xMQ18=");
 
     // Branch with both children being values.
     check_node_encoding(Node::Branch {
@@ -157,11 +142,19 @@ fn test_branch_encoding() {
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr2:  */ 0x60, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 3,
+    ], "O+AyRw5cqn52zppsf3w7xebru6xQ50qGvI7JgFQBNnE=");
+
+    check_node_encoding(Node::Branch {
+        children: [
+            Reference::value(true, &ONE),
+            Reference::value(false, &TWO),
+        ],
+    }, [
+        /* ptr1:  */ 0x60, 0, 0, 0,
         /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr2:  */ 0x40, 0, 0, 0,
         /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
+    ], "O+AyRw5cqn52zppsf3w7xebru6xQ50qGvI7JgFQBNnE=");
 }
 
 #[test]
@@ -176,11 +169,7 @@ fn test_extension_encoding() {
         /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         /* ptr:  */ 0, 0, 0xDE, 0xAD,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ], &[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x07, 0xFF, 0xFF, 0xFC,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
+    ], "JnUeS7R/A/mp22ytw/gzGLu24zHArCmVZJoMm4bcqGY=");
 
     // Extension pointing at a sealed node
     check_node_encoding(Node::Extension {
@@ -191,11 +180,7 @@ fn test_extension_encoding() {
         /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         /* ptr:  */ 0, 0, 0, 0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ], &[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x07, 0xFF, 0xFF, 0xFC,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
+    ], "JnUeS7R/A/mp22ytw/gzGLu24zHArCmVZJoMm4bcqGY=");
 
     // Extension pointing at a value
     check_node_encoding(Node::Extension {
@@ -208,12 +193,7 @@ fn test_extension_encoding() {
         /*       */ 0x00, 0x00,
         /* ptr:  */ 0x40, 0, 0, 0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ], &[
-        /* tag:  */ 0x97, 0xC4,
-        /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-        /*       */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
+    ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
 
     check_node_encoding(Node::Extension {
         key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
@@ -225,12 +205,7 @@ fn test_extension_encoding() {
         /*       */ 0x00, 0x00,
         /* ptr:  */ 0x60, 0, 0, 0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ], &[
-        /* tag:  */ 0x97, 0xC4,
-        /* key:  */ 0x0F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-        /*       */ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
+    ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
 }
 
 #[test]
@@ -244,11 +219,7 @@ fn test_value_encoding() {
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr:   */ 0, 0, 0xBE, 0xEF,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 0xC0,
-        /* hash:  */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
+    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
 
     check_node_encoding(Node::Value {
         value: ValueRef::new(true, &ONE),
@@ -258,63 +229,15 @@ fn test_value_encoding() {
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr:   */ 0, 0, 0xBE, 0xEF,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], &[
-        /* tag:   */ 0xC0,
-        /* hash:  */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
+
+    check_node_encoding(Node::Value {
+        value: ValueRef::new(true, &ONE),
+        child: NodeRef::new(None, &TWO),
+    }, [
+        /* tag:   */ 0xE0, 0, 0, 0,
+        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        /* ptr:   */ 0, 0, 0, 0,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ]);
-}
-
-#[test]
-#[rustfmt::skip]
-fn test_proof_failures() {
-    // Branch but bogus bits in tag byte.
-    for tag in 4..0x80 {
-        check_invalid_proof_node(&[
-            /* tag:   */ tag,
-            /* hash1: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-            /* hash2: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-        ])
-    }
-
-    // Extension but bits which should be zero in the tag aren’t.
-    for tag in 0x20..0x80 {
-        check_invalid_proof_node(&[
-            /* tag:  */ 0x80 | tag, 0xCD,
-            /* key:  */ 0x07, 0xFF, 0xFF, 0xFC,
-            /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        ])
-    }
-
-    // Extension but key is wrong length
-    check_invalid_proof_node(&[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x07, 0xFF, 0xFF, 0xFC, 0x00,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
-    check_invalid_proof_node(&[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x07, 0xFF, 0xFF,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
-
-    // Extension but there are bogus bits in the key.
-    check_invalid_proof_node(&[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x08, 0xFF, 0xFF, 0xFC,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
-    check_invalid_proof_node(&[
-        /* tag:  */ 0x80, 0xCD,
-        /* key:  */ 0x07, 0xFF, 0xFF, 0xFE,
-        /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    ]);
-
-    // Value but there are bogus bits in the tag.
-    for tag in 0xC1..=0xFF {
-        check_invalid_proof_node(&[
-            /* tag:  */ tag,
-            /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        ]);
-    }
+    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
 }

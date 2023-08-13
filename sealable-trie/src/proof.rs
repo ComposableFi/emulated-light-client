@@ -1,9 +1,10 @@
+use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::num::NonZeroU16;
 
 use crate::bits;
 use crate::hash::CryptoHash;
-use crate::nodes::{Node, NodeRef, ProofNode, Reference, ValueRef};
+use crate::nodes::{Node, NodeRef, Reference, ValueRef};
 
 /// A proof of a membership or non-membership of a key.
 ///
@@ -21,15 +22,13 @@ pub struct Membership(Vec<Item>);
 
 /// A proof of a membership of a key.
 #[derive(Clone, Debug)]
-pub struct NonMembership(Actual, Vec<Item>);
+pub struct NonMembership(Option<Box<Actual>>, Vec<Item>);
 
 /// A single item in a proof corresponding to a node in the trie.
 #[derive(Clone, Debug)]
 pub(crate) enum Item {
-    /// A Branch node where the other child is a node reference.
-    BranchNode(CryptoHash),
-    /// A Branch node where the other child is a value reference.
-    BranchValue(CryptoHash),
+    /// A Branch node where the other child is given reference.
+    Branch(OwnedRef),
     /// An Extension node whose key has given length in bits.
     Extension(NonZeroU16),
     /// A Value node.
@@ -41,18 +40,22 @@ pub(crate) enum Item {
 #[derive(Clone, Debug)]
 pub(crate) enum Actual {
     /// A Branch node that has been reached at given key.
-    ReachedBranch(ProofNode),
+    Branch(OwnedRef, OwnedRef),
 
     /// Length of the lookup key remaining after reaching given Extension node
     /// whose key doesn’t match the lookup key.
-    ReachedExtension(u16, ProofNode),
+    Extension(u16, Box<[u8]>, OwnedRef),
 
     /// Length of the lookup key remaining after reaching a value reference with
     /// given value hash.
     LookupKeyLeft(NonZeroU16, CryptoHash),
+}
 
-    /// The trie is empty.
-    EmptyTrie,
+/// A reference to value or node.
+#[derive(Clone, Debug)]
+pub(crate) struct OwnedRef {
+    is_value: bool,
+    hash: CryptoHash,
 }
 
 pub(crate) struct Builder(Vec<Item>);
@@ -85,7 +88,7 @@ impl Proof {
 
     /// Creates a non-membership proof for cases when trie is empty.
     pub(crate) fn empty_trie() -> Proof {
-        NonMembership(Actual::EmptyTrie, Vec::new()).into()
+        NonMembership(None, Vec::new()).into()
     }
 
     /// Creates a builder which allows creation of proofs.
@@ -103,8 +106,8 @@ impl Membership {
         if *root_hash == crate::trie::EMPTY_TRIE_ROOT {
             false
         } else if let Some(key) = bits::Slice::from_bytes(key) {
-            verify_impl(root_hash, key, (true, value_hash.clone()), &self.0)
-                .is_some()
+            let want = OwnedRef::value(value_hash.clone());
+            verify_impl(root_hash, key, want, &self.0).is_some()
         } else {
             false
         }
@@ -131,20 +134,21 @@ impl NonMembership {
     fn get_reference<'a>(
         &self,
         key: &'a [u8],
-    ) -> Option<(bits::Slice<'a>, (bool, CryptoHash))> {
+    ) -> Option<(bits::Slice<'a>, OwnedRef)> {
         let mut key = bits::Slice::from_bytes(key)?;
-        match &self.0 {
-            Actual::ReachedBranch(node) => {
+        match self.0.as_deref()? {
+            Actual::Branch(lft, rht) => {
                 // When traversing the trie, we’ve reached a Branch node at the
                 // lookup key.  Lookup key is therefore a prefix of an existing
                 // value but there’s no value stored at it.
                 //
                 // We’re converting non-membership proof into proof that at key
                 // the given branch Node exists.
-                node.is_branch().then(|| (key, (false, node.hash())))
+                let node = Node::Branch { children: [lft.into(), rht.into()] };
+                Some((key, OwnedRef::to(node)))
             }
 
-            Actual::ReachedExtension(left, node) => {
+            Actual::Extension(left, key_buf, child) => {
                 // When traversing the trie, we’ve reached an Extension node
                 // whose key wasn’t a prefix of a lookup key.  This could be
                 // because the extension key was longer or because some bits
@@ -156,19 +160,18 @@ impl NonMembership {
                 // We’re converting non-membership proof into proof that at
                 // shortened key the given Extension node exists.
                 let suffix = key.pop_back_slice(*left)?;
-                if let Ok(Node::Extension { key: ext_key, .. }) =
-                    Node::try_from(node)
-                {
-                    if suffix.starts_with(ext_key) {
-                        // If key in the Extension node is a prefix of the
-                        // remaining suffix of the lookup key, the proof is
-                        // invalid.
-                        None
-                    } else {
-                        Some((key, (false, node.hash())))
-                    }
-                } else {
+                let ext_key = bits::Slice::decode(&key_buf[..])?;
+                if suffix.starts_with(ext_key) {
+                    // If key in the Extension node is a prefix of the
+                    // remaining suffix of the lookup key, the proof is
+                    // invalid.
                     None
+                } else {
+                    let node = Node::Extension {
+                        key: ext_key,
+                        child: Reference::from(child),
+                    };
+                    Some((key, OwnedRef::to(node)))
                 }
             }
 
@@ -181,17 +184,50 @@ impl NonMembership {
                 // We’re converting non-membership proof into proof that at
                 // key[..(key.len() - len)] a `hash` value is stored.
                 key.pop_back_slice(len.get())?;
-                Some((key, (true, hash.clone())))
-            }
-
-            Actual::EmptyTrie => {
-                // If we’re here than it means the trie is not empty (an empty
-                // trie is handled by `verify`).  This means the proof is
-                // invalid.
-                None
+                Some((key, OwnedRef::value(hash.clone())))
             }
         }
     }
+}
+
+fn verify_impl(
+    root_hash: &CryptoHash,
+    mut key: bits::Slice,
+    mut want: OwnedRef,
+    proof: &[Item],
+) -> Option<()> {
+    for item in proof {
+        let node = match item {
+            Item::Value(child) if want.is_value => Node::Value {
+                value: ValueRef::new((), &want.hash),
+                child: NodeRef::new((), child),
+            },
+            Item::Value(child) => Node::Value {
+                value: ValueRef::new((), child),
+                child: NodeRef::new((), &want.hash),
+            },
+
+            Item::Branch(child) => {
+                let us = Reference::from(&want);
+                let them = child.into();
+                let children = match key.pop_back()? {
+                    false => [us, them],
+                    true => [them, us],
+                };
+                Node::Branch { children }
+            }
+
+            Item::Extension(length) => Node::Extension {
+                key: key.pop_back_slice(length.get())?,
+                child: Reference::from(&want),
+            },
+        };
+        want = OwnedRef::to(node);
+    }
+
+    // If we’re here we’ve reached root hash according to the proof.  Check the
+    // key is empty and that hash we’ve calculated is the actual root.
+    (key.is_empty() && !want.is_value && *root_hash == want.hash).then_some(())
 }
 
 impl Item {
@@ -201,10 +237,7 @@ impl Item {
     /// verifying a proof our hash can be computed thus the proof item will only
     /// include their hash.
     pub fn branch<P, S>(us: bool, children: &[Reference<P, S>; 2]) -> Self {
-        match &children[1 - usize::from(us)] {
-            Reference::Node(node) => Self::BranchNode(node.hash.clone()),
-            Reference::Value(value) => Self::BranchValue(value.hash.clone()),
-        }
+        Self::Branch((&children[1 - usize::from(us)]).clone().into())
     }
 
     pub fn extension(length: u16) -> Option<Self> {
@@ -235,21 +268,27 @@ impl Builder {
     ///
     /// The actual describes what was actually found when traversing the trie.
     pub fn negative<T: From<NonMembership>>(self, actual: Actual) -> T {
-        T::from(NonMembership(actual, self.0))
+        T::from(NonMembership(Some(Box::new(actual)), self.0))
     }
 
-    pub fn reached_branch<T: From<NonMembership>>(self, node: Node) -> T {
-        let node = ProofNode::try_from(node).unwrap();
-        self.negative(Actual::ReachedBranch(node))
+    pub fn reached_branch<T: From<NonMembership>, P, S>(
+        self,
+        children: [Reference<P, S>; 2],
+    ) -> T {
+        let [lft, rht] = children;
+        self.negative(Actual::Branch(lft.into(), rht.into()))
     }
 
     pub fn reached_extension<T: From<NonMembership>>(
         self,
         left: u16,
-        node: Node,
+        key: bits::Slice,
+        child: Reference,
     ) -> T {
-        let node = ProofNode::try_from(node).unwrap();
-        self.negative(Actual::ReachedExtension(left, node))
+        let mut buf = [0; 36];
+        let len = key.encode_into(&mut buf).unwrap();
+        let ext_key = buf[..len].to_vec().into_boxed_slice();
+        self.negative(Actual::Extension(left, ext_key, child.into()))
     }
 
     pub fn lookup_key_left<T: From<NonMembership>>(
@@ -261,63 +300,29 @@ impl Builder {
     }
 }
 
+impl OwnedRef {
+    fn node(hash: CryptoHash) -> Self { Self { is_value: false, hash } }
+    fn value(hash: CryptoHash) -> Self { Self { is_value: true, hash } }
 
-fn verify_impl(
-    root_hash: &CryptoHash,
-    mut key: bits::Slice,
-    want: (bool, CryptoHash),
-    proof: &[Item],
-) -> Option<()> {
-    fn make_branch(
-        key: &mut bits::Slice,
-        first: bool,
-        us: &CryptoHash,
-        them_value: bool,
-        them: &CryptoHash,
-    ) -> Result<ProofNode, ()> {
-        let us = Reference::new(first, us);
-        let them = Reference::new(them_value, them);
-        let children = match key.pop_back().ok_or(())? {
-            false => [us, them],
-            true => [them, us],
+    fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash().unwrap()) }
+}
+
+impl<'a, P, S> From<&'a Reference<'a, P, S>> for OwnedRef {
+    fn from(rf: &'a Reference<'a, P, S>) -> OwnedRef {
+        let (is_value, hash) = match rf {
+            Reference::Node(node) => (false, node.hash.clone()),
+            Reference::Value(value) => (true, value.hash.clone()),
         };
-        ProofNode::try_from(Node::Branch { children })
+        Self { is_value, hash }
     }
+}
 
-    let (mut is_value, mut hash) = want;
+impl<'a, P, S> From<Reference<'a, P, S>> for OwnedRef {
+    fn from(rf: Reference<'a, P, S>) -> OwnedRef { Self::from(&rf) }
+}
 
-    for item in proof {
-        let node = match item {
-            Item::Value(child) if is_value => {
-                ProofNode::try_from(Node::Value {
-                    value: ValueRef::new((), &hash),
-                    child: NodeRef::new((), child),
-                })
-            }
-            Item::Value(child) => ProofNode::try_from(Node::Value {
-                value: ValueRef::new((), child),
-                child: NodeRef::new((), &hash),
-            }),
-
-            Item::BranchNode(child) => {
-                make_branch(&mut key, is_value, &hash, false, &child)
-            }
-            Item::BranchValue(child) => {
-                make_branch(&mut key, is_value, &hash, true, &child)
-            }
-
-            Item::Extension(length) => ProofNode::try_from(Node::Extension {
-                key: key.pop_back_slice(length.get())?,
-                child: Reference::new(is_value, &hash),
-            }),
-        };
-        hash = node.ok()?.hash();
-        is_value = false;
-    }
-
-    // If we’re here we’ve reached root hash according to the proof.  Check the
-    // key is empty and that hash we’ve calculated is the actual root.
-    (key.is_empty() && *root_hash == hash).then_some(())
+impl<'a> From<&'a OwnedRef> for Reference<'a, (), ()> {
+    fn from(rf: &'a OwnedRef) -> Self { Self::new(rf.is_value, &rf.hash) }
 }
 
 #[test]

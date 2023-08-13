@@ -152,8 +152,8 @@ impl<A: memory::Allocator> Trie<A> {
         let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
-            debug_assert_eq!(node_hash, node.hash());
             let node = Node::from(&node);
+            debug_assert_eq!(node_hash, node.hash().unwrap());
 
             let child = match node {
                 Node::Branch { children } => {
@@ -161,7 +161,7 @@ impl<A: memory::Allocator> Trie<A> {
                         proof!(proof push proof::Item::branch(us, &children));
                         children[usize::from(us)]
                     } else {
-                        let proof = proof!(proof rev.reached_branch(node));
+                        let proof = proof!(proof rev.reached_branch(children));
                         return Ok((None, proof));
                     }
                 }
@@ -171,7 +171,7 @@ impl<A: memory::Allocator> Trie<A> {
                         proof!(proof push proof::Item::extension(ext_key.len()).unwrap());
                         child
                     } else {
-                        let proof = proof!(proof rev.reached_extension(key.len(), node));
+                        let proof = proof!(proof rev.reached_extension(key.len(), ext_key, child));
                         return Ok((None, proof));
                     }
                 }

@@ -8,9 +8,7 @@
 use pretty_assertions::assert_eq;
 
 use crate::memory::Ptr;
-use crate::nodes::{
-    self, Node, NodeRef, ProofNode, RawNode, Reference, ValueRef,
-};
+use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 use crate::test_utils::get_iteration_count;
 use crate::{bits, stdx};
 
@@ -25,10 +23,6 @@ fn stress_test_raw_encoding_round_trip() {
 
         // Test RawNode→Node→RawNode round trip conversion.
         assert_eq!(Ok(raw), RawNode::try_from(node), "node: {node:?}");
-
-        // Test RawNode→Proof→Node gives the same result as RawNode→Node.
-        let proof = ProofNode::from(raw);
-        assert_eq!(Ok(node.strip()), Node::try_from(&proof), "{raw:?}");
     }
 }
 
@@ -68,7 +62,7 @@ fn gen_random_raw_node(rng: &mut impl rand::Rng, bytes: &mut [u8; 72]) {
         let mut tmp = [0; 36];
         bits::Slice::new(&bytes[2..36], offset, length)
             .unwrap()
-            .try_encode_into(&mut tmp)
+            .encode_into(&mut tmp)
             .unwrap();
         bytes[0..36].copy_from_slice(&tmp);
 
@@ -86,81 +80,6 @@ fn gen_random_raw_node(rng: &mut impl rand::Rng, bytes: &mut [u8; 72]) {
 
 // =============================================================================
 
-/// Generates random proof representation and checks decode→encode round trip.
-#[test]
-fn stress_test_proof_encoding_round_trip() {
-    let mut rng = rand::thread_rng();
-    let mut buf = [0; 68];
-    for _ in 0..get_iteration_count() {
-        let len = gen_random_proof_node(&mut rng, &mut buf);
-        do_test_proof_encoding_round_trip(&buf[..len])
-    }
-}
-
-fn do_test_proof_encoding_round_trip(want: &[u8]) {
-    let mut got_bytes = [0; 68];
-    let node = nodes::decode_proof(want).unwrap_or_else(|| {
-        panic!(
-            "Failed decoding proof: {:?}",
-            crate::nodes::BorrowedProofNode(want)
-        )
-    });
-
-    // Test Proof→Node→Proof round trip.
-    let got = nodes::proof_from_node(&mut got_bytes, &node);
-    assert_eq!(Some(&want[..]), got);
-
-    let node = node.map_refs(
-        |nref| NodeRef::new(None, nref.hash),
-        |vref| ValueRef::new(false, vref.hash),
-    );
-
-    // Test Node→RawNode→Node (that’s done inside raw_from_node) and
-    // RawNode→ProofNode conversion.
-    let raw = super::tests::raw_from_node(&node);
-    assert_eq!(want, nodes::proof_from_raw(&mut got_bytes, &raw));
-}
-
-/// Generates a random correct proof node representation.
-fn gen_random_proof_node(
-    rng: &mut impl rand::Rng,
-    bytes: &mut [u8; 68],
-) -> usize {
-    rng.fill(&mut bytes[..]);
-    let tag = bytes[0];
-    if tag & 0x80 == 0 {
-        // Branch.  First byte is 0b0000_00vv followed by two hashes.
-        bytes[0] &= 3;
-        65
-    } else if tag & 0xC0 == 0x80 {
-        // Extension.  First word is 0b100v_kkkk_kkkk_kooo followed by key and
-        // hash.  Rather than trying to mangle bits to get proper length and
-        // offset, generate them anew to have better uniformity.
-
-        let offset = rng.gen::<u8>() % 8;
-        let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
-        let length = rng.gen_range(1..=max_length - u16::from(offset));
-
-        // Clear unused bits in the key.  The easiest way to do it is by using
-        // bits::Slice.
-        let mut tmp = [0; 36];
-        let len = bits::Slice::new(&bytes[2..36], offset, length)
-            .unwrap()
-            .try_encode_into(&mut tmp)
-            .unwrap();
-        bytes[0..len].copy_from_slice(&tmp[..len]);
-        bytes[0] |= tag & 0x90;
-
-        len + 32
-    } else {
-        // Value.  First byte is 0xC0.
-        bytes[0] = 0xC0;
-        65
-    }
-}
-
-// =============================================================================
-
 /// Generates random node and tests encode→decode round trips.
 #[test]
 fn stress_test_node_encoding_round_trip() {
@@ -171,9 +90,6 @@ fn stress_test_node_encoding_round_trip() {
 
         let raw = super::tests::raw_from_node(&node);
         assert_eq!(node, Node::from(&raw), "Failed decoding Raw: {raw:?}");
-
-        let proof = super::tests::proof_from_node(&node);
-        assert_eq!(Ok(node.strip()), Node::try_from(&proof));
     }
 }
 
