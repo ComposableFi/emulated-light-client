@@ -83,9 +83,8 @@ impl core::fmt::Display for CryptoHash {
         let mut buf = [0u8; ENCODED_LENGTH];
         let len =
             BASE64_ENGINE.encode_slice(self.as_slice(), &mut buf[..]).unwrap();
-        debug_assert_eq!(buf.len(), len);
         // SAFETY: base64 fills the buffer with ASCII characters only.
-        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..]) })
+        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
     }
 }
 

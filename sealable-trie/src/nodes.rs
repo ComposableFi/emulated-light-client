@@ -280,6 +280,7 @@ impl RawNode {
     ///
     /// In debug builds panics if `node` holds malformed representation, i.e. if
     /// any unused bits (which must be cleared) are set.
+    // TODO(mina86): Convert debug_assertions to the method returning Result.
     pub fn decode(&self) -> Node {
         let (left, right) = self.halfs();
         let right = Reference::from_raw(right, false);
@@ -376,6 +377,7 @@ impl<'a> Reference<'a> {
     /// whether for value reference the most significant bit should be set or
     /// not.  This is to facilitate decoding Value nodes.  The argument is
     /// ignored in builds with debug assertions disabled.
+    // TODO(mina86): Convert debug_assertions to the method returning Result.
     fn from_raw(bytes: &'a [u8; 36], value_high_bit: bool) -> Self {
         let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
         let ptr = u32::from_be_bytes(*ptr);
