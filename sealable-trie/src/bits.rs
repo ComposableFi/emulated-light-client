@@ -87,46 +87,6 @@ impl<'a> Slice<'a> {
         })
     }
 
-    /// Constructs the slice from a trusted raw representation.
-    ///
-    /// `num` has a `0bxxxx_kkkk_kkkk_kooo` format where `x` are bits the
-    /// function doesn’t cane about, `k` is the length of the key and `o` is the
-    /// offset (i.e. number of most significant bits of the first byte to skip).
-    ///
-    /// The value being trusted means that the function doesn’t look at the `x`
-    /// bits and that it silently truncates `k` to not go over the available
-    /// length.
-    ///
-    /// In debug builds panics if `num` encodes slice larger than `bytes` allows
-    /// or any of unused bits of `bytes` is set.
-    pub(crate) fn from_raw(num: u16, bytes: &'a [u8]) -> Self {
-        let (offset, length) = (num % 8, num / 8);
-        debug_assert!(
-            length != 0 &&
-                usize::from(length + offset + 7) / 8 <=
-                    nodes::MAX_EXTENSION_KEY_SIZE,
-            "offset:{offset} length:{length}"
-        );
-
-        // Cap length at the size of the slice.  This should never happen since
-        // if we’re here the value is malformed (and that shouldn’t be the case
-        // with trusted bytes) but to maintain safety we do the check.
-        let bits_len = bytes
-            .len()
-            .checked_mul(8)
-            .and_then(|num| u16::try_from(num).ok())
-            .unwrap_or(u16::MAX);
-        let length = (num / 8).min(bits_len - offset);
-
-        debug_assert!(Self::check_bytes(bytes, offset as u8, length));
-        Self {
-            offset: offset as u8,
-            length,
-            ptr: bytes.as_ptr(),
-            phantom: Default::default(),
-        }
-    }
-
     /// Returns length of the slice in bits.
     pub fn len(&self) -> u16 { self.length }
 
@@ -395,13 +355,19 @@ impl<'a> Slice<'a> {
     /// four most significant bits zero) and the rest being bytes holding the
     /// bits.  Bits which are not part of the slice are set to zero.
     ///
+    /// The first byte written will be xored with `tag`.
+    ///
     /// Returns the length of relevant portion of the buffer.  For example, if
     /// slice’s length is say 20 bits with zero offset returns five (two bytes
     /// for the encoded length and three bytes for the 20 bits).
     ///
     /// Returns `None` if the slice is empty or too long and won’t fit in the
     /// destination buffer.
-    pub(crate) fn encode_into(&self, dest: &mut [u8; 36]) -> Option<usize> {
+    pub(crate) fn encode_into(
+        &self,
+        dest: &mut [u8; 36],
+        tag: u8,
+    ) -> Option<usize> {
         if self.length == 0 {
             return None;
         }
@@ -415,6 +381,7 @@ impl<'a> Slice<'a> {
             );
         tail.fill(0);
         *num = (u16::from(self.offset) | (self.length << 3)).to_be_bytes();
+        num[0] ^= tag;
         let (key, _) = tail.split_at_mut(bytes.len());
         let (front, back) = Self::masks(self.offset, self.length);
         key.copy_from_slice(bytes);
@@ -427,8 +394,10 @@ impl<'a> Slice<'a> {
     ///
     /// This is like [`Self::encode_into`] except that it doesn’t check the
     /// length of the key.
-    pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8])) {
-        consumer(&(u16::from(self.offset) | (self.length << 3)).to_be_bytes());
+    pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8]), tag: u8) {
+        let [high, low] =
+            (u16::from(self.offset) | (self.length << 3)).to_be_bytes();
+        consumer(&[high ^ tag, low]);
 
         let (front, back) = Self::masks(self.offset, self.length);
         let bytes = self.bytes();
@@ -446,10 +415,12 @@ impl<'a> Slice<'a> {
 
     /// Decodes key from a raw binary representation.
     ///
+    /// The first byte read will be xored with `tag`.
+    ///
     /// This is the inverse of [`Self::encode_into`].
-    pub(crate) fn decode(src: &'a [u8]) -> Option<Self> {
-        let (tag, bytes) = stdx::split_at(src)?;
-        let tag = u16::from_be_bytes(*tag);
+    pub(crate) fn decode(src: &'a [u8], tag: u8) -> Option<Self> {
+        let (&[high, low], bytes) = stdx::split_at(src)?;
+        let tag = u16::from_be_bytes([high ^ tag, low]);
         let (offset, length) = ((tag % 8) as u8, tag / 8);
         (length > 0 && Self::check_bytes(bytes, offset, length)).then_some(
             Self {
@@ -759,7 +730,7 @@ fn test_encode() {
         if want_encoded.len() <= 36 {
             let mut buf = [0; 36];
             let len = slice
-                .encode_into(&mut buf)
+                .encode_into(&mut buf, 0)
                 .unwrap_or_else(|| panic!("Failed encoding {slice}"));
             assert_eq!(
                 want_encoded,
@@ -769,14 +740,14 @@ fn test_encode() {
         }
 
         let mut buf = alloc::vec::Vec::with_capacity(want_encoded.len());
-        slice.write_into(|bytes| buf.extend_from_slice(bytes));
+        slice.write_into(|bytes| buf.extend_from_slice(bytes), 0);
         assert_eq!(
             want_encoded,
             buf.as_slice(),
             "Unexpected written representation of {slice}"
         );
 
-        let round_trip = Slice::decode(want_encoded)
+        let round_trip = Slice::decode(want_encoded, 0)
             .unwrap_or_else(|| panic!("Failed decoding {want_encoded:?}"));
         assert_eq!(slice, round_trip);
     }
@@ -806,7 +777,7 @@ fn test_decode() {
     #[track_caller]
     fn ok(num: u16, bytes: &[u8], want_offset: u8, want_length: u16) {
         let bytes = [&num.to_be_bytes()[..], bytes].concat();
-        let got = Slice::decode(&bytes).unwrap_or_else(|| {
+        let got = Slice::decode(&bytes, 0).unwrap_or_else(|| {
             panic!("Expected to get a Slice from {bytes:x?}")
         });
         assert_eq!((want_offset, want_length), (got.offset, got.length));
@@ -818,18 +789,18 @@ fn test_decode() {
     ok(2 * 64, &[0, 0], 0, 16);
 
     // Empty
-    assert_eq!(None, Slice::decode(&[]));
-    assert_eq!(None, Slice::decode(&[0]));
-    assert_eq!(None, Slice::decode(&[0, 0]));
+    assert_eq!(None, Slice::decode(&[], 0));
+    assert_eq!(None, Slice::decode(&[0], 0));
+    assert_eq!(None, Slice::decode(&[0, 0], 0));
 
     #[track_caller]
     fn test(length: u16, offset: u8, bad: &[u8], good: &[u8]) {
         let num = length * 8 + u16::from(offset);
         let bad = [&num.to_be_bytes()[..], bad].concat();
-        assert_eq!(None, Slice::decode(&bad));
+        assert_eq!(None, Slice::decode(&bad, 0));
 
         let good = [&num.to_be_bytes()[..], good].concat();
-        let got = Slice::decode(&good).unwrap_or_else(|| {
+        let got = Slice::decode(&good, 0).unwrap_or_else(|| {
             panic!("Expected to get a Slice from {good:x?}")
         });
         assert_eq!(
@@ -839,7 +810,7 @@ fn test_decode() {
         );
 
         let good = [&good[..], &[0, 0]].concat();
-        let got = Slice::decode(&good).unwrap_or_else(|| {
+        let got = Slice::decode(&good, 0).unwrap_or_else(|| {
             panic!("Expected to get a Slice from {good:x?}")
         });
         assert_eq!(

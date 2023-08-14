@@ -62,7 +62,7 @@ fn gen_random_raw_node(rng: &mut impl rand::Rng, bytes: &mut [u8; 72]) {
         let mut tmp = [0; 36];
         bits::Slice::new(&bytes[2..36], offset, length)
             .unwrap()
-            .encode_into(&mut tmp)
+            .encode_into(&mut tmp, 0)
             .unwrap();
         bytes[0..36].copy_from_slice(&tmp);
 

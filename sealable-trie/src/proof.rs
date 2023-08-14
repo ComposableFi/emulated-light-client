@@ -160,7 +160,7 @@ impl NonMembership {
                 // We’re converting non-membership proof into proof that at
                 // shortened key the given Extension node exists.
                 let suffix = key.pop_back_slice(*left)?;
-                let ext_key = bits::Slice::decode(&key_buf[..])?;
+                let ext_key = bits::Slice::decode(&key_buf[..], 0)?;
                 if suffix.starts_with(ext_key) {
                     // If key in the Extension node is a prefix of the
                     // remaining suffix of the lookup key, the proof is
@@ -286,7 +286,7 @@ impl Builder {
         child: Reference,
     ) -> T {
         let mut buf = [0; 36];
-        let len = key.encode_into(&mut buf).unwrap();
+        let len = key.encode_into(&mut buf, 0).unwrap();
         let ext_key = buf[..len].to_vec().into_boxed_slice();
         self.negative(Actual::Extension(left, ext_key, child.into()))
     }

@@ -194,8 +194,8 @@ impl<'a, P, S> Node<'a, P, S> {
             }
             Node::Extension { key, child } => {
                 let key_buf = stdx::split_array_mut::<36, 32, 68>(&mut buf).0;
-                if let Some(len) = key.encode_into(key_buf) {
-                    buf[0] |= 0x80 | (u8::from(child.is_value()) << 4);
+                let tag = 0x80 | (u8::from(child.is_value()) << 4);
+                if let Some(len) = key.encode_into(key_buf, tag) {
                     buf[len..len + 32].copy_from_slice(child.hash().as_slice());
                     len + 32
                 } else {
@@ -219,18 +219,8 @@ fn hash_extension_slow_path<P, S>(
     child: &Reference<P, S>,
 ) -> CryptoHash {
     let mut builder = CryptoHash::builder();
-    let mut first = true;
     let tag = 0x80 | (u8::from(child.is_value()) << 4);
-    key.write_into(|mut bytes| {
-        if first {
-            if let Some((car, cdr)) = bytes.split_first() {
-                builder.update(&[*car | tag]);
-                bytes = cdr;
-                first = false;
-            }
-        }
-        builder.update(bytes)
-    });
+    key.write_into(|bytes| builder.update(bytes), tag);
     builder.update(child.hash().as_slice());
     builder.build()
 }
@@ -253,8 +243,7 @@ impl RawNode {
     pub fn extension(key: Slice, child: Reference) -> Option<Self> {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
-        key.encode_into(lft)?;
-        lft[0] |= 0x80;
+        key.encode_into(lft, 0x80)?;
         *rht = child.encode_raw();
         Some(res)
     }
@@ -528,14 +517,10 @@ fn decode_raw<'a>(node: &'a RawNode) -> Node<'a> {
         Node::Branch { children: [Reference::from_raw(left, false), right] }
     } else if tag == 2 {
         // Extension
-        let (num, key) =
-            stdx::split_array_ref::<2, MAX_EXTENSION_KEY_SIZE, 36>(left);
-        let num = u16::from_be_bytes(*num);
-        debug_assert_eq!(0x8000, num & 0xF000, "Failed decoding raw: {node:?}");
-        Node::Extension {
-            key: Slice::from_raw(num & 0x0FFF, key),
-            child: right,
-        }
+        let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
+            panic!("Failed decoding raw: {node:?}");
+        });
+        Node::Extension { key, child: right }
     } else {
         // Value
         let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
