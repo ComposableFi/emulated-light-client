@@ -30,7 +30,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
     pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = self.alloc.get(ptr);
-        let node = Node::from(&node);
+        let node = node.decode();
         debug_assert_eq!(*nref.hash, node.hash());
 
         let result = match node {
@@ -167,7 +167,7 @@ fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
         }
     }
 
-    match Node::from(node) {
+    match node.decode() {
         Node::Branch { children: [lft, rht] } => (get_ptr(lft), get_ptr(rht)),
         Node::Extension { child, .. } => (get_ptr(child), None),
         Node::Value { child, .. } => (child.ptr, None),

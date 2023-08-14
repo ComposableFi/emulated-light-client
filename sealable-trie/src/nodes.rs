@@ -207,6 +207,24 @@ impl<'a, P, S> Node<'a, P, S> {
     }
 }
 
+impl<'a> Node<'a> {
+    /// Builds raw representation of given node.
+    ///
+    /// Returns an error if this node is an Extension with a key of invalid
+    /// length (either empty or too long).
+    pub fn encode(&self) -> Result<RawNode, ()> {
+        match self {
+            Node::Branch { children: [left, right] } => {
+                Ok(RawNode::branch(*left, *right))
+            }
+            Node::Extension { key, child } => {
+                RawNode::extension(*key, *child).ok_or(())
+            }
+            Node::Value { value, child } => Ok(RawNode::value(*value, *child)),
+        }
+    }
+}
+
 /// Hashes an Extension node with oversized key.
 ///
 /// Normally, this is never called since we should calculate hashes of nodes
@@ -230,8 +248,8 @@ impl RawNode {
     pub fn branch(left: Reference, right: Reference) -> Self {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
-        *lft = left.encode_raw();
-        *rht = right.encode_raw();
+        *lft = left.encode();
+        *rht = right.encode();
         res
     }
 
@@ -244,7 +262,7 @@ impl RawNode {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
         key.encode_into(lft, 0x80)?;
-        *rht = child.encode_raw();
+        *rht = child.encode();
         Some(res)
     }
 
@@ -252,10 +270,45 @@ impl RawNode {
     pub fn value(value: ValueRef, child: NodeRef) -> Self {
         let mut res = Self([0; 72]);
         let (lft, rht) = res.halfs_mut();
-        *lft = Reference::Value(value).encode_raw();
+        *lft = Reference::Value(value).encode();
         lft[0] |= 0x80;
-        *rht = Reference::Node(child).encode_raw();
+        *rht = Reference::Node(child).encode();
         res
+    }
+
+    /// Decodes raw node into a [`Node`].
+    ///
+    /// In debug builds panics if `node` holds malformed representation, i.e. if
+    /// any unused bits (which must be cleared) are set.
+    pub fn decode(&self) -> Node {
+        let (left, right) = self.halfs();
+        let right = Reference::from_raw(right, false);
+        let tag = self.first() >> 6;
+        if tag == 0 || tag == 1 {
+            // Branch
+            Node::Branch { children: [Reference::from_raw(left, false), right] }
+        } else if tag == 2 {
+            // Extension
+            let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
+                panic!("Failed decoding raw: {self:?}");
+            });
+            Node::Extension { key, child: right }
+        } else {
+            // Value
+            let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
+            let num = u32::from_be_bytes(*num);
+            debug_assert_eq!(
+                0xC000_0000,
+                num & !0x2000_0000,
+                "Failed decoding raw node: {self:?}",
+            );
+            let value = ValueRef::new(num & 0x2000_0000 != 0, value.into());
+            let child = right.try_into().unwrap_or_else(|_| {
+                debug_assert!(false, "Failed decoding raw node: {self:?}");
+                NodeRef::new(None, &CryptoHash::DEFAULT)
+            });
+            Node::Value { value, child }
+        }
     }
 
     /// Returns the first byte in the raw representation.
@@ -347,7 +400,7 @@ impl<'a> Reference<'a> {
     }
 
     /// Encodes the node reference into the buffer.
-    fn encode_raw(&self) -> [u8; 36] {
+    fn encode(&self) -> [u8; 36] {
         let (num, hash) = match self {
             Self::Node(node) => {
                 (node.ptr.map_or(0, |ptr| ptr.get()), node.hash)
@@ -399,38 +452,6 @@ impl<'a> ValueRef<'a, bool> {
     pub fn sealed(self) -> Self { Self { is_sealed: true, hash: self.hash } }
 }
 
-
-// =============================================================================
-// Trait implementations
-
-impl<'a> From<&'a RawNode> for Node<'a> {
-    /// Decodes raw node into a [`Node`] assuming that raw bytes are trusted and
-    /// thus well formed.
-    ///
-    /// The function is safe even if the bytes aren’t well-formed.
-    #[inline]
-    fn from(node: &'a RawNode) -> Self { decode_raw(node) }
-}
-
-impl<'a> TryFrom<Node<'a>> for RawNode {
-    type Error = ();
-
-    /// Builds raw representation for given node.
-    #[inline]
-    fn try_from(node: Node<'a>) -> Result<Self, Self::Error> {
-        Self::try_from(&node)
-    }
-}
-
-impl<'a> TryFrom<&Node<'a>> for RawNode {
-    type Error = ();
-
-    /// Builds raw representation for given node.
-    #[inline]
-    fn try_from(node: &Node<'a>) -> Result<Self, Self::Error> {
-        raw_from_node(node).ok_or(())
-    }
-}
 
 // =============================================================================
 // PartialEq
@@ -497,61 +518,6 @@ where
 {
     fn eq(&self, rhs: &ValueRef<'b, S>) -> bool {
         self.is_sealed == rhs.is_sealed && self.hash == rhs.hash
-    }
-}
-
-// =============================================================================
-// Conversion functions
-
-/// Decodes raw node into a [`Node`] assuming that raw bytes are trusted and
-/// thus well formed.
-///
-/// In debug builds panics if `node` holds malformed representation, i.e. if any
-/// unused bits (which must be cleared) are set.
-fn decode_raw<'a>(node: &'a RawNode) -> Node<'a> {
-    let (left, right) = node.halfs();
-    let right = Reference::from_raw(right, false);
-    let tag = node.first() >> 6;
-    if tag == 0 || tag == 1 {
-        // Branch
-        Node::Branch { children: [Reference::from_raw(left, false), right] }
-    } else if tag == 2 {
-        // Extension
-        let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
-            panic!("Failed decoding raw: {node:?}");
-        });
-        Node::Extension { key, child: right }
-    } else {
-        // Value
-        let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
-        let num = u32::from_be_bytes(*num);
-        debug_assert_eq!(
-            0xC000_0000,
-            num & !0x2000_0000,
-            "Failed decoding raw node: {node:?}",
-        );
-        let value = ValueRef::new(num & 0x2000_0000 != 0, value.into());
-        let child = right.try_into().unwrap_or_else(|_| {
-            debug_assert!(false, "Failed decoding raw node: {node:?}");
-            NodeRef::new(None, &CryptoHash::DEFAULT)
-        });
-        Node::Value { value, child }
-    }
-}
-
-/// Builds raw representation for given node.
-///
-/// Returns reference to slice of the output buffer holding the representation
-/// (node representation used in proofs is variable-length).  If the given node
-/// cannot be encoded (which happens if it’s an extension with a key whose byte
-/// buffer is longer than 34 bytes), returns `None`.
-fn raw_from_node<'a>(node: &Node<'a>) -> Option<RawNode> {
-    match node {
-        Node::Branch { children: [left, right] } => {
-            Some(RawNode::branch(*left, *right))
-        }
-        Node::Extension { key, child } => RawNode::extension(*key, *child),
-        Node::Value { value, child } => Some(RawNode::value(*value, *child)),
     }
 }
 

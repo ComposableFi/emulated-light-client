@@ -25,11 +25,12 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 /// first and last objects aren’t equal.  Returns the raw node.
 #[track_caller]
 pub(super) fn raw_from_node(node: &Node) -> RawNode {
-    let raw = RawNode::try_from(node)
+    let raw = node
+        .encode()
         .unwrap_or_else(|()| panic!("Failed encoding node as raw: {node:?}"));
-    let decoded = Node::from(&raw);
     assert_eq!(
-        *node, decoded,
+        *node,
+        raw.decode(),
         "Node → RawNode → Node gave different result:\n Raw: {raw:?}"
     );
     raw
@@ -47,7 +48,7 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 fn check_node_encoding(node: Node, want: [u8; 72], want_hash: &str) {
     let raw = raw_from_node(&node);
     assert_eq!(want, raw.0, "Unexpected raw representation");
-    assert_eq!(node, Node::from(&RawNode(want)), "Bad Raw→Node conversion");
+    assert_eq!(node, RawNode(want).decode(), "Bad Raw→Node conversion");
 
     let want_hash = BASE64_ENGINE.decode(want_hash).unwrap();
     let want_hash = <&[u8; 32]>::try_from(want_hash.as_slice()).unwrap();

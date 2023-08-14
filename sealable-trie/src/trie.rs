@@ -152,7 +152,7 @@ impl<A: memory::Allocator> Trie<A> {
         let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
-            let node = Node::from(&node);
+            let node = node.decode();
             debug_assert_eq!(node_hash, node.hash());
 
             let child = match node {
@@ -288,8 +288,7 @@ impl<A: memory::Allocator> Trie<A> {
             println!(" (sealed)");
             return;
         };
-        let raw = self.alloc.get(ptr);
-        match Node::from(&raw) {
+        match self.alloc.get(ptr).decode() {
             Node::Branch { children } => {
                 println!(" Branch");
                 print_ref(children[0], depth + 2);
