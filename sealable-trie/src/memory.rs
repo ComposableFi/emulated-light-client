@@ -28,7 +28,9 @@ pub struct AddressTooLarge(pub NonZeroU32);
 
 impl Ptr {
     /// Largest value that can be stored in the pointer.
-    const MAX: u32 = (1 << 30) - 1;
+    // The two most significant bits are used internally in RawNode encoding
+    // thus the max value is 30-bit.
+    const MAX: u32 = u32::MAX >> 2;
 
     /// Constructs a new pointer from given address.
     ///
@@ -62,8 +64,8 @@ impl Ptr {
     ///
     /// Two most significant bits of the address are masked out thus ensuring
     /// that the value is never too large.
-    pub(crate) fn new_truncated(ptr: u32) -> Option<Ptr> {
-        NonZeroU32::new(ptr & (u32::MAX >> 2)).map(Self)
+    pub(crate) fn new_truncated(ptr: u32) -> Option<Self> {
+        NonZeroU32::new(ptr & Self::MAX).map(Self)
     }
 }
 
@@ -222,7 +224,8 @@ pub(crate) mod test_utils {
 
     impl TestAllocator {
         pub fn new(capacity: usize) -> Self {
-            let capacity = capacity.min(1 << 30);
+            let max_cap = usize::try_from(Ptr::MAX).unwrap_or(usize::MAX);
+            let capacity = capacity.min(max_cap);
             let mut pool = alloc::vec::Vec::with_capacity(capacity);
             pool.push(RawNode([0xAA; 72]));
             Self { count: 0, free: None, pool, allocated: Default::default() }

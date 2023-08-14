@@ -392,8 +392,7 @@ impl<'a> Slice<'a> {
                 dest,
             );
         tail.fill(0);
-        *num = (u16::from(self.offset) | (self.length << 3)).to_be_bytes();
-        num[0] ^= tag;
+        *num = self.encode_num(tag);
         let (key, _) = tail.split_at_mut(bytes.len());
         let (front, back) = Self::masks(self.offset, self.length);
         key.copy_from_slice(bytes);
@@ -407,9 +406,7 @@ impl<'a> Slice<'a> {
     /// This is like [`Self::encode_into`] except that it doesn’t check the
     /// length of the key.
     pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8]), tag: u8) {
-        let [high, low] =
-            (u16::from(self.offset) | (self.length << 3)).to_be_bytes();
-        consumer(&[high ^ tag, low]);
+        consumer(&self.encode_num(tag));
 
         let (front, back) = Self::masks(self.offset, self.length);
         let bytes = self.bytes();
@@ -444,6 +441,18 @@ impl<'a> Slice<'a> {
         )
     }
 
+    /// Encodes offset and length as a two-byte number.
+    ///
+    /// The encoding is `llll_llll llll_looo`, i.e. 13-bit length in the most
+    /// significant bits and 3-bit offset in the least significant bits.  The
+    /// first byte is then further xored with the `tag` argument.
+    ///
+    /// This method doesn’t check whether the length and offset are within range.
+    fn encode_num(&self, tag: u8) -> [u8; 2] {
+        let num = (self.length << 3) | u16::from(self.offset);
+        (num ^ (u16::from(tag) << 8)).to_be_bytes()
+    }
+
     /// Helper method which returns masks for leading and trailing byte.
     ///
     /// Based on provided bit offset (which must be ≤ 7) and bit length of the
@@ -451,6 +460,8 @@ impl<'a> Slice<'a> {
     /// slice and mask of bits in the last byte that are part of the slice.
     fn masks(offset: u8, length: u16) -> (u8, u8) {
         let bits = usize::from(offset) + usize::from(length);
+        // `1 << 20` is an arbitrary number which is divisible by 8 and greater
+        // than bits.
         let tail = ((1 << 20) - bits) % 8;
         (0xFF >> offset, 0xFF << tail)
     }
@@ -720,6 +731,8 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
             return Some(core::mem::replace(&mut self.0, empty));
         }
 
+        // `1 << 20` is an arbitrary number which is divisible by 8 and greater
+        // than underlying_bits_length.
         let tail = ((1 << 20) - self.0.underlying_bits_length()) % 8;
         let length = (bytes.len() * 8 - tail) as u16;
         self.0.length -= length;

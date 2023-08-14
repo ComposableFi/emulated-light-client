@@ -185,6 +185,8 @@ impl<'a, P, S> Node<'a, P, S> {
 
         let len = match self {
             Node::Branch { children: [left, right] } => {
+                // tag = 0b0000_00xy where x and y indicate whether left and
+                // right children respectively are value references.
                 let tag = (u8::from(left.is_value()) << 1) |
                     u8::from(right.is_value());
                 tag_hash_hash(&mut buf, tag, left.hash(), right.hash())
@@ -194,6 +196,8 @@ impl<'a, P, S> Node<'a, P, S> {
             }
             Node::Extension { key, child } => {
                 let key_buf = stdx::split_array_mut::<36, 32, 68>(&mut buf).0;
+                // tag = 0b100v_0000 where v indicates whether the child is
+                // a value reference.
                 let tag = 0x80 | (u8::from(child.is_value()) << 4);
                 if let Some(len) = key.encode_into(key_buf, tag) {
                     buf[len..len + 32].copy_from_slice(child.hash().as_slice());
@@ -237,6 +241,8 @@ fn hash_extension_slow_path<P, S>(
     child: &Reference<P, S>,
 ) -> CryptoHash {
     let mut builder = CryptoHash::builder();
+    // tag = 0b100v_0000 where v indicates whether the child is a value
+    // reference.
     let tag = 0x80 | (u8::from(child.is_value()) << 4);
     key.write_into(|bytes| builder.update(bytes), tag);
     builder.update(child.hash().as_slice());
@@ -284,6 +290,7 @@ impl RawNode {
     pub fn decode(&self) -> Node {
         let (left, right) = self.halfs();
         let right = Reference::from_raw(right, false);
+        // `>> 6` to grab the two most significant bits only.
         let tag = self.first() >> 6;
         if tag == 0 || tag == 1 {
             // Branch
@@ -383,6 +390,7 @@ impl<'a> Reference<'a> {
         let ptr = u32::from_be_bytes(*ptr);
         let hash = hash.into();
         if ptr & 0x4000_0000 == 0 {
+            // The two most significant bits must be zero.
             debug_assert_eq!(
                 0,
                 ptr & 0xC000_0000,
@@ -391,6 +399,10 @@ impl<'a> Reference<'a> {
             let ptr = Ptr::new_truncated(ptr);
             Self::Node(NodeRef { ptr, hash })
         } else {
+            // * The most significant bit is set only if value_high_bit is true.
+            // * The second most significant bit (0x4000_0000) is always set.
+            // * The third most significant bit (so 0x2000_0000) specifies
+            //   whether value is sealed.
             debug_assert_eq!(
                 0x4000_0000 | (u32::from(value_high_bit) << 31),
                 ptr & !0x2000_0000,
