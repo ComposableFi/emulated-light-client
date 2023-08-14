@@ -26,6 +26,8 @@ pub struct Slice<'a> {
     ///
     /// Value of bits outside of the range defined by `offset` and `length` is
     /// unspecified and shouldn’t be read.
+    // Invariant: `ptr` points at `offset + length` valid bits.  In other words,
+    // at `(offset + length + 7) / 8` valid bytes.
     pub(crate) ptr: *const u8,
 
     phantom: core::marker::PhantomData<&'a [u8]>,
@@ -34,9 +36,22 @@ pub struct Slice<'a> {
 /// An iterator over bits in a bit slice.
 #[derive(Clone, Copy)]
 pub struct Iter<'a> {
+    /// A 1-bit mask of the next bit to read from `*ptr`.
+    ///
+    /// Each time next bit is read, the mask is shifted once to the right.  Once
+    /// it reaches zero, it’s reset to `0x80` and `ptr` is advanced to the next
+    /// byte.
     mask: u8,
+
+    /// Length of the slice in bits.
     length: u16,
+
+    /// Pointer to the byte at the beginning of the iterator.
+    // Invariant: `ptr` points at `offset + length` valid bits where `offset`
+    // equals `mask.leading_zeros()`.  In other words, at `(offset + length + 7)
+    // / 8` valid bytes.
     ptr: *const u8,
+
     phantom: core::marker::PhantomData<&'a [u8]>,
 }
 
@@ -46,8 +61,6 @@ pub struct Iter<'a> {
 pub struct Chunks<'a>(Slice<'a>);
 
 impl<'a> Slice<'a> {
-    const MAX_LENGTH: u16 = u16::MAX / 8;
-
     /// Constructs a new bit slice.
     ///
     /// `bytes` is underlying bytes slice to read bits from.
@@ -55,13 +68,12 @@ impl<'a> Slice<'a> {
     /// `offset` specifies how many most significant bits of the first byte of
     /// the bytes slice to skip.  Must be at most 7.
     ///
-    /// `length` specifies length in bits of the entire bit slice.  Must be at
-    /// most 4095 (i.e. a 12-bit unsigned integer).
+    /// `length` specifies length in bits of the entire bit slice.
     ///
     /// Returns `None` if `offset` or `length` is too large or `bytes` doesn’t
     /// have enough underlying data for the length of the slice.
     pub fn new(bytes: &'a [u8], offset: u8, length: u16) -> Option<Self> {
-        if offset >= 8 || length > Self::MAX_LENGTH {
+        if offset >= 8 {
             return None;
         }
         let has_bits =
