@@ -31,7 +31,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = self.alloc.get(ptr);
         let node = Node::from(&node);
-        debug_assert_eq!(*nref.hash, node.hash().unwrap());
+        debug_assert_eq!(*nref.hash, node.hash());
 
         let result = match node {
             Node::Branch { children } => self.seal_branch(children),

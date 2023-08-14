@@ -303,8 +303,7 @@ impl Builder {
 impl OwnedRef {
     fn node(hash: CryptoHash) -> Self { Self { is_value: false, hash } }
     fn value(hash: CryptoHash) -> Self { Self { is_value: true, hash } }
-
-    fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash().unwrap()) }
+    fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash()) }
 }
 
 impl<'a, P, S> From<&'a Reference<'a, P, S>> for OwnedRef {

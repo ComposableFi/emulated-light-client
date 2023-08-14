@@ -1,7 +1,7 @@
 use crate::bits::Slice;
 use crate::hash::CryptoHash;
 use crate::memory::Ptr;
-use crate::stdx;
+use crate::{bits, stdx};
 
 #[cfg(test)]
 mod stress_tests;
@@ -165,35 +165,74 @@ impl<'a, P, S> Node<'a, P, S> {
     /// Hash changes if and only if the value of the node (if any) and any child
     /// node changes.  Sealing or changing pointer value in a node reference
     /// doesn’t count as changing the node.
-    ///
-    /// If the given node cannot be encoded (which happens if it’s an extension
-    /// with a key whose byte buffer is longer than 34 bytes), returns `None`.
-    pub fn hash(&self) -> Option<CryptoHash> {
+    pub fn hash(&self) -> CryptoHash {
         let mut buf = [0; 68];
+
+        fn tag_hash_hash(
+            buf: &mut [u8; 68],
+            tag: u8,
+            lft: &CryptoHash,
+            rht: &CryptoHash,
+        ) -> usize {
+            let buf = stdx::split_array_mut::<65, 3, 68>(buf).0;
+            let (t, rest) = stdx::split_array_mut::<1, 64, 65>(buf);
+            let (l, r) = stdx::split_array_mut(rest);
+            *t = [tag];
+            *l = lft.0;
+            *r = rht.0;
+            buf.len()
+        }
+
         let len = match self {
             Node::Branch { children: [left, right] } => {
-                buf[0] =
-                    (u8::from(left.is_value()) << 1) | u8::from(right.is_value());
-                buf[1..33].copy_from_slice(left.hash().as_slice());
-                buf[33..65].copy_from_slice(right.hash().as_slice());
-                65
-            }
-            Node::Extension { key, child } => {
-                let len =
-                    key.encode_into(stdx::split_array_mut::<36, 32, 68>(&mut buf).0)?;
-                buf[0] |= 0x80 | (u8::from(child.is_value()) << 4);
-                buf[len..len + 32].copy_from_slice(child.hash().as_slice());
-                len + 32
+                let tag = (u8::from(left.is_value()) << 1) |
+                    u8::from(right.is_value());
+                tag_hash_hash(&mut buf, tag, left.hash(), right.hash())
             }
             Node::Value { value, child } => {
-                buf[0] = 0xC0;
-                buf[1..33].copy_from_slice(value.hash.as_slice());
-                buf[33..65].copy_from_slice(child.hash.as_slice());
-                65
+                tag_hash_hash(&mut buf, 0xC0, &value.hash, &child.hash)
+            }
+            Node::Extension { key, child } => {
+                let key_buf = stdx::split_array_mut::<36, 32, 68>(&mut buf).0;
+                if let Some(len) = key.encode_into(key_buf) {
+                    buf[0] |= 0x80 | (u8::from(child.is_value()) << 4);
+                    buf[len..len + 32].copy_from_slice(child.hash().as_slice());
+                    len + 32
+                } else {
+                    return hash_extension_slow_path(*key, child);
+                }
             }
         };
-        Some(CryptoHash::digest(&buf[..len]))
+        CryptoHash::digest(&buf[..len])
     }
+}
+
+/// Hashes an Extension node with oversized key.
+///
+/// Normally, this is never called since we should calculate hashes of nodes
+/// whose keys fit in the [`MAX_EXTENSION_KEY_SIZE`] limit.  However, to
+/// avoid having to handle errors we use this slow path to calculate hashes
+/// for nodes with longer keys.
+#[cold]
+fn hash_extension_slow_path<P, S>(
+    key: bits::Slice,
+    child: &Reference<P, S>,
+) -> CryptoHash {
+    let mut builder = CryptoHash::builder();
+    let mut first = true;
+    let tag = 0x80 | (u8::from(child.is_value()) << 4);
+    key.write_into(|mut bytes| {
+        if first {
+            if let Some((car, cdr)) = bytes.split_first() {
+                builder.update(&[*car | tag]);
+                bytes = cdr;
+                first = false;
+            }
+        }
+        builder.update(bytes)
+    });
+    builder.update(child.hash().as_slice());
+    builder.build()
 }
 
 impl RawNode {

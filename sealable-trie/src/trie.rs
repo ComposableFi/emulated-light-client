@@ -153,7 +153,7 @@ impl<A: memory::Allocator> Trie<A> {
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
             let node = Node::from(&node);
-            debug_assert_eq!(node_hash, node.hash().unwrap());
+            debug_assert_eq!(node_hash, node.hash());
 
             let child = match node {
                 Node::Branch { children } => {

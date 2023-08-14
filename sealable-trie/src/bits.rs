@@ -46,6 +46,8 @@ pub struct Iter<'a> {
 pub struct Chunks<'a>(Slice<'a>);
 
 impl<'a> Slice<'a> {
+    const MAX_LENGTH: u16 = u16::MAX / 8;
+
     /// Constructs a new bit slice.
     ///
     /// `bytes` is underlying bytes slice to read bits from.
@@ -53,26 +55,23 @@ impl<'a> Slice<'a> {
     /// `offset` specifies how many most significant bits of the first byte of
     /// the bytes slice to skip.  Must be at most 7.
     ///
-    /// `length` specifies length in bits of the entire bit slice.
+    /// `length` specifies length in bits of the entire bit slice.  Must be at
+    /// most 4095 (i.e. a 12-bit unsigned integer).
     ///
-    /// Returns `None` if `offset` is too large or `bytes` doesn’t have enough
-    /// underlying data for the length of the slice.
+    /// Returns `None` if `offset` or `length` is too large or `bytes` doesn’t
+    /// have enough underlying data for the length of the slice.
     pub fn new(bytes: &'a [u8], offset: u8, length: u16) -> Option<Self> {
-        if offset >= 8 {
+        if offset >= 8 || length > Self::MAX_LENGTH {
             return None;
         }
         let has_bits =
             u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_mul(8);
-        if u32::from(length) + u32::from(offset) <= has_bits {
-            Some(Self {
-                offset,
-                length,
-                ptr: bytes.as_ptr(),
-                phantom: Default::default(),
-            })
-        } else {
-            None
-        }
+        (u32::from(length) + u32::from(offset) <= has_bits).then_some(Self {
+            offset,
+            length,
+            ptr: bytes.as_ptr(),
+            phantom: Default::default(),
+        })
     }
 
     /// Constructs a new bit slice going through all bits in a bytes slice.
@@ -407,7 +406,7 @@ impl<'a> Slice<'a> {
             return None;
         }
         let bytes = self.bytes();
-        if bytes.is_empty() || bytes.len() > nodes::MAX_EXTENSION_KEY_SIZE {
+        if bytes.is_empty() || bytes.len() > dest.len() - 2 {
             return None;
         }
         let (num, tail) =
@@ -422,6 +421,27 @@ impl<'a> Slice<'a> {
         key[0] &= front;
         key[bytes.len() - 1] &= back;
         Some(2 + bytes.len())
+    }
+
+    /// Encodes key into raw binary representation and sends it to the consumer.
+    ///
+    /// This is like [`Self::encode_into`] except that it doesn’t check the
+    /// length of the key.
+    pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8])) {
+        consumer(&(u16::from(self.offset) | (self.length << 3)).to_be_bytes());
+
+        let (front, back) = Self::masks(self.offset, self.length);
+        let bytes = self.bytes();
+        match bytes.len() {
+            0 => (),
+            1 => consumer(&[bytes[0] & front & back]),
+            2 => consumer(&[bytes[0] & front, bytes[1] & back]),
+            n => {
+                consumer(&[bytes[0] & front]);
+                consumer(&bytes[1..n - 1]);
+                consumer(&[bytes[n - 1] & back]);
+            }
+        }
     }
 
     /// Decodes key from a raw binary representation.
@@ -728,6 +748,57 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
             phantom: Default::default(),
         })
     }
+}
+
+#[test]
+fn test_encode() {
+    #[track_caller]
+    fn test(want_encoded: &[u8], offset: u8, length: u16, bytes: &[u8]) {
+        let slice = Slice::new(bytes, offset, length).unwrap();
+
+        if want_encoded.len() <= 36 {
+            let mut buf = [0; 36];
+            let len = slice
+                .encode_into(&mut buf)
+                .unwrap_or_else(|| panic!("Failed encoding {slice}"));
+            assert_eq!(
+                want_encoded,
+                &buf[..len],
+                "Unexpected encoded representation of {slice}"
+            );
+        }
+
+        let mut buf = alloc::vec::Vec::with_capacity(want_encoded.len());
+        slice.write_into(|bytes| buf.extend_from_slice(bytes));
+        assert_eq!(
+            want_encoded,
+            buf.as_slice(),
+            "Unexpected written representation of {slice}"
+        );
+
+        let round_trip = Slice::decode(want_encoded)
+            .unwrap_or_else(|| panic!("Failed decoding {want_encoded:?}"));
+        assert_eq!(slice, round_trip);
+    }
+
+    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0x80]);
+    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0xFF]);
+    test(&[0, 1 * 8 + 4, 0x08], 4, 1, &[0xFF]);
+    test(&[0, 9 * 8 + 0, 0xFF, 0x80], 0, 9, &[0xFF, 0xFF]);
+    test(&[0, 9 * 8 + 4, 0x0F, 0xF8], 4, 9, &[0xFF, 0xFF]);
+    test(&[0, 17 * 8 + 0, 0xFF, 0xFF, 0x80], 0, 17, &[0xFF, 0xFF, 0xFF]);
+    test(&[0, 17 * 8 + 4, 0x0F, 0xFF, 0xF8], 4, 17, &[0xFF, 0xFF, 0xFF]);
+
+    let mut want = [0xFF; 1026];
+    want[0] = (8191u16 >> 5) as u8;
+    want[1] = (8191u16 << 3) as u8;
+    want[1025] = 0xFE;
+    test(&want[..], 0, 8191, &[0xFF; 1024][..]);
+
+    want[1] += 1;
+    want[2] = 0x7F;
+    want[1025] = 0xFF;
+    test(&want[..], 1, 8191, &[0xFF; 1024][..]);
 }
 
 #[test]

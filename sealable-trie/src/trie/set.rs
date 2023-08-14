@@ -64,7 +64,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
         let node = self.wlog.allocator().get(nref.0);
         let node = Node::from(&node);
-        debug_assert_eq!(*nref.1, node.hash().unwrap());
+        debug_assert_eq!(*nref.1, node.hash());
         match node {
             Node::Branch { children } => self.handle_branch(nref, children),
             Node::Extension { key, child } => {
@@ -316,14 +316,14 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
 
     /// Sets value of a node cell at given address and returns its hash.
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
-        let hash = Node::from(&node).hash().unwrap();
+        let hash = Node::from(&node).hash();
         self.wlog.set(ptr, node);
         (ptr, hash)
     }
 
     /// Allocates a new node and sets it to given value.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
-        let hash = Node::from(&node).hash().unwrap();
+        let hash = Node::from(&node).hash();
         let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }

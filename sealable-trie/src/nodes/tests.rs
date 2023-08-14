@@ -39,18 +39,25 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 ///
 /// 1. Encodes `node` into raw node node representation and compares the result
 ///    with expected `want` slices.
-/// 2. Checks that parsing the raw representation to a `Node` produces the
-///    object equal to `node` (i.e. verifies Node→RawNode→Node round-trip
-///    conversion).
+/// 2. Verifies Node→RawNode→Node round-trip conversion.
+/// 3. Verifies that hash of the node equals the one provided.
+/// 4. If node is an Extension, checks if slow path hash calculation produces
+///    the same hash.
 #[track_caller]
-fn check_node_encoding(node: Node, want: [u8; 72], hash: &str) {
+fn check_node_encoding(node: Node, want: [u8; 72], want_hash: &str) {
     let raw = raw_from_node(&node);
     assert_eq!(want, raw.0, "Unexpected raw representation");
     assert_eq!(node, Node::from(&RawNode(want)), "Bad Raw→Node conversion");
 
-    let hash = BASE64_ENGINE.decode(hash).unwrap();
-    let hash = <&[u8; 32]>::try_from(&*hash).unwrap().into();
-    assert_eq!(Some(hash), node.hash());
+    let want_hash = BASE64_ENGINE.decode(want_hash).unwrap();
+    let want_hash = <&[u8; 32]>::try_from(want_hash.as_slice()).unwrap();
+    let want_hash = CryptoHash::from(*want_hash);
+    assert_eq!(want_hash, node.hash(), "Unexpected hash of {node:?}");
+
+    if let Node::Extension { key, child } = node {
+        let got = super::hash_extension_slow_path(key, &child);
+        assert_eq!(want_hash, got, "Unexpected slow path hash of {node:?}");
+    }
 }
 
 #[test]
