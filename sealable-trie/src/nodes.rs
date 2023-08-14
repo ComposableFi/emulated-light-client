@@ -400,8 +400,8 @@ impl<'a> Reference<'a> {
             Self::Node(NodeRef { ptr, hash })
         } else {
             // * The most significant bit is set only if value_high_bit is true.
-            // * The second most significant bit (0x4000_0000) is always set.
-            // * The third most significant bit (so 0x2000_0000) specifies
+            // * The second most significant bit (so 0b4000_0000) is always set.
+            // * The third most significant bit (so 0b2000_0000) specifies
             //   whether value is sealed.
             debug_assert_eq!(
                 0x4000_0000 | (u32::from(value_high_bit) << 31),
