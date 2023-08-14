@@ -219,6 +219,8 @@ impl<A: memory::Allocator> Trie<A> {
     /// [`Error::Sealed`] error.
     ///
     /// If `proof` is specified, stores proof nodes into the provided vector.
+    // TODO(mina86): Add set_with_proof as well as set_and_seal and
+    // set_and_seal_with_proof.
     pub fn set(&mut self, key: &[u8], value_hash: &CryptoHash) -> Result<()> {
         let (ptr, hash) = (self.root_ptr, self.root_hash.clone());
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
@@ -240,6 +242,7 @@ impl<A: memory::Allocator> Trie<A> {
     /// at the key.  For example, if trie contains key `foobar` only, neither
     /// `foo` nor `qux` keys can be sealed.  In those cases, function returns
     /// an error.
+    // TODO(mina86): Add seal_with_proof.
     pub fn seal(&mut self, key: &[u8]) -> Result<()> {
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         if self.root_hash == EMPTY_TRIE_ROOT {
@@ -308,6 +311,7 @@ impl<A: memory::Allocator> Trie<A> {
 
 #[cfg(test)]
 impl Trie<memory::test_utils::TestAllocator> {
+    /// Creates a test trie using a TestAllocator with given capacity.
     pub(crate) fn test(capacity: usize) -> Self {
         Self::new(memory::test_utils::TestAllocator::new(capacity))
     }

@@ -18,6 +18,10 @@ use sha2::Digest;
 #[repr(transparent)]
 pub struct CryptoHash(pub [u8; CryptoHash::LENGTH]);
 
+// TODO(mina86): Make the code generic such that CryptoHash::digest take generic
+// argument for the hash to use.  This would then mean that Trie, Proof and
+// other objects which need to calculate hashes would need to take that argument
+// as well.
 impl CryptoHash {
     /// Length in bytes of the cryptographic hash.
     pub const LENGTH: usize = 32;

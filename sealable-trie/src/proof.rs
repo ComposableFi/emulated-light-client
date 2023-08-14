@@ -54,10 +54,13 @@ pub(crate) enum Actual {
 /// A reference to value or node.
 #[derive(Clone, Debug)]
 pub(crate) struct OwnedRef {
+    /// Whether the reference is for a value (rather than value).
     is_value: bool,
+    /// Hash of the node or value the reference points at.
     hash: CryptoHash,
 }
 
+/// Builder for the proof.
 pub(crate) struct Builder(Vec<Item>);
 
 impl Proof {
@@ -271,6 +274,11 @@ impl Builder {
         T::from(NonMembership(Some(Box::new(actual)), self.0))
     }
 
+    /// Creates a new non-membership proof after lookup reached a Branch node.
+    ///
+    /// If a Branch node has been found at the lookup key (rather than Value
+    /// node), this method allows creation of a non-membership proof.
+    /// `children` specifies children of the encountered Branch node.
     pub fn reached_branch<T: From<NonMembership>, P, S>(
         self,
         children: [Reference<P, S>; 2],
@@ -279,6 +287,15 @@ impl Builder {
         self.negative(Actual::Branch(lft.into(), rht.into()))
     }
 
+    /// Creates a new non-membership proof after lookup reached a Extension node.
+    ///
+    /// If a Extension node has been found which doesn’t match corresponding
+    /// portion of the lookup key (the extension key may be too long or just not
+    /// match it), this method allows creation of a non-membership proof.
+    ///
+    /// `left` is the number of bits left in the lookup key at the moment the
+    /// Extension node was encountered.  `key` and `child` are corresponding
+    /// fields of the extension node.
     pub fn reached_extension<T: From<NonMembership>>(
         self,
         left: u16,
@@ -291,6 +308,15 @@ impl Builder {
         self.negative(Actual::Extension(left, ext_key, child.into()))
     }
 
+    /// Creates a new non-membership proof after lookup reached a value
+    /// reference.
+    ///
+    /// If the lookup key hasn’t terminated yet but a value reference has been
+    /// found, , this method allows creation of a non-membership proof.
+    ///
+    /// `left` is the number of bits left in the lookup key at the moment the
+    /// reference was encountered.  `value` is the hash of the value from the
+    /// reference.
     pub fn lookup_key_left<T: From<NonMembership>>(
         self,
         left: NonZeroU16,
@@ -301,8 +327,11 @@ impl Builder {
 }
 
 impl OwnedRef {
+    /// Creates a reference pointing at node with given hash.
     fn node(hash: CryptoHash) -> Self { Self { is_value: false, hash } }
+    /// Creates a reference pointing at value with given hash.
     fn value(hash: CryptoHash) -> Self { Self { is_value: true, hash } }
+    /// Creates a reference pointing at given node.
     fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash()) }
 }
 
