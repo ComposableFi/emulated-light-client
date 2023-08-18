@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::println;
 
+use memory::test_utils::TestAllocator;
 use rand::Rng;
 
 use crate::hash::CryptoHash;
-use crate::memory::test_utils::TestAllocator;
 
 fn do_test_inserts<'a>(
     keys: impl IntoIterator<Item = &'a [u8]>,
@@ -114,7 +114,7 @@ impl core::fmt::Debug for Key {
 }
 
 struct TestTrie {
-    trie: super::Trie<TestAllocator>,
+    trie: super::Trie<TestAllocator<super::Value>>,
     mapping: HashMap<Key, CryptoHash>,
     count: usize,
 }

@@ -1,0 +1,15 @@
+[package]
+name = "memory"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+derive_more.workspace = true
+stdx = { workspace = true, optional = true }
+
+[dev-dependencies]
+stdx.workspace = true
+
+[features]
+test_utils = ["stdx"]

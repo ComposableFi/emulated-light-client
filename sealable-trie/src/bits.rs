@@ -3,7 +3,7 @@ use core::fmt;
 #[cfg(test)]
 use pretty_assertions::assert_eq;
 
-use crate::{nodes, stdx};
+use crate::nodes;
 
 /// Representation of a slice of bits.
 ///

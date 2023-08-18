@@ -1,7 +1,8 @@
+use memory::Ptr;
+
+use crate::bits;
 use crate::bits::Slice;
 use crate::hash::CryptoHash;
-use crate::memory::Ptr;
-use crate::{bits, stdx};
 
 #[cfg(test)]
 mod stress_tests;
@@ -103,7 +104,7 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 // The actual pointer value is therefore 30-bit long.
 #[derive(Clone, Copy, PartialEq, derive_more::Deref)]
 #[repr(transparent)]
-pub struct RawNode(pub(crate) [u8; 72]);
+pub struct RawNode(pub(crate) [u8; RawNode::SIZE]);
 
 /// Reference either to a node or a value as held in Branch or Extension nodes.
 ///
@@ -250,9 +251,12 @@ fn hash_extension_slow_path<P, S>(
 }
 
 impl RawNode {
+    /// Size of the byte buffer used for a node encoding.
+    pub const SIZE: usize = 72;
+
     /// Constructs a Branch node with specified children.
     pub fn branch(left: Reference, right: Reference) -> Self {
-        let mut res = Self([0; 72]);
+        let mut res = Self([0; RawNode::SIZE]);
         let (lft, rht) = res.halfs_mut();
         *lft = left.encode();
         *rht = right.encode();
@@ -265,7 +269,7 @@ impl RawNode {
     /// slice is too long.  The slice must not exceed [`MAX_EXTENSION_KEY_SIZE`]
     /// to be valid.
     pub fn extension(key: Slice, child: Reference) -> Option<Self> {
-        let mut res = Self([0; 72]);
+        let mut res = Self([0; RawNode::SIZE]);
         let (lft, rht) = res.halfs_mut();
         key.encode_into(lft, 0x80)?;
         *rht = child.encode();
@@ -274,7 +278,7 @@ impl RawNode {
 
     /// Constructs a Value node with given value hash and child.
     pub fn value(value: ValueRef, child: NodeRef) -> Self {
-        let mut res = Self([0; 72]);
+        let mut res = Self([0; RawNode::SIZE]);
         let (lft, rht) = res.halfs_mut();
         *lft = Reference::Value(value).encode();
         lft[0] |= 0x80;
@@ -323,13 +327,11 @@ impl RawNode {
     fn first(&self) -> u8 { self.0[0] }
 
     /// Splits the raw byte representation in two halfs.
-    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) {
-        stdx::split_array_ref::<36, 36, 72>(&self.0)
-    }
+    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) { stdx::split_array_ref(&self.0) }
 
     /// Splits the raw byte representation in two halfs.
     fn halfs_mut(&mut self) -> (&mut [u8; 36], &mut [u8; 36]) {
-        stdx::split_array_mut::<36, 36, 72>(&mut self.0)
+        stdx::split_array_mut(&mut self.0)
     }
 }
 
@@ -466,6 +468,16 @@ impl<'a> ValueRef<'a, bool> {
     pub fn sealed(self) -> Self { Self { is_sealed: true, hash: self.hash } }
 }
 
+
+// =============================================================================
+// Conversions
+
+impl<'a> From<&'a [u8; RawNode::SIZE]> for &'a RawNode {
+    fn from(bytes: &'a [u8; RawNode::SIZE]) -> &'a RawNode {
+        // SAFETY: RawNode is repr(transparent).
+        unsafe { &*bytes.as_ptr().cast() }
+    }
+}
 
 // =============================================================================
 // PartialEq

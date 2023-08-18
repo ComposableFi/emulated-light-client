@@ -1,8 +1,8 @@
+extern crate alloc;
+
 use alloc::vec::Vec;
 use core::fmt;
 use core::num::NonZeroU32;
-
-use crate::nodes::RawNode;
 
 /// A pointer value.  The value is 30-bit and always non-zero.
 #[derive(
@@ -30,7 +30,7 @@ impl Ptr {
     /// Largest value that can be stored in the pointer.
     // The two most significant bits are used internally in RawNode encoding
     // thus the max value is 30-bit.
-    const MAX: u32 = u32::MAX >> 2;
+    pub const MAX: u32 = u32::MAX >> 2;
 
     /// Constructs a new pointer from given address.
     ///
@@ -42,14 +42,13 @@ impl Ptr {
     ///
     /// ```
     /// # use core::num::NonZeroU32;
-    /// # use sealable_trie::memory::*;
     ///
-    /// assert_eq!(Ok(None), Ptr::new(0));
-    /// assert_eq!(42, Ptr::new(42).unwrap().unwrap().get());
+    /// assert_eq!(Ok(None), memory::Ptr::new(0));
+    /// assert_eq!(42, memory::Ptr::new(42).unwrap().unwrap().get());
     /// assert_eq!((1 << 30) - 1,
-    ///            Ptr::new((1 << 30) - 1).unwrap().unwrap().get());
-    /// assert_eq!(Err(AddressTooLarge(NonZeroU32::new(1 << 30).unwrap())),
-    ///            Ptr::new(1 << 30));
+    ///            memory::Ptr::new((1 << 30) - 1).unwrap().unwrap().get());
+    /// assert_eq!(Err(memory::AddressTooLarge(NonZeroU32::new(1 << 30).unwrap())),
+    ///            memory::Ptr::new(1 << 30));
     /// ```
     pub const fn new(ptr: u32) -> Result<Option<Ptr>, AddressTooLarge> {
         // Using match so the function is const
@@ -64,7 +63,7 @@ impl Ptr {
     ///
     /// Two most significant bits of the address are masked out thus ensuring
     /// that the value is never too large.
-    pub(crate) fn new_truncated(ptr: u32) -> Option<Self> {
+    pub fn new_truncated(ptr: u32) -> Option<Self> {
         NonZeroU32::new(ptr & Self::MAX).map(Self)
     }
 }
@@ -81,13 +80,12 @@ impl TryFrom<NonZeroU32> for Ptr {
     ///
     /// ```
     /// # use core::num::NonZeroU32;
-    /// # use sealable_trie::memory::*;
     ///
     /// let answer = NonZeroU32::new(42).unwrap();
-    /// assert_eq!(42, Ptr::try_from(answer).unwrap().get());
+    /// assert_eq!(42, memory::Ptr::try_from(answer).unwrap().get());
     ///
     /// let large = NonZeroU32::new(1 << 30).unwrap();
-    /// assert_eq!(Err(AddressTooLarge(large)), Ptr::try_from(large));
+    /// assert_eq!(Err(memory::AddressTooLarge(large)), memory::Ptr::try_from(large));
     /// ```
     fn try_from(num: NonZeroU32) -> Result<Ptr, AddressTooLarge> {
         if num.get() <= Ptr::MAX {
@@ -112,16 +110,25 @@ impl fmt::Debug for Ptr {
 
 /// An interface for memory management used by the trie.
 pub trait Allocator {
-    /// Allocates a new block and initialise it to given value.
-    fn alloc(&mut self, value: RawNode) -> Result<Ptr, OutOfMemory>;
+    type Value;
 
-    /// Returns value stored at given pointer.
+    /// Allocates a new block and initialise it to given value.
+    fn alloc(&mut self, value: Self::Value) -> Result<Ptr, OutOfMemory>;
+
+    /// Returns shared reference to value stored at given pointer.
     ///
     /// May panic or return garbage if `ptr` is invalid.
-    fn get(&self, ptr: Ptr) -> RawNode;
+    fn get(&self, ptr: Ptr) -> &Self::Value;
+
+    /// Returns exclusive reference to value stored at given pointer.
+    ///
+    /// May panic or return garbage if `ptr` is invalid.
+    fn get_mut(&mut self, ptr: Ptr) -> &mut Self::Value;
 
     /// Sets value at given pointer.
-    fn set(&mut self, ptr: Ptr, value: RawNode);
+    fn set(&mut self, ptr: Ptr, value: Self::Value) {
+        *self.get_mut(ptr) = value;
+    }
 
     /// Frees a block.
     fn free(&mut self, ptr: Ptr);
@@ -151,7 +158,7 @@ pub struct WriteLog<'a, A: Allocator> {
     alloc: &'a mut A,
 
     /// List of changes in the transaction.
-    write_log: Vec<(Ptr, RawNode)>,
+    write_log: Vec<(Ptr, A::Value)>,
 
     /// List pointers to nodes allocated during the transaction.
     allocated: Vec<Ptr>,
@@ -187,13 +194,13 @@ impl<'a, A: Allocator> WriteLog<'a, A> {
     /// Returns underlying allocator.
     pub fn allocator(&self) -> &A { &*self.alloc }
 
-    pub fn alloc(&mut self, value: RawNode) -> Result<Ptr, OutOfMemory> {
+    pub fn alloc(&mut self, value: A::Value) -> Result<Ptr, OutOfMemory> {
         let ptr = self.alloc.alloc(value)?;
         self.allocated.push(ptr);
         Ok(ptr)
     }
 
-    pub fn set(&mut self, ptr: Ptr, value: RawNode) {
+    pub fn set(&mut self, ptr: Ptr, value: A::Value) {
         self.write_log.push((ptr, value))
     }
 
@@ -210,83 +217,104 @@ impl<'a, A: Allocator> core::ops::Drop for WriteLog<'a, A> {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod test_utils {
+#[cfg(any(test, feature = "test_utils"))]
+pub mod test_utils {
     use super::*;
-    use crate::stdx;
 
-    pub struct TestAllocator {
+    pub struct TestAllocator<T> {
         count: usize,
-        free: Option<Ptr>,
-        pool: alloc::vec::Vec<RawNode>,
-        allocated: std::collections::HashMap<u32, bool>,
+        pool: alloc::vec::Vec<T>,
+        free_list: std::collections::HashSet<Ptr>,
     }
 
-    impl TestAllocator {
+    impl<T> TestAllocator<T> {
         pub fn new(capacity: usize) -> Self {
-            let max_cap = usize::try_from(Ptr::MAX).unwrap_or(usize::MAX);
+            let max_cap = usize::try_from(Ptr::MAX - 1).unwrap_or(usize::MAX);
             let capacity = capacity.min(max_cap);
-            let mut pool = alloc::vec::Vec::with_capacity(capacity);
-            pool.push(RawNode([0xAA; 72]));
-            Self { count: 0, free: None, pool, allocated: Default::default() }
+            let pool = Vec::with_capacity(capacity);
+            Self { count: 0, pool, free_list: Default::default() }
         }
 
         pub fn count(&self) -> usize { self.count }
 
+        /// Gets index in the memory pool for the given pointer.
+        ///
+        /// Panics if the value of the pointer overflows `usize`.  This can only
+        /// happen if `usize` is smaller than `u32` and unallocated pointer was
+        /// given.
+        fn index_from_ptr(ptr: Ptr) -> usize {
+            usize::try_from(ptr.get() - 1).unwrap()
+        }
+
+        /// Converts index in the memory pool into a pointer.
+        ///
+        /// Panics if the resulting pointer’s value would be higher than
+        /// [`Ptr::MAX`].
+        fn ptr_from_index(index: usize) -> Ptr {
+            Ptr::new(u32::try_from(index + 1).unwrap()).unwrap().unwrap()
+        }
+
         /// Verifies that block has been allocated.  Panics if it hasn’t.
+        #[track_caller]
         fn check_allocated(&self, action: &str, ptr: Ptr) -> usize {
-            let adj = match self.allocated.get(&ptr.get()).copied() {
-                None => "unallocated",
-                Some(false) => "freed",
-                Some(true) => return usize::try_from(ptr.get()).unwrap(),
+            let index = Self::index_from_ptr(ptr);
+            let adj = if index >= self.pool.len() {
+                "unallocated"
+            } else if self.free_list.contains(&ptr) {
+                "freed"
+            } else {
+                return index;
             };
             panic!("Tried to {action} {adj} block at {ptr}")
         }
     }
 
-    impl Allocator for TestAllocator {
-        fn alloc(&mut self, value: RawNode) -> Result<Ptr, OutOfMemory> {
-            let ptr = if let Some(ptr) = self.free {
-                // Grab node from free list
-                let node = &mut self.pool[ptr.get() as usize];
-                let bytes = stdx::split_array_ref::<4, 68, 72>(&node.0).0;
-                self.free = Ptr::new(u32::from_ne_bytes(*bytes)).unwrap();
-                *node = value;
-                ptr
+    impl<T> Allocator for TestAllocator<T> {
+        type Value = T;
+
+        fn alloc(&mut self, value: T) -> Result<Ptr, OutOfMemory> {
+            // HashSet doesn’t have pop method so we need to do iter and remove.
+            if let Some(ptr) = self.free_list.iter().next().copied() {
+                // Grab node from free list.
+                self.free_list.remove(&ptr);
+                self.pool[Self::index_from_ptr(ptr)] = value;
+                self.count += 1;
+                Ok(ptr)
             } else if self.pool.len() < self.pool.capacity() {
                 // Grab new node
                 self.pool.push(value);
-                Ptr::new((self.pool.len() - 1) as u32).unwrap().unwrap()
+                self.count += 1;
+                Ok(Self::ptr_from_index(self.pool.len() - 1))
             } else {
                 // No free node to allocate
-                return Err(OutOfMemory);
-            };
-
-            assert!(
-                self.allocated.insert(ptr.get(), true) != Some(true),
-                "Internal error: Allocated the same block twice at {ptr}",
-            );
-            self.count += 1;
-            Ok(ptr)
+                Err(OutOfMemory)
+            }
         }
 
         #[track_caller]
-        fn get(&self, ptr: Ptr) -> RawNode {
-            self.pool[self.check_allocated("read", ptr)].clone()
+        fn get(&self, ptr: Ptr) -> &T {
+            &self.pool[self.check_allocated("read", ptr)]
         }
 
         #[track_caller]
-        fn set(&mut self, ptr: Ptr, value: RawNode) {
-            let idx = self.check_allocated("read", ptr);
-            self.pool[idx] = value
+        fn get_mut(&mut self, ptr: Ptr) -> &mut T {
+            let idx = self.check_allocated("access", ptr);
+            &mut self.pool[idx]
         }
 
+        #[track_caller]
+        fn set(&mut self, ptr: Ptr, value: T) {
+            let idx = self.check_allocated("set", ptr);
+            self.pool[idx] = value;
+        }
+
+        #[track_caller]
         fn free(&mut self, ptr: Ptr) {
-            let idx = self.check_allocated("free", ptr);
-            self.allocated.insert(ptr.get(), false);
-            *stdx::split_array_mut::<4, 68, 72>(&mut self.pool[idx].0).0 =
-                self.free.map_or(0, |ptr| ptr.get()).to_ne_bytes();
-            self.free = Some(ptr);
+            if self.check_allocated("free", ptr) == self.pool.len() - 1 {
+                self.pool.pop();
+            } else {
+                self.free_list.insert(ptr);
+            }
             self.count -= 1;
         }
     }
@@ -294,37 +322,28 @@ pub(crate) mod test_utils {
 
 #[cfg(test)]
 mod test_write_log {
-    use super::test_utils::TestAllocator;
     use super::*;
-    use crate::hash::CryptoHash;
 
-    fn make_allocator() -> (TestAllocator, Vec<Ptr>) {
-        let mut alloc = TestAllocator::new(100);
-        let ptrs = (0..10)
-            .map(|num| alloc.alloc(make_node(num)).unwrap())
-            .collect::<Vec<Ptr>>();
+    fn make_allocator() -> (test_utils::TestAllocator<usize>, Vec<Ptr>) {
+        let mut alloc = test_utils::TestAllocator::new(100);
+        let ptrs =
+            (0..10).map(|num| alloc.alloc(num).unwrap()).collect::<Vec<Ptr>>();
         assert_nodes(10, &alloc, &ptrs, 0);
         (alloc, ptrs)
-    }
-
-    fn make_node(num: usize) -> RawNode {
-        let hash = CryptoHash::test(num);
-        let child = crate::nodes::Reference::node(None, &hash);
-        RawNode::branch(child, child)
     }
 
     #[track_caller]
     fn assert_nodes(
         count: usize,
-        alloc: &TestAllocator,
+        alloc: &test_utils::TestAllocator<usize>,
         ptrs: &[Ptr],
         offset: usize,
     ) {
         assert_eq!(count, alloc.count());
         for (idx, ptr) in ptrs.iter().enumerate() {
             assert_eq!(
-                make_node(idx + offset),
-                alloc.get(*ptr),
+                idx + offset,
+                *alloc.get(*ptr),
                 "Invalid value when reading {ptr}"
             );
         }
@@ -335,7 +354,7 @@ mod test_write_log {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
         for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
-            wlog.set(ptr, make_node(idx + 10));
+            wlog.set(ptr, idx + 10);
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         wlog.commit();
@@ -348,7 +367,7 @@ mod test_write_log {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
         for (idx, &ptr) in ptrs.iter().take(5).enumerate() {
-            wlog.set(ptr, make_node(idx + 10));
+            wlog.set(ptr, idx + 10);
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         core::mem::drop(wlog);
@@ -359,9 +378,8 @@ mod test_write_log {
     fn test_alloc_commit() {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
-        let new_ptrs = (10..20)
-            .map(|num| wlog.alloc(make_node(num)).unwrap())
-            .collect::<Vec<Ptr>>();
+        let new_ptrs =
+            (10..20).map(|num| wlog.alloc(num).unwrap()).collect::<Vec<Ptr>>();
         assert_nodes(20, &wlog.allocator(), &ptrs, 0);
         assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
         wlog.commit();
@@ -373,9 +391,8 @@ mod test_write_log {
     fn test_alloc_rollback() {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
-        let new_ptrs = (10..20)
-            .map(|num| wlog.alloc(make_node(num)).unwrap())
-            .collect::<Vec<Ptr>>();
+        let new_ptrs =
+            (10..20).map(|num| wlog.alloc(num).unwrap()).collect::<Vec<Ptr>>();
         assert_nodes(20, &wlog.allocator(), &ptrs, 0);
         assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
         core::mem::drop(wlog);

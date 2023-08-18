@@ -1,10 +1,10 @@
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
+use memory::Ptr;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
 use crate::hash::CryptoHash;
-use crate::memory::Ptr;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
@@ -45,7 +45,7 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 /// 4. If node is an Extension, checks if slow path hash calculation produces
 ///    the same hash.
 #[track_caller]
-fn check_node_encoding(node: Node, want: [u8; 72], want_hash: &str) {
+fn check_node_encoding(node: Node, want: [u8; RawNode::SIZE], want_hash: &str) {
     let raw = raw_from_node(&node);
     assert_eq!(want, raw.0, "Unexpected raw representation");
     assert_eq!(node, RawNode(want).decode(), "Bad Raw→Node conversion");
