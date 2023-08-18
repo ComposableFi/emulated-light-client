@@ -1,9 +1,10 @@
 use alloc::vec::Vec;
 
+use memory::Ptr;
+
 use super::{Error, Result};
-use crate::memory::Ptr;
+use crate::bits;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
-use crate::{bits, memory};
 
 /// Context for [`Trie::seal`] operation.
 pub(super) struct SealContext<'a, A> {
@@ -17,7 +18,7 @@ pub(super) struct SealContext<'a, A> {
     alloc: &'a mut A,
 }
 
-impl<'a, A: memory::Allocator> SealContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
     pub(super) fn new(alloc: &'a mut A, key: bits::Slice<'a>) -> Self {
         Self { key, alloc }
     }
@@ -29,7 +30,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
     /// that `ptr` has been freed and it has to update references to it.
     pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
-        let node = self.alloc.get(ptr);
+        let node = RawNode(self.alloc.get(ptr).clone());
         let node = node.decode();
         debug_assert_eq!(*nref.hash, node.hash());
 
@@ -41,7 +42,7 @@ impl<'a, A: memory::Allocator> SealContext<'a, A> {
 
         match result {
             SealResult::Replace(node) => {
-                self.alloc.set(ptr, node);
+                self.alloc.set(ptr, *node);
                 Ok(false)
             }
             SealResult::Free => {
@@ -136,14 +137,17 @@ enum SealResult {
 }
 
 /// Frees node and all its descendants from the allocator.
-fn prune(alloc: &mut impl memory::Allocator, ptr: Option<Ptr>) {
+fn prune(
+    alloc: &mut impl memory::Allocator<Value = super::Value>,
+    ptr: Option<Ptr>,
+) {
     let mut ptr = match ptr {
         Some(ptr) => ptr,
         None => return,
     };
     let mut queue = Vec::new();
     loop {
-        let children = get_children(&alloc.get(ptr));
+        let children = get_children(alloc.get(ptr).into());
         alloc.free(ptr);
         match children {
             (None, None) => match queue.pop() {

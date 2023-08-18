@@ -1,5 +1,6 @@
 [package]
 name = "sealable-trie"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
 version = "0.0.0"
 edition = "2021"
 
@@ -9,6 +10,11 @@ derive_more.workspace = true
 sha2.workspace = true
 strum.workspace = true
 
+memory.workspace = true
+stdx.workspace = true
+
 [dev-dependencies]
 pretty_assertions.workspace = true
 rand.workspace = true
+
+memory = { workspace = true, features = ["test_utils"] }

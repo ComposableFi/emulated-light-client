@@ -5,18 +5,18 @@
 //! it performs can be controlled by STRESS_TEST_ITERATIONS environment
 //! variable.
 
+use memory::Ptr;
 use pretty_assertions::assert_eq;
 
-use crate::memory::Ptr;
+use crate::bits;
 use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 use crate::test_utils::get_iteration_count;
-use crate::{bits, stdx};
 
 /// Generates random raw representation and checks decode→encode round-trip.
 #[test]
 fn stress_test_raw_encoding_round_trip() {
     let mut rng = rand::thread_rng();
-    let mut raw = RawNode([0; 72]);
+    let mut raw = RawNode([0; RawNode::SIZE]);
     for _ in 0..get_iteration_count() {
         gen_random_raw_node(&mut rng, &mut raw.0);
         let node = raw.decode();
@@ -26,7 +26,10 @@ fn stress_test_raw_encoding_round_trip() {
 }
 
 /// Generates a random raw node representation in canonical representation.
-fn gen_random_raw_node(rng: &mut impl rand::Rng, bytes: &mut [u8; 72]) {
+fn gen_random_raw_node(
+    rng: &mut impl rand::Rng,
+    bytes: &mut [u8; RawNode::SIZE],
+) {
     fn make_ref_canonical(bytes: &mut [u8]) {
         if bytes[0] & 0x40 == 0 {
             // Node reference.  Pointer can be non-zero.

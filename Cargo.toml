@@ -6,7 +6,9 @@ rust-version = "1.71.0"
 
 [workspace]
 members = [
+    "memory",
     "sealable-trie",
+    "stdx",
 ]
 resolver = "2"
 
@@ -17,3 +19,7 @@ pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 sha2 = { version = "0.10.7", default-features = false }
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
+
+memory = { path = "memory" }
+sealable-trie = { path = "sealable-trie" }
+stdx = { path = "stdx" }

@@ -1,11 +1,12 @@
+use memory::Ptr;
+
 use super::{Error, Result};
+use crate::bits;
 use crate::hash::CryptoHash;
-use crate::memory::Ptr;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
-use crate::{bits, memory};
 
 /// Context for [`Trie::set`] operation.
-pub(super) struct SetContext<'a, A: memory::Allocator> {
+pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -19,7 +20,7 @@ pub(super) struct SetContext<'a, A: memory::Allocator> {
     wlog: memory::WriteLog<'a, A>,
 }
 
-impl<'a, A: memory::Allocator> SetContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     pub(super) fn new(
         alloc: &'a mut A,
         key: bits::Slice<'a>,
@@ -62,7 +63,7 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let node = self.wlog.allocator().get(nref.0);
+        let node = RawNode(self.wlog.allocator().get(nref.0).clone());
         let node = node.decode();
         debug_assert_eq!(*nref.1, node.hash());
         match node {
@@ -317,14 +318,14 @@ impl<'a, A: memory::Allocator> SetContext<'a, A> {
     /// Sets value of a node cell at given address and returns its hash.
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
         let hash = node.decode().hash();
-        self.wlog.set(ptr, node);
+        self.wlog.set(ptr, *node);
         (ptr, hash)
     }
 
     /// Allocates a new node and sets it to given value.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
         let hash = node.decode().hash();
-        let ptr = self.wlog.alloc(node)?;
+        let ptr = self.wlog.alloc(*node)?;
         Ok((ptr, hash))
     }
 }
