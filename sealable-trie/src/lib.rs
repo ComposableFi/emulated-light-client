@@ -12,4 +12,4 @@ pub mod trie;
 #[cfg(test)]
 mod test_utils;
 
-pub use trie::Trie;
+pub use trie::{Error, Trie};

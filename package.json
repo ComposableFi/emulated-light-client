@@ -1,0 +1,44 @@
+{
+  "name": "solana-trie-example",
+  "version": "0.0.1",
+  "author": "Michał Nazarewicz <mina86@mina86.com>",
+  "license": "MIT",
+  "scripts": {
+    "start": "ts-node solana/trie-example/client/main.ts",
+    "start-with-test-validator": "start-server-and-test 'solana-test-validator --reset --quiet' http://localhost:8899/health start",
+    "lint": "eslint --ext .ts solana/trie-example/* && prettier --check \"solana/trie-example/**/*.ts\"",
+    "lint:fix": "eslint --ext .ts solana/trie-example/* --fix && prettier --write \"solana/trie-example/**/*.ts\"",
+    "clean": "npm run clean:trie-example",
+    "build:trie-example": "cargo build-sbf --manifest-path=solana/trie-example/Cargo.toml --sbf-out-dir=dist/trie-example",
+    "deploy:trie-example": "solana program deploy dist/trie-example/trie.so",
+    "clean:trie-example": "cargo clean --manifest-path=solana/trie-example/Cargo.toml && rm -rf ./dist",
+    "test:trie-example": "cargo test-bpf --manifest-path=solana/trie-example/Cargo.toml",
+    "pretty": "prettier --write 'solana/trie-example/client/*.ts'"
+  },
+  "dependencies": {
+    "@solana/web3.js": "^1.33.0",
+    "mz": "^2.7.0",
+    "tsconfig": "^7.0.0",
+    "yaml": "^2.0.0"
+  },
+  "devDependencies": {
+    "@tsconfig/recommended": "^1.0.1",
+    "@types/eslint": "^8.2.2",
+    "@types/eslint-plugin-prettier": "^3.1.0",
+    "@types/mz": "^2.7.2",
+    "@types/prettier": "^2.1.5",
+    "@types/yaml": "^1.9.7",
+    "@typescript-eslint/eslint-plugin": "^4.6.0",
+    "@typescript-eslint/parser": "^4.6.0",
+    "eslint": "^7.12.1",
+    "eslint-config-prettier": "^6.15.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "prettier": "^2.1.2",
+    "start-server-and-test": "^1.11.6",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.0.5"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
