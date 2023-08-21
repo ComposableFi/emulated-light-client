@@ -8,7 +8,7 @@ use crate::nodes;
 /// Representation of a slice of bits.
 ///
 /// **Note**: slices with different starting offset are considered different
-/// even if iterating over all the bits gives the same result.
+/// even if going over all the bits gives the same result.
 #[derive(Clone, Copy)]
 pub struct Slice<'a> {
     /// Offset in bits to start the slice in `bytes`.
@@ -29,28 +29,6 @@ pub struct Slice<'a> {
     // Invariant: `ptr` points at `offset + length` valid bits.  In other words,
     // at `(offset + length + 7) / 8` valid bytes.
     pub(crate) ptr: *const u8,
-
-    phantom: core::marker::PhantomData<&'a [u8]>,
-}
-
-/// An iterator over bits in a bit slice.
-#[derive(Clone, Copy)]
-pub struct Iter<'a> {
-    /// A 1-bit mask of the next bit to read from `*ptr`.
-    ///
-    /// Each time next bit is read, the mask is shifted once to the right.  Once
-    /// it reaches zero, it’s reset to `0x80` and `ptr` is advanced to the next
-    /// byte.
-    mask: u8,
-
-    /// Length of the slice in bits.
-    length: u16,
-
-    /// Pointer to the byte at the beginning of the iterator.
-    // Invariant: `ptr` points at `offset + length` valid bits where `offset`
-    // equals `mask.leading_zeros()`.  In other words, at `(offset + length + 7)
-    // / 8` valid bytes.
-    ptr: *const u8,
 
     phantom: core::marker::PhantomData<&'a [u8]>,
 }
@@ -187,26 +165,6 @@ impl<'a> Slice<'a> {
         let ptr = unsafe { self.ptr.add(total_bits / 8) };
         let offset = (total_bits % 8) as u8;
         Some(Self { ptr, offset, length, phantom: Default::default() })
-    }
-
-    /// Returns an iterator over bits in the bit slice.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// # use sealable_trie::bits;
-    ///
-    /// let slice = bits::Slice::new(&[0xA0], 0, 3).unwrap();
-    /// let bits: Vec<bool> = slice.iter().collect();
-    /// assert_eq!(&[true, false, true], bits.as_slice());
-    /// ```
-    pub fn iter(&self) -> Iter<'a> {
-        Iter {
-            mask: 0x80 >> self.offset,
-            length: self.length,
-            ptr: self.ptr,
-            phantom: self.phantom,
-        }
     }
 
     /// Returns iterator over chunks of slice where each chunk occupies at most
@@ -510,22 +468,6 @@ unsafe fn forward_common_prefix_impl(
     )
 }
 
-impl<'a> core::iter::IntoIterator for Slice<'a> {
-    type Item = bool;
-    type IntoIter = Iter<'a>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter { self.iter() }
-}
-
-impl<'a> core::iter::IntoIterator for &'a Slice<'a> {
-    type Item = bool;
-    type IntoIter = Iter<'a>;
-
-    #[inline]
-    fn into_iter(self) -> Self::IntoIter { (*self).iter() }
-}
-
 impl core::cmp::PartialEq for Slice<'_> {
     /// Compares two slices to see if they contain the same bits and have the
     /// same offset.
@@ -615,18 +557,6 @@ impl fmt::Debug for Slice<'_> {
     }
 }
 
-impl fmt::Debug for Iter<'_> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let slice = Slice {
-            offset: self.mask.leading_zeros() as u8,
-            length: self.length,
-            ptr: self.ptr,
-            phantom: self.phantom,
-        };
-        debug_fmt("Iter", &slice, fmtr)
-    }
-}
-
 impl fmt::Debug for Chunks<'_> {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_fmt("Chunks", &self.0, fmtr)
@@ -645,42 +575,6 @@ fn debug_fmt(
         .field("bytes", &core::format_args!("{:02x?}", slice.bytes()))
         .finish()
 }
-
-impl<'a> core::iter::Iterator for Iter<'a> {
-    type Item = bool;
-
-    #[inline]
-    fn next(&mut self) -> Option<bool> {
-        if self.length == 0 {
-            return None;
-        }
-        // SAFETY: When length is non-zero, ptr points to a valid byte.
-        let result = (unsafe { self.ptr.read() } & self.mask) != 0;
-        self.length -= 1;
-        self.mask = self.mask.rotate_right(1);
-        if self.mask == 0x80 {
-            // SAFETY: ptr points to a valid object (see above) so ptr+1 is
-            // a valid pointer (at worst it’s one-past-the-end pointer).
-            self.ptr = unsafe { self.ptr.add(1) };
-        }
-        Some(result)
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (usize::from(self.length), Some(usize::from(self.length)))
-    }
-
-    #[inline]
-    fn count(self) -> usize { usize::from(self.length) }
-}
-
-impl<'a> core::iter::ExactSizeIterator for Iter<'a> {
-    #[inline]
-    fn len(&self) -> usize { usize::from(self.length) }
-}
-
-impl<'a> core::iter::FusedIterator for Iter<'a> {}
 
 impl<'a> core::iter::Iterator for Chunks<'a> {
     type Item = Slice<'a>;
@@ -914,28 +808,6 @@ fn test_eq() {
     assert_eq!(Slice::new(&[0xFF], 0, 8), Slice::new(&[0xFF], 0, 8));
     assert_eq!(Slice::new(&[0xFF], 0, 4), Slice::new(&[0xF0], 0, 4));
     assert_eq!(Slice::new(&[0xFF], 4, 4), Slice::new(&[0x0F], 4, 4));
-}
-
-#[test]
-#[rustfmt::skip]
-fn test_iter() {
-    use alloc::vec::Vec;
-
-    #[track_caller]
-    fn test(want: &[u8], bytes: &[u8], offset: u8, length: u16) {
-        let want = want.iter().map(|&b| b != 0).collect::<Vec<_>>();
-        let slice = Slice::new(bytes, offset, length).unwrap();
-        let got = slice.iter().collect::<Vec<_>>();
-        assert_eq!(want, got);
-    }
-
-    test(&[1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-         &[0xAA, 0xAA], 0, 16);
-    test(&[1, 0, 1, 0, 1, 1, 1, 1, 1, 0, 1, 0],
-         &[0x0A, 0xFA], 4, 12);
-    test(&[0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1],
-         &[0x0A, 0xFA], 0, 12);
-    test(&[1, 1, 0, 0], &[0x30], 2, 4);
 }
 
 #[test]
