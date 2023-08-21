@@ -2,7 +2,6 @@
   "name": "solana-trie-example",
   "version": "0.0.1",
   "author": "Michał Nazarewicz <mina86@mina86.com>",
-  "license": "MIT",
   "scripts": {
     "start": "ts-node solana/trie-example/client/main.ts",
     "start-with-test-validator": "start-server-and-test 'solana-test-validator --reset --quiet' http://localhost:8899/health start",
