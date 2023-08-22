@@ -8,6 +8,7 @@ rust-version = "1.71.0"
 members = [
     "memory",
     "sealable-trie",
+    "solana/trie-example",
     "stdx",
 ]
 resolver = "2"
@@ -18,6 +19,9 @@ derive_more = "0.99.17"
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 sha2 = { version = "0.10.7", default-features = false }
+solana-client = "1.16.7"
+solana-program = "1.16.7"
+solana-sdk = "1.16.7"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 
 memory = { path = "memory" }

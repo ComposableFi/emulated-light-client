@@ -106,7 +106,7 @@ macro_rules! proof {
 }
 
 impl<A: memory::Allocator<Value = Value>> Trie<A> {
-    /// Creates a new trie using given allocator.
+    /// Creates a new empty trie using given allocator.
     pub fn new(alloc: A) -> Self {
         Self { root_ptr: None, root_hash: EMPTY_TRIE_ROOT, alloc }
     }
@@ -116,6 +116,25 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
 
     /// Returns whether the trie is empty.
     pub fn is_empty(&self) -> bool { self.root_hash == EMPTY_TRIE_ROOT }
+
+    /// Deconstructs the object into the individual parts — allocator, root
+    /// pointer and root hash.
+    pub fn into_parts(self) -> (A, Option<Ptr>, CryptoHash) {
+        (self.alloc, self.root_ptr, self.root_hash)
+    }
+
+    /// Creates a new trie from individual parts.
+    ///
+    /// It’s up to the caller to guarantee that the `root_ptr` and `root_hash`
+    /// values are correct and correspond to nodes stored within the pool
+    /// allocator `alloc`.
+    pub fn from_parts(
+        alloc: A,
+        root_ptr: Option<Ptr>,
+        root_hash: CryptoHash,
+    ) -> Self {
+        Self { root_ptr, root_hash, alloc }
+    }
 
     /// Retrieves value at given key.
     ///
