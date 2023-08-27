@@ -1,8 +1,8 @@
 use core::num::NonZeroU16;
 
+use lib::hash::CryptoHash;
 use memory::Ptr;
 
-use crate::hash::CryptoHash;
 use crate::nodes::{Node, NodeRef, RawNode, Reference};
 use crate::{bits, proof};
 

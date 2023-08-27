@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 use std::println;
 
+use lib::hash::CryptoHash;
 use memory::test_utils::TestAllocator;
 use rand::Rng;
-
-use crate::hash::CryptoHash;
 
 fn do_test_inserts<'a>(
     keys: impl IntoIterator<Item = &'a [u8]>,

@@ -1,8 +1,8 @@
 use core::cell::RefMut;
 use core::mem::ManuallyDrop;
 
+use lib::hash::CryptoHash;
 use memory::Ptr;
-use sealable_trie::hash::CryptoHash;
 
 use crate::magic;
 

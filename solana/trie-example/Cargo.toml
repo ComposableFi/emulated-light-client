@@ -12,6 +12,7 @@ crate-type = ["cdylib", "lib"]
 derive_more.workspace = true
 solana-program.workspace = true
 
+lib.workspace = true
 memory.workspace = true
 sealable-trie.workspace = true
 stdx.workspace = true

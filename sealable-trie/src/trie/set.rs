@@ -1,8 +1,8 @@
+use lib::hash::CryptoHash;
 use memory::Ptr;
 
 use super::{Error, Result};
 use crate::bits;
-use crate::hash::CryptoHash;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
