@@ -1,5 +1,7 @@
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
+#[cfg(feature = "borsh")]
+use borsh::maybestd::io;
 use sha2::Digest;
 
 /// A cryptographic hash.
@@ -174,6 +176,20 @@ impl Builder {
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
     pub fn build(self) -> CryptoHash { CryptoHash(self.0.finalize().into()) }
+}
+
+#[cfg(feature = "borsh")]
+impl io::Write for Builder {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.update(buf);
+        Ok(buf.len())
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        Ok(self.update(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> { Ok(()) }
 }
 
 #[test]
