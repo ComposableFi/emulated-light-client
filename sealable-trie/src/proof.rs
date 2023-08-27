@@ -2,8 +2,9 @@ use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::num::NonZeroU16;
 
+use lib::hash::CryptoHash;
+
 use crate::bits;
-use crate::hash::CryptoHash;
 use crate::nodes::{Node, NodeRef, Reference, ValueRef};
 
 /// A proof of a membership or non-membership of a key.

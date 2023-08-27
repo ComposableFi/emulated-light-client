@@ -1,8 +1,8 @@
+use lib::hash::CryptoHash;
 use memory::Ptr;
 
 use crate::bits;
 use crate::bits::Slice;
-use crate::hash::CryptoHash;
 
 #[cfg(test)]
 mod stress_tests;

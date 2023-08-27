@@ -1,10 +1,10 @@
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
+use lib::hash::CryptoHash;
 use memory::Ptr;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
-use crate::hash::CryptoHash;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {

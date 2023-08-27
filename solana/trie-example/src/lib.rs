@@ -1,4 +1,4 @@
-use sealable_trie::hash::CryptoHash;
+use lib::hash::CryptoHash;
 use solana_program::account_info::AccountInfo;
 use solana_program::msg;
 use solana_program::program::set_return_data;

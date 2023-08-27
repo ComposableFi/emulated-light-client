@@ -4,7 +4,6 @@ extern crate alloc;
 extern crate std;
 
 pub mod bits;
-pub mod hash;
 pub mod nodes;
 pub mod proof;
 pub mod trie;
