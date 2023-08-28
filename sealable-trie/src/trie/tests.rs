@@ -74,8 +74,7 @@ fn stress_test() {
         }
     }
 
-    let count = crate::test_utils::get_iteration_count();
-    let count = crate::test_utils::div_max_1(count, 100);
+    let count = lib::test_utils::get_iteration_count(500);
     let keys = RandKeys { buf: &mut [0; 35], rng: rand::thread_rng() };
     do_test_inserts(keys.take(count), false);
 }

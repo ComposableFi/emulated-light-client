@@ -5,19 +5,19 @@
 //! it performs can be controlled by STRESS_TEST_ITERATIONS environment
 //! variable.
 
+use lib::test_utils::get_iteration_count;
 use memory::Ptr;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
 use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
-use crate::test_utils::get_iteration_count;
 
 /// Generates random raw representation and checks decode→encode round-trip.
 #[test]
 fn stress_test_raw_encoding_round_trip() {
     let mut rng = rand::thread_rng();
     let mut raw = RawNode([0; RawNode::SIZE]);
-    for _ in 0..get_iteration_count() {
+    for _ in 0..get_iteration_count(1) {
         gen_random_raw_node(&mut rng, &mut raw.0);
         let node = raw.decode();
         // Test RawNode→Node→RawNode round trip conversion.
@@ -87,7 +87,7 @@ fn gen_random_raw_node(
 fn stress_test_node_encoding_round_trip() {
     let mut rng = rand::thread_rng();
     let mut buf = [0; 66];
-    for _ in 0..get_iteration_count() {
+    for _ in 0..get_iteration_count(1) {
         let node = gen_random_node(&mut rng, &mut buf);
 
         let raw = super::tests::raw_from_node(&node);

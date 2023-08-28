@@ -8,7 +8,4 @@ pub mod nodes;
 pub mod proof;
 pub mod trie;
 
-#[cfg(test)]
-mod test_utils;
-
 pub use trie::{Error, Trie};
