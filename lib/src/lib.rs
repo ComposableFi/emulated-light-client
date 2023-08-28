@@ -1,6 +1,8 @@
 #![no_std]
 extern crate alloc;
-#[cfg(test)]
+#[cfg(any(feature = "test_utils", test))]
 extern crate std;
 
 pub mod hash;
+#[cfg(any(feature = "test_utils", test))]
+pub mod test_utils;
