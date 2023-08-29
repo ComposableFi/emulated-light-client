@@ -7,26 +7,29 @@ use lib::hash::CryptoHash;
 use crate::bits;
 use crate::nodes::{Node, NodeRef, Reference, ValueRef};
 
+#[cfg(feature = "borsh")]
+mod serialisation;
+
 /// A proof of a membership or non-membership of a key.
 ///
 /// The proof doesn’t include the key or value (in case of existence proofs).
 /// It’s caller responsibility to pair proof with correct key and value.
-#[derive(Clone, Debug, derive_more::From)]
+#[derive(Clone, Debug, PartialEq, derive_more::From)]
 pub enum Proof {
     Positive(Membership),
     Negative(NonMembership),
 }
 
 /// A proof of a membership of a key.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Membership(Vec<Item>);
 
 /// A proof of a membership of a key.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct NonMembership(Option<Box<Actual>>, Vec<Item>);
 
 /// A single item in a proof corresponding to a node in the trie.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Item {
     /// A Branch node where the other child is given reference.
     Branch(OwnedRef),
@@ -38,7 +41,7 @@ pub(crate) enum Item {
 
 /// For non-membership proofs, description of the condition at which the lookup
 /// failed.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Actual {
     /// A Branch node that has been reached at given key.
     Branch(OwnedRef, OwnedRef),
@@ -53,9 +56,9 @@ pub(crate) enum Actual {
 }
 
 /// A reference to value or node.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct OwnedRef {
-    /// Whether the reference is for a value (rather than value).
+    /// Whether the reference is for a value (rather than node).
     is_value: bool,
     /// Hash of the node or value the reference points at.
     hash: CryptoHash,
@@ -334,6 +337,12 @@ impl OwnedRef {
     fn value(hash: CryptoHash) -> Self { Self { is_value: true, hash } }
     /// Creates a reference pointing at given node.
     fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash()) }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    fn test(is_value: bool, num: usize) -> Self {
+        Self { is_value, hash: CryptoHash::test(num) }
+    }
 }
 
 impl<'a, P, S> From<&'a Reference<'a, P, S>> for OwnedRef {

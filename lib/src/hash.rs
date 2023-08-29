@@ -13,6 +13,10 @@ use sha2::Digest;
     derive_more::From,
     derive_more::Into,
 )]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 #[as_ref(forward)]
 #[into(owned, ref, ref_mut)]
 #[repr(transparent)]
@@ -66,7 +70,7 @@ impl CryptoHash {
         Self(buf)
     }
 
-    /// Returns reference to the hash as slice of bytes.
+    /// Returns a shared reference to the hash as slice of bytes.
     #[inline]
     pub fn as_slice(&self) -> &[u8] { &self.0[..] }
 }

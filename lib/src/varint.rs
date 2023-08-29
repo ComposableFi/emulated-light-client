@@ -2,6 +2,9 @@
 //!
 //! [varint]: https://protobuf.dev/programming-guides/encoding/
 
+#[cfg(feature = "borsh")]
+use borsh::maybestd::io;
+
 /// Encodes `value` using varint encoding.
 ///
 /// Returns the encoded representation in an on-stack buffer which implements
@@ -67,6 +70,49 @@ pub fn read_u32<E>(
     }
     Err(ReadError::Overflow)
 }
+
+/// A wrapper for use with `borsh` serialisation.
+///
+/// # Example
+///
+/// ```
+/// # use borsh::BorshDeserialize;
+/// # use lib::varint::VarInt;
+///
+/// assert_eq!(&[173, 189, 3],
+///            borsh::to_vec(&VarInt(57005u32)).unwrap().as_slice());
+/// assert_eq!(&[42],
+///            borsh::to_vec(&VarInt(42u32)).unwrap().as_slice());
+///
+/// assert_eq!(VarInt(57005u32), VarInt::deserialize(&mut &[173, 189, 3][..]).unwrap());
+/// assert_eq!(VarInt(42u32), VarInt::deserialize(&mut &[42][..]).unwrap());
+/// ```
+#[cfg(feature = "borsh")]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct VarInt<T>(pub T);
+
+#[cfg(feature = "borsh")]
+impl borsh::BorshSerialize for VarInt<u32> {
+    #[inline]
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        writer.write_all(encode_u32(self.0).as_slice())
+    }
+}
+
+#[cfg(feature = "borsh")]
+impl borsh::BorshDeserialize for VarInt<u32> {
+    #[inline]
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        read_u32(|| u8::deserialize_reader(reader)).map(Self).map_err(|err| {
+            io::Error::new(io::ErrorKind::InvalidData, match err {
+                ReadError::ReaderError(err) => return err,
+                ReadError::Overlong => "overlong",
+                ReadError::Overflow => "overflow",
+            })
+        })
+    }
+}
+
 
 /// Small on-stack buffer.
 ///

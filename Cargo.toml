@@ -16,6 +16,7 @@ resolver = "2"
 
 [workspace.dependencies]
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
+borsh = { version = "0.10.3", default-features = false }
 derive_more = "0.99.17"
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
