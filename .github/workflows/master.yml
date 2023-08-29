@@ -40,8 +40,14 @@ jobs:
           toolchain: stable
           components: rustfmt
 
-      - name: Run tests
+      - name: Run tests (default features)
         run: cargo test
+
+      - name: Run tests (no default features)
+        run: cargo test --no-default-features
+
+      - name: Run tests (all features)
+        run: cargo test --all-features
 
   nightly:
     name: Rust nightly

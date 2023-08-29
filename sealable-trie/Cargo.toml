@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 base64.workspace = true
+borsh = { workspace = true, optional = true }
 derive_more.workspace = true
 sha2.workspace = true
 strum.workspace = true
@@ -20,3 +21,6 @@ rand.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
 memory = { workspace = true, features = ["test_utils"] }
+
+[features]
+borsh = ["dep:borsh", "lib/borsh"]
