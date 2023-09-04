@@ -63,7 +63,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let node = RawNode(self.wlog.allocator().get(nref.0).clone());
+        let node = RawNode(*self.wlog.allocator().get(nref.0));
         let node = node.decode();
         debug_assert_eq!(*nref.1, node.hash());
         match node {
@@ -341,8 +341,8 @@ enum OwnedRef {
 impl OwnedRef {
     fn to_ref(&self) -> Reference {
         match self {
-            Self::Node(ptr, hash) => Reference::node(Some(*ptr), &hash),
-            Self::Value(hash) => Reference::value(false, &hash),
+            Self::Node(ptr, hash) => Reference::node(Some(*ptr), hash),
+            Self::Value(hash) => Reference::value(false, hash),
         }
     }
 }

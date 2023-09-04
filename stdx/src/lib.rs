@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 /// Splits `&[u8; L + R]` into `(&[u8; L], &[u8; R])`.
 pub fn split_array_ref<const L: usize, const R: usize, const N: usize>(
     xs: &[u8; N],

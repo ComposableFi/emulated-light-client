@@ -18,7 +18,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          components: rustfmt
+          components: clippy rustfmt
 
       - name: Check formatting
         run: cargo fmt --all --check
@@ -28,6 +28,12 @@ jobs:
 
       - name: Check bans
         run: cargo-deny --all-features check bans
+
+      - name: Check Clippy (all features)
+        uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all-features -- -D warnings
 
   stable:
     name: Rust stable
