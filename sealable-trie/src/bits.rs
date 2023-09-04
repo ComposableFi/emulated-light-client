@@ -38,6 +38,13 @@ pub struct Slice<'a> {
 #[derive(Clone, Copy)]
 pub struct Chunks<'a>(Slice<'a>);
 
+/// Possible error when encoding slice
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EncodeError {
+    EmptySlice,
+    SliceTooLong,
+}
+
 impl<'a> Slice<'a> {
     /// Constructs a new bit slice.
     ///
@@ -406,13 +413,12 @@ impl<'a> Slice<'a> {
         &self,
         dest: &mut [u8; 36],
         tag: u8,
-    ) -> Option<usize> {
-        if self.length == 0 {
-            return None;
-        }
+    ) -> Result<usize, EncodeError> {
         let bytes = self.bytes();
-        if bytes.is_empty() || bytes.len() > dest.len() - 2 {
-            return None;
+        if bytes.is_empty() {
+            return Err(EncodeError::EmptySlice);
+        } else if bytes.len() > dest.len() - 2 {
+            return Err(EncodeError::SliceTooLong);
         }
         let (num, tail) =
             stdx::split_array_mut::<2, { nodes::MAX_EXTENSION_KEY_SIZE }, 36>(
@@ -425,7 +431,7 @@ impl<'a> Slice<'a> {
         key.copy_from_slice(bytes);
         key[0] &= front;
         key[bytes.len() - 1] &= back;
-        Some(2 + bytes.len())
+        Ok(2 + bytes.len())
     }
 
     /// Encodes key into raw binary representation and sends it to the consumer.
@@ -666,7 +672,7 @@ fn test_encode() {
             let mut buf = [0; 36];
             let len = slice
                 .encode_into(&mut buf, 0)
-                .unwrap_or_else(|| panic!("Failed encoding {slice}"));
+                .unwrap_or_else(|err| panic!("{err:?}: {slice}"));
             assert_eq!(
                 want_encoded,
                 &buf[..len],

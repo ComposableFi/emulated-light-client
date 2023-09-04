@@ -25,9 +25,7 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 /// first and last objects aren’t equal.  Returns the raw node.
 #[track_caller]
 pub(super) fn raw_from_node(node: &Node) -> RawNode {
-    let raw = node
-        .encode()
-        .unwrap_or_else(|()| panic!("Failed encoding node as raw: {node:?}"));
+    let raw = node.encode().unwrap_or_else(|err| panic!("{err:?}: {node:?}"));
     assert_eq!(
         *node,
         raw.decode(),
