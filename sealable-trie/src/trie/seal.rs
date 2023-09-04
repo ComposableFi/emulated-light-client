@@ -30,7 +30,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
     /// that `ptr` has been freed and it has to update references to it.
     pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
-        let node = RawNode(self.alloc.get(ptr).clone());
+        let node = RawNode(*self.alloc.get(ptr));
         let node = node.decode();
         debug_assert_eq!(*nref.hash, node.hash());
 

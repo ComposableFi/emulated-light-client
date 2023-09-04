@@ -159,7 +159,7 @@ impl BorshSerialize for Actual {
                 left.serialize(wr)?;
                 // Note: We’re not encoding length of the bytes slice since it
                 // can be recovered from the contents of the bytes slice.
-                wr.write_all(&**key)?;
+                wr.write_all(key)?;
                 child.hash.serialize(wr)
             }
             Self::LookupKeyLeft(left, hash) => {

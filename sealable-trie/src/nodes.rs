@@ -201,7 +201,7 @@ impl<'a, P, S> Node<'a, P, S> {
                 tag_hash_hash(&mut buf, tag, left.hash(), right.hash())
             }
             Node::Value { value, child } => {
-                tag_hash_hash(&mut buf, 0xC0, &value.hash, &child.hash)
+                tag_hash_hash(&mut buf, 0xC0, value.hash, child.hash)
             }
             Node::Extension { key, child } => {
                 let key_buf = stdx::split_array_mut::<36, 32, 68>(&mut buf).0;
@@ -220,6 +220,9 @@ impl<'a, P, S> Node<'a, P, S> {
         CryptoHash::digest(&buf[..len])
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BadExtensionKey;
 
 impl<'a> Node<'a> {
     /// Builds raw representation of given node.
