@@ -3,7 +3,7 @@ use memory::Ptr;
 
 use super::{Error, Result};
 use crate::bits;
-use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
 pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
@@ -63,7 +63,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let node = RawNode(self.wlog.allocator().get(nref.0).clone());
+        let node = RawNode(*self.wlog.allocator().get(nref.0));
         let node = node.decode();
         debug_assert_eq!(*nref.1, node.hash());
         match node {
@@ -191,12 +191,14 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         // that’s the case, corresponding Extension node is not created.
         let our_ref = self.insert_value()?;
         let their_hash: CryptoHash;
-        let their_ref = if let Some(node) = RawNode::extension(suffix, child) {
-            let (ptr, hash) = self.alloc_node(node)?;
-            their_hash = hash;
-            Reference::node(Some(ptr), &their_hash)
-        } else {
-            child
+        let their_ref = match RawNode::extension(suffix, child) {
+            Ok(node) => {
+                let (ptr, hash) = self.alloc_node(node)?;
+                their_hash = hash;
+                Reference::node(Some(ptr), &their_hash)
+            }
+            Err(nodes::EncodeError::EmptyExtensionKey) => child,
+            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
         };
         let mut children = [their_ref; 2];
         children[our] = our_ref.to_ref();
@@ -204,8 +206,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         let (ptr, hash) = self.set_node(nref.0, node);
 
         match RawNode::extension(prefix, Reference::node(Some(ptr), &hash)) {
-            Some(node) => self.alloc_node(node),
-            None => Ok((ptr, hash)),
+            Ok(node) => self.alloc_node(node),
+            Err(nodes::EncodeError::EmptyExtensionKey) => Ok((ptr, hash)),
+            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
         }
     }
 
@@ -338,8 +341,8 @@ enum OwnedRef {
 impl OwnedRef {
     fn to_ref(&self) -> Reference {
         match self {
-            Self::Node(ptr, hash) => Reference::node(Some(*ptr), &hash),
-            Self::Value(hash) => Reference::value(false, &hash),
+            Self::Node(ptr, hash) => Reference::node(Some(*ptr), hash),
+            Self::Value(hash) => Reference::value(false, hash),
         }
     }
 }

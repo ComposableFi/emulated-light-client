@@ -38,6 +38,13 @@ pub struct Slice<'a> {
 #[derive(Clone, Copy)]
 pub struct Chunks<'a>(Slice<'a>);
 
+/// Possible error when encoding slice
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EncodeError {
+    EmptySlice,
+    SliceTooLong,
+}
+
 impl<'a> Slice<'a> {
     /// Constructs a new bit slice.
     ///
@@ -379,8 +386,11 @@ impl<'a> Slice<'a> {
 
     /// Returns bytes underlying the bit slice.
     fn bytes(&self) -> &'a [u8] {
-        let len = (self.underlying_bits_length() + 7) / 8;
-        // SAFETY: `ptr` is guaranteed to point at offset+length valid bits.
+        let len = match self.length {
+            0 => 0,
+            _ => (self.underlying_bits_length() + 7) / 8,
+        };
+        // SAFETY: `ptr` is guaranteed to be valid pointer point at offset+length valid bits.
         unsafe { core::slice::from_raw_parts(self.ptr, len) }
     }
 
@@ -403,13 +413,12 @@ impl<'a> Slice<'a> {
         &self,
         dest: &mut [u8; 36],
         tag: u8,
-    ) -> Option<usize> {
-        if self.length == 0 {
-            return None;
-        }
+    ) -> Result<usize, EncodeError> {
         let bytes = self.bytes();
-        if bytes.is_empty() || bytes.len() > dest.len() - 2 {
-            return None;
+        if bytes.is_empty() {
+            return Err(EncodeError::EmptySlice);
+        } else if bytes.len() > dest.len() - 2 {
+            return Err(EncodeError::SliceTooLong);
         }
         let (num, tail) =
             stdx::split_array_mut::<2, { nodes::MAX_EXTENSION_KEY_SIZE }, 36>(
@@ -422,7 +431,7 @@ impl<'a> Slice<'a> {
         key.copy_from_slice(bytes);
         key[0] &= front;
         key[bytes.len() - 1] &= back;
-        Some(2 + bytes.len())
+        Ok(2 + bytes.len())
     }
 
     /// Encodes key into raw binary representation and sends it to the consumer.
@@ -430,18 +439,16 @@ impl<'a> Slice<'a> {
     /// This is like [`Self::encode_into`] except that it doesn’t check the
     /// length of the key.
     pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8]), tag: u8) {
-        consumer(&self.encode_num(tag));
-
         let (front, back) = Self::masks(self.offset, self.length);
-        let bytes = self.bytes();
-        match bytes.len() {
-            0 => (),
-            1 => consumer(&[bytes[0] & front & back]),
-            2 => consumer(&[bytes[0] & front, bytes[1] & back]),
-            n => {
-                consumer(&[bytes[0] & front]);
-                consumer(&bytes[1..n - 1]);
-                consumer(&[bytes[n - 1] & back]);
+        let [high, low] = self.encode_num(tag);
+        match self.bytes() {
+            [] => consumer(&[high, low]),
+            [byte] => consumer(&[high, low, byte & front & back]),
+            [first, last] => consumer(&[high, low, first & front, last & back]),
+            [first, middle @ .., last] => {
+                consumer(&[high, low, first & front]);
+                consumer(middle);
+                consumer(&[last & back]);
             }
         }
     }
@@ -661,11 +668,11 @@ fn test_encode() {
     fn test(want_encoded: &[u8], offset: u8, length: u16, bytes: &[u8]) {
         let slice = Slice::new(bytes, offset, length).unwrap();
 
-        if want_encoded.len() <= 36 {
+        if length > 0 && want_encoded.len() <= 36 {
             let mut buf = [0; 36];
             let len = slice
                 .encode_into(&mut buf, 0)
-                .unwrap_or_else(|| panic!("Failed encoding {slice}"));
+                .unwrap_or_else(|err| panic!("{err:?}: {slice}"));
             assert_eq!(
                 want_encoded,
                 &buf[..len],
@@ -681,11 +688,15 @@ fn test_encode() {
             "Unexpected written representation of {slice}"
         );
 
-        let round_trip = Slice::decode(want_encoded, 0)
-            .unwrap_or_else(|| panic!("Failed decoding {want_encoded:?}"));
-        assert_eq!(slice, round_trip);
+        if length > 0 {
+            let round_trip = Slice::decode(want_encoded, 0)
+                .unwrap_or_else(|| panic!("Failed decoding {want_encoded:?}"));
+            assert_eq!(slice, round_trip);
+        }
     }
 
+    test(&[0, 0], 0, 0, &[0xFF]);
+    test(&[0, 4], 4, 0, &[0xFF]);
     test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0x80]);
     test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0xFF]);
     test(&[0, 1 * 8 + 4, 0x08], 4, 1, &[0xFF]);

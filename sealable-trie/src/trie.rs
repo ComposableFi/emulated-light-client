@@ -164,11 +164,11 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     ) -> Result<(Option<CryptoHash>, Option<proof::Proof>)> {
         let mut key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         if self.root_hash == EMPTY_TRIE_ROOT {
-            let proof = include_proof.then(|| proof::Proof::empty_trie());
+            let proof = include_proof.then(proof::Proof::empty_trie);
             return Ok((None, proof));
         }
 
-        let mut proof = include_proof.then(|| proof::Proof::builder());
+        let mut proof = include_proof.then(proof::Proof::builder);
         let mut node_ptr = self.root_ptr;
         let mut node_hash = self.root_hash.clone();
         loop {

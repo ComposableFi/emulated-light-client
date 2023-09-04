@@ -244,7 +244,7 @@ impl Item {
     /// verifying a proof our hash can be computed thus the proof item will only
     /// include their hash.
     pub fn branch<P, S>(us: bool, children: &[Reference<P, S>; 2]) -> Self {
-        Self::Branch((&children[1 - usize::from(us)]).clone().into())
+        Self::Branch((&children[1 - usize::from(us)]).into())
     }
 
     pub fn extension(length: u16) -> Option<Self> {

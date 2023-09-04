@@ -106,7 +106,7 @@ impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for CryptoHash {
 
 impl From<&'_ CryptoHash> for [u8; CryptoHash::LENGTH] {
     #[inline]
-    fn from(hash: &'_ CryptoHash) -> Self { hash.0.clone() }
+    fn from(hash: &'_ CryptoHash) -> Self { hash.0 }
 }
 
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for &'a CryptoHash {

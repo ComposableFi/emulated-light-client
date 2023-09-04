@@ -117,7 +117,7 @@ impl Header {
         let data = write::<4, 60, 64>(data, magic::TRIE_ROOT.to_ne_bytes());
         let data = write::<4, 56, 60>(data, [0; 4]);
         let data = write::<4, 52, 56>(data, root_ptr);
-        let data = write::<32, 20, 52>(data, self.root_hash.0.clone());
+        let data = write::<32, 20, 52>(data, self.root_hash.0);
         let data = write::<4, 16, 20>(data, self.next_block.to_ne_bytes());
         write::<4, 12, 16>(data, self.first_free.to_ne_bytes());
         buf
@@ -215,11 +215,11 @@ impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
 
 impl<'a, 'b> core::ops::Deref for AccountTrie<'a, 'b> {
     type Target = sealable_trie::Trie<Allocator<'a, 'b>>;
-    fn deref(&self) -> &Self::Target { &*self.0 }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl<'a, 'b> core::ops::DerefMut for AccountTrie<'a, 'b> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut *self.0 }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 /// Reads fixed-width value from start of the buffer and returns the value and
@@ -232,7 +232,7 @@ fn read<const L: usize, const R: usize, const N: usize, T>(
     f: impl Fn([u8; L]) -> T,
 ) -> (T, &[u8; R]) {
     let (left, right) = stdx::split_array_ref(buf);
-    (f(left.clone()), right)
+    (f(*left), right)
 }
 
 /// Writes given fixed-width buffer at the start the buffer and returns the
