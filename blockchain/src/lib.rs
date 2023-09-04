@@ -8,5 +8,6 @@ mod candidates;
 pub mod chain;
 mod common;
 pub mod epoch;
+pub mod height;
 pub mod manager;
 pub mod validators;

@@ -9,6 +9,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidates;
 pub use crate::candidates::UpdateCandidateError;
+use crate::height::HostHeight;
 use crate::validators::{PubKey, Signature};
 use crate::{block, chain, epoch};
 
@@ -30,7 +31,7 @@ pub struct ChainManager<PK> {
     pending_block: Option<PendingBlock<PK>>,
 
     /// Height at which current epoch was defined.
-    epoch_height: u64,
+    epoch_height: HostHeight,
 
     /// Current state root.
     state_root: CryptoHash,
@@ -62,6 +63,8 @@ pub struct BadGenesis;
 pub enum GenerateError {
     /// Last block hasn’t been signed by enough validators yet.
     HasPendingBlock,
+    /// Block isn’t old enough (see [`chain::config::min_block_length`] field).
+    BlockTooYoung,
     Inner(block::GenerateError),
 }
 
@@ -111,11 +114,17 @@ impl<PK: PubKey> ChainManager<PK> {
     /// generated.
     pub fn generate_next(
         &mut self,
-        host_height: u64,
+        host_height: HostHeight,
         host_timestamp: u64,
     ) -> Result<(), GenerateError> {
         if self.pending_block.is_some() {
             return Err(GenerateError::HasPendingBlock);
+        }
+        if !host_height.check_delta_from(
+            self.block.host_height,
+            self.config.min_block_length,
+        ) {
+            return Err(GenerateError::BlockTooYoung);
         }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
@@ -150,10 +159,11 @@ impl<PK: PubKey> ChainManager<PK> {
     /// `self.candidates`.
     fn maybe_generate_next_epoch(
         &mut self,
-        host_height: u64,
+        host_height: HostHeight,
     ) -> Option<epoch::Epoch<PK>> {
-        let epoch_length = host_height.saturating_sub(self.epoch_height);
-        if epoch_length <= self.config.min_epoch_length.get() {
+        if !host_height
+            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
+        {
             return None;
         }
         let (validators, total) = self.candidates.maybe_get_head()?;
@@ -196,15 +206,16 @@ impl<PK: PubKey> ChainManager<PK> {
             .get();
         assert!(pending.signers.insert(pubkey));
 
-        if pending.signing_stake >= self.next_epoch.quorum_stake().get() {
-            self.block = self.pending_block.take().unwrap().next_block;
-            if let Some(ref epoch) = self.block.next_epoch {
-                self.next_epoch = epoch.clone();
-            }
-            Ok(true)
-        } else {
-            Ok(false)
+        if pending.signing_stake < self.next_epoch.quorum_stake().get() {
+            return Ok(false);
         }
+
+        self.block = self.pending_block.take().unwrap().next_block;
+        if let Some(ref epoch) = self.block.next_epoch {
+            self.next_epoch = epoch.clone();
+            self.epoch_height = self.block.host_height;
+        }
+        Ok(true)
     }
 
     /// Adds a new validator candidate or updates existing candidate’s stake.

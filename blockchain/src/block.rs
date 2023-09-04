@@ -1,6 +1,7 @@
 use lib::hash::CryptoHash;
 
 use crate::epoch;
+use crate::height::{BlockHeight, HostHeight};
 use crate::validators::{PubKey, Signature};
 
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
@@ -26,8 +27,10 @@ pub struct Block<PK> {
 
     /// Hash of the previous block.
     pub prev_block_hash: CryptoHash,
+    /// Height of the emulated blockchain’s block.
+    pub block_height: BlockHeight,
     /// Height of the host blockchain’s block in which this block was created.
-    pub host_height: u64,
+    pub host_height: HostHeight,
     /// Timestamp of the host blockchani’s block in which this block was created.
     pub host_timestamp: u64,
     /// Hash of the root node of the state trie, i.e. the commitment
@@ -49,9 +52,9 @@ pub struct Block<PK> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum GenerateError {
     /// Host height went backwards.
-    BadHeight,
+    BadHostHeight,
     /// Host timestamp went backwards.
-    BadTimestamp,
+    BadHostTimestamp,
     /// Invalid next epoch.
     BadEpoch,
 }
@@ -104,15 +107,15 @@ impl<PK: PubKey> Block<PK> {
     /// Generates a new block with `self` as the previous block.
     pub fn generate_next(
         &self,
-        host_height: u64,
+        host_height: HostHeight,
         host_timestamp: u64,
         state_root: CryptoHash,
         next_epoch: Option<epoch::Epoch<PK>>,
     ) -> Result<Self, GenerateError> {
         if host_height <= self.host_height {
-            return Err(GenerateError::BadHeight);
+            return Err(GenerateError::BadHostHeight);
         } else if host_timestamp <= self.host_timestamp {
-            return Err(GenerateError::BadTimestamp);
+            return Err(GenerateError::BadHostTimestamp);
         } else if !next_epoch.as_ref().map_or(true, epoch::Epoch::is_valid) {
             return Err(GenerateError::BadEpoch);
         }
@@ -128,6 +131,7 @@ impl<PK: PubKey> Block<PK> {
         Ok(Self {
             version: crate::common::VersionZero,
             prev_block_hash,
+            block_height: self.block_height.next(),
             host_height,
             host_timestamp,
             state_root,
@@ -138,7 +142,8 @@ impl<PK: PubKey> Block<PK> {
 
     /// Constructs a new genesis block.
     pub fn generate_genesis(
-        host_height: u64,
+        block_height: BlockHeight,
+        host_height: HostHeight,
         host_timestamp: u64,
         state_root: CryptoHash,
         next_epoch: epoch::Epoch<PK>,
@@ -149,6 +154,7 @@ impl<PK: PubKey> Block<PK> {
         Ok(Self {
             version: crate::common::VersionZero,
             prev_block_hash: CryptoHash::DEFAULT,
+            block_height,
             host_height,
             host_timestamp,
             state_root,
