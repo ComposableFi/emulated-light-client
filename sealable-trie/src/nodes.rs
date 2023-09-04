@@ -133,6 +133,14 @@ pub struct ValueRef<'a, S = bool> {
     pub is_sealed: S,
 }
 
+/// Possible error when encoding raw node.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EncodeError {
+    /// Extension node’s key was empty.
+    EmptyExtensionKey,
+    /// Extension node’s key was too long.
+    ExtensionKeyTooLong,
+}
 
 // =============================================================================
 // Implementations
@@ -200,7 +208,8 @@ impl<'a, P, S> Node<'a, P, S> {
                 // tag = 0b100v_0000 where v indicates whether the child is
                 // a value reference.
                 let tag = 0x80 | (u8::from(child.is_value()) << 4);
-                if let Some(len) = key.encode_into(key_buf, tag) {
+                // XXX
+                if let Ok(len) = key.encode_into(key_buf, tag) {
                     buf[len..len + 32].copy_from_slice(child.hash().as_slice());
                     len + 32
                 } else {
@@ -217,14 +226,12 @@ impl<'a> Node<'a> {
     ///
     /// Returns an error if this node is an Extension with a key of invalid
     /// length (either empty or too long).
-    pub fn encode(&self) -> Result<RawNode, ()> {
+    pub fn encode(&self) -> Result<RawNode, EncodeError> {
         match self {
             Node::Branch { children: [left, right] } => {
                 Ok(RawNode::branch(*left, *right))
             }
-            Node::Extension { key, child } => {
-                RawNode::extension(*key, *child).ok_or(())
-            }
+            Node::Extension { key, child } => RawNode::extension(*key, *child),
             Node::Value { value, child } => Ok(RawNode::value(*value, *child)),
         }
     }
@@ -268,12 +275,15 @@ impl RawNode {
     /// Fails and returns `None` if the key is empty or its underlying bytes
     /// slice is too long.  The slice must not exceed [`MAX_EXTENSION_KEY_SIZE`]
     /// to be valid.
-    pub fn extension(key: Slice, child: Reference) -> Option<Self> {
+    pub fn extension(
+        key: Slice,
+        child: Reference,
+    ) -> Result<Self, EncodeError> {
         let mut res = Self([0; RawNode::SIZE]);
         let (lft, rht) = res.halfs_mut();
         key.encode_into(lft, 0x80)?;
         *rht = child.encode();
-        Some(res)
+        Ok(res)
     }
 
     /// Constructs a Value node with given value hash and child.
@@ -476,6 +486,15 @@ impl<'a> From<&'a [u8; RawNode::SIZE]> for &'a RawNode {
     fn from(bytes: &'a [u8; RawNode::SIZE]) -> &'a RawNode {
         // SAFETY: RawNode is repr(transparent).
         unsafe { &*bytes.as_ptr().cast() }
+    }
+}
+
+impl From<bits::EncodeError> for EncodeError {
+    fn from(err: bits::EncodeError) -> Self {
+        match err {
+            bits::EncodeError::EmptySlice => Self::EmptyExtensionKey,
+            bits::EncodeError::SliceTooLong => Self::ExtensionKeyTooLong,
+        }
     }
 }
 

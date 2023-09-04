@@ -3,7 +3,7 @@ use memory::Ptr;
 
 use super::{Error, Result};
 use crate::bits;
-use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
 pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
@@ -191,12 +191,14 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         // that’s the case, corresponding Extension node is not created.
         let our_ref = self.insert_value()?;
         let their_hash: CryptoHash;
-        let their_ref = if let Some(node) = RawNode::extension(suffix, child) {
-            let (ptr, hash) = self.alloc_node(node)?;
-            their_hash = hash;
-            Reference::node(Some(ptr), &their_hash)
-        } else {
-            child
+        let their_ref = match RawNode::extension(suffix, child) {
+            Ok(node) => {
+                let (ptr, hash) = self.alloc_node(node)?;
+                their_hash = hash;
+                Reference::node(Some(ptr), &their_hash)
+            }
+            Err(nodes::EncodeError::EmptyExtensionKey) => child,
+            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
         };
         let mut children = [their_ref; 2];
         children[our] = our_ref.to_ref();
@@ -204,8 +206,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         let (ptr, hash) = self.set_node(nref.0, node);
 
         match RawNode::extension(prefix, Reference::node(Some(ptr), &hash)) {
-            Some(node) => self.alloc_node(node),
-            None => Ok((ptr, hash)),
+            Ok(node) => self.alloc_node(node),
+            Err(nodes::EncodeError::EmptyExtensionKey) => Ok((ptr, hash)),
+            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
         }
     }
 
