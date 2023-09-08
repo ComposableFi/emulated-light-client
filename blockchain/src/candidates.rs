@@ -4,13 +4,22 @@ use core::num::{NonZeroU128, NonZeroU16};
 use crate::chain;
 use crate::validators::{PubKey, Validator};
 
+#[cfg(test)]
+mod tests;
+
 /// Set of candidate validators to consider when creating a new epoch.
+///
+/// Whenever epoch changes, candidates with most stake are included in
+/// validators set.
+#[derive(Clone, PartialEq, Eq)]
 pub struct Candidates<PK> {
     /// Maximum number of validators in a validator set.
     max_validators: NonZeroU16,
 
     /// Set of validators which are interested in participating in the
     /// blockchain.
+    ///
+    /// The vector is kept sorted with candidates with most stake first.
     candidates: Vec<Candidate<PK>>,
 
     /// Whether the set changed in a way which affects the epoch.
@@ -22,6 +31,7 @@ pub struct Candidates<PK> {
     head_stake: u128,
 }
 
+/// A candidate to become a validator.
 #[derive(Clone, PartialEq, Eq)]
 struct Candidate<PK> {
     /// Public key of the candidate.
@@ -32,6 +42,7 @@ struct Candidate<PK> {
 }
 
 /// Error while updating candidate.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UpdateCandidateError {
     /// Candidate’s stake is below required minimum.
     NotEnoughValidatorStake,
@@ -59,21 +70,33 @@ impl<PK: PubKey> Candidates<PK> {
         max_validators: NonZeroU16,
         validators: &[Validator<PK>],
     ) -> Self {
-        let mut candidates =
-            validators.iter().map(Candidate::from).collect::<Vec<_>>();
+        Self::from_candidates(
+            max_validators,
+            validators.iter().map(Candidate::from).collect::<Vec<_>>(),
+        )
+    }
+
+    fn from_candidates(
+        max_validators: NonZeroU16,
+        mut candidates: Vec<Candidate<PK>>,
+    ) -> Self {
         candidates.sort_unstable();
         // If validator set in the genesis block is larger than maximum size
         // specified in configuration, than we need to reduce the number on next
         // epoch change.
-        let max = usize::from(max_validators.get());
-        let changed = candidates.len() > max;
-        let head_stake = candidates
+        let changed = candidates.len() > usize::from(max_validators.get());
+        let head_stake = Self::sum_head_stake(max_validators, &candidates);
+        let this = Self { max_validators, candidates, changed, head_stake };
+        this.debug_verify_state();
+        this
+    }
+
+    /// Sums stake of the first `count` candidates.
+    fn sum_head_stake(count: NonZeroU16, candidates: &[Candidate<PK>]) -> u128 {
+        let count = usize::from(count.get()).min(candidates.len());
+        candidates[..count]
             .iter()
-            .take(max)
-            .map(|c| c.stake)
-            .reduce(|a, b| a.checked_add(b.get()).unwrap())
-            .map_or(0, |stake| stake.get());
-        Self { max_validators, candidates, changed, head_stake }
+            .fold(0, |sum, c| sum.checked_add(c.stake.get()).unwrap())
     }
 
     /// Returns top validators together with their total stake if changed since
@@ -94,6 +117,7 @@ impl<PK: PubKey> Candidates<PK> {
             .collect::<Option<Vec<_>>>()
             .unwrap();
         self.changed = false;
+        self.debug_verify_state();
         Some((validators, total))
     }
 
@@ -110,12 +134,19 @@ impl<PK: PubKey> Candidates<PK> {
         let candidate = Candidate { pubkey, stake };
         let old_pos =
             self.candidates.iter().position(|el| el.pubkey == candidate.pubkey);
-        let new_pos =
+        let mut new_pos =
             self.candidates.binary_search(&candidate).map_or_else(|p| p, |p| p);
-        match old_pos {
+        let res = match old_pos {
             None => Ok(self.add_impl(new_pos, candidate)),
-            Some(old_pos) => self.update_impl(cfg, old_pos, new_pos, candidate),
-        }
+            Some(old_pos) => {
+                if new_pos > old_pos {
+                    new_pos -= 1;
+                }
+                self.update_impl(cfg, old_pos, new_pos, candidate)
+            }
+        };
+        self.debug_verify_state();
+        res
     }
 
     /// Removes an existing candidate.
@@ -131,6 +162,7 @@ impl<PK: PubKey> Candidates<PK> {
             }
             self.update_stake_for_remove(cfg, pos)?;
             self.candidates.remove(pos);
+            self.debug_verify_state();
         }
         Ok(())
     }
@@ -143,16 +175,6 @@ impl<PK: PubKey> Candidates<PK> {
     /// position for the `candidate` to be added and that there’s no candidate
     /// with the same public key already on the list.
     fn add_impl(&mut self, new_pos: usize, candidate: Candidate<PK>) {
-        debug_assert_eq!(
-            None,
-            self.candidates.iter().position(|c| c.pubkey == candidate.pubkey)
-        );
-        debug_assert!(new_pos == 0 || self.candidates[new_pos - 1] < candidate);
-        debug_assert!(self
-            .candidates
-            .get(new_pos)
-            .map_or(true, |c| &candidate < c));
-
         let new = candidate.stake.get();
         let max = self.max_validators();
         self.candidates.insert(new_pos, candidate);
@@ -180,7 +202,7 @@ impl<PK: PubKey> Candidates<PK> {
             // The candidate graduates to the top max_validators.  This may
             // change head_stake but never by decreasing it.
             let new = candidate.stake.get();
-            let old = self.candidates.get(max).map_or(0, |c| c.stake.get());
+            let old = self.candidates.get(max - 1).map_or(0, |c| c.stake.get());
             self.add_head_stake(new - old);
         } else {
             // The candidate moves within the top max_validators.  We need to
@@ -235,13 +257,41 @@ impl<PK: PubKey> Candidates<PK> {
         cfg: &chain::Config,
         stake: u128,
     ) -> Result<(), UpdateCandidateError> {
-        let head_stake = self.head_stake.checked_add(stake).unwrap();
+        let head_stake = self.head_stake.checked_sub(stake).unwrap();
         if head_stake < cfg.min_total_stake.get() {
             return Err(UpdateCandidateError::NotEnoughTotalStake);
         }
         self.head_stake = head_stake;
         self.changed = true;
         Ok(())
+    }
+
+    /// If debug assertions are enabled, checks whether all invariants are held.
+    ///
+    /// Verifies that a) candidates are sorted, b) contain no duplicates and c)
+    /// `self.head_stake` is sum of stake of first `self.max_validators`
+    /// candidates.
+    #[track_caller]
+    fn debug_verify_state(&self) {
+        if !cfg!(debug_assertions) {
+            return;
+        }
+        for (idx, wnd) in self.candidates.windows(2).enumerate() {
+            assert!(wnd[0] < wnd[1], "{idx}");
+        }
+
+        let mut pks = self
+            .candidates
+            .iter()
+            .map(|c| c.pubkey.clone())
+            .collect::<Vec<_>>();
+        pks.sort_unstable();
+        for wnd in pks.windows(2) {
+            assert!(wnd[0] != wnd[1]);
+        }
+
+        let got = Self::sum_head_stake(self.max_validators, &self.candidates);
+        assert_eq!(self.head_stake, got);
     }
 }
 
@@ -294,5 +344,33 @@ impl<PK: PubKey> From<&Candidate<PK>> for Validator<PK> {
 impl<PK: PubKey> From<&Validator<PK>> for Candidate<PK> {
     fn from(validator: &Validator<PK>) -> Self {
         Self { pubkey: validator.pubkey().clone(), stake: validator.stake() }
+    }
+}
+
+impl<PK: core::fmt::Debug> core::fmt::Debug for Candidate<PK> {
+    fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(fmt, "{{{:?} staking {}}}", self.pubkey, self.stake.get())
+    }
+}
+
+impl<PK: core::fmt::Debug> core::fmt::Debug for Candidates<PK> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        if self.candidates.is_empty() {
+            fmtr.write_str("{[]")?;
+        } else {
+            let max = usize::from(self.max_validators.get());
+            for (index, candidate) in self.candidates.iter().enumerate() {
+                let sep = if index == 0 {
+                    "{["
+                } else if index == max {
+                    " | "
+                } else {
+                    ", "
+                };
+                write!(fmtr, "{sep}{candidate:?}")?;
+            }
+        }
+        let changed = ["", " (changed)"][usize::from(self.changed)];
+        write!(fmtr, "]; head_stake: {}{changed}}}", self.head_stake)
     }
 }

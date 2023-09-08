@@ -19,7 +19,7 @@ type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 /// setting `next_epoch` field; epoch becomes current one starting from the
 /// following block.
 #[derive(
-    Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
+    Clone, Debug, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
 )]
 pub struct Block<PK> {
     /// Version of the structure.  At the moment always zero byte.
@@ -49,34 +49,19 @@ pub struct Block<PK> {
 }
 
 /// Error while generating new block.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GenerateError {
     /// Host height went backwards.
     BadHostHeight,
     /// Host timestamp went backwards.
     BadHostTimestamp,
-    /// Invalid next epoch.
-    BadEpoch,
 }
 
 impl<PK: PubKey> Block<PK> {
-    /// Returns whether the block is a genesis block.
-    ///
-    /// Determines whether the block is a genesis block by checking previous
-    /// block hash.  To perform verification whether the block follows the
-    /// requirements for a genesis block use [`Self::check_genesis`] instead.
+    /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
-        self.prev_block_hash == CryptoHash::DEFAULT
-    }
-
-    /// Verifies that the block is a correct genesis block.
-    ///
-    /// Verifies that a) previous block hash is all zeros, b) epoch id is all
-    /// zeros and c) next_epoch is set and valid (see [`Epoch::is_valid`]).
-    pub(crate) fn check_genesis(&self) -> bool {
         self.prev_block_hash == CryptoHash::DEFAULT &&
-            self.epoch_id == CryptoHash::DEFAULT &&
-            self.next_epoch.as_ref().map_or(false, epoch::Epoch::is_valid)
+            self.epoch_id == CryptoHash::DEFAULT
     }
 
     /// Calculates hash of the block.
@@ -89,7 +74,7 @@ impl<PK: PubKey> Block<PK> {
     /// Sign the block using provided signer function.
     pub fn sign(
         &self,
-        // TODO(mina86): Use signature::Signer.
+        // TODO(mina86): Consider using signature::Signer.
         signer: impl FnOnce(&[u8]) -> Result<PK::Signature>,
     ) -> Result<PK::Signature> {
         borsh::to_vec(self).and_then(|vec| signer(vec.as_slice()))
@@ -97,14 +82,17 @@ impl<PK: PubKey> Block<PK> {
 
     /// Verifies that the provided signature is valid for the block.
     ///
-    /// Returns `Ok(())` if it is or error otherwise.
-    pub fn verify(&self, pk: &PK, signature: PK::Signature) -> Result<()> {
+    /// Returns `Ok(())` if it is; returns error otherwise.
+    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> Result<()> {
         borsh::to_vec(self).and_then(|msg| signature.verify(msg.as_slice(), pk))
     }
 
     /// Constructs next block.
     ///
-    /// Generates a new block with `self` as the previous block.
+    /// Returns a new block with `self` as the previous block.  Verifies that
+    /// `host_height` and `host_timestamp` don’t go backwards but otherwise they
+    /// can increase by any amount.  The new block will have `block_height`
+    /// incremented by one.
     pub fn generate_next(
         &self,
         host_height: HostHeight,
@@ -116,8 +104,6 @@ impl<PK: PubKey> Block<PK> {
             return Err(GenerateError::BadHostHeight);
         } else if host_timestamp <= self.host_timestamp {
             return Err(GenerateError::BadHostTimestamp);
-        } else if !next_epoch.as_ref().map_or(true, epoch::Epoch::is_valid) {
-            return Err(GenerateError::BadEpoch);
         }
 
         let prev_block_hash = self.calc_hash();
@@ -141,6 +127,9 @@ impl<PK: PubKey> Block<PK> {
     }
 
     /// Constructs a new genesis block.
+    ///
+    /// A genesis block is identified by previous block hash and epoch id both
+    /// being all-zero hash.
     pub fn generate_genesis(
         block_height: BlockHeight,
         host_height: HostHeight,
@@ -148,9 +137,6 @@ impl<PK: PubKey> Block<PK> {
         state_root: CryptoHash,
         next_epoch: epoch::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
-        if !next_epoch.is_valid() {
-            return Err(GenerateError::BadEpoch);
-        }
         Ok(Self {
             version: crate::common::VersionZero,
             prev_block_hash: CryptoHash::DEFAULT,
@@ -162,4 +148,98 @@ impl<PK: PubKey> Block<PK> {
             next_epoch: Some(next_epoch),
         })
     }
+}
+
+#[test]
+fn test_block_generation() {
+    use crate::validators::{MockPubKey, MockSignature};
+
+    // Generate a genesis block and test it’s behaviour.
+    let genesis_hash = "Zq3s+b7x6R8tKV1iQtByAWqlDMXVVD9tSDOlmuLH7wI=";
+    let genesis_hash = CryptoHash::from_base64(genesis_hash).unwrap();
+
+    let genesis = Block::generate_genesis(
+        BlockHeight::from(0),
+        HostHeight::from(42),
+        24,
+        CryptoHash::test(66),
+        epoch::Epoch::test(&[(0, 10), (1, 10)]),
+    )
+    .unwrap();
+
+    assert!(genesis.is_genesis());
+
+    let mut block = genesis.clone();
+    block.prev_block_hash = genesis_hash.clone();
+    assert!(!block.is_genesis());
+
+    let mut block = genesis.clone();
+    block.epoch_id = genesis_hash.clone();
+    assert!(!block.is_genesis());
+
+    assert_eq!(genesis_hash, genesis.calc_hash());
+    assert_ne!(genesis_hash, block.calc_hash());
+
+    let pk = MockPubKey(77);
+    let signature =
+        genesis.sign(|msg| Ok(MockSignature::new(msg, pk))).unwrap();
+    assert_eq!(MockSignature(1722674425, pk), signature);
+    genesis.verify(&pk, &signature).unwrap();
+    genesis.verify(&MockPubKey(88), &signature).unwrap_err();
+    genesis.verify(&pk, &MockSignature(0, pk)).unwrap_err();
+
+    let mut block = genesis.clone();
+    block.host_timestamp += 1;
+    assert_ne!(genesis_hash, block.calc_hash());
+    block.verify(&pk, &signature).unwrap_err();
+
+    // Try creating invalid next block.
+    assert_eq!(
+        Err(GenerateError::BadHostHeight),
+        genesis.generate_next(
+            HostHeight::from(42),
+            100,
+            CryptoHash::test(99),
+            None
+        )
+    );
+    assert_eq!(
+        Err(GenerateError::BadHostTimestamp),
+        genesis.generate_next(
+            HostHeight::from(43),
+            24,
+            CryptoHash::test(99),
+            None
+        )
+    );
+
+    // Create next block and test its behaviour.
+    let block = genesis
+        .generate_next(HostHeight::from(50), 50, CryptoHash::test(99), None)
+        .unwrap();
+    assert!(!block.is_genesis());
+    assert_eq!(BlockHeight::from(1), block.block_height);
+    assert_eq!(genesis_hash, block.prev_block_hash);
+    assert_eq!(genesis_hash, block.epoch_id);
+    let hash = "uv7IaNMkac36VYAD/RNtDF14wY/DXxlxzsS2Qi+d4uw=";
+    let hash = CryptoHash::from_base64(hash).unwrap();
+    assert_eq!(hash, block.calc_hash());
+
+    // Create next block within and introduce a new epoch.
+    let epoch = Some(epoch::Epoch::test(&[(0, 20), (1, 10)]));
+    let block = block
+        .generate_next(HostHeight::from(60), 60, CryptoHash::test(99), epoch)
+        .unwrap();
+    assert_eq!(hash, block.prev_block_hash);
+    assert_eq!(genesis_hash, block.epoch_id);
+    let hash = "JWVBe5GotaDzyClzBuArPLjcAQTRElMCxvstyZ0bMtM=";
+    let hash = CryptoHash::from_base64(hash).unwrap();
+    assert_eq!(hash, block.calc_hash());
+
+    // Create next block which belongs to the new epoch.
+    let block = block
+        .generate_next(HostHeight::from(65), 65, CryptoHash::test(99), None)
+        .unwrap();
+    assert_eq!(hash, block.prev_block_hash);
+    assert_eq!(hash, block.epoch_id);
 }

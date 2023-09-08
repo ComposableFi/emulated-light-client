@@ -10,6 +10,8 @@ borsh = { workspace = true, optional = true }
 derive_more.workspace = true
 sha2.workspace = true
 
+stdx.workspace = true
+
 [dev-dependencies]
 rand.workspace = true
 

@@ -43,7 +43,7 @@ use borsh::maybestd::io;
 ///
 /// Whatever the case, having `version: VersionZero` field as the first one in
 /// a structure allows it to be versioned in the future.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct VersionZero;
 
 impl borsh::BorshSerialize for VersionZero {

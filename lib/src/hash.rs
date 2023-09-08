@@ -56,6 +56,19 @@ impl CryptoHash {
         builder.build()
     }
 
+    /// Decodes a base64 string representation of the hash.
+    pub fn from_base64(base64: &str) -> Option<Self> {
+        // base64 API is kind of garbage.  In certain situations the output
+        // buffer must be larger than the size of the decoded data or else
+        // decoding will fail.
+        let mut buf = [0; 34];
+        match BASE64_ENGINE.decode_slice(base64.as_bytes(), &mut buf[..]) {
+            Ok(CryptoHash::LENGTH) => {
+                Some(Self(*stdx::split_array_ref::<32, 2, 34>(&buf).0))
+            }
+            _ => None,
+        }
+    }
 
     /// Creates a new hash with given number encoded in its first bytes.
     ///

@@ -83,7 +83,7 @@ impl<PK: PubKey> ChainManager<PK> {
         config: chain::Config,
         genesis: block::Block<PK>,
     ) -> Result<Self, BadGenesis> {
-        if !genesis.check_genesis() {
+        if !genesis.is_genesis() {
             return Err(BadGenesis);
         }
         let next_epoch = genesis.next_epoch.clone().ok_or(BadGenesis)?;
