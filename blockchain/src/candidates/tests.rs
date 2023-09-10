@@ -228,10 +228,10 @@ impl TestCtx {
     fn make_config() -> chain::Config {
         let mut config = chain::Config::from(Cfg {
             min_validators: 64,
-            min_validator_stake: 100,
-            min_total_stake: 20000,
+            min_validator_stake: 128,
+            min_total_stake: 16000,
         });
-        config.max_validators = NonZeroU16::new(100).unwrap();
+        config.max_validators = NonZeroU16::new(128).unwrap();
         config
     }
 
