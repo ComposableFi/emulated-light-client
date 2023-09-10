@@ -415,7 +415,7 @@ impl TestCtx {
 }
 
 #[test]
-fn test_stress() {
+fn stress_test() {
     use rand::Rng;
 
     let mut rng = rand::thread_rng();
