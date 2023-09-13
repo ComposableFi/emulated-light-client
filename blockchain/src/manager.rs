@@ -1,6 +1,5 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use alloc::vec::Vec;
 use core::num::NonZeroU128;
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
@@ -46,8 +45,12 @@ pub struct ChainManager<PK> {
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: block::Block<PK>,
-    /// Serialised version of the block.  This is what validators are signing.
-    serialised: Vec<u8>,
+    /// Hash of the block.
+    ///
+    /// This is what validators are signing.  It equals `next_block.calc_hash()`
+    /// and we’re keeping it as a field to avoid having to hash the block each
+    /// time.
+    hash: CryptoHash,
     /// Validators who so far submitted valid signatures for the block.
     signers: Set<PK>,
     /// Sum of stake of validators who have signed the block.
@@ -134,10 +137,9 @@ impl<PK: PubKey> ChainManager<PK> {
             self.state_root.clone(),
             next_epoch,
         )?;
-        let serialised = borsh::to_vec(&next_block).unwrap();
         self.pending_block = Some(PendingBlock {
+            hash: next_block.calc_hash(),
             next_block,
-            serialised,
             signers: Set::new(),
             signing_stake: 0,
         });
@@ -194,9 +196,9 @@ impl<PK: PubKey> ChainManager<PK> {
         if pending.signers.contains(&pubkey) {
             return Ok(false);
         }
-        signature
-            .verify(pending.serialised.as_slice(), &pubkey)
-            .map_err(|_| AddSignatureError::BadSignature)?;
+        if !signature.verify(&pending.hash, &pubkey) {
+            return Err(AddSignatureError::BadSignature);
+        }
 
         pending.signing_stake += self
             .next_epoch

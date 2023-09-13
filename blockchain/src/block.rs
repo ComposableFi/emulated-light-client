@@ -2,7 +2,7 @@ use lib::hash::CryptoHash;
 
 use crate::epoch;
 use crate::height::{BlockHeight, HostHeight};
-use crate::validators::{PubKey, Signature};
+use crate::validators::PubKey;
 
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 
@@ -80,11 +80,9 @@ impl<PK: PubKey> Block<PK> {
         borsh::to_vec(self).and_then(|vec| signer(vec.as_slice()))
     }
 
-    /// Verifies that the provided signature is valid for the block.
-    ///
-    /// Returns `Ok(())` if it is; returns error otherwise.
-    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> Result<()> {
-        borsh::to_vec(self).and_then(|msg| signature.verify(msg.as_slice(), pk))
+    #[cfg(test)]
+    fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
+        crate::validators::Signature::verify(signature, &self.calc_hash(), pk)
     }
 
     /// Constructs next block.
@@ -184,14 +182,14 @@ fn test_block_generation() {
     let signature =
         genesis.sign(|msg| Ok(MockSignature::new(msg, pk))).unwrap();
     assert_eq!(MockSignature(1722674425, pk), signature);
-    genesis.verify(&pk, &signature).unwrap();
-    genesis.verify(&MockPubKey(88), &signature).unwrap_err();
-    genesis.verify(&pk, &MockSignature(0, pk)).unwrap_err();
+    assert!(genesis.verify(&pk, &signature));
+    assert!(!genesis.verify(&MockPubKey(88), &signature));
+    assert!(!genesis.verify(&pk, &MockSignature(0, pk)));
 
     let mut block = genesis.clone();
     block.host_timestamp += 1;
     assert_ne!(genesis_hash, block.calc_hash());
-    block.verify(&pk, &signature).unwrap_err();
+    assert!(!block.verify(&pk, &signature));
 
     // Try creating invalid next block.
     assert_eq!(

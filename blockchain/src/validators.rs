@@ -1,7 +1,5 @@
 use core::num::NonZeroU128;
 
-use borsh::maybestd::io;
-
 /// A cryptographic public key used to identify validators and verify block
 /// signatures.
 pub trait PubKey:
@@ -23,11 +21,12 @@ pub trait Signature:
     /// Public key type which can verify the signature.
     type PubKey: PubKey<Signature = Self>;
 
-    /// Verifies that the signature is correct.
-    // TODO(mina86): Can this be changed to verify(&self, &CryptoHash, &PubKey)?
-    // I.e. would it make sense to pre-hash the message that is being signed?
-    // I believe it should be fine and it simplifies a couple places.
-    fn verify(&self, message: &[u8], pk: &Self::PubKey) -> io::Result<()>;
+    /// Verifies that the signature of a given hash is correct.
+    fn verify(
+        &self,
+        message: &lib::hash::CryptoHash,
+        pk: &Self::PubKey,
+    ) -> bool;
 }
 
 /// A validator
@@ -58,7 +57,6 @@ impl<PK: PubKey> Validator<PK> {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-    use alloc::format;
 
     use super::*;
 
@@ -115,7 +113,11 @@ pub(crate) mod test_utils {
         }
 
         fn hash_message(message: &[u8]) -> u32 {
-            let hash = lib::hash::CryptoHash::digest(message).into();
+            Self::cut_hash(&lib::hash::CryptoHash::digest(message))
+        }
+
+        fn cut_hash(hash: &lib::hash::CryptoHash) -> u32 {
+            let hash = hash.into();
             let (head, _) = stdx::split_array_ref::<4, 28, 32>(&hash);
             u32::from_be_bytes(*head)
         }
@@ -124,22 +126,12 @@ pub(crate) mod test_utils {
     impl Signature for MockSignature {
         type PubKey = MockPubKey;
 
-        fn verify(&self, message: &[u8], pk: &Self::PubKey) -> io::Result<()> {
-            let err = |msg: alloc::string::String| -> io::Result<()> {
-                Err(io::Error::new(io::ErrorKind::InvalidData, msg))
-            };
-
-            if &self.1 != pk {
-                return err(format!(
-                    "Invalid PubKey: {} vs {}",
-                    self.1 .0, pk.0
-                ));
-            }
-            let msg = Self::hash_message(message);
-            if self.0 != msg {
-                return err(format!("Invalid Message: {} vs {}", self.0, msg));
-            }
-            Ok(())
+        fn verify(
+            &self,
+            message: &lib::hash::CryptoHash,
+            pk: &Self::PubKey,
+        ) -> bool {
+            self.0 == Self::cut_hash(message) && &self.1 == pk
         }
     }
 }
