@@ -208,11 +208,13 @@ impl<'a, P, S> Node<'a, P, S> {
                 // tag = 0b100v_0000 where v indicates whether the child is
                 // a value reference.
                 let tag = 0x80 | (u8::from(child.is_value()) << 4);
-                // XXX
                 if let Ok(len) = key.encode_into(key_buf, tag) {
                     buf[len..len + 32].copy_from_slice(child.hash().as_slice());
                     len + 32
                 } else {
+                    // We support Extension nodes with invalid keys so this
+                    // method is infallible.  It’s easier to handle it than have
+                    // callers deal with errors.
                     return hash_extension_slow_path(*key, child);
                 }
             }
