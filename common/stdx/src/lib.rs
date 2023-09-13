@@ -1,3 +1,12 @@
+//! Crate contains polyfills which should really be in standard library, but
+//! currently aren't.
+//!
+//! Unstable features of the standard library are good candidates to be included
+//! in this crate.  Once such features stabilise they should be removed from
+//! this crate and clients updated to use newly stabilised functions instead.
+//!
+//! For other functions `lib` crate might be a better fit.
+
 #![allow(clippy::let_unit_value)]
 
 /// Splits `&[u8; L + R]` into `(&[u8; L], &[u8; R])`.
