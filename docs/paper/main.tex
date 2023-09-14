@@ -1,0 +1,371 @@
+\documentclass[sigplan,screen,authorversion]{acmart}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+
+\setcopyright{acmcopyright}
+\copyrightyear{2023}
+\acmYear{2023}
+\acmDOI{XXXXXXX.XXXXXXX}
+
+\citestyle{acmauthoryear}
+
+\lstset{columns=fullflexible}
+
+\begin{document}
+
+\title{Emulated light client}
+
+\author{Michał Nazarewicz}
+\email{mina86@mina86.com}
+\affiliation{%
+  \institution{Composable Finance}
+  \city{Capital City}
+  \country{USA}
+}
+
+\author{F. D. C. Willard}
+
+\renewcommand{\shortauthors}{Nazarewicz, et al.}
+
+\begin{abstract}
+  To enable trustless message passing, the Inter Blockchain
+  Communication (IBC) protocol imposes requirements on connected
+  blockchains.  Not all blockchains meet those requirements making it
+  impossible to connect them to larger IBC network.  This paper
+  document a~method for defining a~layer 2 chain on top of such
+  blockchains which enables such connection.
+\end{abstract}
+
+\maketitle
+
+\section{The problem}
+
+The Inter Blockchain Communication protocol (IBC) is a~protocol for
+trustless bridging of messages between a~pair of blockchains.  It
+works by implementing light clients as smart contracts on counterparty
+chains (i.e. a~light client for block A~is implemented on block B~and
+vice versa).  With proper proofs and verifications, the light clients
+can attest that some value exists or doesn’t exist on the
+corresponding chain without involving a~trusted party.
+
+To operate correctly, IBC imposes certain requirements (e.g. see
+ICS-23 specification) on a~blockchain.  Unfortunately, some blochains
+such as Solana or TRON don’t meet all of them.  Their RPC interfaces
+lack the ability to prove the existence or absence of a~value.  It’s
+not possible to implement a~trustless light client which makes
+bridging them with other chains using BIC.
+
+For brevity and clarity, this document takes Solana as an example.
+Nonetheless, everything written below is applicable to TRON and other
+chains which lack provable state.
+
+\section{The solution}
+
+We propose to solve this limitation by introducing an emulated light
+client contract running on Solana with its own provable key-value
+storage structured as a~blockchain running on top of Solana
+blockchain.
+
+The state is signed by validators who chose to stake stSOL
+(i.e. staked SOL) with the contract.  The contract offers rewards for
+participating thus letting validators maximise their profits from the
+SOL tokens they need to stake anyway.  This also presents a~new
+opportunity for users to restake their staked SOL with validators for
+additional yield.  The amount of funds transferred over IBC bridge
+cannot exceed the total amount staked.
+
+\section{Storage size}
+
+The key-value storage uses a~Merkle trie to store all its data.  An
+important consideration is the amount of information that needs to be
+kept.  In principle, as IBC connection continues to be used, more and
+more data is generated and saved.  When a~packet is delivered, proof
+of delivery must remain on the chain otherwise there’s a~risk that
+a~malicious timeout packet could be constructed.
+
+This problem is especially crucial for emulated light client contract
+because it runs on chain where storage costs are higher than on
+a~‘bare metal’ machine or ‘in the cloud’.
+
+To address this, the trie implements sealing or pruning of values.
+Any node which cannot change is sealed and removed from the on-chain
+storage.  This operates recursively up the trie.  If all children of
+an inner node are sealed, the node itself can be sealed (and thus
+removed from storage) as well.
+
+The space savings depend on the stored keys not introducing many gaps
+in the key-space.  For example, if only even integer keys were sealed
+in a~trie, none of its internal nodes would ever be pruned (since
+there’d always be possibility for an odd key to be inserted).
+Fortunately, IBC packets have sequence numbers which have no gaps.
+
+Crucially, even though the node is removed, none of the ancestor nodes
+are changed.  That is, the pruned node’s parent still holds a~hash of
+the removed node.  This means that sealing doesn’t change the state’s
+commitment.
+
+On the other hand, it’s not possible to retrieve a~sealed value.  This
+shouldn’t be an issue because it’s only in-flight packets that are
+needed to operate an IBC client.  The data can even be held by
+a~relayer further reducing on-chain storage size.
+
+\section{Blockchain structure}
+
+The emulated light client generates blocks with commitment of the
+aforementioned Merkle trie.  The blocks are produced on chain
+therefore there’s no need for a~block producer to be selected.
+Furthermore, validators don’t need to verify whether blocks were
+generated correctly.  Validator’s job is to read the value from Solana
+and sign it attesting that it was what was stored on Solana’s
+finalised block.
+
+\begin{figure}[htb]
+\begin{lstlisting}
+struct Block {
+    prev_block_hash: CryptoHash,
+    height: u64,
+    timestamp: u64,
+    state_root: CryptoHash,
+    validators_set_id: CryptoHash,
+    next_validators_set: Option<Vec<Validator>>,
+}
+
+struct Validator {
+    pubkey: PubKey,
+    stake: u128,
+}
+
+struct CryptoHash([u8; 32]);
+\end{lstlisting}
+\caption{Structure of the virtual block represented as Rust struct.}
+\end{figure}
+
+\subsection{Validators set change}
+
+Validators change at most once every some number of blocks.  This way,
+if someone needs to sync up with the state of the emulated client,
+they can do it quickly by checking signatures for the blocks which
+introduced new validators set only.
+
+This also means that if someone receives a~block with a~set they don’t
+know about, they can request block by hash to get the validators set
+signed by previous validators (which they either know or fetch blocks
+further recursively).
+
+Whenever a~new validator set is introduced in the
+\verb|next_validators_set| field of a~block, that block’s hash
+becomes that validators set identifier.  Such blocks are of course
+still signed by validators from the previous set.
+
+\subsection{Slashing}
+
+While validators don’t need to verify whether blocks were generated
+correctly, they must only sign blocks from the finalised Solana state.
+If they sign an emulated block from a~non-finalised branch of Solana,
+this may lead to a~signature of an incorrect fork of the emulated
+blockchain as well.  Such signatures are incorrect and can be
+submitted to the emulated client on Solana to slash that validator’s
+stake.
+
+\section{Interactions with the emulated light client}
+
+A~handful of systems interact with the emulated light client in
+different ways.  This section describes the most common scenarios.
+
+\subsection{Life-cycle of an outgoing packet}
+
+When a~packet is sent from Solana to another chain, the interactions
+with the emulated light client looks as follows:
+
+\begin{enumerate}
+\item Solana program calls the emulated light client with a~packet to
+  send.  This call may require fees to be deposited.  This also
+  requires additional gas fees to be deposited for later execution of
+  ack/timeout callback.
+\item The emulated light client checks the next sequence number for
+  the packet and stores it in its provable state.
+\item If the previous block has been signed by a~quorum of validators,
+  the contract generates a~new block.  Since contracts cannot
+  spontaneously start executing, this is done by a~trustless function
+  anyone can call.  To encourage someone making the call, the call
+  could transfer some funds to the caller.
+\item Once a~block is produced and Solana block holding it becomes
+  finalised, validators start signing the block.
+\item Once a~quorum of signatures is collected, a~relayer can pick up
+  all the messages with their proofs and carry them to the other
+  chain.
+\item Eventually, the packet is either delivered or times out.  When
+  that happens, as part of IBC protocol, the relayer delivers proof of
+  the condition to the emulated light client which calls the program
+  who initiated the packet.  The packet is marked as delivered and
+  sealed in the state.
+\end{enumerate}
+
+\subsection{Life-cycle of an incoming packet}
+
+When a~packet is sent to Solana, the interactions with the emulated
+light client looks as follows:
+\begin{enumerate}
+\item The relayer delivers a~proof a~packet has been sent on the other
+  chain.  The emulated light client calls the target Solana program
+  and records acknowledgement in the state.
+\item Like before, validators eventually sign the new block with the
+  new state.
+\item Relayer then delivers proof of acknowledgement to the other
+  chain which informs the sending module about the result.
+\end{enumerate}
+
+Ideally, the emulated light client never stores the actual
+acknowledgement (i.e. immediately seals the value) and it’s the
+relayer who holds it for delivery to the other chain.  Otherwise, the
+emulated light client wouldn’t actually know when the value can be
+sealed.
+
+When incoming packet times-out, it is never delivered to the emulated
+light client.  The downside of it is that there may be gaps in
+sequence numbers which has a~negative impact on storage (as described
+in Storage size section).  To help with that, the emulated light
+client accepts proofs of expired incoming packets which result in
+a~‘timed out’ entry being sealed at a~given sequence number.  (This is
+not an issue with ordered channels where failure to deliver a~packet
+closes the channel).
+
+\subsection{Life of a~validator}
+
+If one wants to become a~validator for the emulated light client, they
+need to stake stSOL with the client.  Once they do it, they are added
+to the set of possible validators. Users can thereafter delegate their
+stSOL with these validators.
+
+If enough blocks have passed since the last time the set of validators
+has changed (see ‘Validators set change’ section), the emulated light
+client looks at the validators with most stake, picks them as the next
+validators set and adds a~\verb|next_validators_set| entry to the
+next block.
+
+If a~validator wishes to stop validating, they again send that
+information to the emulated client which removes them from the set of
+possible validators.  However, the validator must continue validating
+blocks until the validators set change described above.
+
+Furthermore, once a~validator is removed from an active set, they need
+to wait before their staked stSOL tokens are released to them.  The
+reason for that is to allow other parties who detect malicious
+behaviour performed by the validator to submit their proofs.
+
+\subsubsection{Slashing}
+
+If a~slashable offence is detected, it can be submitted to the
+emulated client.  A~slashable offence is a~signature of an incorrect
+(block height, block hash) pair.  Whenever such a~signature is
+presented, the validator is slashed (by all his staked SOL taken away
+from them) and immediately removed from the set of validators.  This
+triggers a~validators set change which may happen out of normal
+schedule.
+
+We will handle slashing in a~means similar to that of Tendermint. In
+Tendermint’s Cosmos SDK, slashing is handled by the x/slashing module
+(see link for full details on Cosmos SDK/Tendermint slashing
+procedures and parameters). Evidence for slashing is submitted through
+the tendermint consensus:
+
+The top \verb|max_validators| are defined by the x/staking
+module. Each block, those top validators who are not jailed are bonded
+(they can propose and vote on blocks). These bonded validators are
+also at stake (all/part of their/their delegators’ stake is at risk of
+slashing).
+
+In the Cosmos SDK, each block includes LastCommitInfo from Tendermint,
+which includes precommits from validators of the previous block.  This
+is valid if it contains precommits from more than $\frac23$ of total
+voting power. Proposers are incentivized to include precommits from
+all validators via additional fees proportional to the amount of total
+voting power included.  Validators are penalised for failing to be
+included in the LastCommitInfo for some number of blocks by being
+automatically jailed, potentially slashed, and unbonded.
+
+The Cosmos SDK records ValidatorSigningInfo with details on attributes
+pertinent to slashing, such as liveness and signing info.  This makes
+it easy to look up recent signing info for a~validator using its
+consensus address. This also shows whether validators missed the block
+for given indexes. At the beginning of each block, the Cosmos SDK
+updates ValidatorSigningInfo and checks if any validators have crossed
+below the liveness threshold over a~sliding window of time (calculated
+as defined here). Liveness slashes do not lead to tombstoning.
+
+Each validator in the Cosmos SDK has a~tombstone cap placed on it by
+the Cosmos hub, meaning it can only be slashed once for a~double sign
+fault. This is still expensive, but lessens the economic impact of
+unintentional misconfiguration. There are no tombstones for liveness
+faults, as these cannot stack; liveness bugs are detected immediately,
+and jailing of validators occurs immediately as well. Therefore,
+validators cannot commit multiple liveness faults in a~row without
+un-jailing between.
+
+There is often a~delay between the infraction occurring and evidence
+of the infraction reaching the state machines. This is due to the
+nature of consensus faults and the ABCI, and is a~primary rationale
+for the unbonding period. While infractions are grouped based off of
+the slashing periods, because evidence can be submitted up to an
+unbondingPeriod after the infraction, the Cosmos SDK allows for
+evidence to be submitted for previous slashing periods.
+
+For instance, the Cosmos SDK handles single double sign infractions
+after they are committed and once they are discovered. The validator
+is then unbonded and slashed at the full amount for this
+infraction. Multiple double sign infractions are also handled after
+they are committed and once they are discovered. The validator is
+jailed and slashed for only one infraction. The validator here is also
+tombstoned and thus unable to rejoin the active validator set.
+
+If multiple infractions occur before evidence is executed, the
+validator is only punished for the single worst infraction (e.g. that
+with the greatest percentage of stake slashed) and not all
+infractions, cumulatively. Once a~validator rejoins by unjailing
+themselves, we begin a~new slashing period; if they commit a~new
+infraction after unjailing, it gets slashed cumulatively on top of the
+worst infraction from the previous slashing period.
+
+When a~validator is jailed for a~consensus fault, 0nce they have been
+jailed for the JailPeriod, validators can be unjailed on
+Tendermint/the Cosmos SDK. To request this, they must send
+MsgUnjail. If the validator has enough stake to be in the top n =
+MaximumBondedValidators, it will be automatically rebonded, and all
+delegators still delegated to the validator will be rebonded and begin
+to again collect provisions and rewards.
+
+\section{MEV}
+
+We aim to partner with a~liquid staking provider such as Jito, the
+first MEV infrastructure company building high-performance systems to
+scale Solana and maximise validator rewards. On Jito, users deposit
+SOL into their liquid staking pool to get JitoSOL; the SOL is
+delegated to MEV-enabled validators, which auction off blockspace and
+receive MEV rewards. MEV rewards are then shared with users on top of
+staking rewards.
+
+In this partnership/use case, we would allow for a~new source of MEV:
+cross-domain MEV. This is facilitated by the IBC and Composable’s
+Centauri bridge, which allow cross-chain swaps to propagate. In
+particular, we would enable cross-domain MEV via the restaking of
+a~Solana-based liquid staking token (such as Jito’s JitoSOL).
+
+Jito or another liquid staking service on Solana could also be the
+first solver/relayer on Composable’s Cross-Chain Virtual Machine
+(XCVM). Solvers in this infrastructure come up with optimised
+solutions for users’ cross-chain transaction intentions. This
+information is then relayed to proposers. From here, solvers can
+backrun transactions directly. This would position the solver
+(i.e. Jito or another liquid staking provider) as the owner of that
+end-to-end order flow and extraction of cross-domain MEV.
+
+\subsection{Incentives for Restakers}
+
+Restakers in our offering would be rewarded. These participants could
+initially earn PICA (the native token of Composable’s Kusama
+parachain, Picasso), then bridge fees, then a~share of MEV,
+incentivizing these actors for staking into our restaked validator
+layer.
+
+\end{document}
+\endinput
