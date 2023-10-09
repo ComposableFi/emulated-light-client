@@ -56,7 +56,7 @@ fn test_deliver() -> Result<()> {
         authority.clone(),
         CommitmentConfig::processed(),
     );
-    let program = client.program(ID)?;
+    let program = client.program(ID).unwrap();
 
     let sol_rpc_client = program.rpc();
     let _airdrop_signature = airdrop(&sol_rpc_client, authority.pubkey(), lamports);
@@ -66,7 +66,7 @@ fn test_deliver() -> Result<()> {
     let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let _client_id = ClientId::new(mock_client_state.client_type(), 0)?;
+    let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
     let msg = MsgCreateClient::new(
         Any::from(mock_client_state),
         Any::from(mock_cs_state),
@@ -91,7 +91,7 @@ fn test_deliver() -> Result<()> {
         })
         .payer(authority.clone())
         .signer(&*authority)
-        .send()?;
+        .send().unwrap();
 
     println!("demo sig: {sig}");
 
