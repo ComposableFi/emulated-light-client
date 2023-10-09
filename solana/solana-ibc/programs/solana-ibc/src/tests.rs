@@ -9,10 +9,7 @@ use ibc::{
     Any,
 };
 use ibc_proto::protobuf::Protobuf;
-// use solana_sdk::{
-//     commitment_config::CommitmentConfig,
-//     signature::{Keypair, Signature},
-// };
+use anyhow::Result;
 
 use crate::{accounts, instruction, AnyCheck, SolanaIbcStorage, ID, SOLANA_IBC_STORAGE_SEED};
 
@@ -24,7 +21,6 @@ use {
         solana_sdk::{pubkey::Pubkey, signature::{ Signer, Keypair, Signature }, commitment_config::CommitmentConfig},
         Client, Cluster,
     },
-    // solana_client::rpc_client::RpcClient,
     std::rc::Rc,
 };
 
@@ -50,18 +46,17 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
 }
 
 #[test]
-fn test_deliver() {
+fn test_deliver() -> Result<()> {
     let authority = Rc::new(Keypair::new());
     println!("This is pubkey {}", authority.pubkey().to_string());
     let lamports = 10_000_000_000;
-    let url = "http://127.0.0.1:8899".to_string();
 
     let client = Client::new_with_options(
         Cluster::Localnet,
         authority.clone(),
         CommitmentConfig::processed(),
     );
-    let program = client.program(ID);
+    let program = client.program(ID)?;
 
     let sol_rpc_client = program.rpc();
     let _airdrop_signature = airdrop(&sol_rpc_client, authority.pubkey(), lamports);
@@ -71,7 +66,7 @@ fn test_deliver() {
     let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
+    let _client_id = ClientId::new(mock_client_state.client_type(), 0)?;
     let msg = MsgCreateClient::new(
         Any::from(mock_client_state),
         Any::from(mock_cs_state),
@@ -96,14 +91,15 @@ fn test_deliver() {
         })
         .payer(authority.clone())
         .signer(&*authority)
-        .send()
-        .unwrap();
+        .send()?;
 
     println!("demo sig: {sig}");
 
     // Retrieve and validate state
     let _solana_ibc_storage_account: SolanaIbcStorage =
         program.account(solana_ibc_storage).unwrap();
+
+    Ok(())
 }
 
 // #[test]

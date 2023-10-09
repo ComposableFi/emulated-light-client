@@ -29,7 +29,7 @@ getrandom = { version = "0.2.2", features = ["custom"] }
 
 [dev-dependencies]
 anchor-client = "0.28.0"
-solana-client = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+anyhow = "1.0.32"
 
 
 

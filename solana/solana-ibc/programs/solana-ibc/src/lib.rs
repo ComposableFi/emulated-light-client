@@ -29,31 +29,31 @@ pub mod solana_ibc {
 
     pub fn deliver(ctx: Context<Deliver>, messages: Vec<AnyCheck>) -> Result<()> {
         msg!("Called deliver method");
-        // let _sender = ctx.accounts.sender.to_account_info();
-        // let solana_ibc_store: &mut SolanaIbcStorage = &mut ctx.accounts.storage;
-        // msg!("This is solana_ibc_store {:?}", solana_ibc_store);
+        let _sender = ctx.accounts.sender.to_account_info();
+        let solana_ibc_store: &mut SolanaIbcStorage = &mut ctx.accounts.storage;
+        msg!("This is solana_ibc_store {:?}", solana_ibc_store);
 
-        // let all_messages = messages
-        //     .into_iter()
-        //     .map(|message| ibc::Any {
-        //         type_url: message.type_url,
-        //         value: message.value,
-        //     })
-        //     .collect::<Vec<_>>();
+        let all_messages = messages
+            .into_iter()
+            .map(|message| ibc::Any {
+                type_url: message.type_url,
+                value: message.value,
+            })
+            .collect::<Vec<_>>();
 
-        // let _errors = all_messages.into_iter().fold(vec![], |mut errors, msg| {
-        //     match ibc::core::MsgEnvelope::try_from(msg) {
-        //         Ok(msg) => {
-        //             match ibc::core::dispatch(&mut solana_ibc_store.clone(), solana_ibc_store, msg)
-        //             {
-        //                 Ok(()) => (),
-        //                 Err(e) => errors.push(e),
-        //             }
-        //         }
-        //         Err(e) => errors.push(e),
-        //     }
-        //     errors
-        // });
+        let _errors = all_messages.into_iter().fold(vec![], |mut errors, msg| {
+            match ibc::core::MsgEnvelope::try_from(msg) {
+                Ok(msg) => {
+                    match ibc::core::dispatch(&mut solana_ibc_store.clone(), solana_ibc_store, msg)
+                    {
+                        Ok(()) => (),
+                        Err(e) => errors.push(e),
+                    }
+                }
+                Err(e) => errors.push(e),
+            }
+            errors
+        });
 
         Ok(())
     }

@@ -19,9 +19,9 @@ derive_more = "0.99.17"
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 sha2 = { version = "0.10.7", default-features = false }
-solana-client = "1.16.7"
-solana-program = "1.16.7"
-solana-sdk = "1.16.7"
+solana-client = "1.16.14"
+solana-program = "1.16.14"
+solana-sdk = "1.16.14"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 
 lib = { path = "common/lib" }
@@ -31,15 +31,4 @@ stdx = { path = "common/stdx" }
 
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/dhruvja/curve25519-dalek", branch = "master" }
-solana-program = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
-solana-zk-token-sdk = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
-solana-client = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
-solana-sdk = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
-solana-account-decoder = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
 aes-gcm-siv = { git = "https://github.com/dhruvja/AEADs", branch = "main-aes-gcm-siv-v0.10.3" }
-# solana-program = { path = "../solana/sdk/program" }
-# solana-zk-token-sdk = { path = "../solana/zk-token-sdk" }
-# solana-client = { path = "../solana/client" }
-# solana-sdk = { path = "../solana/sdk" }
-# solana-account-decoder = { path = "../solana/account-decoder" }
-# aes-gcm-siv = { path = "../AEADs/aes-gcm-siv" }
