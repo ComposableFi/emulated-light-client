@@ -7,7 +7,8 @@ rust-version = "1.71.0"
 [workspace]
 members = [
     "common/*",
-    "solana/*",
+    "solana/trie-example",
+    "solana/solana-ibc/programs/*",
 ]
 resolver = "2"
 
@@ -27,3 +28,18 @@ lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }
 stdx = { path = "common/stdx" }
+
+[patch.crates-io]
+curve25519-dalek = { git = "https://github.com/dhruvja/curve25519-dalek", branch = "master" }
+solana-program = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+solana-zk-token-sdk = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+solana-client = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+solana-sdk = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+solana-account-decoder = { git = "https://github.com/dhruvja/solana", branch = "main-1.16.14" }
+aes-gcm-siv = { git = "https://github.com/dhruvja/AEADs", branch = "main-aes-gcm-siv-v0.10.3" }
+# solana-program = { path = "../solana/sdk/program" }
+# solana-zk-token-sdk = { path = "../solana/zk-token-sdk" }
+# solana-client = { path = "../solana/client" }
+# solana-sdk = { path = "../solana/sdk" }
+# solana-account-decoder = { path = "../solana/account-decoder" }
+# aes-gcm-siv = { path = "../AEADs/aes-gcm-siv" }
