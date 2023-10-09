@@ -9,11 +9,6 @@ solana_ibc = "7MEuaEwNMsjVCJy9N31ZgvQf1dFkRNXYFREaAjMsoE5g"
 [registry]
 url = "https://api.apr.dev"
 
-[workspace]
-members = [
-  "programs/*",
-]
-
 [provider]
 cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
