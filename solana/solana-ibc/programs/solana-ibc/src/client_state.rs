@@ -98,8 +98,8 @@ impl ClientStateValidation<SolanaIbcStorage> for AnyClientState {
 
     fn status(
         &self,
-        ctx: &SolanaIbcStorage,
-        client_id: &ClientId,
+        _ctx: &SolanaIbcStorage,
+        _client_id: &ClientId,
     ) -> Result<ibc::core::ics02_client::client_state::Status, ClientError>
     {
         todo!()

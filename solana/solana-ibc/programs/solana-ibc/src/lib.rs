@@ -157,7 +157,7 @@ pub struct SolanaIbcStorage {
 }
 
 impl SolanaIbcStorage {
-    fn new(account: Pubkey) -> Self {
+    pub fn new(account: Pubkey) -> Self {
         SolanaIbcStorage {
             height: (0, 0),
             module_holder: ModuleHolder::new(account),
@@ -188,12 +188,12 @@ impl SolanaIbcStorage {
 
 pub trait SolanaIbcStorageHost {
     ///
-    fn get_solana_ibc_store(account: Pubkey) -> SolanaIbcStorage {
+    fn get_solana_ibc_store(_account: Pubkey) -> SolanaIbcStorage {
         // Unpack the account
         todo!()
     }
     ///
-    fn set_solana_ibc_store(store: &SolanaIbcStorage) { todo!() }
+    fn set_solana_ibc_store(_store: &SolanaIbcStorage) { todo!() }
 }
 
 impl Router for SolanaIbcStorage {

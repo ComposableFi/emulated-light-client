@@ -1,7 +1,4 @@
-use anchor_lang::prelude::{Error, Pubkey};
-use anchor_lang::solana_program::account_info::AccountInfo;
 use anchor_lang::solana_program::msg;
-use anchor_lang::ToAccountInfo;
 use ibc::applications::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
@@ -31,16 +28,14 @@ use crate::{SolanaIbcStorage, SolanaIbcStorageHost};
 impl TokenTransferExecutionContext for ModuleHolder {
     fn send_coins_execute(
         &mut self,
-        from: &Self::AccountId,
-        to: &Self::AccountId,
-        amt: &PrefixedCoin,
+        _from: &Self::AccountId,
+        _to: &Self::AccountId,
+        _amt: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
-        let sender_id = from.to_string();
-        let receiver_id = to.to_string();
-        let base_denom = amt.denom.base_denom.to_string();
-
-        // Todo!
-        Ok(())
+        //let sender_id = from.to_string();
+        //let receiver_id = to.to_string();
+        //let base_denom = amt.denom.base_denom.to_string();
+        todo!()
     }
 
     fn mint_coins_execute(
