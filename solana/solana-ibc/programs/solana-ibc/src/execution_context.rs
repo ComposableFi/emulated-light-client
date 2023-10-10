@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use anchor_lang::prelude::*;
+use anchor_lang::emit;
+use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
 use ibc::core::ics02_client::ClientExecutionContext;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
@@ -100,13 +101,13 @@ impl ExecutionContext for SolanaIbcStorage {
             self.client_processed_times
                 .insert(client_id.to_string().clone(), new_map);
         }
-        self.client_processed_times.get_mut(&client_id.to_string()).and_then(
+        self.client_processed_times.get_mut(&client_id.to_string()).map(
             |processed_times| {
-                Some(BTreeMap::insert(
+                BTreeMap::insert(
                     processed_times,
                     (height.revision_number(), height.revision_height()),
                     timestamp.nanoseconds(),
-                ))
+                )
             },
         );
         Ok(())
@@ -135,16 +136,16 @@ impl ExecutionContext for SolanaIbcStorage {
             self.client_processed_heights
                 .insert(client_id.to_string().clone(), new_map);
         }
-        self.client_processed_heights.get_mut(&client_id.to_string()).and_then(
+        self.client_processed_heights.get_mut(&client_id.to_string()).map(
             |processed_heights| {
-                Some(BTreeMap::insert(
+                BTreeMap::insert(
                     processed_heights,
                     (height.revision_number(), height.revision_height()),
                     (
                         host_height.revision_number(),
                         host_height.revision_height(),
                     ),
-                ))
+                )
             },
         );
         Ok(())
@@ -217,19 +218,17 @@ impl ExecutionContext for SolanaIbcStorage {
         commitment_path: &CommitmentPath,
     ) -> std::result::Result<(), ContextError> {
         msg!("delete_packet_commitment: path: {}", commitment_path);
-        //
-        self.packet_commitment_sequence_sets
-            .get_mut(&(
-                commitment_path.port_id.clone().to_string(),
-                commitment_path.channel_id.clone().to_string(),
-            ))
-            .map(|sequences| {
-                let index = sequences
-                    .iter()
-                    .position(|x| *x == u64::from(commitment_path.sequence))
-                    .unwrap();
-                sequences.remove(index);
-            });
+        let sequences = self.packet_commitment_sequence_sets.get_mut(&(
+            commitment_path.port_id.clone().to_string(),
+            commitment_path.channel_id.clone().to_string(),
+        ));
+        if let Some(sequences) = sequences {
+            let index = sequences
+                .iter()
+                .position(|x| *x == u64::from(commitment_path.sequence))
+                .unwrap();
+            sequences.remove(index);
+        };
         Ok(())
     }
 
@@ -276,15 +275,14 @@ impl ExecutionContext for SolanaIbcStorage {
         ack_path: &AckPath,
     ) -> std::result::Result<(), ContextError> {
         msg!("delete_packet_acknowledgement: path: {}", ack_path,);
-        self.packet_acknowledgement_sequence_sets
-            .get_mut(&(
-                ack_path.port_id.clone().to_string(),
-                ack_path.channel_id.clone().to_string(),
-            ))
-            .map(|sequences| {
-                let sequence_as_u64: u64 = ack_path.sequence.into();
-                sequences.remove(sequence_as_u64 as usize);
-            });
+        let sequences = self.packet_acknowledgement_sequence_sets.get_mut(&(
+            ack_path.port_id.clone().to_string(),
+            ack_path.channel_id.clone().to_string(),
+        ));
+        if let Some(sequences) = sequences {
+            let sequence_as_u64: u64 = ack_path.sequence.into();
+            sequences.remove(sequence_as_u64 as usize);
+        }
         Ok(())
     }
 
@@ -366,14 +364,10 @@ impl ExecutionContext for SolanaIbcStorage {
         let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
-        if self.ibc_events_history.contains_key(&inner_host_height) {
-            self.ibc_events_history
-                .get_mut(&inner_host_height)
-                .map(|events| events.push(event_in_bytes.clone()));
-        } else {
-            self.ibc_events_history
-                .insert(inner_host_height, vec![event_in_bytes.clone()]);
-        }
+        self.ibc_events_history
+            .entry(inner_host_height)
+            .or_default()
+            .push(event_in_bytes.clone());
         emit!(EmitIBCEvent { ibc_event: event_in_bytes });
     }
 
@@ -391,10 +385,5 @@ fn record_packet_sequence(
     sequence: &Sequence,
 ) {
     let key = (port_id.clone().to_string(), channel_id.clone().to_string());
-    if hash_map.contains_key(&key) {
-        hash_map.insert(key.clone(), Vec::new());
-    }
-    hash_map.get_mut(&key).map(|sequences| {
-        sequences.push(u64::from(*sequence));
-    });
+    hash_map.entry(key).or_default().push(u64::from(*sequence));
 }
