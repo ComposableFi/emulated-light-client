@@ -1,5 +1,9 @@
-/target/
-/dist/
-/node_modules/
-package-lock.json
+.anchor
 Cargo.lock
+/dist/
+.DS_Store
+*.rs.bk
+node_modules
+package-lock.json
+target
+test-ledger
