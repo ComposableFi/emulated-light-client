@@ -1,19 +1,15 @@
-use ibc::{
-    clients::ics07_tendermint::consensus_state::ConsensusState as TmConsensusState,
-    core::{
-        ics02_client::{consensus_state::ConsensusState, error::ClientError},
-        ics23_commitment::commitment::CommitmentRoot,
-        timestamp::Timestamp,
-    },
-};
-use ibc_proto::{
-    google::protobuf::Any,
-    ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState,
-    protobuf::Protobuf,
-};
+use ibc::clients::ics07_tendermint::consensus_state::ConsensusState as TmConsensusState;
+use ibc::core::ics02_client::consensus_state::ConsensusState;
+use ibc::core::ics02_client::error::ClientError;
+use ibc::core::ics23_commitment::commitment::CommitmentRoot;
+use ibc::core::timestamp::Timestamp;
+use ibc_proto::google::protobuf::Any;
+use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
+use ibc_proto::protobuf::Protobuf;
 use serde::{Deserialize, Serialize};
 
-const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str = "/ibc.lightclients.tendermint.v1.ConsensusState";
+const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
+    "/ibc.lightclients.tendermint.v1.ConsensusState";
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -28,13 +24,14 @@ impl TryFrom<Any> for AnyConsensusState {
 
     fn try_from(value: Any) -> Result<Self, Self::Error> {
         match value.type_url.as_str() {
-            TENDERMINT_CONSENSUS_STATE_TYPE_URL => Ok(AnyConsensusState::Tendermint(
-                Protobuf::<RawTmConsensusState>::decode_vec(&value.value).map_err(|e| {
-                    ClientError::ClientSpecific {
+            TENDERMINT_CONSENSUS_STATE_TYPE_URL => {
+                Ok(AnyConsensusState::Tendermint(
+                    Protobuf::<RawTmConsensusState>::decode_vec(&value.value)
+                        .map_err(|e| ClientError::ClientSpecific {
                         description: e.to_string(),
-                    }
-                })?,
-            )),
+                    })?,
+                ))
+            }
             _ => Err(ClientError::UnknownConsensusStateType {
                 consensus_state_type: value.type_url.clone(),
             }),
@@ -88,7 +85,10 @@ impl TryInto<ibc::clients::ics07_tendermint::consensus_state::ConsensusState>
 
     fn try_into(
         self,
-    ) -> Result<ibc::clients::ics07_tendermint::consensus_state::ConsensusState, Self::Error> {
+    ) -> Result<
+        ibc::clients::ics07_tendermint::consensus_state::ConsensusState,
+        Self::Error,
+    > {
         match self {
             AnyConsensusState::Tendermint(value) => Ok(value),
         }

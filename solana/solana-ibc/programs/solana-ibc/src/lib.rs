@@ -1,12 +1,9 @@
 use std::collections::BTreeMap;
 
 use anchor_lang::prelude::*;
-use ibc::core::{
-    ics24_host::identifier::PortId,
-    router::{Module, ModuleId, Router},
-};
-
 use borsh::{BorshDeserialize, BorshSerialize};
+use ibc::core::ics24_host::identifier::PortId;
+use ibc::core::router::{Module, ModuleId, Router};
 use module_holder::ModuleHolder;
 
 const SOLANA_IBC_STORAGE_SEED: &'static [u8] = b"solana_ibc_storage";
@@ -27,7 +24,10 @@ mod validation_context;
 pub mod solana_ibc {
     use super::*;
 
-    pub fn deliver(ctx: Context<Deliver>, messages: Vec<AnyCheck>) -> Result<()> {
+    pub fn deliver(
+        ctx: Context<Deliver>,
+        messages: Vec<AnyCheck>,
+    ) -> Result<()> {
         msg!("Called deliver method");
         let _sender = ctx.accounts.sender.to_account_info();
         let solana_ibc_store: &mut SolanaIbcStorage = &mut ctx.accounts.storage;
@@ -41,19 +41,23 @@ pub mod solana_ibc {
             })
             .collect::<Vec<_>>();
 
-        let _errors = all_messages.into_iter().fold(vec![], |mut errors, msg| {
-            match ibc::core::MsgEnvelope::try_from(msg) {
-                Ok(msg) => {
-                    match ibc::core::dispatch(&mut solana_ibc_store.clone(), solana_ibc_store, msg)
-                    {
-                        Ok(()) => (),
-                        Err(e) => errors.push(e),
+        let _errors =
+            all_messages.into_iter().fold(vec![], |mut errors, msg| {
+                match ibc::core::MsgEnvelope::try_from(msg) {
+                    Ok(msg) => {
+                        match ibc::core::dispatch(
+                            &mut solana_ibc_store.clone(),
+                            solana_ibc_store,
+                            msg,
+                        ) {
+                            Ok(()) => (),
+                            Err(e) => errors.push(e),
+                        }
                     }
+                    Err(e) => errors.push(e),
                 }
-                Err(e) => errors.push(e),
-            }
-            errors
-        });
+                errors
+            });
 
         Ok(())
     }
@@ -113,12 +117,16 @@ pub struct SolanaIbcStorage {
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
     pub client_counter: u64,
-    pub client_processed_times: BTreeMap<InnerClientId, BTreeMap<InnerHeight, SolanaTimestamp>>,
-    pub client_processed_heights: BTreeMap<InnerClientId, BTreeMap<InnerHeight, HostHeight>>,
-    pub consensus_states: BTreeMap<(InnerClientId, InnerHeight), InnerConsensusState>,
+    pub client_processed_times:
+        BTreeMap<InnerClientId, BTreeMap<InnerHeight, SolanaTimestamp>>,
+    pub client_processed_heights:
+        BTreeMap<InnerClientId, BTreeMap<InnerHeight, HostHeight>>,
+    pub consensus_states:
+        BTreeMap<(InnerClientId, InnerHeight), InnerConsensusState>,
     /// This collection contains the heights corresponding to all consensus states of
     /// all clients stored in the contract.
-    pub client_consensus_state_height_sets: BTreeMap<InnerClientId, Vec<InnerHeight>>,
+    pub client_consensus_state_height_sets:
+        BTreeMap<InnerClientId, Vec<InnerHeight>>,
     /// The connection ids of the connections.
     pub connection_id_set: Vec<InnerConnectionId>,
     pub connection_counter: u64,
@@ -129,14 +137,18 @@ pub struct SolanaIbcStorage {
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
-    pub next_sequence_send: BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_recv: BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_ack: BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
+    pub next_sequence_send:
+        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
+    pub next_sequence_recv:
+        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
+    pub next_sequence_ack:
+        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
     /// The sequence numbers of the packet commitments.
     pub packet_commitment_sequence_sets:
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The sequence numbers of the packet receipts.
-    pub packet_receipt_sequence_sets: BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
+    pub packet_receipt_sequence_sets:
+        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The sequence numbers of the packet acknowledgements.
     pub packet_acknowledgement_sequence_sets:
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
@@ -181,23 +193,28 @@ pub trait SolanaIbcStorageHost {
         todo!()
     }
     ///
-    fn set_solana_ibc_store(store: &SolanaIbcStorage) {
-        todo!()
-    }
+    fn set_solana_ibc_store(store: &SolanaIbcStorage) { todo!() }
 }
 
 impl Router for SolanaIbcStorage {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => Some(&self.module_holder),
+            ibc::applications::transfer::MODULE_ID_STR => {
+                Some(&self.module_holder)
+            }
             _ => None,
         }
     }
     //
-    fn get_route_mut(&mut self, module_id: &ModuleId) -> Option<&mut dyn Module> {
+    fn get_route_mut(
+        &mut self,
+        module_id: &ModuleId,
+    ) -> Option<&mut dyn Module> {
         match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => Some(&mut self.module_holder),
+            ibc::applications::transfer::MODULE_ID_STR => {
+                Some(&mut self.module_holder)
+            }
             _ => None,
         }
     }
