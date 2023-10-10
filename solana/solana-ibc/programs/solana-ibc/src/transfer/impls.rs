@@ -1,35 +1,32 @@
-use crate::{
-    client_state::AnyClientState, consensus_state::AnyConsensusState,
-    SolanaIbcStorage, SolanaIbcStorageHost,
-    module_holder::ModuleHolder
+use anchor_lang::prelude::{Error, Pubkey};
+use anchor_lang::solana_program::account_info::AccountInfo;
+use anchor_lang::solana_program::msg;
+use anchor_lang::ToAccountInfo;
+use ibc::applications::transfer::context::{
+    TokenTransferExecutionContext, TokenTransferValidationContext,
 };
-use anchor_lang::{
-    prelude::{Pubkey, Error} ,
-    solana_program::account_info::AccountInfo,
-    solana_program::msg,
-    ToAccountInfo,
+use ibc::applications::transfer::error::TokenTransferError;
+use ibc::applications::transfer::PrefixedCoin;
+use ibc::core::ics03_connection::connection::ConnectionEnd;
+use ibc::core::ics04_channel::channel::ChannelEnd;
+use ibc::core::ics04_channel::commitment::PacketCommitment;
+use ibc::core::ics04_channel::context::{
+    SendPacketExecutionContext, SendPacketValidationContext,
 };
-use ibc::{
-    applications::transfer::{
-        context::{TokenTransferExecutionContext, TokenTransferValidationContext},
-        error::TokenTransferError,
-        PrefixedCoin,
-    },
-    core::{
-        ics03_connection::connection::ConnectionEnd,
-        ics04_channel::{
-            channel::ChannelEnd,
-            commitment::PacketCommitment,
-            context::{SendPacketExecutionContext, SendPacketValidationContext},
-            packet::Sequence,
-        },
-        ics24_host::{
-            identifier::{ChannelId, ClientId, ConnectionId, PortId},
-            path::{ChannelEndPath, ClientConsensusStatePath, CommitmentPath, SeqSendPath},
-        },
-        ContextError, ExecutionContext, ValidationContext,
-    }, Signer,
+use ibc::core::ics04_channel::packet::Sequence;
+use ibc::core::ics24_host::identifier::{
+    ChannelId, ClientId, ConnectionId, PortId,
 };
+use ibc::core::ics24_host::path::{
+    ChannelEndPath, ClientConsensusStatePath, CommitmentPath, SeqSendPath,
+};
+use ibc::core::{ContextError, ExecutionContext, ValidationContext};
+use ibc::Signer;
+
+use crate::client_state::AnyClientState;
+use crate::consensus_state::AnyConsensusState;
+use crate::module_holder::ModuleHolder;
+use crate::{SolanaIbcStorage, SolanaIbcStorageHost};
 
 impl TokenTransferExecutionContext for ModuleHolder {
     fn send_coins_execute(
@@ -91,11 +88,8 @@ impl TokenTransferValidationContext for ModuleHolder {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let escrow_account = format!(
-            "{}.ef.{}",
-            channel_id.as_str(),
-            port_id.as_str(),
-        );
+        let escrow_account =
+            format!("{}.ef.{}", channel_id.as_str(), port_id.as_str(),);
         Ok(Signer::from(escrow_account))
     }
 
@@ -133,7 +127,6 @@ impl TokenTransferValidationContext for ModuleHolder {
     ) -> Result<(), TokenTransferError> {
         Ok(())
     }
-
 }
 
 impl SendPacketValidationContext for ModuleHolder {
@@ -145,17 +138,26 @@ impl SendPacketValidationContext for ModuleHolder {
 
     type AnyClientState = AnyClientState;
 
-    fn channel_end(&self, channel_end_path: &ChannelEndPath) -> Result<ChannelEnd, ContextError> {
+    fn channel_end(
+        &self,
+        channel_end_path: &ChannelEndPath,
+    ) -> Result<ChannelEnd, ContextError> {
         let store = Self::get_solana_ibc_store(self.account);
         ValidationContext::channel_end(&store, channel_end_path)
     }
 
-    fn connection_end(&self, connection_id: &ConnectionId) -> Result<ConnectionEnd, ContextError> {
+    fn connection_end(
+        &self,
+        connection_id: &ConnectionId,
+    ) -> Result<ConnectionEnd, ContextError> {
         let store = Self::get_solana_ibc_store(self.account);
         ValidationContext::connection_end(&store, connection_id)
     }
 
-    fn client_state(&self, client_id: &ClientId) -> Result<Self::AnyClientState, ContextError> {
+    fn client_state(
+        &self,
+        client_id: &ClientId,
+    ) -> Result<Self::AnyClientState, ContextError> {
         let store = Self::get_solana_ibc_store(self.account);
         ValidationContext::client_state(&store, client_id)
     }
@@ -188,8 +190,11 @@ impl SendPacketExecutionContext for ModuleHolder {
         commitment: PacketCommitment,
     ) -> Result<(), ContextError> {
         let mut store = Self::get_solana_ibc_store(self.account);
-        let result =
-            ExecutionContext::store_packet_commitment(&mut store, commitment_path, commitment);
+        let result = ExecutionContext::store_packet_commitment(
+            &mut store,
+            commitment_path,
+            commitment,
+        );
         Self::set_solana_ibc_store(&store);
         result
     }
@@ -200,7 +205,11 @@ impl SendPacketExecutionContext for ModuleHolder {
         seq: Sequence,
     ) -> Result<(), ContextError> {
         let mut store = Self::get_solana_ibc_store(self.account);
-        let result = ExecutionContext::store_next_sequence_send(&mut store, seq_send_path, seq);
+        let result = ExecutionContext::store_next_sequence_send(
+            &mut store,
+            seq_send_path,
+            seq,
+        );
         Self::set_solana_ibc_store(&store);
         result
     }
