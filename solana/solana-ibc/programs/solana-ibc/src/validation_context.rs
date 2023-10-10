@@ -83,8 +83,8 @@ impl ValidationContext for SolanaIbcStorage {
     }
 
     fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
-        Ok(ibc::Height::new(self.height.0, self.height.1)
-            .map_err(|e| ContextError::ClientError(e))?)
+        ibc::Height::new(self.height.0, self.height.1)
+            .map_err(ContextError::ClientError)
     }
 
     fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
@@ -101,10 +101,9 @@ impl ValidationContext for SolanaIbcStorage {
         _height: &ibc::Height,
     ) -> std::result::Result<Self::AnyConsensusState, ContextError> {
         Err(ContextError::ClientError(ClientError::ClientSpecific {
-            description: format!(
-                "The `host_consensus_state` is not supported on Solana \
-                 protocol."
-            ),
+            description: "The `host_consensus_state` is not supported on \
+                          Solana protocol."
+                .into(),
         }))
     }
 
@@ -355,16 +354,16 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         signer: &ibc::Signer,
     ) -> std::result::Result<(), ContextError> {
-        match Pubkey::from_str(&signer.to_string()) {
+        match Pubkey::from_str(signer.as_ref()) {
             Ok(_) => Ok(()),
             Err(e) => Err(ContextError::ClientError(ClientError::Other {
-                description: format!("Invalid signer: {:?}", e).to_string(),
+                description: format!("Invalid signer: {e:?}"),
             })),
         }
     }
 
     fn get_client_validation_context(&self) -> &Self::ClientValidationContext {
-        &self
+        self
     }
 
     fn get_compatible_versions(

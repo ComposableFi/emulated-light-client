@@ -286,7 +286,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext for SolanaIbcStorage {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        let end_height = (height.revision_number() + 1, 1 as u64);
+        let end_height = (height.revision_number() + 1, 1);
         match self.consensus_states.get(&(client_id.to_string(), end_height)) {
             Some(data) => {
                 let result: Self::AnyConsensusState =
@@ -304,7 +304,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext for SolanaIbcStorage {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        let end_height = (height.revision_number(), 1 as u64);
+        let end_height = (height.revision_number(), 1);
         match self.consensus_states.get(&(client_id.to_string(), end_height)) {
             Some(data) => {
                 let result: Self::AnyConsensusState =

@@ -1,3 +1,7 @@
+// anchor_lang::error::Error and anchor_lang::Result is ≥ 160 bytes and there’s
+// not much we can do about it.
+#![allow(clippy::result_large_err)]
+
 use std::collections::BTreeMap;
 
 use anchor_lang::prelude::*;
@@ -6,7 +10,7 @@ use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 use module_holder::ModuleHolder;
 
-const SOLANA_IBC_STORAGE_SEED: &'static [u8] = b"solana_ibc_storage";
+const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 
 declare_id!("7MEuaEwNMsjVCJy9N31ZgvQf1dFkRNXYFREaAjMsoE5g");
 
@@ -20,7 +24,7 @@ mod transfer;
 mod validation_context;
 // mod client_context;
 
-#[program]
+#[anchor_lang::program]
 pub mod solana_ibc {
     use super::*;
 
