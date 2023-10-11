@@ -9,7 +9,7 @@ type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 /// A single block of the emulated blockchain.
 ///
 /// Emulated block’s height and timestamp are taken directly from the host
-/// chain.  Emulated blocks don’t have their own height or timestamps.
+/// chain.  Emulated blocks don’t have their own timestamps.
 ///
 /// A block is uniquely identified by its hash which can be obtained via
 /// [`Block::calc_hash`].
