@@ -25,6 +25,4 @@ serde_json.workspace = true
 [dev-dependencies]
 anchor-client.workspace = true
 anyhow.workspace = true
-
-
-
+ibc = { workspace = true, features = ["mocks", "std"] }
