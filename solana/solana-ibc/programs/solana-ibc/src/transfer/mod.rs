@@ -1,23 +1,20 @@
-use ibc::{
-  applications::transfer::packet::PacketData,
-  core::{
-      ics04_channel::{
-          acknowledgement::Acknowledgement,
-          channel::{Counterparty, Order},
-          error::{ChannelError, PacketError},
-          packet::Packet,
-          Version,
-      },
-      ics24_host::identifier::{ChannelId, ConnectionId, PortId},
-      router::{Module, ModuleExtras},
-  },
-  Signer,
-};
-use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
-use anchor_lang::prelude::*;
 use std::result::Result;
-use serde::{Serialize, Deserialize};
-use crate::{SolanaIbcStorageHost, module_holder::ModuleHolder};
+
+use anchor_lang::prelude::*;
+use ibc::applications::transfer::packet::PacketData;
+use ibc::core::ics04_channel::acknowledgement::Acknowledgement;
+use ibc::core::ics04_channel::channel::{Counterparty, Order};
+use ibc::core::ics04_channel::error::{ChannelError, PacketError};
+use ibc::core::ics04_channel::packet::Packet;
+use ibc::core::ics04_channel::Version;
+use ibc::core::ics24_host::identifier::{ChannelId, ConnectionId, PortId};
+use ibc::core::router::{Module, ModuleExtras};
+use ibc::Signer;
+use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
+use serde::{Deserialize, Serialize};
+
+use crate::module_holder::ModuleHolder;
+use crate::SolanaIbcStorageHost;
 
 mod impls;
 
@@ -42,9 +39,7 @@ impl Module for ModuleHolder {
             counterparty,
             version,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })?;
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })?;
         Ok(version.clone())
     }
 
@@ -66,9 +61,7 @@ impl Module for ModuleHolder {
             counterparty,
             counterparty_version,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })?;
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })?;
         Ok(counterparty_version.clone())
     }
 
@@ -84,9 +77,7 @@ impl Module for ModuleHolder {
             channel_id,
             counterparty_version,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_chan_open_confirm_validate(
@@ -100,9 +91,7 @@ impl Module for ModuleHolder {
         ibc::applications::transfer::context::on_chan_open_confirm_validate(
             self, port_id, channel_id,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_chan_close_init_validate(
@@ -110,10 +99,10 @@ impl Module for ModuleHolder {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<(), ChannelError> {
-        ibc::applications::transfer::context::on_chan_close_init_validate(self, port_id, channel_id)
-            .map_err(|e| ChannelError::AppModule {
-                description: e.to_string(),
-            })
+        ibc::applications::transfer::context::on_chan_close_init_validate(
+            self, port_id, channel_id,
+        )
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_chan_close_confirm_validate(
@@ -124,9 +113,7 @@ impl Module for ModuleHolder {
         ibc::applications::transfer::context::on_chan_close_confirm_validate(
             self, port_id, channel_id,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_recv_packet_execute(
@@ -136,23 +123,30 @@ impl Module for ModuleHolder {
     ) -> (ModuleExtras, Acknowledgement) {
         msg!(
             "Received packet: {:?}",
-            String::from_utf8(packet.data.to_vec()).expect("Invalid packet data")
+            String::from_utf8(packet.data.to_vec())
+                .expect("Invalid packet data")
         );
         let ft_packet_data =
-            serde_json::from_slice::<FtPacketData>(&packet.data).expect("Invalid packet data");
+            serde_json::from_slice::<FtPacketData>(&packet.data)
+                .expect("Invalid packet data");
         let maybe_ft_packet = Packet {
             data: serde_json::to_string(
-                &PacketData::try_from(FungibleTokenPacketData::from(ft_packet_data))
-                    .expect("Invalid packet data"),
+                &PacketData::try_from(FungibleTokenPacketData::from(
+                    ft_packet_data,
+                ))
+                .expect("Invalid packet data"),
             )
             .expect("Invalid packet data")
             .into_bytes(),
             ..packet.clone()
         };
         let (extras, ack) =
-            ibc::applications::transfer::context::on_recv_packet_execute(self, &maybe_ft_packet);
-        let ack_status =
-            String::from_utf8(ack.as_bytes().to_vec()).expect("Invalid acknowledgement string");
+            ibc::applications::transfer::context::on_recv_packet_execute(
+                self,
+                &maybe_ft_packet,
+            );
+        let ack_status = String::from_utf8(ack.as_bytes().to_vec())
+            .expect("Invalid acknowledgement string");
         msg!("Packet acknowledgement: {}", ack_status);
         (extras, ack)
     }
@@ -179,10 +173,10 @@ impl Module for ModuleHolder {
         packet: &Packet,
         relayer: &Signer,
     ) -> Result<(), PacketError> {
-        ibc::applications::transfer::context::on_timeout_packet_validate(self, packet, relayer)
-            .map_err(|e| PacketError::AppModule {
-                description: e.to_string(),
-            })
+        ibc::applications::transfer::context::on_timeout_packet_validate(
+            self, packet, relayer,
+        )
+        .map_err(|e| PacketError::AppModule { description: e.to_string() })
     }
 
     fn on_chan_open_init_execute(
@@ -203,9 +197,7 @@ impl Module for ModuleHolder {
             counterparty,
             version,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_chan_open_try_execute(
@@ -226,9 +218,7 @@ impl Module for ModuleHolder {
             counterparty,
             counterparty_version,
         )
-        .map_err(|e| ChannelError::AppModule {
-            description: e.to_string(),
-        })
+        .map_err(|e| ChannelError::AppModule { description: e.to_string() })
     }
 
     fn on_acknowledgement_packet_execute(
@@ -257,7 +247,9 @@ impl Module for ModuleHolder {
         relayer: &Signer,
     ) -> (ModuleExtras, Result<(), PacketError>) {
         let result =
-            ibc::applications::transfer::context::on_timeout_packet_execute(self, packet, relayer);
+            ibc::applications::transfer::context::on_timeout_packet_execute(
+                self, packet, relayer,
+            );
         (
             result.0,
             result.1.map_err(|e| PacketError::AppModule {

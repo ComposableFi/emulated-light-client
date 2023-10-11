@@ -1,30 +1,29 @@
-use anchor_lang::prelude::Pubkey;
-use ibc::{
-    core::{
-        ics02_client::error::ClientError,
-        ics03_connection::{connection::ConnectionEnd, error::ConnectionError},
-        ics04_channel::{
-            channel::ChannelEnd,
-            commitment::{AcknowledgementCommitment, PacketCommitment},
-            error::{ChannelError, PacketError},
-            packet::{Receipt, Sequence},
-        },
-        ics23_commitment::commitment::CommitmentPrefix,
-        ics24_host::{
-            identifier::{ClientId, ConnectionId},
-            path::{
-                AckPath, ChannelEndPath, ClientConsensusStatePath, CommitmentPath, ReceiptPath,
-                SeqAckPath, SeqRecvPath, SeqSendPath,
-            },
-        },
-        timestamp::Timestamp,
-        ContextError, ValidationContext,
-    },
-    Height,
-};
-use std::{str::FromStr, time::Duration};
+use std::str::FromStr;
+use std::time::Duration;
 
-use crate::{client_state::AnyClientState, consensus_state::AnyConsensusState, SolanaIbcStorage};
+use anchor_lang::prelude::Pubkey;
+use ibc::core::ics02_client::error::ClientError;
+use ibc::core::ics03_connection::connection::ConnectionEnd;
+use ibc::core::ics03_connection::error::ConnectionError;
+use ibc::core::ics04_channel::channel::ChannelEnd;
+use ibc::core::ics04_channel::commitment::{
+    AcknowledgementCommitment, PacketCommitment,
+};
+use ibc::core::ics04_channel::error::{ChannelError, PacketError};
+use ibc::core::ics04_channel::packet::{Receipt, Sequence};
+use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
+use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
+use ibc::core::ics24_host::path::{
+    AckPath, ChannelEndPath, ClientConsensusStatePath, CommitmentPath,
+    ReceiptPath, SeqAckPath, SeqRecvPath, SeqSendPath,
+};
+use ibc::core::timestamp::Timestamp;
+use ibc::core::{ContextError, ValidationContext};
+use ibc::Height;
+
+use crate::client_state::AnyClientState;
+use crate::consensus_state::AnyConsensusState;
+use crate::SolanaIbcStorage;
 
 impl ValidationContext for SolanaIbcStorage {
     type AnyConsensusState = AnyConsensusState;
@@ -38,7 +37,8 @@ impl ValidationContext for SolanaIbcStorage {
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
         match self.clients.get(&client_id.to_string()) {
             Some(data) => {
-                let client: AnyClientState = serde_json::from_str(data).unwrap();
+                let client: AnyClientState =
+                    serde_json::from_str(data).unwrap();
                 Ok(client)
             }
             None => Err(ContextError::ClientError(
@@ -66,7 +66,8 @@ impl ValidationContext for SolanaIbcStorage {
         );
         match self.consensus_states.get(consensus_state_key) {
             Some(data) => {
-                let result: Self::AnyConsensusState = serde_json::from_str(data).unwrap();
+                let result: Self::AnyConsensusState =
+                    serde_json::from_str(data).unwrap();
                 Ok(result)
             }
             None => Err(ContextError::ClientError(
@@ -82,14 +83,16 @@ impl ValidationContext for SolanaIbcStorage {
     }
 
     fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
-        Ok(ibc::Height::new(self.height.0, self.height.1)
-            .map_err(|e| ContextError::ClientError(e))?)
+        ibc::Height::new(self.height.0, self.height.1)
+            .map_err(ContextError::ClientError)
     }
 
     fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
         let host_height = self.host_height()?;
         match self.host_consensus_state(&host_height)? {
-            AnyConsensusState::Tendermint(consensus_state) => Ok(consensus_state.timestamp.into()),
+            AnyConsensusState::Tendermint(consensus_state) => {
+                Ok(consensus_state.timestamp.into())
+            }
         }
     }
 
@@ -98,7 +101,9 @@ impl ValidationContext for SolanaIbcStorage {
         _height: &ibc::Height,
     ) -> std::result::Result<Self::AnyConsensusState, ContextError> {
         Err(ContextError::ClientError(ClientError::ClientSpecific {
-            description: format!("The `host_consensus_state` is not supported on Solana protocol."),
+            description: "The `host_consensus_state` is not supported on \
+                          Solana protocol."
+                .into(),
         }))
     }
 
@@ -112,7 +117,8 @@ impl ValidationContext for SolanaIbcStorage {
     ) -> std::result::Result<ConnectionEnd, ContextError> {
         match self.connections.get(&conn_id.to_string()) {
             Some(data) => {
-                let connection: ConnectionEnd = serde_json::from_str(data).unwrap();
+                let connection: ConnectionEnd =
+                    serde_json::from_str(data).unwrap();
                 Ok(connection)
             }
             None => Err(ContextError::ConnectionError(
@@ -127,11 +133,11 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         client_state_of_host_on_counterparty: ibc::Any,
     ) -> std::result::Result<(), ContextError> {
-        Self::AnyClientState::try_from(client_state_of_host_on_counterparty).map_err(|e| {
-            ClientError::Other {
-                description: format!("Decode ClientState failed: {:?}", e).to_string(),
-            }
-        })?;
+        Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
+            .map_err(|e| ClientError::Other {
+                description: format!("Decode ClientState failed: {:?}", e)
+                    .to_string(),
+            })?;
         // todo: validate that the AnyClientState is Solomachine (for Solana protocol)
         Ok(())
     }
@@ -148,19 +154,20 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         channel_end_path: &ChannelEndPath,
     ) -> std::result::Result<ChannelEnd, ContextError> {
-        let channel_end_key = &(
-            channel_end_path.0.to_string(),
-            channel_end_path.1.to_string(),
-        );
+        let channel_end_key =
+            &(channel_end_path.0.to_string(), channel_end_path.1.to_string());
         match self.channel_ends.get(channel_end_key) {
             Some(data) => {
-                let channel_end: ChannelEnd = serde_json::from_str(data).unwrap();
+                let channel_end: ChannelEnd =
+                    serde_json::from_str(data).unwrap();
                 Ok(channel_end)
             }
-            None => Err(ContextError::ChannelError(ChannelError::ChannelNotFound {
-                port_id: channel_end_path.0.clone(),
-                channel_id: channel_end_path.1.clone(),
-            })),
+            None => {
+                Err(ContextError::ChannelError(ChannelError::ChannelNotFound {
+                    port_id: channel_end_path.0.clone(),
+                    channel_id: channel_end_path.1.clone(),
+                }))
+            }
         }
     }
 
@@ -168,13 +175,16 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         seq_send_path: &SeqSendPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_send_key = (seq_send_path.0.to_string(), seq_send_path.1.to_string());
+        let seq_send_key =
+            (seq_send_path.0.to_string(), seq_send_path.1.to_string());
         match self.next_sequence_send.get(&seq_send_key) {
             Some(sequence_set) => Ok(Sequence::from(*sequence_set)),
-            None => Err(ContextError::PacketError(PacketError::MissingNextSendSeq {
-                port_id: seq_send_path.0.clone(),
-                channel_id: seq_send_path.1.clone(),
-            })),
+            None => Err(ContextError::PacketError(
+                PacketError::MissingNextSendSeq {
+                    port_id: seq_send_path.0.clone(),
+                    channel_id: seq_send_path.1.clone(),
+                },
+            )),
         }
     }
 
@@ -182,13 +192,16 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         seq_recv_path: &SeqRecvPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_recv_key = (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
+        let seq_recv_key =
+            (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
         match self.next_sequence_recv.get(&seq_recv_key) {
             Some(sequence) => Ok(Sequence::from(*sequence)),
-            None => Err(ContextError::PacketError(PacketError::MissingNextRecvSeq {
-                port_id: seq_recv_path.0.clone(),
-                channel_id: seq_recv_path.1.clone(),
-            })),
+            None => Err(ContextError::PacketError(
+                PacketError::MissingNextRecvSeq {
+                    port_id: seq_recv_path.0.clone(),
+                    channel_id: seq_recv_path.1.clone(),
+                },
+            )),
         }
     }
 
@@ -196,13 +209,16 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         seq_ack_path: &SeqAckPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_ack_key = (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
+        let seq_ack_key =
+            (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
         match self.next_sequence_ack.get(&seq_ack_key) {
             Some(sequence) => Ok(Sequence::from(*sequence)),
-            None => Err(ContextError::PacketError(PacketError::MissingNextAckSeq {
-                port_id: seq_ack_path.0.clone(),
-                channel_id: seq_ack_path.1.clone(),
-            })),
+            None => {
+                Err(ContextError::PacketError(PacketError::MissingNextAckSeq {
+                    port_id: seq_ack_path.0.clone(),
+                    channel_id: seq_ack_path.1.clone(),
+                }))
+            }
         }
     }
 
@@ -214,12 +230,10 @@ impl ValidationContext for SolanaIbcStorage {
             commitment_path.port_id.to_string(),
             commitment_path.channel_id.to_string(),
         );
-        match self
-            .packet_acknowledgement_sequence_sets
-            .get(&commitment_key)
-        {
+        match self.packet_acknowledgement_sequence_sets.get(&commitment_key) {
             Some(data) => {
-                let data_in_u8: Vec<u8> = data.iter().map(|x| *x as u8).collect();
+                let data_in_u8: Vec<u8> =
+                    data.iter().map(|x| *x as u8).collect();
                 Ok(PacketCommitment::from(data_in_u8))
             }
             None => Err(ContextError::PacketError(
@@ -239,14 +253,16 @@ impl ValidationContext for SolanaIbcStorage {
             receipt_path.channel_id.to_string(),
         );
         match self.packet_acknowledgement_sequence_sets.get(&receipt_key) {
-            Some(data) => match data.binary_search(&u64::from(receipt_path.sequence)) {
-                Ok(_) => Ok(Receipt::Ok),
-                Err(_) => Err(ContextError::PacketError(
-                    PacketError::PacketReceiptNotFound {
-                        sequence: receipt_path.sequence,
-                    },
-                )),
-            },
+            Some(data) => {
+                match data.binary_search(&u64::from(receipt_path.sequence)) {
+                    Ok(_) => Ok(Receipt::Ok),
+                    Err(_) => Err(ContextError::PacketError(
+                        PacketError::PacketReceiptNotFound {
+                            sequence: receipt_path.sequence,
+                        },
+                    )),
+                }
+            }
             None => Err(ContextError::PacketError(
                 PacketError::PacketReceiptNotFound {
                     sequence: receipt_path.sequence,
@@ -259,13 +275,12 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         ack_path: &AckPath,
     ) -> std::result::Result<AcknowledgementCommitment, ContextError> {
-        let ack_key = (
-            ack_path.port_id.to_string(),
-            ack_path.channel_id.to_string(),
-        );
+        let ack_key =
+            (ack_path.port_id.to_string(), ack_path.channel_id.to_string());
         match self.packet_acknowledgement_sequence_sets.get(&ack_key) {
             Some(data) => {
-                let data_in_u8: Vec<u8> = data.iter().map(|x| *x as u8).collect();
+                let data_in_u8: Vec<u8> =
+                    data.iter().map(|x| *x as u8).collect();
                 Ok(AcknowledgementCommitment::from(data_in_u8))
             }
             None => Err(ContextError::PacketError(
@@ -284,13 +299,15 @@ impl ValidationContext for SolanaIbcStorage {
         self.client_processed_times
             .get(&client_id.to_string())
             .and_then(|processed_times| {
-                processed_times.get(&(height.revision_number(), height.revision_height()))
+                processed_times
+                    .get(&(height.revision_number(), height.revision_height()))
             })
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
                     description: format!(
-                        "Client update time not found. client_id: {}, height: {}",
+                        "Client update time not found. client_id: {}, height: \
+                         {}",
                         client_id, height
                     ),
                 })
@@ -305,13 +322,17 @@ impl ValidationContext for SolanaIbcStorage {
         self.client_processed_heights
             .get(&client_id.to_string())
             .and_then(|processed_heights| {
-                processed_heights.get(&(height.revision_number(), height.revision_height()))
+                processed_heights
+                    .get(&(height.revision_number(), height.revision_height()))
             })
-            .map(|client_height| Height::new(client_height.0, client_height.1).unwrap())
+            .map(|client_height| {
+                Height::new(client_height.0, client_height.1).unwrap()
+            })
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
                     description: format!(
-                        "Client update height not found. client_id: {}, height: {}",
+                        "Client update height not found. client_id: {}, \
+                         height: {}",
                         client_id, height
                     ),
                 })
@@ -333,26 +354,29 @@ impl ValidationContext for SolanaIbcStorage {
         &self,
         signer: &ibc::Signer,
     ) -> std::result::Result<(), ContextError> {
-        match Pubkey::from_str(&signer.to_string()) {
+        match Pubkey::from_str(signer.as_ref()) {
             Ok(_) => Ok(()),
             Err(e) => Err(ContextError::ClientError(ClientError::Other {
-                description: format!("Invalid signer: {:?}", e).to_string(),
+                description: format!("Invalid signer: {e:?}"),
             })),
         }
     }
 
     fn get_client_validation_context(&self) -> &Self::ClientValidationContext {
-        &self
+        self
     }
 
-    fn get_compatible_versions(&self) -> Vec<ibc::core::ics03_connection::version::Version> {
+    fn get_compatible_versions(
+        &self,
+    ) -> Vec<ibc::core::ics03_connection::version::Version> {
         ibc::core::ics03_connection::version::get_compatible_versions()
     }
 
     fn pick_version(
         &self,
         counterparty_candidate_versions: &[ibc::core::ics03_connection::version::Version],
-    ) -> Result<ibc::core::ics03_connection::version::Version, ContextError> {
+    ) -> Result<ibc::core::ics03_connection::version::Version, ContextError>
+    {
         let version = ibc::core::ics03_connection::version::pick_version(
             &self.get_compatible_versions(),
             counterparty_candidate_versions,
@@ -361,7 +385,10 @@ impl ValidationContext for SolanaIbcStorage {
     }
 
     fn block_delay(&self, delay_period_time: &Duration) -> u64 {
-        calculate_block_delay(delay_period_time, &self.max_expected_time_per_block())
+        calculate_block_delay(
+            delay_period_time,
+            &self.max_expected_time_per_block(),
+        )
     }
 }
 
@@ -372,6 +399,7 @@ fn calculate_block_delay(
     if max_expected_time_per_block.is_zero() {
         return 0;
     }
-    let delay = delay_period_time.as_secs_f64() / max_expected_time_per_block.as_secs_f64();
+    let delay = delay_period_time.as_secs_f64() /
+        max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
 }

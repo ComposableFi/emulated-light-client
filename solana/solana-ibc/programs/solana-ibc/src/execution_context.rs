@@ -1,33 +1,32 @@
 use std::collections::BTreeMap;
 
-use anchor_lang::prelude::*;
-use ibc::{
-    core::{
-        events::IbcEvent,
-        ics02_client::ClientExecutionContext,
-        ics03_connection::connection::ConnectionEnd,
-        ics04_channel::{
-            channel::ChannelEnd,
-            commitment::{AcknowledgementCommitment, PacketCommitment},
-            packet::{Receipt, Sequence},
-        },
-        ics24_host::{
-            identifier::{ChannelId, ClientId, ConnectionId, PortId},
-            path::{
-                AckPath, ChannelEndPath, ClientConnectionPath, ClientConsensusStatePath,
-                ClientStatePath, CommitmentPath, ConnectionPath, ReceiptPath, SeqAckPath,
-                SeqRecvPath, SeqSendPath,
-            },
-        },
-        timestamp::Timestamp,
-        ContextError, ExecutionContext, ValidationContext,
-    },
-    Height,
+use anchor_lang::emit;
+use anchor_lang::solana_program::msg;
+use ibc::core::events::IbcEvent;
+use ibc::core::ics02_client::ClientExecutionContext;
+use ibc::core::ics03_connection::connection::ConnectionEnd;
+use ibc::core::ics04_channel::channel::ChannelEnd;
+use ibc::core::ics04_channel::commitment::{
+    AcknowledgementCommitment, PacketCommitment,
 };
+use ibc::core::ics04_channel::packet::{Receipt, Sequence};
+use ibc::core::ics24_host::identifier::{
+    ChannelId, ClientId, ConnectionId, PortId,
+};
+use ibc::core::ics24_host::path::{
+    AckPath, ChannelEndPath, ClientConnectionPath, ClientConsensusStatePath,
+    ClientStatePath, CommitmentPath, ConnectionPath, ReceiptPath, SeqAckPath,
+    SeqRecvPath, SeqSendPath,
+};
+use ibc::core::timestamp::Timestamp;
+use ibc::core::{ContextError, ExecutionContext, ValidationContext};
+use ibc::Height;
 
+use crate::client_state::AnyClientState;
+use crate::consensus_state::AnyConsensusState;
 use crate::{
-    client_state::AnyClientState, consensus_state::AnyConsensusState, EmitIBCEvent, HostHeight,
-    InnerChannelId, InnerHeight, InnerPortId, InnerSequence, SolanaIbcStorage, SolanaTimestamp,
+    EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
+    InnerSequence, SolanaIbcStorage, SolanaTimestamp,
 };
 
 impl ClientExecutionContext for SolanaIbcStorage {
@@ -46,9 +45,9 @@ impl ClientExecutionContext for SolanaIbcStorage {
             client_state
         );
         let client_state_key = client_state_path.0.to_string();
-        let serialized_client_state = serde_json::to_string(&client_state).unwrap();
-        self.clients
-            .insert(client_state_key, serialized_client_state);
+        let serialized_client_state =
+            serde_json::to_string(&client_state).unwrap();
+        self.clients.insert(client_state_key, serialized_client_state);
         Ok(())
     }
 
@@ -57,25 +56,23 @@ impl ClientExecutionContext for SolanaIbcStorage {
         consensus_state_path: ClientConsensusStatePath,
         consensus_state: Self::AnyConsensusState,
     ) -> std::result::Result<(), ContextError> {
-        msg!(
-            "{}-{}",
-            consensus_state_path.epoch, consensus_state_path.height
-        );
+        msg!("{}-{}", consensus_state_path.epoch, consensus_state_path.height);
         let consensus_state_key = (
             consensus_state_path.client_id.to_string(),
             (consensus_state_path.epoch, consensus_state_path.height),
         );
-        let serialized_consensus_state = serde_json::to_string(&consensus_state).unwrap();
-        self.consensus_states.insert(
-            consensus_state_key,
-            serialized_consensus_state
-        );
+        let serialized_consensus_state =
+            serde_json::to_string(&consensus_state).unwrap();
+        self.consensus_states
+            .insert(consensus_state_key, serialized_consensus_state);
         Ok(())
     }
 }
 
 impl ExecutionContext for SolanaIbcStorage {
-    fn increase_client_counter(&mut self) -> std::result::Result<(), ContextError> {
+    fn increase_client_counter(
+        &mut self,
+    ) -> std::result::Result<(), ContextError> {
         self.client_counter.checked_add(1).unwrap();
         msg!("client_counter has increased to: {}", self.client_counter);
         Ok(())
@@ -93,28 +90,26 @@ impl ExecutionContext for SolanaIbcStorage {
             height,
             timestamp
         );
-        let mut new_map: BTreeMap<InnerHeight, SolanaTimestamp> = BTreeMap::new();
+        let mut new_map: BTreeMap<InnerHeight, SolanaTimestamp> =
+            BTreeMap::new();
         BTreeMap::insert(
             &mut new_map,
             (height.revision_number(), height.revision_height()),
             timestamp.nanoseconds(),
         );
-        if !self
-            .client_processed_times
-            .contains_key(&client_id.to_string())
-        {
+        if !self.client_processed_times.contains_key(&client_id.to_string()) {
             self.client_processed_times
                 .insert(client_id.to_string().clone(), new_map);
         }
-        self.client_processed_times
-            .get_mut(&client_id.to_string())
-            .and_then(|processed_times| {
-                Some(BTreeMap::insert(
+        self.client_processed_times.get_mut(&client_id.to_string()).map(
+            |processed_times| {
+                BTreeMap::insert(
                     processed_times,
                     (height.revision_number(), height.revision_height()),
                     timestamp.nanoseconds(),
-                ))
-            });
+                )
+            },
+        );
         Ok(())
     }
 
@@ -125,7 +120,8 @@ impl ExecutionContext for SolanaIbcStorage {
         host_height: ibc::Height,
     ) -> std::result::Result<(), ContextError> {
         msg!(
-            "store_update_height - client_id: {}, height: {:?}, host_height: {:?}",
+            "store_update_height - client_id: {}, height: {:?}, host_height: \
+             {:?}",
             client_id,
             height,
             host_height
@@ -136,22 +132,22 @@ impl ExecutionContext for SolanaIbcStorage {
             (height.revision_number(), height.revision_height()),
             (host_height.revision_number(), host_height.revision_height()),
         );
-        if !self
-            .client_processed_heights
-            .contains_key(&client_id.to_string())
-        {
+        if !self.client_processed_heights.contains_key(&client_id.to_string()) {
             self.client_processed_heights
                 .insert(client_id.to_string().clone(), new_map);
         }
-        self.client_processed_heights
-            .get_mut(&client_id.to_string())
-            .and_then(|processed_heights| {
-                Some(BTreeMap::insert(
+        self.client_processed_heights.get_mut(&client_id.to_string()).map(
+            |processed_heights| {
+                BTreeMap::insert(
                     processed_heights,
                     (height.revision_number(), height.revision_height()),
-                    (host_height.revision_number(), host_height.revision_height()),
-                ))
-            });
+                    (
+                        host_height.revision_number(),
+                        host_height.revision_height(),
+                    ),
+                )
+            },
+        );
         Ok(())
     }
 
@@ -182,11 +178,14 @@ impl ExecutionContext for SolanaIbcStorage {
             client_connection_path,
             conn_id
         );
-        self.connection_to_client.insert(conn_id.to_string(), client_connection_path.0.to_string());
+        self.connection_to_client
+            .insert(conn_id.to_string(), client_connection_path.0.to_string());
         Ok(())
     }
 
-    fn increase_connection_counter(&mut self) -> std::result::Result<(), ContextError> {
+    fn increase_connection_counter(
+        &mut self,
+    ) -> std::result::Result<(), ContextError> {
         self.connection_counter.checked_add(1).unwrap();
         msg!(
             "connection_counter has increased to: {}",
@@ -219,19 +218,17 @@ impl ExecutionContext for SolanaIbcStorage {
         commitment_path: &CommitmentPath,
     ) -> std::result::Result<(), ContextError> {
         msg!("delete_packet_commitment: path: {}", commitment_path);
-        //
-        self.packet_commitment_sequence_sets
-            .get_mut(&(
-                commitment_path.port_id.clone().to_string(),
-                commitment_path.channel_id.clone().to_string(),
-            ))
-            .map(|sequences| {
-                let index = sequences
-                    .iter()
-                    .position(|x| *x == u64::from(commitment_path.sequence))
-                    .unwrap();
-                sequences.remove(index);
-            });
+        let sequences = self.packet_commitment_sequence_sets.get_mut(&(
+            commitment_path.port_id.clone().to_string(),
+            commitment_path.channel_id.clone().to_string(),
+        ));
+        if let Some(sequences) = sequences {
+            let index = sequences
+                .iter()
+                .position(|x| *x == u64::from(commitment_path.sequence))
+                .unwrap();
+            sequences.remove(index);
+        };
         Ok(())
     }
 
@@ -278,15 +275,14 @@ impl ExecutionContext for SolanaIbcStorage {
         ack_path: &AckPath,
     ) -> std::result::Result<(), ContextError> {
         msg!("delete_packet_acknowledgement: path: {}", ack_path,);
-        self.packet_acknowledgement_sequence_sets
-            .get_mut(&(
-                ack_path.port_id.clone().to_string(),
-                ack_path.channel_id.clone().to_string(),
-            ))
-            .map(|sequences| {
-                let sequence_as_u64: u64 = ack_path.sequence.into();
-                sequences.remove(sequence_as_u64 as usize);
-            });
+        let sequences = self.packet_acknowledgement_sequence_sets.get_mut(&(
+            ack_path.port_id.clone().to_string(),
+            ack_path.channel_id.clone().to_string(),
+        ));
+        if let Some(sequences) = sequences {
+            let sequence_as_u64: u64 = ack_path.sequence.into();
+            sequences.remove(sequence_as_u64 as usize);
+        }
         Ok(())
     }
 
@@ -305,10 +301,7 @@ impl ExecutionContext for SolanaIbcStorage {
             channel_end_path.1.clone().to_string(),
         ));
         self.channel_ends.insert(
-            (
-                channel_end_path.0.to_string(),
-                channel_end_path.1.to_string(),
-            ),
+            (channel_end_path.0.to_string(), channel_end_path.1.to_string()),
             serde_json::to_string(&channel_end).unwrap(),
         );
         Ok(())
@@ -324,7 +317,8 @@ impl ExecutionContext for SolanaIbcStorage {
             seq_send_path,
             seq
         );
-        let seq_send_key = (seq_send_path.0.to_string(), seq_send_path.1.to_string());
+        let seq_send_key =
+            (seq_send_path.0.to_string(), seq_send_path.1.to_string());
         self.next_sequence_send.insert(seq_send_key, u64::from(seq));
         Ok(())
     }
@@ -339,7 +333,8 @@ impl ExecutionContext for SolanaIbcStorage {
             seq_recv_path,
             seq
         );
-        let seq_recv_key = (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
+        let seq_recv_key =
+            (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
         self.next_sequence_recv.insert(seq_recv_key, u64::from(seq));
         Ok(())
     }
@@ -349,17 +344,16 @@ impl ExecutionContext for SolanaIbcStorage {
         seq_ack_path: &SeqAckPath,
         seq: Sequence,
     ) -> std::result::Result<(), ContextError> {
-        msg!(
-            "store_next_sequence_ack: path: {}, seq: {:?}",
-            seq_ack_path,
-            seq
-        );
-        let seq_ack_key = (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
+        msg!("store_next_sequence_ack: path: {}, seq: {:?}", seq_ack_path, seq);
+        let seq_ack_key =
+            (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
         self.next_sequence_ack.insert(seq_ack_key, u64::from(seq));
         Ok(())
     }
 
-    fn increase_channel_counter(&mut self) -> std::result::Result<(), ContextError> {
+    fn increase_channel_counter(
+        &mut self,
+    ) -> std::result::Result<(), ContextError> {
         self.channel_counter += 1;
         msg!("channel_counter has increased to: {}", self.channel_counter);
         Ok(())
@@ -368,27 +362,20 @@ impl ExecutionContext for SolanaIbcStorage {
     fn emit_ibc_event(&mut self, event: IbcEvent) {
         let host_height = self.host_height().unwrap();
         let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
-        let inner_host_height = (host_height.revision_height(), host_height.revision_number());
-        if self.ibc_events_history.contains_key(&inner_host_height) {
-            self.ibc_events_history
-                .get_mut(&inner_host_height)
-                .map(|events| events.push(event_in_bytes.clone()));
-        } else {
-            self.ibc_events_history
-                .insert(inner_host_height, vec![event_in_bytes.clone()]);
-        }
-        emit!(EmitIBCEvent {
-            ibc_event: event_in_bytes
-        });
+        let inner_host_height =
+            (host_height.revision_height(), host_height.revision_number());
+        self.ibc_events_history
+            .entry(inner_host_height)
+            .or_default()
+            .push(event_in_bytes.clone());
+        emit!(EmitIBCEvent { ibc_event: event_in_bytes });
     }
 
     fn log_message(&mut self, message: String) {
         msg!("{}", message);
     }
 
-    fn get_client_execution_context(&mut self) -> &mut Self::E {
-        self
-    }
+    fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
 fn record_packet_sequence(
@@ -398,10 +385,5 @@ fn record_packet_sequence(
     sequence: &Sequence,
 ) {
     let key = (port_id.clone().to_string(), channel_id.clone().to_string());
-    if hash_map.contains_key(&key) {
-        hash_map.insert(key.clone(), Vec::new());
-    }
-    hash_map.get_mut(&key).map(|sequences| {
-        sequences.push(u64::from(*sequence));
-    });
+    hash_map.entry(key).or_default().push(u64::from(*sequence));
 }

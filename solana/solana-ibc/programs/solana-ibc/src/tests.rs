@@ -1,27 +1,26 @@
-use ibc::{
-    core::{
-        ics02_client::{client_state::ClientStateCommon, msgs::create_client::MsgCreateClient},
-        ics24_host::identifier::ClientId,
-    },
-    mock::{
-        client_state::MockClientState, consensus_state::MockConsensusState, header::MockHeader,
-    },
-    Any,
-};
-use ibc_proto::protobuf::Protobuf;
+use std::rc::Rc;
+use std::thread::sleep;
+use std::time::Duration;
+
+use anchor_client::anchor_lang::system_program;
+use anchor_client::solana_client::rpc_client::RpcClient;
+use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
+use anchor_client::solana_sdk::pubkey::Pubkey;
+use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
+use anchor_client::{Client, Cluster};
 use anyhow::Result;
+use ibc::core::ics02_client::client_state::ClientStateCommon;
+use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
+use ibc::core::ics24_host::identifier::ClientId;
+use ibc::mock::client_state::MockClientState;
+use ibc::mock::consensus_state::MockConsensusState;
+use ibc::mock::header::MockHeader;
+use ibc::Any;
+use ibc_proto::protobuf::Protobuf;
 
-use crate::{accounts, instruction, AnyCheck, SolanaIbcStorage, ID, SOLANA_IBC_STORAGE_SEED};
-
-use std::{thread::sleep, time::Duration};
-use {
-    anchor_client::{
-        anchor_lang::system_program,
-        solana_client::rpc_client::RpcClient,
-        solana_sdk::{pubkey::Pubkey, signature::{ Signer, Keypair, Signature }, commitment_config::CommitmentConfig},
-        Client, Cluster,
-    },
-    std::rc::Rc,
+use crate::{
+    accounts, instruction, AnyCheck, SolanaIbcStorage, ID,
+    SOLANA_IBC_STORAGE_SEED,
 };
 
 const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -60,7 +59,8 @@ fn test_deliver() -> Result<()> {
     let program = client.program(ID).unwrap();
 
     let sol_rpc_client = program.rpc();
-    let _airdrop_signature = airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    let _airdrop_signature =
+        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
 
     // Build, sign, and send program instruction
     let seeds = &[SOLANA_IBC_STORAGE_SEED];
@@ -73,10 +73,8 @@ fn test_deliver() -> Result<()> {
         Any::from(mock_cs_state),
         ibc::Signer::from(authority.pubkey().to_string()),
     );
-    let messages = AnyCheck {
-        type_url: TYPE_URL.to_string(),
-        value: msg.encode_vec(),
-    };
+    let messages =
+        AnyCheck { type_url: TYPE_URL.to_string(), value: msg.encode_vec() };
 
     let all_messages = [messages].to_vec();
 
@@ -87,12 +85,10 @@ fn test_deliver() -> Result<()> {
             storage: solana_ibc_storage,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver {
-            messages: all_messages,
-        })
+        .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
         .signer(&*authority)
-        .send()?;
+        .send()?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
         // .unwrap();
 
     println!("demo sig: {sig}");
