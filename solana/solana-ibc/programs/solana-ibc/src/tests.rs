@@ -45,6 +45,7 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
 }
 
 #[test]
+#[ignore = "Requires local validator to run"]
 fn test_deliver() -> Result<()> {
     let authority = Rc::new(Keypair::new());
     println!("This is pubkey {}", authority.pubkey().to_string());
@@ -87,8 +88,7 @@ fn test_deliver() -> Result<()> {
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
         .signer(&*authority)
-        .send()
-        .unwrap();
+        .send()?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
     println!("demo sig: {sig}");
 
