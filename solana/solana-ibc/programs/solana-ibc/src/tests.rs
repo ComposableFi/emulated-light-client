@@ -46,6 +46,7 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
 }
 
 #[test]
+#[ignore = "Requires local validator to run"]
 fn test_deliver() -> Result<()> {
     let authority = Rc::new(Keypair::new());
     println!("This is pubkey {}", authority.pubkey().to_string());
@@ -91,7 +92,8 @@ fn test_deliver() -> Result<()> {
         })
         .payer(authority.clone())
         .signer(&*authority)
-        .send().unwrap();
+        .send()?;
+        // .unwrap();
 
     println!("demo sig: {sig}");
 
