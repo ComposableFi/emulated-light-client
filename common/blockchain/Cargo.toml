@@ -1,19 +1,19 @@
 [package]
-name = "lib"
+name = "blockchain"
 authors = ["Michal Nazarewicz <mina86@mina86.com>"]
 version = "0.0.0"
 edition = "2021"
 
 [dependencies]
-base64.workspace = true
-borsh = { workspace = true, optional = true }
+borsh.workspace = true
 derive_more.workspace = true
-sha2.workspace = true
 
-stdx.workspace = true
+lib = { workspace = true, features = ["borsh"] }
 
 [dev-dependencies]
+lib = { workspace = true, features = ["borsh", "test_utils"] }
 rand.workspace = true
+stdx.workspace = true
 
 [features]
-test_utils = []
+std = []

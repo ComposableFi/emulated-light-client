@@ -1,5 +1,7 @@
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
+#[cfg(feature = "borsh")]
+use borsh::maybestd::io;
 use sha2::Digest;
 
 /// A cryptographic hash.
@@ -54,6 +56,19 @@ impl CryptoHash {
         builder.build()
     }
 
+    /// Decodes a base64 string representation of the hash.
+    pub fn from_base64(base64: &str) -> Option<Self> {
+        // base64 API is kind of garbage.  In certain situations the output
+        // buffer must be larger than the size of the decoded data or else
+        // decoding will fail.
+        let mut buf = [0; 34];
+        match BASE64_ENGINE.decode_slice(base64.as_bytes(), &mut buf[..]) {
+            Ok(CryptoHash::LENGTH) => {
+                Some(Self(*stdx::split_array_ref::<32, 2, 34>(&buf).0))
+            }
+            _ => None,
+        }
+    }
 
     /// Creates a new hash with given number encoded in its first bytes.
     ///
@@ -174,6 +189,20 @@ impl Builder {
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
     pub fn build(self) -> CryptoHash { CryptoHash(self.0.finalize().into()) }
+}
+
+#[cfg(feature = "borsh")]
+impl io::Write for Builder {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.update(buf);
+        Ok(buf.len())
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        Ok(self.update(buf))
+    }
+
+    fn flush(&mut self) -> io::Result<()> { Ok(()) }
 }
 
 #[test]
