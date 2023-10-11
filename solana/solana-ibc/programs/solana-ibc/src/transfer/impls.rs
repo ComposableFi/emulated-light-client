@@ -209,13 +209,18 @@ impl SendPacketExecutionContext for ModuleHolder {
         result
     }
 
-    fn emit_ibc_event(&mut self, event: ibc::core::events::IbcEvent) {
+    fn emit_ibc_event(
+        &mut self,
+        event: ibc::core::events::IbcEvent,
+    ) -> Result<(), ContextError> {
         let mut store = Self::get_solana_ibc_store(self.account);
-        ExecutionContext::emit_ibc_event(&mut store, event);
+        let result = ExecutionContext::emit_ibc_event(&mut store, event);
         Self::set_solana_ibc_store(&store);
+        result
     }
 
-    fn log_message(&mut self, message: String) {
+    fn log_message(&mut self, message: String) -> Result<(), ContextError> {
         msg!(&message);
+        Ok(())
     }
 }
