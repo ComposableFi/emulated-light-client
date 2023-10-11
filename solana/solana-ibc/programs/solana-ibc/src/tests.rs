@@ -89,7 +89,6 @@ fn test_deliver() -> Result<()> {
         .payer(authority.clone())
         .signer(&*authority)
         .send()?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-        // .unwrap();
 
     println!("demo sig: {sig}");
 
