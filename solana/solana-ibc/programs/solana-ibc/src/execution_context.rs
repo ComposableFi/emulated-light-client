@@ -19,7 +19,7 @@ use ibc::core::ics24_host::path::{
     SeqRecvPath, SeqSendPath,
 };
 use ibc::core::timestamp::Timestamp;
-use ibc::core::{ContextError, ExecutionContext, ValidationContext};
+use ibc::core::{ExecutionContext, ValidationContext};
 use ibc::Height;
 
 use crate::client_state::AnyClientState;
@@ -28,6 +28,8 @@ use crate::{
     EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
     InnerSequence, SolanaIbcStorage, SolanaTimestamp,
 };
+
+type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
 impl ClientExecutionContext for SolanaIbcStorage {
     type ClientValidationContext = Self;
@@ -38,7 +40,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
         &mut self,
         client_state_path: ClientStatePath,
         client_state: Self::AnyClientState,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_client_state - path: {}, client_state: {:?}",
             client_state_path,
@@ -55,7 +57,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
         &mut self,
         consensus_state_path: ClientConsensusStatePath,
         consensus_state: Self::AnyConsensusState,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!("{}-{}", consensus_state_path.epoch, consensus_state_path.height);
         let consensus_state_key = (
             consensus_state_path.client_id.to_string(),
@@ -70,9 +72,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
 }
 
 impl ExecutionContext for SolanaIbcStorage {
-    fn increase_client_counter(
-        &mut self,
-    ) -> std::result::Result<(), ContextError> {
+    fn increase_client_counter(&mut self) -> Result {
         self.client_counter.checked_add(1).unwrap();
         msg!("client_counter has increased to: {}", self.client_counter);
         Ok(())
@@ -83,7 +83,7 @@ impl ExecutionContext for SolanaIbcStorage {
         client_id: ClientId,
         height: Height,
         timestamp: Timestamp,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_update_time - client_id: {}, height: {}, timestamp: {}",
             client_id,
@@ -118,7 +118,7 @@ impl ExecutionContext for SolanaIbcStorage {
         client_id: ClientId,
         height: ibc::Height,
         host_height: ibc::Height,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_update_height - client_id: {}, height: {:?}, host_height: \
              {:?}",
@@ -155,7 +155,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         connection_path: &ConnectionPath,
         connection_end: ConnectionEnd,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_connection: path: {}, connection_end: {:?}",
             connection_path,
@@ -172,7 +172,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         client_connection_path: &ClientConnectionPath,
         conn_id: ConnectionId,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_connection_to_client: path: {}, connection_id: {:?}",
             client_connection_path,
@@ -183,9 +183,7 @@ impl ExecutionContext for SolanaIbcStorage {
         Ok(())
     }
 
-    fn increase_connection_counter(
-        &mut self,
-    ) -> std::result::Result<(), ContextError> {
+    fn increase_connection_counter(&mut self) -> Result {
         self.connection_counter.checked_add(1).unwrap();
         msg!(
             "connection_counter has increased to: {}",
@@ -198,7 +196,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         commitment_path: &CommitmentPath,
         commitment: PacketCommitment,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_packet_commitment: path: {}, commitment: {:?}",
             commitment_path,
@@ -216,7 +214,7 @@ impl ExecutionContext for SolanaIbcStorage {
     fn delete_packet_commitment(
         &mut self,
         commitment_path: &CommitmentPath,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!("delete_packet_commitment: path: {}", commitment_path);
         let sequences = self.packet_commitment_sequence_sets.get_mut(&(
             commitment_path.port_id.clone().to_string(),
@@ -236,7 +234,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         receipt_path: &ReceiptPath,
         receipt: Receipt,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_packet_receipt: path: {}, receipt: {:?}",
             receipt_path,
@@ -255,7 +253,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         ack_path: &AckPath,
         ack_commitment: AcknowledgementCommitment,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_packet_acknowledgement: path: {}, ack_commitment: {:?}",
             ack_path,
@@ -270,10 +268,7 @@ impl ExecutionContext for SolanaIbcStorage {
         Ok(())
     }
 
-    fn delete_packet_acknowledgement(
-        &mut self,
-        ack_path: &AckPath,
-    ) -> std::result::Result<(), ContextError> {
+    fn delete_packet_acknowledgement(&mut self, ack_path: &AckPath) -> Result {
         msg!("delete_packet_acknowledgement: path: {}", ack_path,);
         let sequences = self.packet_acknowledgement_sequence_sets.get_mut(&(
             ack_path.port_id.clone().to_string(),
@@ -290,7 +285,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         channel_end_path: &ChannelEndPath,
         channel_end: ChannelEnd,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_channel: path: {}, channel_end: {:?}",
             channel_end_path,
@@ -311,7 +306,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         seq_send_path: &SeqSendPath,
         seq: Sequence,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_next_sequence_send: path: {}, seq: {:?}",
             seq_send_path,
@@ -327,7 +322,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         seq_recv_path: &SeqRecvPath,
         seq: Sequence,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!(
             "store_next_sequence_recv: path: {}, seq: {:?}",
             seq_recv_path,
@@ -343,7 +338,7 @@ impl ExecutionContext for SolanaIbcStorage {
         &mut self,
         seq_ack_path: &SeqAckPath,
         seq: Sequence,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         msg!("store_next_sequence_ack: path: {}, seq: {:?}", seq_ack_path, seq);
         let seq_ack_key =
             (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
@@ -351,15 +346,13 @@ impl ExecutionContext for SolanaIbcStorage {
         Ok(())
     }
 
-    fn increase_channel_counter(
-        &mut self,
-    ) -> std::result::Result<(), ContextError> {
+    fn increase_channel_counter(&mut self) -> Result {
         self.channel_counter += 1;
         msg!("channel_counter has increased to: {}", self.channel_counter);
         Ok(())
     }
 
-    fn emit_ibc_event(&mut self, event: IbcEvent) {
+    fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
         let host_height = self.host_height().unwrap();
         let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
         let inner_host_height =
@@ -369,10 +362,12 @@ impl ExecutionContext for SolanaIbcStorage {
             .or_default()
             .push(event_in_bytes.clone());
         emit!(EmitIBCEvent { ibc_event: event_in_bytes });
+        Ok(())
     }
 
-    fn log_message(&mut self, message: String) {
+    fn log_message(&mut self, message: String) -> Result {
         msg!("{}", message);
+        Ok(())
     }
 
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
