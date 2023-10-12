@@ -46,7 +46,7 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
 
 #[test]
 #[ignore = "Requires local validator to run"]
-fn test_deliver() -> Result<()> {
+fn anchor_test_deliver() -> Result<()> {
     let authority = Rc::new(Keypair::new());
     println!("This is pubkey {}", authority.pubkey().to_string());
     let lamports = 10_000_000_000;
