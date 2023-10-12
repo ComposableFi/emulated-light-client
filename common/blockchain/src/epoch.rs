@@ -20,9 +20,15 @@ pub struct Epoch<PK> {
     validators: Vec<Validator<PK>>,
 
     /// Minimum stake to consider block signed.
+    ///
+    /// Always no more than `total_stake`.
     quorum_stake: NonZeroU128,
 
     /// Total stake.
+    ///
+    /// This is always `sum(v.stake for v in validators)`.
+    // We don’t serialise it because we calculate it when deserializing to make
+    // sure that it’s always a correct value.
     #[borsh_skip]
     total_stake: NonZeroU128,
 }
