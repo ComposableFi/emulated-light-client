@@ -99,26 +99,19 @@ impl<PK: PubKey> Candidates<PK> {
             .fold(0, |sum, c| sum.checked_add(c.stake.get()).unwrap())
     }
 
-    /// Returns top validators together with their total stake if changed since
-    /// last call.
-    pub fn maybe_get_head(&mut self) -> Option<(Vec<Validator<PK>>, u128)> {
+    /// Returns top validators if changed since last call.
+    pub fn maybe_get_head(&mut self) -> Option<Vec<Validator<PK>>> {
         if !self.changed {
             return None;
         }
-        let mut total: u128 = 0;
         let validators = self
             .candidates
             .iter()
             .take(self.max_validators())
-            .map(|candidate| {
-                total = total.checked_add(candidate.stake.get())?;
-                Some(Validator::from(candidate))
-            })
-            .collect::<Option<Vec<_>>>()
-            .unwrap();
+            .map(Validator::from)
+            .collect::<Vec<_>>();
         self.changed = false;
-        self.debug_verify_state();
-        Some((validators, total))
+        Some(validators)
     }
 
     /// Adds a new candidates or updates existing candidate’s stake.
