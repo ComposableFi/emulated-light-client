@@ -168,16 +168,16 @@ impl<PK: PubKey> ChainManager<PK> {
         {
             return None;
         }
-        let (validators, total) = self.candidates.maybe_get_head()?;
-        // 1. We validate that genesis has a valid epoch (at least 1 stake).
-        // 2. We never allow fewer than config.min_validators candidates.
-        // 3. We never allow candidates with zero stake.
-        // Therefore, total should always be positive.
-        let total = NonZeroU128::new(total).unwrap();
-        // SAFETY: anything_unsigned + 1 > 0
-        let quorum = unsafe { NonZeroU128::new_unchecked(total.get() / 2 + 1) }
-            .clamp(self.config.min_quorum_stake, total);
-        Some(epoch::Epoch::new_unchecked(validators, quorum))
+        epoch::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
+            // SAFETY: 1. ‘total / 2 ≥ 0’ thus ‘total / 2 + 1 > 0’.
+            // 2. ‘total / 2 <= u128::MAX / 2’ thus ‘total / 2 + 1 < u128::MAX’.
+            let quorum =
+                unsafe { NonZeroU128::new_unchecked(total.get() / 2 + 1) };
+            // min_quorum_stake may be greater than total_stake so we’re not
+            // using .clamp to make sure we never return value higher than
+            // total_stake.
+            quorum.max(self.config.min_quorum_stake).min(total)
+        })
     }
 
     /// Adds a signature to pending block.

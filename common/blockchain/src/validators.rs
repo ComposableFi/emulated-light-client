@@ -45,7 +45,7 @@ pub struct Validator<PK> {
     stake: NonZeroU128,
 }
 
-impl<PK: PubKey> Validator<PK> {
+impl<PK> Validator<PK> {
     pub fn new(pubkey: PK, stake: NonZeroU128) -> Self {
         Self { version: crate::common::VersionZero, pubkey, stake }
     }
