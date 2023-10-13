@@ -211,8 +211,6 @@ impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
     }
 }
 
-
-
 impl<'a, 'b> core::ops::Deref for AccountTrie<'a, 'b> {
     type Target = sealable_trie::Trie<Allocator<'a, 'b>>;
     fn deref(&self) -> &Self::Target { &self.0 }
@@ -248,7 +246,6 @@ fn write<const L: usize, const R: usize, const N: usize>(
     *left = data;
     right
 }
-
 
 #[test]
 fn test_header_encoding() {

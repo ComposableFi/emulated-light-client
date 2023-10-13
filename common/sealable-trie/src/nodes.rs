@@ -483,7 +483,6 @@ impl<'a> ValueRef<'a, bool> {
     pub fn sealed(self) -> Self { Self { is_sealed: true, hash: self.hash } }
 }
 
-
 // =============================================================================
 // Conversions
 

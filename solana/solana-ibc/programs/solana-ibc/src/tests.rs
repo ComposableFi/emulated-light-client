@@ -89,7 +89,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
         .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig{
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )

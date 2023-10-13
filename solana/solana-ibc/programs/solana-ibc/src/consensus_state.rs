@@ -3,19 +3,16 @@ use ibc::core::ics02_client::consensus_state::ConsensusState;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics23_commitment::commitment::CommitmentRoot;
 use ibc::core::timestamp::Timestamp;
-
-use ibc_proto::google::protobuf::Any;
-use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
-use ibc_proto::protobuf::Protobuf;
-use serde::{Deserialize, Serialize};
-
-
 #[cfg(any(test, feature = "mocks"))]
 use ibc::mock::consensus_state::{
     MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
 };
+use ibc_proto::google::protobuf::Any;
+use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
 #[cfg(any(test, feature = "mocks"))]
 use ibc_proto::ibc::mock::ConsensusState as RawMockConsensusState;
+use ibc_proto::protobuf::Protobuf;
+use serde::{Deserialize, Serialize};
 
 const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ConsensusState";

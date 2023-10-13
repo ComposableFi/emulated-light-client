@@ -12,21 +12,19 @@ use ibc::core::ics24_host::identifier::ClientId;
 use ibc::core::ics24_host::path::{ClientConsensusStatePath, Path};
 use ibc::core::timestamp::Timestamp;
 use ibc::core::{ContextError, ValidationContext};
-
+#[cfg(any(test, feature = "mocks"))]
+use ibc::mock::client_state::{
+    MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
+};
 use ibc::{Any, Height};
 use ibc_proto::ibc::lightclients::tendermint::v1::ClientState as RawTmClientState;
+#[cfg(any(test, feature = "mocks"))]
+use ibc_proto::ibc::mock::ClientState as RawMockClientState;
 use ibc_proto::protobuf::Protobuf;
 use serde::{Deserialize, Serialize};
 
 use super::consensus_state::AnyConsensusState;
 use crate::SolanaIbcStorage;
-
-#[cfg(any(test, feature = "mocks"))]
-use ibc_proto::ibc::mock::ClientState as RawMockClientState;
-#[cfg(any(test, feature = "mocks"))]
-use ibc::mock::client_state::{
-    MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
-};
 
 const TENDERMINT_CLIENT_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ClientState";

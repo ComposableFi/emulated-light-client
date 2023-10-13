@@ -58,7 +58,11 @@ impl ClientExecutionContext for SolanaIbcStorage {
         consensus_state_path: ClientConsensusStatePath,
         consensus_state: Self::AnyConsensusState,
     ) -> Result {
-        msg!("store_consensus_state - path: {}, consensus_state: {:?}", consensus_state_path, consensus_state);
+        msg!(
+            "store_consensus_state - path: {}, consensus_state: {:?}",
+            consensus_state_path,
+            consensus_state
+        );
         let consensus_state_key = (
             consensus_state_path.client_id.to_string(),
             (consensus_state_path.epoch, consensus_state_path.height),

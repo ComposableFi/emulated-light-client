@@ -328,7 +328,6 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     }
 }
 
-
 #[cfg(test)]
 impl Trie<memory::test_utils::TestAllocator<Value>> {
     /// Creates a test trie using a TestAllocator with given capacity.
