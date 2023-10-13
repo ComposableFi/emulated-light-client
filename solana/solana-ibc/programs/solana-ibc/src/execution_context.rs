@@ -44,7 +44,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
         msg!(
             "store_client_state - path: {}, client_state: {:?}",
             client_state_path,
-            client_state
+            client_state,
         );
         let client_state_key = client_state_path.0.to_string();
         let serialized_client_state =
@@ -84,6 +84,7 @@ impl ExecutionContext for SolanaIbcStorage {
         height: Height,
         timestamp: Timestamp,
     ) -> Result {
+        msg!("I am here inside update time");
         msg!(
             "store_update_time - client_id: {}, height: {}, timestamp: {}",
             client_id,

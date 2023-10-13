@@ -1,3 +1,4 @@
+use anchor_lang::solana_program::msg;
 use ibc::clients::ics07_tendermint::client_state::ClientState as TmClientState;
 use ibc::core::ics02_client::client_state::{
     ClientStateCommon, ClientStateExecution, ClientStateValidation, UpdateKind,
@@ -164,14 +165,21 @@ impl ClientStateCommon for AnyClientState {
     }
 
     fn latest_height(&self) -> Height {
-        match self {
+        msg!("Fetching the height");
+        let height = match self {
             AnyClientState::Tendermint(client_state) => {
                 client_state.latest_height()
             }
             AnyClientState::Mock(mock_client_state) => {
+                msg!(
+                    "This is latest height {:?}",
+                    mock_client_state.latest_height()
+                );
                 mock_client_state.latest_height()
             }
-        }
+        };
+        msg!("This was the height {}", height);
+        height
     }
 
     fn validate_proof_height(

@@ -93,8 +93,10 @@ fn anchor_test_deliver() -> Result<()> {
     println!("demo sig: {sig}");
 
     // Retrieve and validate state
-    let _solana_ibc_storage_account: SolanaIbcStorage =
+    let solana_ibc_storage_account: SolanaIbcStorage =
         program.account(solana_ibc_storage).unwrap();
+
+    println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     Ok(())
 }

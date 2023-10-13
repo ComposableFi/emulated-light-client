@@ -46,16 +46,16 @@ pub mod solana_ibc {
             .collect::<Vec<_>>();
 
         msg!("These are messages {:?}", all_messages);
+        solana_ibc_store.channel_counter =
+            solana_ibc_store.channel_counter.checked_add(10).unwrap();
+        let router = &mut solana_ibc_store.clone();
 
         let errors =
             all_messages.into_iter().fold(vec![], |mut errors, msg| {
                 match ibc::core::MsgEnvelope::try_from(msg) {
                     Ok(msg) => {
-                        match ibc::core::dispatch(
-                            &mut solana_ibc_store.clone(),
-                            solana_ibc_store,
-                            msg,
-                        ) {
+                        match ibc::core::dispatch(solana_ibc_store, router, msg)
+                        {
                             Ok(()) => (),
                             Err(e) => errors.push(e),
                         }
@@ -66,6 +66,7 @@ pub mod solana_ibc {
             });
 
         msg!("These are errors {:?}", errors);
+        msg!("This is final structure {:?}", solana_ibc_store);
 
         Ok(())
     }
