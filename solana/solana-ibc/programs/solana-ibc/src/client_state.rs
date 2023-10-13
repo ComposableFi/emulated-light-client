@@ -12,17 +12,21 @@ use ibc::core::ics24_host::identifier::ClientId;
 use ibc::core::ics24_host::path::{ClientConsensusStatePath, Path};
 use ibc::core::timestamp::Timestamp;
 use ibc::core::{ContextError, ValidationContext};
-use ibc::mock::client_state::{
-    MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
-};
+
 use ibc::{Any, Height};
 use ibc_proto::ibc::lightclients::tendermint::v1::ClientState as RawTmClientState;
-use ibc_proto::ibc::mock::ClientState as RawMockClientState;
 use ibc_proto::protobuf::Protobuf;
 use serde::{Deserialize, Serialize};
 
 use super::consensus_state::AnyConsensusState;
 use crate::SolanaIbcStorage;
+
+#[cfg(any(test, feature = "mocks"))]
+use ibc_proto::ibc::mock::ClientState as RawMockClientState;
+#[cfg(any(test, feature = "mocks"))]
+use ibc::mock::client_state::{
+    MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
+};
 
 const TENDERMINT_CLIENT_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ClientState";
@@ -30,6 +34,7 @@ const TENDERMINT_CLIENT_STATE_TYPE_URL: &str =
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
+    #[cfg(any(test, feature = "mocks"))]
     Mock(MockClientState),
 }
 
@@ -47,6 +52,7 @@ impl TryFrom<Any> for AnyClientState {
                     },
                 )?,
             )),
+            #[cfg(any(test, feature = "mocks"))]
             MOCK_CLIENT_STATE_TYPE_URL => Ok(AnyClientState::Mock(
                 Protobuf::<RawMockClientState>::decode_vec(&raw.value)
                     .map_err(|e| ClientError::ClientSpecific {
@@ -67,6 +73,7 @@ impl From<AnyClientState> for Any {
                 type_url: TENDERMINT_CLIENT_STATE_TYPE_URL.to_string(),
                 value: Protobuf::<RawTmClientState>::encode_vec(&client_state),
             },
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => Any {
                 type_url: MOCK_CLIENT_STATE_TYPE_URL.to_string(),
                 value: Protobuf::<RawMockClientState>::encode_vec(
@@ -93,6 +100,7 @@ impl ClientStateValidation<SolanaIbcStorage> for AnyClientState {
                     client_message,
                     update_kind,
                 ),
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => mock_client_state
                 .verify_client_message(
                     ctx,
@@ -118,6 +126,7 @@ impl ClientStateValidation<SolanaIbcStorage> for AnyClientState {
                     client_message,
                     update_kind,
                 ),
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => mock_client_state
                 .check_for_misbehaviour(
                     ctx,
@@ -147,6 +156,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.verify_consensus_state(consensus_state)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => {
                 mock_client_state.verify_consensus_state(consensus_state)
             }
@@ -158,6 +168,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.client_type()
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => {
                 mock_client_state.client_type()
             }
@@ -170,6 +181,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.latest_height()
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(mock_client_state) => {
                 msg!(
                     "This is latest height {:?}",
@@ -190,6 +202,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.validate_proof_height(proof_height)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => {
                 client_state.validate_proof_height(proof_height)
             }
@@ -213,6 +226,7 @@ impl ClientStateCommon for AnyClientState {
                     proof_upgrade_consensus_state,
                     root,
                 ),
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => client_state
                 .verify_upgrade_client(
                     upgraded_client_state,
@@ -236,6 +250,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.verify_membership(prefix, proof, root, path, value)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => {
                 client_state.verify_membership(prefix, proof, root, path, value)
             }
@@ -253,6 +268,7 @@ impl ClientStateCommon for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.verify_non_membership(prefix, proof, root, path)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => {
                 client_state.verify_non_membership(prefix, proof, root, path)
             }
@@ -264,6 +280,7 @@ impl From<TmClientState> for AnyClientState {
     fn from(value: TmClientState) -> Self { AnyClientState::Tendermint(value) }
 }
 
+#[cfg(any(test, feature = "mocks"))]
 impl From<MockClientState> for AnyClientState {
     fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
 }
@@ -279,6 +296,7 @@ impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.initialise(ctx, client_id, consensus_state)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => {
                 client_state.initialise(ctx, client_id, consensus_state)
             }
@@ -295,6 +313,7 @@ impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
             AnyClientState::Tendermint(client_state) => {
                 client_state.update_state(ctx, client_id, header)
             }
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => {
                 client_state.update_state(ctx, client_id, header)
             }
@@ -316,6 +335,7 @@ impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
                     client_message,
                     update_kind,
                 ),
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => client_state
                 .update_state_on_misbehaviour(
                     ctx,
@@ -341,6 +361,7 @@ impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
                     upgraded_client_state,
                     upgraded_consensus_state,
                 ),
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(client_state) => client_state
                 .update_state_on_upgrade(
                     ctx,
@@ -365,6 +386,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for SolanaIbcStorage {
     }
 }
 
+#[cfg(any(test, feature = "mocks"))]
 impl MockClientContext for SolanaIbcStorage {
     type ConversionError = ClientError;
     type AnyConsensusState = AnyConsensusState;

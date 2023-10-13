@@ -3,14 +3,19 @@ use ibc::core::ics02_client::consensus_state::ConsensusState;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics23_commitment::commitment::CommitmentRoot;
 use ibc::core::timestamp::Timestamp;
+
+use ibc_proto::google::protobuf::Any;
+use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
+use ibc_proto::protobuf::Protobuf;
+use serde::{Deserialize, Serialize};
+
+
+#[cfg(any(test, feature = "mocks"))]
 use ibc::mock::consensus_state::{
     MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
 };
-use ibc_proto::google::protobuf::Any;
-use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
+#[cfg(any(test, feature = "mocks"))]
 use ibc_proto::ibc::mock::ConsensusState as RawMockConsensusState;
-use ibc_proto::protobuf::Protobuf;
-use serde::{Deserialize, Serialize};
 
 const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ConsensusState";
@@ -19,6 +24,7 @@ const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
 #[serde(tag = "type")]
 pub enum AnyConsensusState {
     Tendermint(TmConsensusState),
+    #[cfg(any(test, feature = "mocks"))]
     Mock(MockConsensusState),
 }
 
@@ -37,6 +43,7 @@ impl TryFrom<Any> for AnyConsensusState {
                     })?,
                 ))
             }
+            #[cfg(any(test, feature = "mocks"))]
             MOCK_CONSENSUS_STATE_TYPE_URL => Ok(AnyConsensusState::Mock(
                 Protobuf::<RawMockConsensusState>::decode_vec(&value.value)
                     .map_err(|e| ClientError::ClientSpecific {
@@ -57,6 +64,7 @@ impl From<AnyConsensusState> for Any {
                 type_url: TENDERMINT_CONSENSUS_STATE_TYPE_URL.to_string(),
                 value: Protobuf::<RawTmConsensusState>::encode_vec(&value),
             },
+            #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => Any {
                 type_url: MOCK_CONSENSUS_STATE_TYPE_URL.to_string(),
                 value: Protobuf::<RawMockConsensusState>::encode_vec(&value),
@@ -71,6 +79,7 @@ impl From<TmConsensusState> for AnyConsensusState {
     }
 }
 
+#[cfg(any(test, feature = "mocks"))]
 impl From<MockConsensusState> for AnyConsensusState {
     fn from(value: MockConsensusState) -> Self {
         AnyConsensusState::Mock(value)
@@ -81,6 +90,7 @@ impl ConsensusState for AnyConsensusState {
     fn root(&self) -> &CommitmentRoot {
         match self {
             AnyConsensusState::Tendermint(value) => value.root(),
+            #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => value.root(),
         }
     }
@@ -88,6 +98,7 @@ impl ConsensusState for AnyConsensusState {
     fn timestamp(&self) -> Timestamp {
         match self {
             AnyConsensusState::Tendermint(value) => value.timestamp(),
+            #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => value.timestamp(),
         }
     }
@@ -97,6 +108,7 @@ impl ConsensusState for AnyConsensusState {
             AnyConsensusState::Tendermint(value) => {
                 ibc::core::ics02_client::consensus_state::ConsensusState::encode_vec(value)
             },
+            #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => {
                 ibc::core::ics02_client::consensus_state::ConsensusState::encode_vec(value)
             }
@@ -117,6 +129,7 @@ impl TryInto<ibc::clients::ics07_tendermint::consensus_state::ConsensusState>
     > {
         match self {
             AnyConsensusState::Tendermint(value) => Ok(value),
+            #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(_) => Err(ClientError::Other {
                 description: "Cannot convert mock consensus state to \
                               tendermint"
@@ -126,6 +139,7 @@ impl TryInto<ibc::clients::ics07_tendermint::consensus_state::ConsensusState>
     }
 }
 
+#[cfg(any(test, feature = "mocks"))]
 impl TryInto<ibc::mock::consensus_state::MockConsensusState>
     for AnyConsensusState
 {
