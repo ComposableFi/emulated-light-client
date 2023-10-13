@@ -113,6 +113,7 @@ impl borsh::BorshDeserialize for VarInt<u32> {
     }
 }
 
+
 /// Small on-stack buffer.
 ///
 /// # Example
