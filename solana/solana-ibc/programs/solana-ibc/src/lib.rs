@@ -46,8 +46,6 @@ pub mod solana_ibc {
             .collect::<Vec<_>>();
 
         msg!("These are messages {:?}", all_messages);
-        solana_ibc_store.channel_counter =
-            solana_ibc_store.channel_counter.checked_add(10).unwrap();
         let router = &mut solana_ibc_store.clone();
 
         let errors =
