@@ -370,7 +370,9 @@ impl ExecutionContext for SolanaIbcStorage {
         Ok(())
     }
 
-    fn get_client_execution_context(&mut self) -> &mut Self::E { self }
+    fn get_client_execution_context(&mut self) -> &mut Self::E {
+        self
+    }
 }
 
 fn record_packet_sequence(

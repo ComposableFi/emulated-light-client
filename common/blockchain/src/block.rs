@@ -60,8 +60,8 @@ pub enum GenerateError {
 impl<PK: PubKey> Block<PK> {
     /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
-        self.prev_block_hash == CryptoHash::DEFAULT &&
-            self.epoch_id == CryptoHash::DEFAULT
+        self.prev_block_hash == CryptoHash::DEFAULT
+            && self.epoch_id == CryptoHash::DEFAULT
     }
 
     /// Calculates hash of the block.

@@ -88,11 +88,15 @@ impl<'a> Slice<'a> {
 
     /// Returns length of the slice in bits.
     #[inline]
-    pub fn len(&self) -> u16 { self.length }
+    pub fn len(&self) -> u16 {
+        self.length
+    }
 
     /// Returns whether the slice is empty.
     #[inline]
-    pub fn is_empty(&self) -> bool { self.length == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.length == 0
+    }
 
     /// Returns the first bit in the slice advances the slice by one position.
     ///
@@ -210,7 +214,9 @@ impl<'a> Slice<'a> {
     /// may be shorter than 272 bits (i.e. 34 * 8) however it will span full 34
     /// bytes.
     #[inline]
-    pub fn chunks(&self) -> Chunks<'a> { Chunks(*self) }
+    pub fn chunks(&self) -> Chunks<'a> {
+        Chunks(*self)
+    }
 
     /// Splits slice into two at given index.
     ///
@@ -372,10 +378,10 @@ impl<'a> Slice<'a> {
     fn check_bytes(bytes: &[u8], offset: u8, length: u16) -> bool {
         let (front, back) = Self::masks(offset, length);
         let bytes_len = (usize::from(offset) + usize::from(length) + 7) / 8;
-        bytes_len <= bytes.len() &&
-            (bytes[0] & !front) == 0 &&
-            (bytes[bytes_len - 1] & !back) == 0 &&
-            bytes[bytes_len..].iter().all(|&b| b == 0)
+        bytes_len <= bytes.len()
+            && (bytes[0] & !front) == 0
+            && (bytes[bytes_len - 1] & !back) == 0
+            && bytes[bytes_len..].iter().all(|&b| b == 0)
     }
 
     /// Returns total number of underlying bits, i.e. bits in the slice plus the
@@ -529,9 +535,9 @@ impl core::cmp::PartialEq for Slice<'_> {
         if len == 1 {
             ((lhs[0] ^ rhs[0]) & front & back) == 0
         } else {
-            ((lhs[0] ^ rhs[0]) & front) == 0 &&
-                ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0 &&
-                lhs[1..len - 1] == rhs[1..len - 1]
+            ((lhs[0] ^ rhs[0]) & front) == 0
+                && ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0
+                && lhs[1..len - 1] == rhs[1..len - 1]
         }
     }
 }

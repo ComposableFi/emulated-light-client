@@ -38,7 +38,9 @@ impl CryptoHash {
     /// Returns a builder which can be used to construct cryptographic hash by
     /// digesting bytes.
     #[inline]
-    pub fn builder() -> Builder { Builder::default() }
+    pub fn builder() -> Builder {
+        Builder::default()
+    }
 
     /// Returns hash of given bytes.
     #[inline]
@@ -87,7 +89,9 @@ impl CryptoHash {
 
     /// Returns a shared reference to the hash as slice of bytes.
     #[inline]
-    pub fn as_slice(&self) -> &[u8] { &self.0[..] }
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
 }
 
 impl core::fmt::Display for CryptoHash {
@@ -119,7 +123,9 @@ impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for CryptoHash {
 
 impl From<&'_ CryptoHash> for [u8; CryptoHash::LENGTH] {
     #[inline]
-    fn from(hash: &'_ CryptoHash) -> Self { hash.0 }
+    fn from(hash: &'_ CryptoHash) -> Self {
+        hash.0
+    }
 }
 
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for &'a CryptoHash {
@@ -184,11 +190,15 @@ pub struct Builder(sha2::Sha256);
 impl Builder {
     /// Process data, updating the internal state of the digest.
     #[inline]
-    pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
+    pub fn update(&mut self, bytes: &[u8]) {
+        self.0.update(bytes)
+    }
 
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
-    pub fn build(self) -> CryptoHash { CryptoHash(self.0.finalize().into()) }
+    pub fn build(self) -> CryptoHash {
+        CryptoHash(self.0.finalize().into())
+    }
 }
 
 #[cfg(feature = "borsh")]
@@ -202,7 +212,9 @@ impl io::Write for Builder {
         Ok(self.update(buf))
     }
 
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[test]

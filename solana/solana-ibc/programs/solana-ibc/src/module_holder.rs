@@ -9,7 +9,9 @@ pub struct ModuleHolder {
 }
 
 impl ModuleHolder {
-    pub fn new(account: Pubkey) -> Self { Self { account } }
+    pub fn new(account: Pubkey) -> Self {
+        Self { account }
+    }
     ///
     pub fn get_module_id(&self, port_id: &PortId) -> Option<ModuleId> {
         match port_id.as_str() {

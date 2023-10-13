@@ -99,7 +99,9 @@ impl Proof {
     }
 
     /// Creates a builder which allows creation of proofs.
-    pub(crate) fn builder() -> Builder { Builder(Vec::new()) }
+    pub(crate) fn builder() -> Builder {
+        Builder(Vec::new())
+    }
 }
 
 impl Membership {
@@ -254,7 +256,9 @@ impl Item {
 
 impl Builder {
     /// Adds a new item to the proof.
-    pub fn push(&mut self, item: Item) { self.0.push(item); }
+    pub fn push(&mut self, item: Item) {
+        self.0.push(item);
+    }
 
     /// Reverses order of items in the builder.
     ///
@@ -268,7 +272,9 @@ impl Builder {
     }
 
     /// Constructs a new membership proof from added items.
-    pub fn build<T: From<Membership>>(self) -> T { T::from(Membership(self.0)) }
+    pub fn build<T: From<Membership>>(self) -> T {
+        T::from(Membership(self.0))
+    }
 
     /// Constructs a new non-membership proof from added items and given
     /// ‘actual’ entry.
@@ -332,11 +338,17 @@ impl Builder {
 
 impl OwnedRef {
     /// Creates a reference pointing at node with given hash.
-    fn node(hash: CryptoHash) -> Self { Self { is_value: false, hash } }
+    fn node(hash: CryptoHash) -> Self {
+        Self { is_value: false, hash }
+    }
     /// Creates a reference pointing at value with given hash.
-    fn value(hash: CryptoHash) -> Self { Self { is_value: true, hash } }
+    fn value(hash: CryptoHash) -> Self {
+        Self { is_value: true, hash }
+    }
     /// Creates a reference pointing at given node.
-    fn to<P, S>(node: Node<P, S>) -> Self { Self::node(node.hash()) }
+    fn to<P, S>(node: Node<P, S>) -> Self {
+        Self::node(node.hash())
+    }
 
     #[cfg(test)]
     #[allow(dead_code)]
@@ -356,11 +368,15 @@ impl<'a, P, S> From<&'a Reference<'a, P, S>> for OwnedRef {
 }
 
 impl<'a, P, S> From<Reference<'a, P, S>> for OwnedRef {
-    fn from(rf: Reference<'a, P, S>) -> OwnedRef { Self::from(&rf) }
+    fn from(rf: Reference<'a, P, S>) -> OwnedRef {
+        Self::from(&rf)
+    }
 }
 
 impl<'a> From<&'a OwnedRef> for Reference<'a, (), ()> {
-    fn from(rf: &'a OwnedRef) -> Self { Self::new(rf.is_value, &rf.hash) }
+    fn from(rf: &'a OwnedRef) -> Self {
+        Self::new(rf.is_value, &rf.hash)
+    }
 }
 
 #[test]

@@ -104,15 +104,17 @@ impl borsh::BorshDeserialize for VarInt<u32> {
     #[inline]
     fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         read_u32(|| u8::deserialize_reader(reader)).map(Self).map_err(|err| {
-            io::Error::new(io::ErrorKind::InvalidData, match err {
-                ReadError::ReaderError(err) => return err,
-                ReadError::Overlong => "overlong",
-                ReadError::Overflow => "overflow",
-            })
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                match err {
+                    ReadError::ReaderError(err) => return err,
+                    ReadError::Overlong => "overlong",
+                    ReadError::Overflow => "overflow",
+                },
+            )
         })
     }
 }
-
 
 /// Small on-stack buffer.
 ///
@@ -135,7 +137,9 @@ pub struct Buffer<const N: usize> {
 }
 
 impl<const N: usize> Buffer<N> {
-    fn new() -> Self { Self { len: 0, data: [0; N] } }
+    fn new() -> Self {
+        Self { len: 0, data: [0; N] }
+    }
 
     fn push_or_panic(&mut self, byte: u8) {
         self.data[usize::from(self.len)] = byte;
@@ -152,12 +156,16 @@ impl<const N: usize> Buffer<N> {
 impl<const N: usize> core::ops::Deref for Buffer<N> {
     type Target = [u8];
     #[inline]
-    fn deref(&self) -> &[u8] { self.as_slice() }
+    fn deref(&self) -> &[u8] {
+        self.as_slice()
+    }
 }
 
 impl<const N: usize> core::convert::AsRef<[u8]> for Buffer<N> {
     #[inline]
-    fn as_ref(&self) -> &[u8] { self.as_slice() }
+    fn as_ref(&self) -> &[u8] {
+        self.as_slice()
+    }
 }
 
 #[cfg(test)]

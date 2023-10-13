@@ -160,7 +160,9 @@ impl<PK: PubKey> Candidates<PK> {
         Ok(())
     }
 
-    fn max_validators(&self) -> usize { usize::from(self.max_validators.get()) }
+    fn max_validators(&self) -> usize {
+        usize::from(self.max_validators.get())
+    }
 
     /// Adds a new candidate at given position.
     ///

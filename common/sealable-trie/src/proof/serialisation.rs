@@ -281,7 +281,6 @@ fn invalid_data(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, msg)
 }
 
-
 #[test]
 fn test_item_borsh() {
     #[track_caller]
@@ -466,9 +465,10 @@ fn test_proof_borsh() {
         &[4, 32, 42, 32, 42],
     );
     test(Proof::Negative(super::NonMembership(None, vec![])), &[1]);
-    test(Proof::Negative(super::NonMembership(None, vec![item.clone()])), &[
-        3, 32, 42,
-    ]);
+    test(
+        Proof::Negative(super::NonMembership(None, vec![item.clone()])),
+        &[3, 32, 42],
+    );
     test(
         Proof::Negative(super::NonMembership(
             Some(actual.clone().into()),

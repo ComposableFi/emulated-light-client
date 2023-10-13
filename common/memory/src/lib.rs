@@ -192,7 +192,9 @@ impl<'a, A: Allocator> WriteLog<'a, A> {
     }
 
     /// Returns underlying allocator.
-    pub fn allocator(&self) -> &A { &*self.alloc }
+    pub fn allocator(&self) -> &A {
+        &*self.alloc
+    }
 
     pub fn alloc(&mut self, value: A::Value) -> Result<Ptr, OutOfMemory> {
         let ptr = self.alloc.alloc(value)?;
@@ -204,7 +206,9 @@ impl<'a, A: Allocator> WriteLog<'a, A> {
         self.write_log.push((ptr, value))
     }
 
-    pub fn free(&mut self, ptr: Ptr) { self.freed.push(ptr); }
+    pub fn free(&mut self, ptr: Ptr) {
+        self.freed.push(ptr);
+    }
 }
 
 impl<'a, A: Allocator> core::ops::Drop for WriteLog<'a, A> {
@@ -235,7 +239,9 @@ pub mod test_utils {
             Self { count: 0, pool, free_list: Default::default() }
         }
 
-        pub fn count(&self) -> usize { self.count }
+        pub fn count(&self) -> usize {
+            self.count
+        }
 
         /// Gets index in the memory pool for the given pointer.
         ///

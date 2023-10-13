@@ -19,7 +19,9 @@ fn do_test_inserts<'a>(
 }
 
 #[test]
-fn test_msb_difference() { do_test_inserts([&[0][..], &[0x80][..]], true); }
+fn test_msb_difference() {
+    do_test_inserts([&[0][..], &[0x80][..]], true);
+}
 
 #[test]
 fn test_sequence() {
@@ -86,11 +88,15 @@ struct Key {
 }
 
 impl Key {
-    fn as_bytes(&self) -> &[u8] { &self.buf[..usize::from(self.len)] }
+    fn as_bytes(&self) -> &[u8] {
+        &self.buf[..usize::from(self.len)]
+    }
 }
 
 impl core::cmp::PartialEq for Key {
-    fn eq(&self, other: &Self) -> bool { self.as_bytes() == other.as_bytes() }
+    fn eq(&self, other: &Self) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
 }
 
 impl core::cmp::PartialOrd for Key {

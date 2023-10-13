@@ -50,9 +50,13 @@ impl<PK> Validator<PK> {
         Self { version: crate::common::VersionZero, pubkey, stake }
     }
 
-    pub fn pubkey(&self) -> &PK { &self.pubkey }
+    pub fn pubkey(&self) -> &PK {
+        &self.pubkey
+    }
 
-    pub fn stake(&self) -> NonZeroU128 { self.stake }
+    pub fn stake(&self) -> NonZeroU128 {
+        self.stake
+    }
 }
 
 #[cfg(test)]

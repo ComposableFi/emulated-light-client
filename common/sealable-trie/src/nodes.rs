@@ -196,8 +196,8 @@ impl<'a, P, S> Node<'a, P, S> {
             Node::Branch { children: [left, right] } => {
                 // tag = 0b0000_00xy where x and y indicate whether left and
                 // right children respectively are value references.
-                let tag = (u8::from(left.is_value()) << 1) |
-                    u8::from(right.is_value());
+                let tag = (u8::from(left.is_value()) << 1)
+                    | u8::from(right.is_value());
                 tag_hash_hash(&mut buf, tag, left.hash(), right.hash())
             }
             Node::Value { value, child } => {
@@ -339,10 +339,14 @@ impl RawNode {
     }
 
     /// Returns the first byte in the raw representation.
-    fn first(&self) -> u8 { self.0[0] }
+    fn first(&self) -> u8 {
+        self.0[0]
+    }
 
     /// Splits the raw byte representation in two halfs.
-    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) { stdx::split_array_ref(&self.0) }
+    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) {
+        stdx::split_array_ref(&self.0)
+    }
 
     /// Splits the raw byte representation in two halfs.
     fn halfs_mut(&mut self) -> (&mut [u8; 36], &mut [u8; 36]) {
@@ -352,10 +356,14 @@ impl RawNode {
 
 impl<'a, P, S> Reference<'a, P, S> {
     /// Returns whether the reference is to a node.
-    pub fn is_node(&self) -> bool { matches!(self, Self::Node(_)) }
+    pub fn is_node(&self) -> bool {
+        matches!(self, Self::Node(_))
+    }
 
     /// Returns whether the reference is to a value.
-    pub fn is_value(&self) -> bool { matches!(self, Self::Value(_)) }
+    pub fn is_value(&self) -> bool {
+        matches!(self, Self::Value(_))
+    }
 
     /// Returns node’s or value’s hash depending on type of reference.
     ///
@@ -460,13 +468,17 @@ impl<'a> Reference<'a, (), ()> {
 impl<'a, P> NodeRef<'a, P> {
     /// Constructs a new node reference.
     #[inline]
-    pub fn new(ptr: P, hash: &'a CryptoHash) -> Self { Self { ptr, hash } }
+    pub fn new(ptr: P, hash: &'a CryptoHash) -> Self {
+        Self { ptr, hash }
+    }
 }
 
 impl<'a> NodeRef<'a, Option<Ptr>> {
     /// Returns sealed version of the reference.  The hash remains unchanged.
     #[inline]
-    pub fn sealed(self) -> Self { Self { ptr: None, hash: self.hash } }
+    pub fn sealed(self) -> Self {
+        Self { ptr: None, hash: self.hash }
+    }
 }
 
 impl<'a, S> ValueRef<'a, S> {
@@ -480,9 +492,10 @@ impl<'a, S> ValueRef<'a, S> {
 impl<'a> ValueRef<'a, bool> {
     /// Returns sealed version of the reference.  The hash remains unchanged.
     #[inline]
-    pub fn sealed(self) -> Self { Self { is_sealed: true, hash: self.hash } }
+    pub fn sealed(self) -> Self {
+        Self { is_sealed: true, hash: self.hash }
+    }
 }
-
 
 // =============================================================================
 // Conversions
