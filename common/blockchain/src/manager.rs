@@ -9,7 +9,7 @@ use lib::hash::CryptoHash;
 use crate::candidates::Candidates;
 pub use crate::candidates::UpdateCandidateError;
 use crate::height::HostHeight;
-use crate::validators::{PubKey, Signature};
+use crate::validators::PubKey;
 use crate::{block, chain, epoch};
 
 pub struct ChainManager<PK> {
@@ -45,12 +45,12 @@ pub struct ChainManager<PK> {
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: block::Block<PK>,
-    /// Hash of the block.
+    /// Fingerprint of the block.
     ///
-    /// This is what validators are signing.  It equals `next_block.calc_hash()`
-    /// and we’re keeping it as a field to avoid having to hash the block each
-    /// time.
-    hash: CryptoHash,
+    /// This is what validators are signing.  It equals
+    /// `next_block.calc_fingerprint()` and we’re keeping it as a field to avoid
+    /// having to hash the block each time.
+    fingerprint: [u8; 40],
     /// Validators who so far submitted valid signatures for the block.
     signers: Set<PK>,
     /// Sum of stake of validators who have signed the block.
@@ -138,7 +138,7 @@ impl<PK: PubKey> ChainManager<PK> {
             next_epoch,
         )?;
         self.pending_block = Some(PendingBlock {
-            hash: next_block.calc_hash(),
+            fingerprint: next_block.calc_fingerprint(),
             next_block,
             signers: Set::new(),
             signing_stake: 0,
@@ -196,7 +196,7 @@ impl<PK: PubKey> ChainManager<PK> {
         if pending.signers.contains(&pubkey) {
             return Ok(false);
         }
-        if !signature.verify(&pending.hash, &pubkey) {
+        if !pubkey.verify(&pending.fingerprint[..], signature) {
             return Err(AddSignatureError::BadSignature);
         }
 

@@ -9,11 +9,11 @@ borsh.workspace = true
 derive_more.workspace = true
 
 lib = { workspace = true, features = ["borsh"] }
+stdx.workspace = true
 
 [dev-dependencies]
 lib = { workspace = true, features = ["borsh", "test_utils"] }
 rand.workspace = true
-stdx.workspace = true
 
 [features]
 std = []

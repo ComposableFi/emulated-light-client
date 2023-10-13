@@ -11,22 +11,18 @@ pub trait PubKey:
     + borsh::BorshDeserialize
 {
     /// Signature corresponding to this public key type.
-    type Signature: Signature<PubKey = Self>;
+    type Signature: Clone + borsh::BorshSerialize + borsh::BorshDeserialize;
+
+    /// Verifies the signature for given message.
+    fn verify(&self, message: &[u8], signature: &Self::Signature) -> bool;
 }
 
-/// A cryptographic signature.
-pub trait Signature:
-    Clone + borsh::BorshSerialize + borsh::BorshDeserialize
-{
-    /// Public key type which can verify the signature.
-    type PubKey: PubKey<Signature = Self>;
+pub trait Signer {
+    /// Signature created by this signer.
+    type Signature: Clone + borsh::BorshSerialize + borsh::BorshDeserialize;
 
-    /// Verifies that the signature of a given hash is correct.
-    fn verify(
-        &self,
-        message: &lib::hash::CryptoHash,
-        pk: &Self::PubKey,
-    ) -> bool;
+    /// Signs given message.
+    fn sign(&self, message: &[u8]) -> Self::Signature;
 }
 
 /// A validator
@@ -57,9 +53,6 @@ impl<PK> Validator<PK> {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
-
-    use super::*;
-
     /// A mock implementation of a PubKey.  Offers no security; intended for
     /// tests only.
     #[derive(
@@ -76,7 +69,23 @@ pub(crate) mod test_utils {
     )]
     pub struct MockPubKey(pub u32);
 
-    /// A mock implementation of a Signature.  Offers no security; intended for
+    /// A mock implementation of a Signer.  Offers no security; intended for
+    /// tests only.
+    #[derive(
+        Clone,
+        Copy,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+        Hash,
+        borsh::BorshSerialize,
+        borsh::BorshDeserialize,
+        derive_more::From,
+    )]
+    pub struct MockSigner(pub MockPubKey);
+
+    /// A mock implementation of a signature.  Offers no security; intended for
     /// tests only.
     #[derive(
         Clone,
@@ -89,52 +98,56 @@ pub(crate) mod test_utils {
         borsh::BorshSerialize,
         borsh::BorshDeserialize,
     )]
-    pub struct MockSignature(pub u32, pub MockPubKey);
+    pub struct MockSignature(pub u64, pub u32, pub MockPubKey);
 
     impl core::fmt::Debug for MockPubKey {
+        #[inline]
         fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             write!(fmt, "⚷{}", self.0)
         }
     }
 
-    impl core::fmt::Debug for MockSignature {
+    impl core::fmt::Debug for MockSigner {
+        #[inline]
         fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(fmt, "Sig({} by {:?})", self.0, self.1)
+            self.0.fmt(fmt)
+        }
+    }
+
+    impl core::fmt::Debug for MockSignature {
+        #[inline]
+        fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            write!(fmt, "Sig({}/{:x} by {:?})", self.0, self.1, self.2)
         }
     }
 
     impl super::PubKey for MockPubKey {
         type Signature = MockSignature;
-    }
 
-    impl MockSignature {
-        pub fn new(message: &[u8], pk: MockPubKey) -> Self {
-            Self(Self::hash_message(message), pk)
-        }
-
-        fn hash_message(message: &[u8]) -> u32 {
-            Self::cut_hash(&lib::hash::CryptoHash::digest(message))
-        }
-
-        fn cut_hash(hash: &lib::hash::CryptoHash) -> u32 {
-            let hash = hash.into();
-            let (head, _) = stdx::split_array_ref::<4, 28, 32>(&hash);
-            u32::from_be_bytes(*head)
+        fn verify(&self, message: &[u8], signature: &Self::Signature) -> bool {
+            let (height, hash) = split_message(message);
+            signature.0 == height && signature.1 == hash && &signature.2 == self
         }
     }
 
-    impl Signature for MockSignature {
-        type PubKey = MockPubKey;
+    impl super::Signer for MockSigner {
+        type Signature = MockSignature;
 
-        fn verify(
-            &self,
-            message: &lib::hash::CryptoHash,
-            pk: &Self::PubKey,
-        ) -> bool {
-            self.0 == Self::cut_hash(message) && &self.1 == pk
+        fn sign(&self, message: &[u8]) -> Self::Signature {
+            let (height, hash) = split_message(message);
+            MockSignature(height, hash, self.0)
         }
+    }
+
+    fn split_message(message: &[u8]) -> (u64, u32) {
+        let message: &[u8; 40] = message.try_into().unwrap();
+        let (height, hash) = stdx::split_array_ref::<8, 32, 40>(message);
+        let (hash, _) = stdx::split_array_ref::<4, 28, 32>(hash);
+        let height = u64::from_be_bytes(*height);
+        let hash = u32::from_be_bytes(*hash);
+        (height, hash)
     }
 }
 
 #[cfg(test)]
-pub(crate) use test_utils::{MockPubKey, MockSignature};
+pub(crate) use test_utils::{MockPubKey, MockSignature, MockSigner};

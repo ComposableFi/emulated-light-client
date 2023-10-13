@@ -2,7 +2,7 @@ use lib::hash::CryptoHash;
 
 use crate::epoch;
 use crate::height::{BlockHeight, HostHeight};
-use crate::validators::PubKey;
+use crate::validators::{PubKey, Signer};
 
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 
@@ -71,18 +71,31 @@ impl<PK: PubKey> Block<PK> {
         builder.build()
     }
 
-    /// Sign the block using provided signer function.
-    pub fn sign(
-        &self,
-        // TODO(mina86): Consider using signature::Signer.
-        signer: impl FnOnce(&[u8]) -> Result<PK::Signature>,
-    ) -> Result<PK::Signature> {
-        borsh::to_vec(self).and_then(|vec| signer(vec.as_slice()))
+    /// Calculates block’s fingerprint.
+    ///
+    /// Fingerprint is a concatenation of block height and block hash.  It’s
+    /// what validators sign when signing a block.
+    pub(crate) fn calc_fingerprint(&self) -> [u8; 40] {
+        let mut buf = [0; 40];
+        let (height, hash) = stdx::split_array_mut(&mut buf);
+        *height = u64::from(self.block_height).to_be_bytes();
+        *hash = self.calc_hash().0;
+        buf
     }
 
-    #[cfg(test)]
-    fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
-        crate::validators::Signature::verify(signature, &self.calc_hash(), pk)
+    /// Signs the block.
+    pub fn sign<S>(&self, signer: &S) -> PK::Signature
+    where
+        S: Signer<Signature = PK::Signature>,
+    {
+        let fp = self.calc_fingerprint();
+        signer.sign(&fp[..])
+    }
+
+    /// Verifies signature for the block.
+    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
+        let fp = self.calc_fingerprint();
+        pk.verify(&fp[..], signature)
     }
 
     /// Constructs next block.
@@ -150,7 +163,7 @@ impl<PK: PubKey> Block<PK> {
 
 #[test]
 fn test_block_generation() {
-    use crate::validators::{MockPubKey, MockSignature};
+    use crate::validators::{MockPubKey, MockSignature, MockSigner};
 
     // Generate a genesis block and test it’s behaviour.
     let genesis_hash = "Zq3s+b7x6R8tKV1iQtByAWqlDMXVVD9tSDOlmuLH7wI=";
@@ -179,12 +192,13 @@ fn test_block_generation() {
     assert_ne!(genesis_hash, block.calc_hash());
 
     let pk = MockPubKey(77);
-    let signature =
-        genesis.sign(|msg| Ok(MockSignature::new(msg, pk))).unwrap();
-    assert_eq!(MockSignature(1722674425, pk), signature);
+    let signer = MockSigner(pk);
+    let signature = genesis.sign(&signer);
+    assert_eq!(MockSignature(0, 1722674425, pk), signature);
     assert!(genesis.verify(&pk, &signature));
     assert!(!genesis.verify(&MockPubKey(88), &signature));
-    assert!(!genesis.verify(&pk, &MockSignature(0, pk)));
+    assert!(!genesis.verify(&pk, &MockSignature(1, 1722674425, pk)));
+    assert!(!genesis.verify(&pk, &MockSignature(0, 0, pk)));
 
     let mut block = genesis.clone();
     block.host_timestamp += 1;
