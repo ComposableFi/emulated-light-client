@@ -213,15 +213,11 @@ impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
 
 impl<'a, 'b> core::ops::Deref for AccountTrie<'a, 'b> {
     type Target = sealable_trie::Trie<Allocator<'a, 'b>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl<'a, 'b> core::ops::DerefMut for AccountTrie<'a, 'b> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 /// Reads fixed-width value from start of the buffer and returns the value and

@@ -1,11 +1,10 @@
+use ibc::clients::ics07_tendermint::consensus_state::ConsensusState as TmConsensusState;
 use ibc::core::ics02_client::consensus_state::ConsensusState;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics23_commitment::commitment::CommitmentRoot;
 use ibc::core::timestamp::Timestamp;
-use ibc::mock::consensus_state::MOCK_CONSENSUS_STATE_TYPE_URL;
-use ibc::{
-    clients::ics07_tendermint::consensus_state::ConsensusState as TmConsensusState,
-    mock::consensus_state::MockConsensusState,
+use ibc::mock::consensus_state::{
+    MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
 };
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
@@ -119,9 +118,9 @@ impl TryInto<ibc::clients::ics07_tendermint::consensus_state::ConsensusState>
         match self {
             AnyConsensusState::Tendermint(value) => Ok(value),
             AnyConsensusState::Mock(_) => Err(ClientError::Other {
-                description:
-                    "Cannot convert mock consensus state to tendermint"
-                        .to_string(),
+                description: "Cannot convert mock consensus state to \
+                              tendermint"
+                    .to_string(),
             }),
         }
     }
@@ -139,9 +138,9 @@ impl TryInto<ibc::mock::consensus_state::MockConsensusState>
         match self {
             AnyConsensusState::Mock(value) => Ok(value),
             AnyConsensusState::Tendermint(_) => Err(ClientError::Other {
-                description:
-                    "Cannot convert tendermint consensus state to mock"
-                        .to_string(),
+                description: "Cannot convert tendermint consensus state to \
+                              mock"
+                    .to_string(),
             }),
         }
     }

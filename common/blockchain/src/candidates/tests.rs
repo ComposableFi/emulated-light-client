@@ -109,9 +109,7 @@ fn test_candidates_0() {
     use candidate as c;
     use UpdateCandidateError::*;
 
-    fn pk(pubkey: char) -> MockPubKey {
-        MockPubKey(pubkey as u32)
-    }
+    fn pk(pubkey: char) -> MockPubKey { MockPubKey(pubkey as u32) }
 
     // Create candidates set
     let mut candidates = Candidates::from_candidates(
@@ -241,8 +239,8 @@ impl TestCtx {
     /// configuration file.
     fn check(&self) {
         assert!(
-            self.candidates.candidates.len()
-                >= self.config.min_validators.get().into(),
+            self.candidates.candidates.len() >=
+                self.config.min_validators.get().into(),
             "Violated min validators constraint: {} < {}",
             self.candidates.candidates.len(),
             self.config.min_validators.get(),
@@ -282,14 +280,14 @@ impl TestCtx {
                         .get(usize::from(self.config.max_validators.get()))
                         .map_or(0, |c: &Candidate<_>| c.stake.get());
                     assert!(
-                        head_stake - old_stake + new_stake
-                            < self.config.min_total_stake.get()
+                        head_stake - old_stake + new_stake <
+                            self.config.min_total_stake.get()
                     );
                 }
                 NotEnoughValidators => {
                     assert!(
-                        self.candidates.candidates.len()
-                            <= self.config.min_validators.get().into()
+                        self.candidates.candidates.len() <=
+                            self.config.min_validators.get().into()
                     );
                 }
             }
@@ -361,8 +359,8 @@ impl TestCtx {
             .candidates
             .get(usize::from(self.config.max_validators.get()));
         let kicked_out = last.clone().map_or(false, |candidiate| {
-            candidiate
-                < &Candidate {
+            candidiate <
+                &Candidate {
                     pubkey,
                     stake: NonZeroU128::new(new_stake).unwrap(),
                 }
@@ -372,8 +370,8 @@ impl TestCtx {
             if kicked_out { last.unwrap().stake.get() } else { new_stake };
 
         assert!(
-            self.candidates.head_stake - old_stake + new_stake
-                < self.config.min_total_stake.get()
+            self.candidates.head_stake - old_stake + new_stake <
+                self.config.min_total_stake.get()
         );
     }
 

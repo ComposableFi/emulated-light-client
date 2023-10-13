@@ -53,9 +53,7 @@ pub type BlockDelta = Delta<Block>;
 
 impl<T> Height<T> {
     /// Returns the next height, i.e. `self + 1`.
-    pub fn next(self) -> Self {
-        Self(self.0.checked_add(1).unwrap(), self.1)
-    }
+    pub fn next(self) -> Self { Self(self.0.checked_add(1).unwrap(), self.1) }
 
     /// Checks whether delta between two heights is at least `min`.
     ///
@@ -66,27 +64,19 @@ impl<T> Height<T> {
 }
 
 impl<T> From<u64> for Height<T> {
-    fn from(value: u64) -> Self {
-        Self(value, Default::default())
-    }
+    fn from(value: u64) -> Self { Self(value, Default::default()) }
 }
 
 impl<T> From<u64> for Delta<T> {
-    fn from(value: u64) -> Self {
-        Self(value, Default::default())
-    }
+    fn from(value: u64) -> Self { Self(value, Default::default()) }
 }
 
 impl<T> From<Height<T>> for u64 {
-    fn from(value: Height<T>) -> u64 {
-        value.0
-    }
+    fn from(value: Height<T>) -> u64 { value.0 }
 }
 
 impl<T> From<Delta<T>> for u64 {
-    fn from(value: Delta<T>) -> u64 {
-        value.0
-    }
+    fn from(value: Delta<T>) -> u64 { value.0 }
 }
 
 impl<T> core::fmt::Display for Height<T> {

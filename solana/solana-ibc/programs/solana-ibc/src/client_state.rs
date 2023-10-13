@@ -261,15 +261,11 @@ impl ClientStateCommon for AnyClientState {
 }
 
 impl From<TmClientState> for AnyClientState {
-    fn from(value: TmClientState) -> Self {
-        AnyClientState::Tendermint(value)
-    }
+    fn from(value: TmClientState) -> Self { AnyClientState::Tendermint(value) }
 }
 
 impl From<MockClientState> for AnyClientState {
-    fn from(value: MockClientState) -> Self {
-        AnyClientState::Mock(value)
-    }
+    fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
 }
 
 impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {

@@ -202,9 +202,7 @@ pub trait SolanaIbcStorageHost {
         todo!()
     }
     ///
-    fn set_solana_ibc_store(_store: &SolanaIbcStorage) {
-        todo!()
-    }
+    fn set_solana_ibc_store(_store: &SolanaIbcStorage) { todo!() }
 }
 
 impl Router for SolanaIbcStorage {

@@ -87,9 +87,7 @@ pub enum Error {
 }
 
 impl From<memory::OutOfMemory> for Error {
-    fn from(_: memory::OutOfMemory) -> Self {
-        Self::OutOfMemory
-    }
+    fn from(_: memory::OutOfMemory) -> Self { Self::OutOfMemory }
 }
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
@@ -114,14 +112,10 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     }
 
     /// Returns hash of the root node.
-    pub fn hash(&self) -> &CryptoHash {
-        &self.root_hash
-    }
+    pub fn hash(&self) -> &CryptoHash { &self.root_hash }
 
     /// Returns whether the trie is empty.
-    pub fn is_empty(&self) -> bool {
-        self.root_hash == EMPTY_TRIE_ROOT
-    }
+    pub fn is_empty(&self) -> bool { self.root_hash == EMPTY_TRIE_ROOT }
 
     /// Deconstructs the object into the individual parts — allocator, root
     /// pointer and root hash.
