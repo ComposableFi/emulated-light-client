@@ -24,7 +24,7 @@ jobs:
         run: cargo fmt --all --check
 
       - name: Install cargo-deny
-        run: cargo install cargo-deny
+        run: cargo install --locked cargo-deny
 
       - name: Check bans
         run: cargo-deny --all-features check bans
