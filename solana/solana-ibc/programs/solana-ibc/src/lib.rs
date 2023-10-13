@@ -12,7 +12,7 @@ use module_holder::ModuleHolder;
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 
-declare_id!("7MEuaEwNMsjVCJy9N31ZgvQf1dFkRNXYFREaAjMsoE5g");
+declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
 mod client_state;
 mod consensus_state;

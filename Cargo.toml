@@ -51,3 +51,4 @@ anyhow = "1.0.32"
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/dhruvja/curve25519-dalek", branch = "master" }
 aes-gcm-siv = { git = "https://github.com/dhruvja/AEADs", branch = "main-aes-gcm-siv-v0.10.3" }
+tendermint = { git = "https://github.com/mina86/tendermint-rs.git", branch = "33.2-sans-eyre" }
