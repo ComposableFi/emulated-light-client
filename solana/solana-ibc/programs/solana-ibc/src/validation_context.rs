@@ -93,6 +93,9 @@ impl ValidationContext for SolanaIbcStorage {
             AnyConsensusState::Tendermint(consensus_state) => {
                 Ok(consensus_state.timestamp.into())
             }
+            AnyConsensusState::Mock(mock_consensus_state) => {
+                Ok(mock_consensus_state.timestamp().into())
+            }
         }
     }
 

@@ -45,7 +45,9 @@ pub mod solana_ibc {
             })
             .collect::<Vec<_>>();
 
-        let _errors =
+        msg!("These are messages {:?}", all_messages);
+
+        let errors =
             all_messages.into_iter().fold(vec![], |mut errors, msg| {
                 match ibc::core::MsgEnvelope::try_from(msg) {
                     Ok(msg) => {
@@ -63,6 +65,8 @@ pub mod solana_ibc {
                 errors
             });
 
+        msg!("These are errors {:?}", errors);
+
         Ok(())
     }
 }
@@ -71,7 +75,7 @@ pub mod solana_ibc {
 pub struct Deliver<'info> {
     #[account(mut)]
     pub sender: Signer<'info>,
-    #[account(init, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
+    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
     pub storage: Account<'info, SolanaIbcStorage>,
     pub system_program: Program<'info, System>,
 }
