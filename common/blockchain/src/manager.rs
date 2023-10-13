@@ -9,7 +9,7 @@ use lib::hash::CryptoHash;
 use crate::candidates::Candidates;
 pub use crate::candidates::UpdateCandidateError;
 use crate::height::HostHeight;
-use crate::validators::{PubKey, Signature};
+use crate::validators::PubKey;
 use crate::{block, chain, epoch};
 
 pub struct ChainManager<PK> {
@@ -196,7 +196,7 @@ impl<PK: PubKey> ChainManager<PK> {
         if pending.signers.contains(&pubkey) {
             return Ok(false);
         }
-        if !signature.verify(&pending.hash, &pubkey) {
+        if !pubkey.verify(pending.hash.as_slice(), signature) {
             return Err(AddSignatureError::BadSignature);
         }
 

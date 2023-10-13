@@ -71,18 +71,19 @@ impl<PK: PubKey> Block<PK> {
         builder.build()
     }
 
-    /// Sign the block using provided signer function.
-    pub fn sign(
-        &self,
-        // TODO(mina86): Consider using signature::Signer.
-        signer: impl FnOnce(&[u8]) -> Result<PK::Signature>,
-    ) -> Result<PK::Signature> {
-        borsh::to_vec(self).and_then(|vec| signer(vec.as_slice()))
+
+    /// Signs the block.
+    pub fn sign<S>(&self, signer: &S) -> PK::Signature
+    where
+        S: crate::validators::Signer<Signature = PK::Signature>,
+    {
+        signer.sign(self.calc_hash().as_slice())
     }
 
-    #[cfg(test)]
-    fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
-        crate::validators::Signature::verify(signature, &self.calc_hash(), pk)
+    /// Verifies signature for the block.
+    #[inline]
+    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
+        pk.verify(self.calc_hash().as_slice(), signature)
     }
 
     /// Constructs next block.
@@ -150,7 +151,7 @@ impl<PK: PubKey> Block<PK> {
 
 #[test]
 fn test_block_generation() {
-    use crate::validators::{MockPubKey, MockSignature};
+    use crate::validators::{MockPubKey, MockSignature, MockSigner};
 
     // Generate a genesis block and test it’s behaviour.
     let genesis_hash = "Zq3s+b7x6R8tKV1iQtByAWqlDMXVVD9tSDOlmuLH7wI=";
@@ -179,8 +180,8 @@ fn test_block_generation() {
     assert_ne!(genesis_hash, block.calc_hash());
 
     let pk = MockPubKey(77);
-    let signature =
-        genesis.sign(|msg| Ok(MockSignature::new(msg, pk))).unwrap();
+    let signer = MockSigner(pk);
+    let signature = genesis.sign(&signer);
     assert_eq!(MockSignature(1722674425, pk), signature);
     assert!(genesis.verify(&pk, &signature));
     assert!(!genesis.verify(&MockPubKey(88), &signature));
