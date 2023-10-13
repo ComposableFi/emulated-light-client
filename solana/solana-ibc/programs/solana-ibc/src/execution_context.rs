@@ -44,7 +44,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
         msg!(
             "store_client_state - path: {}, client_state: {:?}",
             client_state_path,
-            client_state
+            client_state,
         );
         let client_state_key = client_state_path.0.to_string();
         let serialized_client_state =
@@ -58,7 +58,11 @@ impl ClientExecutionContext for SolanaIbcStorage {
         consensus_state_path: ClientConsensusStatePath,
         consensus_state: Self::AnyConsensusState,
     ) -> Result {
-        msg!("{}-{}", consensus_state_path.epoch, consensus_state_path.height);
+        msg!(
+            "store_consensus_state - path: {}, consensus_state: {:?}",
+            consensus_state_path,
+            consensus_state
+        );
         let consensus_state_key = (
             consensus_state_path.client_id.to_string(),
             (consensus_state_path.epoch, consensus_state_path.height),
@@ -67,6 +71,8 @@ impl ClientExecutionContext for SolanaIbcStorage {
             serde_json::to_string(&consensus_state).unwrap();
         self.consensus_states
             .insert(consensus_state_key, serialized_consensus_state);
+        self.height.0 = consensus_state_path.epoch;
+        self.height.1 = consensus_state_path.height;
         Ok(())
     }
 }
@@ -84,6 +90,7 @@ impl ExecutionContext for SolanaIbcStorage {
         height: Height,
         timestamp: Timestamp,
     ) -> Result {
+        msg!("I am here inside update time");
         msg!(
             "store_update_time - client_id: {}, height: {}, timestamp: {}",
             client_id,

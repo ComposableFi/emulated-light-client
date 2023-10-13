@@ -2,9 +2,9 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-solana_ibc = "7MEuaEwNMsjVCJy9N31ZgvQf1dFkRNXYFREaAjMsoE5g"
+solana_ibc = "EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81"
 [programs.devnet]
-solana_ibc = "7MEuaEwNMsjVCJy9N31ZgvQf1dFkRNXYFREaAjMsoE5g"
+solana_ibc = "EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81"
 
 [registry]
 url = "https://api.apr.dev"

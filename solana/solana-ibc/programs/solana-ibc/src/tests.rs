@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
+use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
@@ -88,13 +89,18 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
         .signer(&*authority)
-        .send()?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
     println!("demo sig: {sig}");
 
     // Retrieve and validate state
-    let _solana_ibc_storage_account: SolanaIbcStorage =
+    let solana_ibc_storage_account: SolanaIbcStorage =
         program.account(solana_ibc_storage).unwrap();
+
+    println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     Ok(())
 }

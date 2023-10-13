@@ -1,8 +1,9 @@
-.anchor
-Cargo.lock
-/dist/
-.DS_Store
 *.rs.bk
+.DS_Store
+.anchor
+/dist/
+Cargo.lock
+local-ibc
 node_modules
 package-lock.json
 target
