@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::Pubkey;
+use anchor_lang::prelude::{Pubkey, Clock, SolanaSysvar};
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -88,15 +88,9 @@ impl ValidationContext for SolanaIbcStorage {
     }
 
     fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
-        let host_height = self.host_height()?;
-        match self.host_consensus_state(&host_height)? {
-            AnyConsensusState::Tendermint(consensus_state) => {
-                Ok(consensus_state.timestamp.into())
-            }
-            AnyConsensusState::Mock(mock_consensus_state) => {
-                Ok(mock_consensus_state.timestamp().into())
-            }
-        }
+        let clock = Clock::get().unwrap();
+        let current_timestamp = clock.unix_timestamp as u64;
+        Ok(Timestamp::from_nanoseconds(current_timestamp).unwrap())
     }
 
     fn host_consensus_state(
