@@ -23,6 +23,11 @@ ibc-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
+lib.workspace = true
+memory.workspace = true
+sealable-trie.workspace = true
+stdx.workspace = true
+
 [dev-dependencies]
 anchor-client.workspace = true
 anyhow.workspace = true

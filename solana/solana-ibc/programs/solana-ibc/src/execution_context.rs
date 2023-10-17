@@ -31,7 +31,7 @@ use crate::{
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
-impl ClientExecutionContext for SolanaIbcStorage {
+impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
     type ClientValidationContext = Self;
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
@@ -77,7 +77,7 @@ impl ClientExecutionContext for SolanaIbcStorage {
     }
 }
 
-impl ExecutionContext for SolanaIbcStorage {
+impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn increase_client_counter(&mut self) -> Result {
         self.client_counter.checked_add(1).unwrap();
         msg!("client_counter has increased to: {}", self.client_counter);

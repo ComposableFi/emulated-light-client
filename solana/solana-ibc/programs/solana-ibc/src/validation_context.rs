@@ -25,7 +25,7 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::SolanaIbcStorage;
 
-impl ValidationContext for SolanaIbcStorage {
+impl ValidationContext for SolanaIbcStorage<'_, '_> {
     type AnyConsensusState = AnyConsensusState;
     type AnyClientState = AnyClientState;
     type E = Self;

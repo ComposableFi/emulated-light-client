@@ -82,7 +82,7 @@ impl From<AnyClientState> for Any {
     }
 }
 
-impl ClientStateValidation<SolanaIbcStorage> for AnyClientState {
+impl ClientStateValidation<SolanaIbcStorage<'_, '_>> for AnyClientState {
     fn verify_client_message(
         &self,
         ctx: &SolanaIbcStorage,
@@ -283,7 +283,7 @@ impl From<MockClientState> for AnyClientState {
     fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
 }
 
-impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
+impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
     fn initialise(
         &self,
         ctx: &mut SolanaIbcStorage,
@@ -371,7 +371,7 @@ impl ClientStateExecution<SolanaIbcStorage> for AnyClientState {
     }
 }
 
-impl ibc::clients::ics07_tendermint::CommonContext for SolanaIbcStorage {
+impl ibc::clients::ics07_tendermint::CommonContext for SolanaIbcStorage<'_, '_> {
     type ConversionError = ClientError;
 
     type AnyConsensusState = AnyConsensusState;
@@ -385,7 +385,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for SolanaIbcStorage {
 }
 
 #[cfg(any(test, feature = "mocks"))]
-impl MockClientContext for SolanaIbcStorage {
+impl MockClientContext for SolanaIbcStorage<'_, '_> {
     type ConversionError = ClientError;
     type AnyConsensusState = AnyConsensusState;
 
@@ -401,7 +401,7 @@ impl MockClientContext for SolanaIbcStorage {
     }
 }
 
-impl ibc::clients::ics07_tendermint::ValidationContext for SolanaIbcStorage {
+impl ibc::clients::ics07_tendermint::ValidationContext for SolanaIbcStorage<'_, '_> {
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
         ValidationContext::host_timestamp(self)
     }
