@@ -230,15 +230,15 @@ pub struct Deliver<'info> {
 
 pub enum TrieKey {
     ClientState { client_id: String },
-    ConsensusState { client_id: String, height: u64 },
+    ConsensusState { client_id: String, epoch: u64, height: u64 },
     Connection { connection_id: u32 },
-    ChannelEnd { port_id: u32, channel_id: u32 },
-    NextSequenceSend { port_id: u32, channel_id: u32 },
-    NextSequenceRecv { port_id: u32, channel_id: u32 },
-    NextSequenceAck { port_id: u32, channel_id: u32 },
-    Commitment { port_id: u32, channel_id: u32, sequence: u64 },
-    Receipts { port_id: u32, channel_id: u32, sequence: u64 },
-    Acks { port_id: u32, channel_id: u32, sequence: u64 },
+    ChannelEnd { port_id: String, channel_id: u32 },
+    NextSequenceSend { port_id: String, channel_id: u32 },
+    NextSequenceRecv { port_id: String, channel_id: u32 },
+    NextSequenceAck { port_id: String, channel_id: u32 },
+    Commitment { port_id: String, channel_id: u32, sequence: u64 },
+    Receipts { port_id: String, channel_id: u32, sequence: u64 },
+    Acks { port_id: String, channel_id: u32, sequence: u64 },
 }
 
 #[repr(u8)]
@@ -261,30 +261,30 @@ impl TrieKey {
         size_of::<u8>() +
             match self {
                 TrieKey::ClientState { client_id } => client_id.len(),
-                TrieKey::ConsensusState { client_id, height } => {
-                    client_id.len() + size_of::<u64>()
+                TrieKey::ConsensusState { client_id, epoch: u64, height } => {
+                    client_id.len() + size_of::<u64>() + size_of::<u64>()
                 }
                 TrieKey::Connection { connection_id } => size_of::<u32>(),
                 TrieKey::ChannelEnd { port_id, channel_id } => {
-                    size_of::<u32>() + size_of::<u32>()
+                    port_id.len() + size_of::<u32>()
                 }
                 TrieKey::NextSequenceSend { port_id, channel_id } => {
-                    size_of::<u32>() + size_of::<u32>()
+                    port_id.len() + size_of::<u32>()
                 }
                 TrieKey::NextSequenceRecv { port_id, channel_id } => {
-                    size_of::<u32>() + size_of::<u32>()
+                    port_id.len() + size_of::<u32>()
                 }
                 TrieKey::NextSequenceAck { port_id, channel_id } => {
-                    size_of::<u32>() + size_of::<u32>()
+                    port_id.len() + size_of::<u32>()
                 }
                 TrieKey::Commitment { port_id, channel_id, sequence } => {
-                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                    port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
                 TrieKey::Receipts { port_id, channel_id, sequence } => {
-                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                    port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
                 TrieKey::Acks { port_id, channel_id, sequence } => {
-                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                    port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
             }
     }
@@ -298,9 +298,13 @@ impl TrieKey {
                 buf.push(TrieKeyWithoutFields::ClientState as u8);
                 buf.extend(client_id.as_bytes());
             }
-            TrieKey::ConsensusState { client_id, height } => {
+            TrieKey::ConsensusState { client_id, epoch, height } => {
                 buf.push(TrieKeyWithoutFields::ConsensusState as u8);
-                buf.extend(height.to_be_bytes())
+                buf.extend(client_id.as_bytes());
+                buf.push(TrieKeyWithoutFields::ConsensusState as u8);
+                buf.extend(height.to_be_bytes());
+                buf.push(TrieKeyWithoutFields::ConsensusState as u8);
+                buf.extend(epoch.to_be_bytes())
             }
             TrieKey::Connection { connection_id } => {
                 buf.push(TrieKeyWithoutFields::Connection as u8);
@@ -308,31 +312,31 @@ impl TrieKey {
             }
             TrieKey::ChannelEnd { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::ChannelEnd as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::ChannelEnd as u8);
                 buf.extend(channel_id.to_be_bytes());
             }
             TrieKey::NextSequenceSend { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceSend as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceSend as u8);
                 buf.extend(channel_id.to_be_bytes());
             }
             TrieKey::NextSequenceRecv { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceRecv as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceRecv as u8);
                 buf.extend(channel_id.to_be_bytes());
             }
             TrieKey::NextSequenceAck { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceAck as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceAck as u8);
                 buf.extend(channel_id.to_be_bytes());
             }
             TrieKey::Commitment { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Commitment as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::Commitment as u8);
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Commitment as u8);
@@ -340,7 +344,7 @@ impl TrieKey {
             }
             TrieKey::Receipts { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Receipts as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::Receipts as u8);
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Receipts as u8);
@@ -348,7 +352,7 @@ impl TrieKey {
             }
             TrieKey::Acks { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Acks as u8);
-                buf.extend(port_id.to_be_bytes());
+                buf.extend(port_id.as_bytes());
                 buf.push(TrieKeyWithoutFields::Acks as u8);
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Acks as u8);
