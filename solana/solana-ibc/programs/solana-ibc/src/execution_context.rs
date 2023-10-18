@@ -62,7 +62,6 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
-
         self.clients.insert(client_state_key, serialized_client_state);
         Ok(())
     }
@@ -363,13 +362,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             channel_end_path.1.clone().to_string(),
         ));
 
-        let serialized_channel_end =
-            serde_json::to_string(&channel_end).unwrap();
+        let serialized_channel_end = 
+            borsh::to_vec(&channel_end).unwrap();
         let channel_end_trie_key = &TrieKey::from(channel_end_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
             channel_end_trie_key,
-            &lib::hash::CryptoHash::digest(serialized_channel_end.as_bytes()),
+            &lib::hash::CryptoHash::digest(&serialized_channel_end),
         )
         .unwrap();
 
