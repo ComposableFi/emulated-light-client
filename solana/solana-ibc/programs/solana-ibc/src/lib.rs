@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ibc::core::ics24_host::identifier::PortId;
-
 use ibc::core::router::{Module, ModuleId, Router};
 use module_holder::ModuleHolder;
 

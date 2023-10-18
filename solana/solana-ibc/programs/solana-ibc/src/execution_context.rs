@@ -57,11 +57,9 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         }
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
-        let client_state_hash =
-            borsh::to_vec(&serialized_client_state).unwrap();
         trie.set(
             client_state_trie_key,
-            &lib::hash::CryptoHash::digest(&client_state_hash),
+            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
 
@@ -93,11 +91,11 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         }
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
-        let consensus_state_hash =
-            borsh::to_vec(&serialized_consensus_state).unwrap();
         trie.set(
             consensus_state_trie_key,
-            &lib::hash::CryptoHash::digest(&consensus_state_hash),
+            &lib::hash::CryptoHash::digest(
+                serialized_consensus_state.as_bytes(),
+            ),
         )
         .unwrap();
 
@@ -205,11 +203,11 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             serde_json::to_string(&connection_end).unwrap();
         let connection_trie_key = &TrieKey::from(connection_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
-        let consensus_state_hash =
-            borsh::to_vec(&serialized_connection_end).unwrap();
         trie.set(
             connection_trie_key,
-            &lib::hash::CryptoHash::digest(&consensus_state_hash),
+            &lib::hash::CryptoHash::digest(
+                serialized_connection_end.as_bytes(),
+            ),
         )
         .unwrap();
 
@@ -369,10 +367,9 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             serde_json::to_string(&channel_end).unwrap();
         let channel_end_trie_key = &TrieKey::from(channel_end_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
-        let channel_end_hash = borsh::to_vec(&serialized_channel_end).unwrap();
         trie.set(
             channel_end_trie_key,
-            &lib::hash::CryptoHash::digest(&channel_end_hash),
+            &lib::hash::CryptoHash::digest(serialized_channel_end.as_bytes()),
         )
         .unwrap();
 
