@@ -125,9 +125,9 @@ impl TokenTransferValidationContext for ModuleHolder {
 }
 
 impl SendPacketValidationContext for ModuleHolder {
-    type ClientValidationContext = SolanaIbcStorage;
+    type ClientValidationContext = SolanaIbcStorage<'static, 'static>;
 
-    type E = SolanaIbcStorage;
+    type E = SolanaIbcStorage<'static, 'static>;
 
     type AnyConsensusState = AnyConsensusState;
 

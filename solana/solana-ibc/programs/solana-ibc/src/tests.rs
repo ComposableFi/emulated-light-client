@@ -20,8 +20,8 @@ use ibc::Any;
 use ibc_proto::protobuf::Protobuf;
 
 use crate::{
-    accounts, instruction, AnyCheck, SolanaIbcStorage, ID,
-    SOLANA_IBC_STORAGE_SEED,
+    accounts, instruction, AnyCheck, SolanaIbcStorageTemp, ID,
+    SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
 };
 
 const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -66,6 +66,8 @@ fn anchor_test_deliver() -> Result<()> {
     // Build, sign, and send program instruction
     let seeds = &[SOLANA_IBC_STORAGE_SEED];
     let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
+    let trie_seeds = &[TEST_TRIE_SEED];
+    let trie = Pubkey::find_program_address(trie_seeds, &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
@@ -84,6 +86,7 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
             storage: solana_ibc_storage,
+            trie,
             system_program: system_program::ID,
         })
         .args(instruction::Deliver { messages: all_messages })
@@ -97,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("demo sig: {sig}");
 
     // Retrieve and validate state
-    let solana_ibc_storage_account: SolanaIbcStorage =
+    let solana_ibc_storage_account: SolanaIbcStorageTemp =
         program.account(solana_ibc_storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
