@@ -35,9 +35,6 @@ type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 
-const DEFAULT_PORT_ID: &str = "defaultPort";
-const TRANSFER_PORT_ID: &str = "transfer";
-
 impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
     type ClientValidationContext = Self;
     type AnyClientState = AnyClientState;
@@ -65,7 +62,7 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let client_state_hash =
             borsh::to_vec(&serialized_client_state).unwrap();
         trie.set(
-            &client_state_trie_key,
+            client_state_trie_key,
             &lib::hash::CryptoHash::digest(&client_state_hash),
         )
         .unwrap();
@@ -101,7 +98,7 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let consensus_state_hash =
             borsh::to_vec(&serialized_consensus_state).unwrap();
         trie.set(
-            &consensus_state_trie_key,
+            consensus_state_trie_key,
             &lib::hash::CryptoHash::digest(&consensus_state_hash),
         )
         .unwrap();
@@ -219,7 +216,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let consensus_state_hash =
             borsh::to_vec(&serialized_connection_end).unwrap();
         trie.set(
-            &consensus_state_trie_key,
+            consensus_state_trie_key,
             &lib::hash::CryptoHash::digest(&consensus_state_hash),
         )
         .unwrap();
@@ -275,7 +272,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            &commitment_trie_key,
+            commitment_trie_key,
             &lib::hash::CryptoHash::digest(&commitment.into_vec()),
         )
         .unwrap();
@@ -329,7 +326,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         }
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
-        trie.set(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
+        trie.set(receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
+        trie.seal(receipt_trie_key).unwrap();
         record_packet_sequence(
             &mut self.packet_receipt_sequence_sets,
             &receipt_path.port_id,
@@ -361,7 +359,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            &ack_commitment_trie_key,
+            ack_commitment_trie_key,
             &lib::hash::CryptoHash::digest(&ack_commitment.into_vec()),
         )
         .unwrap();
@@ -416,7 +414,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let trie = self.trie.as_mut().unwrap();
         let channel_end_hash = borsh::to_vec(&serialized_channel_end).unwrap();
         trie.set(
-            &channel_end_trie_key,
+            channel_end_trie_key,
             &lib::hash::CryptoHash::digest(&channel_end_hash),
         )
         .unwrap();
@@ -454,7 +452,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            &next_seq_send_trie_key,
+            next_seq_send_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();
@@ -488,7 +486,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            &next_seq_recv_trie_key,
+            next_seq_recv_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();
@@ -517,7 +515,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            &next_seq_ack_trie_key,
+            next_seq_ack_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();

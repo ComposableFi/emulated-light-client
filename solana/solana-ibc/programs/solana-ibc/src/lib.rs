@@ -45,7 +45,7 @@ pub mod solana_ibc {
     ) -> Result<()> {
         msg!("Called deliver method");
         let _sender = ctx.accounts.sender.to_account_info();
-        let mut solana_ibc_store: &mut SolanaIbcStorageTemp =
+        let solana_ibc_store: &mut SolanaIbcStorageTemp =
             &mut ctx.accounts.storage;
         msg!("This is solana_ibc_store {:?}", solana_ibc_store);
 
@@ -68,7 +68,7 @@ pub mod solana_ibc {
             module_holder: solana_ibc_store.module_holder.clone(),
             clients: solana_ibc_store.clients.clone(),
             client_id_set: solana_ibc_store.client_id_set.clone(),
-            client_counter: solana_ibc_store.client_counter.clone(),
+            client_counter: solana_ibc_store.client_counter,
             client_processed_times: solana_ibc_store
                 .client_processed_times
                 .clone(),
@@ -80,12 +80,12 @@ pub mod solana_ibc {
                 .client_consensus_state_height_sets
                 .clone(),
             connection_id_set: solana_ibc_store.connection_id_set.clone(),
-            connection_counter: solana_ibc_store.connection_counter.clone(),
+            connection_counter: solana_ibc_store.connection_counter,
             connections: solana_ibc_store.connections.clone(),
             channel_ends: solana_ibc_store.channel_ends.clone(),
             connection_to_client: solana_ibc_store.connection_to_client.clone(),
             port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
-            channel_counter: solana_ibc_store.channel_counter.clone(),
+            channel_counter: solana_ibc_store.channel_counter,
             next_sequence_send: solana_ibc_store.next_sequence_send.clone(),
             next_sequence_recv: solana_ibc_store.next_sequence_recv.clone(),
             next_sequence_ack: solana_ibc_store.next_sequence_ack.clone(),
@@ -107,7 +107,7 @@ pub mod solana_ibc {
             module_holder: solana_ibc_store.module_holder.clone(),
             clients: solana_ibc_store.clients.clone(),
             client_id_set: solana_ibc_store.client_id_set.clone(),
-            client_counter: solana_ibc_store.client_counter.clone(),
+            client_counter: solana_ibc_store.client_counter,
             client_processed_times: solana_ibc_store
                 .client_processed_times
                 .clone(),
@@ -119,12 +119,12 @@ pub mod solana_ibc {
                 .client_consensus_state_height_sets
                 .clone(),
             connection_id_set: solana_ibc_store.connection_id_set.clone(),
-            connection_counter: solana_ibc_store.connection_counter.clone(),
+            connection_counter: solana_ibc_store.connection_counter,
             connections: solana_ibc_store.connections.clone(),
             channel_ends: solana_ibc_store.channel_ends.clone(),
             connection_to_client: solana_ibc_store.connection_to_client.clone(),
             port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
-            channel_counter: solana_ibc_store.channel_counter.clone(),
+            channel_counter: solana_ibc_store.channel_counter,
             next_sequence_send: solana_ibc_store.next_sequence_send.clone(),
             next_sequence_recv: solana_ibc_store.next_sequence_recv.clone(),
             next_sequence_ack: solana_ibc_store.next_sequence_ack.clone(),
@@ -168,7 +168,7 @@ pub mod solana_ibc {
         solana_ibc_store.client_id_set =
             solana_real_storage.client_id_set.clone();
         solana_ibc_store.client_counter =
-            solana_real_storage.client_counter.clone();
+            solana_real_storage.client_counter;
         solana_ibc_store.client_processed_times =
             solana_real_storage.client_processed_times.clone();
         solana_ibc_store.client_processed_heights =
@@ -180,7 +180,7 @@ pub mod solana_ibc {
         solana_ibc_store.connection_id_set =
             solana_real_storage.connection_id_set.clone();
         solana_ibc_store.connection_counter =
-            solana_real_storage.connection_counter.clone();
+            solana_real_storage.connection_counter;
         solana_ibc_store.connections = solana_real_storage.connections.clone();
         solana_ibc_store.channel_ends =
             solana_real_storage.channel_ends.clone();
@@ -189,7 +189,7 @@ pub mod solana_ibc {
         solana_ibc_store.port_channel_id_set =
             solana_real_storage.port_channel_id_set.clone();
         solana_ibc_store.channel_counter =
-            solana_real_storage.channel_counter.clone();
+            solana_real_storage.channel_counter;
         solana_ibc_store.next_sequence_send =
             solana_real_storage.next_sequence_send.clone();
         solana_ibc_store.next_sequence_recv =
@@ -257,33 +257,33 @@ pub enum TrieKeyWithoutFields {
 
 
 impl TrieKey {
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         size_of::<u8>() +
             match self {
                 TrieKey::ClientState { client_id } => client_id.len(),
-                TrieKey::ConsensusState { client_id, epoch: u64, height } => {
+                TrieKey::ConsensusState { client_id, epoch: _u64, height: _ } => {
                     client_id.len() + size_of::<u64>() + size_of::<u64>()
                 }
-                TrieKey::Connection { connection_id } => size_of::<u32>(),
-                TrieKey::ChannelEnd { port_id, channel_id } => {
+                TrieKey::Connection { connection_id: _ } => size_of::<u32>(),
+                TrieKey::ChannelEnd { port_id, channel_id: _ } => {
                     port_id.len() + size_of::<u32>()
                 }
-                TrieKey::NextSequenceSend { port_id, channel_id } => {
+                TrieKey::NextSequenceSend { port_id, channel_id: _ } => {
                     port_id.len() + size_of::<u32>()
                 }
-                TrieKey::NextSequenceRecv { port_id, channel_id } => {
+                TrieKey::NextSequenceRecv { port_id, channel_id: _ } => {
                     port_id.len() + size_of::<u32>()
                 }
-                TrieKey::NextSequenceAck { port_id, channel_id } => {
+                TrieKey::NextSequenceAck { port_id, channel_id: _ } => {
                     port_id.len() + size_of::<u32>()
                 }
-                TrieKey::Commitment { port_id, channel_id, sequence } => {
+                TrieKey::Commitment { port_id, channel_id: _, sequence: _ } => {
                     port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
-                TrieKey::Receipts { port_id, channel_id, sequence } => {
+                TrieKey::Receipts { port_id, channel_id: _, sequence: _ } => {
                     port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
-                TrieKey::Acks { port_id, channel_id, sequence } => {
+                TrieKey::Acks { port_id, channel_id: _, sequence: _ } => {
                     port_id.len() + size_of::<u32>() + size_of::<u64>()
                 }
             }

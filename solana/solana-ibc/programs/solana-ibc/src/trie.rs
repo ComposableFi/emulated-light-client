@@ -2,11 +2,13 @@ use core::cell::RefMut;
 use core::mem::ManuallyDrop;
 use std::result::Result;
 
-use anchor_lang::{prelude::*, solana_program};
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
 use crate::magic;
+
+#[cfg(test)]
+use anchor_lang::solana_program;
 
 type DataRef<'a, 'b> = RefMut<'a, &'b mut [u8]>;
 

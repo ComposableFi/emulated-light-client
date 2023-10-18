@@ -19,9 +19,8 @@ use ibc::mock::header::MockHeader;
 use ibc::Any;
 use ibc_proto::protobuf::Protobuf;
 
-use crate::trie::AccountTrie;
 use crate::{
-    accounts, instruction, AnyCheck, SolanaIbcStorage, SolanaIbcStorageTemp,
+    accounts, instruction, AnyCheck, SolanaIbcStorageTemp,
     ID, SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
 };
 
