@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use anchor_lang::emit;
+use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
 use ibc::core::ics02_client::ClientExecutionContext;
@@ -26,7 +27,7 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::{
     EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaTimestamp,
+    InnerSequence, SolanaIbcStorage, SolanaTimestamp, TrieKey
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
@@ -49,6 +50,12 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let client_state_key = client_state_path.0.to_string();
         let serialized_client_state =
             serde_json::to_string(&client_state).unwrap();
+
+        let client_state_trie_key = &TrieKey::ClientState { client_id: client_state_path.0.to_string() }.to_vec();
+        let trie = self.trie.as_mut().unwrap();
+        let client_state_hash = borsh::to_vec(&serialized_client_state).unwrap();
+        trie.set(&client_state_trie_key, &lib::hash::CryptoHash::digest(&client_state_hash)).unwrap();
+
         self.clients.insert(client_state_key, serialized_client_state);
         Ok(())
     }

@@ -19,9 +19,10 @@ use ibc::mock::header::MockHeader;
 use ibc::Any;
 use ibc_proto::protobuf::Protobuf;
 
+use crate::trie::AccountTrie;
 use crate::{
     accounts, instruction, AnyCheck, SolanaIbcStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
+    SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED, SolanaIbcStorageTemp,
 };
 
 const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -99,11 +100,11 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("demo sig: {sig}");
 
-    // // Retrieve and validate state
-    // let solana_ibc_storage_account: SolanaIbcStorage =
-    //     program.account(solana_ibc_storage).unwrap();
+    // Retrieve and validate state
+    let solana_ibc_storage_account: SolanaIbcStorageTemp =
+        program.account(solana_ibc_storage).unwrap();
 
-    // println!("This is solana storage account {:?}", solana_ibc_storage_account);
+    println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     Ok(())
 }
