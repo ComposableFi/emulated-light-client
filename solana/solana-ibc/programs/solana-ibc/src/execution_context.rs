@@ -25,15 +25,13 @@ use ibc::Height;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
+use crate::trie_key::TrieKey;
 use crate::{
     EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaTimestamp, TrieKey,
+    InnerSequence, SolanaIbcStorage, SolanaTimestamp,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
-
-const CONNECTION_ID_PREFIX: &str = "connection-";
-const CHANNEL_ID_PREFIX: &str = "channel-";
 
 impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
     type ClientValidationContext = Self;
@@ -205,18 +203,12 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
         let serialized_connection_end =
             serde_json::to_string(&connection_end).unwrap();
-        let connection_prefix_length = CONNECTION_ID_PREFIX.len();
-        let connection_id =
-            &connection_path.0.to_string()[connection_prefix_length..];
-        let consensus_state_trie_key = &TrieKey::Connection {
-            connection_id: connection_id.parse().unwrap(),
-        }
-        .to_vec();
+        let connection_trie_key = &TrieKey::from(connection_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         let consensus_state_hash =
             borsh::to_vec(&serialized_connection_end).unwrap();
         trie.set(
-            consensus_state_trie_key,
+            connection_trie_key,
             &lib::hash::CryptoHash::digest(&consensus_state_hash),
         )
         .unwrap();
@@ -260,16 +252,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             commitment_path,
             commitment
         );
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id =
-            &commitment_path.channel_id.to_string()[channel_prefix_length..];
-
-        let commitment_trie_key = &TrieKey::Commitment {
-            port_id: commitment_path.port_id.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-            sequence: u64::from(commitment_path.sequence),
-        }
-        .to_vec();
+        let commitment_trie_key = &TrieKey::from(commitment_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
             commitment_trie_key,
@@ -315,16 +298,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             receipt_path,
             receipt
         );
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id =
-            &receipt_path.channel_id.to_string()[channel_prefix_length..];
-
-        let receipt_trie_key = &TrieKey::Receipts {
-            port_id: receipt_path.port_id.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-            sequence: u64::from(receipt_path.sequence),
-        }
-        .to_vec();
+        let receipt_trie_key = &TrieKey::from(receipt_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
         trie.seal(receipt_trie_key).unwrap();
@@ -347,16 +321,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             ack_path,
             ack_commitment
         );
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id =
-            &ack_path.channel_id.to_string()[channel_prefix_length..];
-
-        let ack_commitment_trie_key = &TrieKey::Acks {
-            port_id: ack_path.port_id.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-            sequence: u64::from(ack_path.sequence),
-        }
-        .to_vec();
+        let ack_commitment_trie_key = &TrieKey::from(ack_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
             ack_commitment_trie_key,
@@ -402,15 +367,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
         let serialized_channel_end =
             serde_json::to_string(&channel_end).unwrap();
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id =
-            &channel_end_path.1.to_string()[channel_prefix_length..];
-
-        let channel_end_trie_key = &TrieKey::ChannelEnd {
-            port_id: channel_end_path.0.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-        }
-        .to_vec();
+        let channel_end_trie_key = &TrieKey::from(channel_end_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         let channel_end_hash = borsh::to_vec(&serialized_channel_end).unwrap();
         trie.set(
@@ -439,14 +396,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let seq_send_key =
             (seq_send_path.0.to_string(), seq_send_path.1.to_string());
 
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id = &seq_send_path.1.to_string()[channel_prefix_length..];
-
-        let next_seq_send_trie_key = &TrieKey::NextSequenceSend {
-            port_id: seq_send_path.0.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-        }
-        .to_vec();
+        let next_seq_send_trie_key = &TrieKey::from(seq_send_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
@@ -473,14 +423,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         );
         let seq_recv_key =
             (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id = &seq_recv_path.1.to_string()[channel_prefix_length..];
-
-        let next_seq_recv_trie_key = &TrieKey::NextSequenceRecv {
-            port_id: seq_recv_path.0.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-        }
-        .to_vec();
+        let next_seq_recv_trie_key = &TrieKey::from(seq_recv_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
@@ -502,14 +445,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         msg!("store_next_sequence_ack: path: {}, seq: {:?}", seq_ack_path, seq);
         let seq_ack_key =
             (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
-        let channel_prefix_length = CHANNEL_ID_PREFIX.len();
-        let channel_id = &seq_ack_path.1.to_string()[channel_prefix_length..];
-
-        let next_seq_ack_trie_key = &TrieKey::NextSequenceAck {
-            port_id: seq_ack_path.0.clone().to_string(),
-            channel_id: channel_id.parse().unwrap(),
-        }
-        .to_vec();
+        let next_seq_ack_trie_key = &TrieKey::from(seq_ack_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
