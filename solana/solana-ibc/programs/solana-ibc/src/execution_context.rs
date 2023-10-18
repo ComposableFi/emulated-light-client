@@ -362,8 +362,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             channel_end_path.1.clone().to_string(),
         ));
 
-        let serialized_channel_end = 
-            borsh::to_vec(&channel_end).unwrap();
+        let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
         let channel_end_trie_key = &TrieKey::from(channel_end_path).to_vec();
         let trie = self.trie.as_mut().unwrap();
         trie.set(
