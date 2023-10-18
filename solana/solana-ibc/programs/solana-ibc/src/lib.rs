@@ -62,8 +62,10 @@ pub mod solana_ibc {
         msg!("These are messages {:?}", all_messages);
 
         let account = &ctx.accounts.trie;
-        let mut trie = trie::AccountTrie::new(account.try_borrow_mut_data()?)
+        let trie = trie::AccountTrie::new(account.try_borrow_mut_data()?)
             .ok_or(ProgramError::InvalidAccountData)?;
+
+        msg!("Before trie {:?}", trie.hash());
 
         let mut solana_real_storage = SolanaIbcStorage {
             height: solana_ibc_store.height,
@@ -205,8 +207,6 @@ pub mod solana_ibc {
         solana_ibc_store.ibc_events_history =
             solana_real_storage.ibc_events_history.clone();
 
-        trie = solana_real_storage.trie.unwrap();
-
         msg!("These are errors {:?}", errors);
         msg!("This is final structure {:?}", solana_ibc_store);
 
@@ -215,7 +215,6 @@ pub mod solana_ibc {
         Ok(())
     }
 }
-
 #[derive(Accounts)]
 pub struct Deliver<'info> {
     #[account(mut)]

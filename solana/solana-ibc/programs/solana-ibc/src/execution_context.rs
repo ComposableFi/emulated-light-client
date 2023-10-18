@@ -57,12 +57,17 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         }
         .to_vec();
         let trie = self.trie.as_mut().unwrap();
+        msg!(
+            "THis is serialized client state {}",
+            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
+        );
         trie.set(
             client_state_trie_key,
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
         self.clients.insert(client_state_key, serialized_client_state);
+        self.client_id_set.push(client_state_path.0.to_string());
         Ok(())
     }
 
