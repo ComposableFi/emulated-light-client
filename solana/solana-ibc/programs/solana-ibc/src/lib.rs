@@ -251,25 +251,42 @@ pub enum TrieKeyWithoutFields {
     NextSequenceRecv = 6,
     NextSequenceAck = 7,
     Commitment = 8,
-    Receipts = 9,  
+    Receipts = 9,
     Acks = 10,
 }
 
 
 impl TrieKey {
     pub fn len(&self) -> usize {
-        size_of::<u8>() + match self {
-            TrieKey::ClientState { client_id } => client_id.len(),
-            TrieKey::ConsensusState { client_id, height } => client_id.len() + size_of::<u64>(),
-            TrieKey::Connection { connection_id } => size_of::<u32>(),
-            TrieKey::ChannelEnd { port_id, channel_id } => size_of::<u32>() + size_of::<u32>(),
-            TrieKey::NextSequenceSend { port_id, channel_id } => size_of::<u32>() + size_of::<u32>(),
-            TrieKey::NextSequenceRecv { port_id, channel_id } => size_of::<u32>() + size_of::<u32>(),
-            TrieKey::NextSequenceAck { port_id, channel_id } => size_of::<u32>() + size_of::<u32>(),
-            TrieKey::Commitment { port_id, channel_id, sequence } => size_of::<u32>() + size_of::<u32>() + size_of::<u64>(),
-            TrieKey::Receipts { port_id, channel_id, sequence } => size_of::<u32>() + size_of::<u32>()+ size_of::<u64>(),
-            TrieKey::Acks { port_id, channel_id, sequence } => size_of::<u32>() + size_of::<u32>()+ size_of::<u64>(),
-        }
+        size_of::<u8>() +
+            match self {
+                TrieKey::ClientState { client_id } => client_id.len(),
+                TrieKey::ConsensusState { client_id, height } => {
+                    client_id.len() + size_of::<u64>()
+                }
+                TrieKey::Connection { connection_id } => size_of::<u32>(),
+                TrieKey::ChannelEnd { port_id, channel_id } => {
+                    size_of::<u32>() + size_of::<u32>()
+                }
+                TrieKey::NextSequenceSend { port_id, channel_id } => {
+                    size_of::<u32>() + size_of::<u32>()
+                }
+                TrieKey::NextSequenceRecv { port_id, channel_id } => {
+                    size_of::<u32>() + size_of::<u32>()
+                }
+                TrieKey::NextSequenceAck { port_id, channel_id } => {
+                    size_of::<u32>() + size_of::<u32>()
+                }
+                TrieKey::Commitment { port_id, channel_id, sequence } => {
+                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                }
+                TrieKey::Receipts { port_id, channel_id, sequence } => {
+                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                }
+                TrieKey::Acks { port_id, channel_id, sequence } => {
+                    size_of::<u32>() + size_of::<u32>() + size_of::<u64>()
+                }
+            }
     }
 
     pub fn append_into(&self, buf: &mut Vec<u8>) {
@@ -280,39 +297,39 @@ impl TrieKey {
             TrieKey::ClientState { client_id } => {
                 buf.push(TrieKeyWithoutFields::ClientState as u8);
                 buf.extend(client_id.as_bytes());
-            },
+            }
             TrieKey::ConsensusState { client_id, height } => {
                 buf.push(TrieKeyWithoutFields::ConsensusState as u8);
                 buf.extend(height.to_be_bytes())
-            },
+            }
             TrieKey::Connection { connection_id } => {
                 buf.push(TrieKeyWithoutFields::Connection as u8);
                 buf.extend(connection_id.to_be_bytes())
-            },
+            }
             TrieKey::ChannelEnd { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::ChannelEnd as u8);
                 buf.extend(port_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::ChannelEnd as u8);
                 buf.extend(channel_id.to_be_bytes());
-            },
+            }
             TrieKey::NextSequenceSend { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceSend as u8);
                 buf.extend(port_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceSend as u8);
                 buf.extend(channel_id.to_be_bytes());
-            },
+            }
             TrieKey::NextSequenceRecv { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceRecv as u8);
                 buf.extend(port_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceRecv as u8);
                 buf.extend(channel_id.to_be_bytes());
-            },
+            }
             TrieKey::NextSequenceAck { port_id, channel_id } => {
                 buf.push(TrieKeyWithoutFields::NextSequenceAck as u8);
                 buf.extend(port_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::NextSequenceAck as u8);
                 buf.extend(channel_id.to_be_bytes());
-            },
+            }
             TrieKey::Commitment { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Commitment as u8);
                 buf.extend(port_id.to_be_bytes());
@@ -320,7 +337,7 @@ impl TrieKey {
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Commitment as u8);
                 buf.extend(sequence.to_be_bytes());
-            }, 
+            }
             TrieKey::Receipts { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Receipts as u8);
                 buf.extend(port_id.to_be_bytes());
@@ -328,7 +345,7 @@ impl TrieKey {
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Receipts as u8);
                 buf.extend(sequence.to_be_bytes());
-            },
+            }
             TrieKey::Acks { port_id, channel_id, sequence } => {
                 buf.push(TrieKeyWithoutFields::Acks as u8);
                 buf.extend(port_id.to_be_bytes());
@@ -336,8 +353,8 @@ impl TrieKey {
                 buf.extend(channel_id.to_be_bytes());
                 buf.push(TrieKeyWithoutFields::Acks as u8);
                 buf.extend(sequence.to_be_bytes());
-            },
-        } 
+            }
+        }
         debug_assert_eq!(expected_len, buf.len() - start_len);
     }
 
@@ -481,9 +498,7 @@ pub trait SolanaIbcStorageHost {
         todo!()
     }
     ///
-    fn set_solana_ibc_store(_store: &SolanaIbcStorage) {
-        todo!()
-    }
+    fn set_solana_ibc_store(_store: &SolanaIbcStorage) { todo!() }
 }
 
 impl Router for SolanaIbcStorage<'_, '_> {

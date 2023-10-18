@@ -1,12 +1,10 @@
-use anchor_lang::prelude::*;
-
 use core::cell::RefMut;
 use core::mem::ManuallyDrop;
+use std::result::Result;
 
+use anchor_lang::prelude::*;
 use lib::hash::CryptoHash;
 use memory::Ptr;
-
-use std::result::Result;
 
 use crate::magic;
 

@@ -371,7 +371,9 @@ impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
     }
 }
 
-impl ibc::clients::ics07_tendermint::CommonContext for SolanaIbcStorage<'_, '_> {
+impl ibc::clients::ics07_tendermint::CommonContext
+    for SolanaIbcStorage<'_, '_>
+{
     type ConversionError = ClientError;
 
     type AnyConsensusState = AnyConsensusState;
@@ -401,7 +403,9 @@ impl MockClientContext for SolanaIbcStorage<'_, '_> {
     }
 }
 
-impl ibc::clients::ics07_tendermint::ValidationContext for SolanaIbcStorage<'_, '_> {
+impl ibc::clients::ics07_tendermint::ValidationContext
+    for SolanaIbcStorage<'_, '_>
+{
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
         ValidationContext::host_timestamp(self)
     }

@@ -21,8 +21,8 @@ use ibc_proto::protobuf::Protobuf;
 
 use crate::trie::AccountTrie;
 use crate::{
-    accounts, instruction, AnyCheck, SolanaIbcStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED, SolanaIbcStorageTemp,
+    accounts, instruction, AnyCheck, SolanaIbcStorage, SolanaIbcStorageTemp,
+    ID, SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
 };
 
 const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
