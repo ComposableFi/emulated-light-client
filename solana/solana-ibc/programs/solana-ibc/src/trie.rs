@@ -2,7 +2,7 @@ use core::cell::RefMut;
 use core::mem::ManuallyDrop;
 use std::result::Result;
 
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, solana_program};
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
@@ -290,38 +290,38 @@ fn test_header_encoding() {
     assert_eq!(Some(hdr), got_hdr);
 }
 
-// #[test]
-// fn test_trie_sanity() {
-//     const ONE: CryptoHash = CryptoHash([1; 32]);
+#[test]
+fn test_trie_sanity() {
+    const ONE: CryptoHash = CryptoHash([1; 32]);
 
-//     let key = solana_program::pubkey::Pubkey::new_unique();
-//     let mut lamports: u64 = 10 * solana_program::native_token::LAMPORTS_PER_SOL;
-//     let mut data = [0; SZ * 1000];
-//     let owner = solana_program::pubkey::Pubkey::new_unique();
-//     let account = solana_program::account_info::AccountInfo::new(
-//         /* key: */ &key,
-//         /* is signer: */ false,
-//         /* is writable: */ true,
-//         /* lamports: */ &mut lamports,
-//         /* data: */ &mut data[..],
-//         /* owner: */ &owner,
-//         /* executable: */ false,
-//         /* rent_epoch: */ 42,
-//     );
+    let key = solana_program::pubkey::Pubkey::new_unique();
+    let mut lamports: u64 = 10 * solana_program::native_token::LAMPORTS_PER_SOL;
+    let mut data = [0; SZ * 1000];
+    let owner = solana_program::pubkey::Pubkey::new_unique();
+    let account = solana_program::account_info::AccountInfo::new(
+        /* key: */ &key,
+        /* is signer: */ false,
+        /* is writable: */ true,
+        /* lamports: */ &mut lamports,
+        /* data: */ &mut data[..],
+        /* owner: */ &owner,
+        /* executable: */ false,
+        /* rent_epoch: */ 42,
+    );
 
-//     {
-//         let mut trie = AccountTrie::new(account.data.borrow_mut()).unwrap();
-//         assert_eq!(Ok(None), trie.get(&[0]));
+    {
+        let mut trie = AccountTrie::new(account.data.borrow_mut()).unwrap();
+        assert_eq!(Ok(None), trie.get(&[0]));
 
-//         assert_eq!(Ok(()), trie.set(&[0], &ONE));
-//         assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
-//     }
+        assert_eq!(Ok(()), trie.set(&[0], &ONE));
+        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+    }
 
-//     {
-//         let mut trie = AccountTrie::new(account.data.borrow_mut()).unwrap();
-//         assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+    {
+        let mut trie = AccountTrie::new(account.data.borrow_mut()).unwrap();
+        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
 
-//         assert_eq!(Ok(()), trie.seal(&[0]));
-//         assert_eq!(Err(sealable_trie::Error::Sealed), trie.get(&[0]));
-//     }
-// }
+        assert_eq!(Ok(()), trie.seal(&[0]));
+        assert_eq!(Err(sealable_trie::Error::Sealed), trie.get(&[0]));
+    }
+}
