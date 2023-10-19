@@ -86,8 +86,11 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
 
     fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
         let store = self.0.borrow();
-        ibc::Height::new(store.solana_ibc_store.height.0, store.solana_ibc_store.height.1)
-            .map_err(ContextError::ClientError)
+        ibc::Height::new(
+            store.solana_ibc_store.height.0,
+            store.solana_ibc_store.height.1,
+        )
+        .map_err(ContextError::ClientError)
     }
 
     fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
@@ -223,7 +226,11 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             commitment_path.channel_id.to_string(),
         );
         let store = self.0.borrow();
-        match store.solana_ibc_store.packet_acknowledgement_sequence_sets.get(&commitment_key) {
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&commitment_key)
+        {
             Some(data) => {
                 let data_in_u8: Vec<u8> =
                     data.iter().map(|x| *x as u8).collect();
@@ -246,7 +253,11 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             receipt_path.channel_id.to_string(),
         );
         let store = self.0.borrow();
-        match store.solana_ibc_store.packet_acknowledgement_sequence_sets.get(&receipt_key) {
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&receipt_key)
+        {
             Some(data) => {
                 match data.binary_search(&u64::from(receipt_path.sequence)) {
                     Ok(_) => Ok(Receipt::Ok),
@@ -272,7 +283,11 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         let ack_key =
             (ack_path.port_id.to_string(), ack_path.channel_id.to_string());
         let store = self.0.borrow();
-        match store.solana_ibc_store.packet_acknowledgement_sequence_sets.get(&ack_key) {
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&ack_key)
+        {
             Some(data) => {
                 let data_in_u8: Vec<u8> =
                     data.iter().map(|x| *x as u8).collect();
@@ -292,7 +307,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Timestamp, ContextError> {
         let store = self.0.borrow();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .client_processed_times
             .get(client_id.as_str())
             .and_then(|processed_times| {
@@ -317,7 +333,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Height, ContextError> {
         let store = self.0.borrow();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .client_processed_heights
             .get(client_id.as_str())
             .and_then(|processed_heights| {
@@ -405,7 +422,8 @@ impl SolanaIbcStorage<'_, '_> {
         ),
     > {
         let store = self.0.borrow();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .next_sequence
             .get(&(path.port_id.to_string(), path.channel_id.to_string()))
             .and_then(|triple| triple.get(index))

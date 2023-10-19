@@ -64,8 +64,14 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
-    store.solana_ibc_store.clients.insert(client_state_key, serialized_client_state);
-    store.solana_ibc_store.client_id_set.push(client_state_path.0.to_string());
+        store
+            .solana_ibc_store
+            .clients
+            .insert(client_state_key, serialized_client_state);
+        store
+            .solana_ibc_store
+            .client_id_set
+            .push(client_state_path.0.to_string());
         Ok(())
     }
 
@@ -97,7 +103,8 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         )
         .unwrap();
 
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .consensus_states
             .insert(consensus_state_key, serialized_consensus_state);
         store.solana_ibc_store.height.0 = consensus_state_path.epoch;
@@ -109,8 +116,12 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
 impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn increase_client_counter(&mut self) -> Result {
         let mut store = self.0.borrow_mut();
-        store.solana_ibc_store.client_counter = store.solana_ibc_store.client_counter.checked_add(1).unwrap();
-        msg!("client_counter has increased to: {}", store.solana_ibc_store.client_counter);
+        store.solana_ibc_store.client_counter =
+            store.solana_ibc_store.client_counter.checked_add(1).unwrap();
+        msg!(
+            "client_counter has increased to: {}",
+            store.solana_ibc_store.client_counter
+        );
         Ok(())
     }
 
@@ -127,7 +138,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             timestamp
         );
         let mut store = self.0.borrow_mut();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .client_processed_times
             .entry(client_id.to_string())
             .or_default()
@@ -152,7 +164,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             host_height
         );
         let mut store = self.0.borrow_mut();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .client_processed_heights
             .entry(client_id.to_string())
             .or_default()
@@ -187,7 +200,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         )
         .unwrap();
 
-        store.solana_ibc_store 
+        store
+            .solana_ibc_store
             .connections
             .insert(connection_path.0.to_string(), serialized_connection_end);
         Ok(())
@@ -204,7 +218,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             conn_id
         );
         let mut store = self.0.borrow_mut();
-        store.solana_ibc_store
+        store
+            .solana_ibc_store
             .connection_to_client
             .insert(conn_id.to_string(), client_connection_path.0.to_string());
         Ok(())
@@ -212,7 +227,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
     fn increase_connection_counter(&mut self) -> Result {
         let mut store = self.0.borrow_mut();
-        store.solana_ibc_store.connection_counter = store.solana_ibc_store.connection_counter.checked_add(1).unwrap();
+        store.solana_ibc_store.connection_counter =
+            store.solana_ibc_store.connection_counter.checked_add(1).unwrap();
         msg!(
             "connection_counter has increased to: {}",
             store.solana_ibc_store.connection_counter
@@ -254,10 +270,11 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     ) -> Result {
         msg!("delete_packet_commitment: path: {}", commitment_path);
         let mut store = self.0.borrow_mut();
-        let sequences = store.solana_ibc_store.packet_commitment_sequence_sets.get_mut(&(
-            commitment_path.port_id.clone().to_string(),
-            commitment_path.channel_id.clone().to_string(),
-        ));
+        let sequences =
+            store.solana_ibc_store.packet_commitment_sequence_sets.get_mut(&(
+                commitment_path.port_id.clone().to_string(),
+                commitment_path.channel_id.clone().to_string(),
+            ));
         if let Some(sequences) = sequences {
             let index = sequences
                 .iter()
@@ -322,10 +339,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn delete_packet_acknowledgement(&mut self, ack_path: &AckPath) -> Result {
         msg!("delete_packet_acknowledgement: path: {}", ack_path,);
         let mut store = self.0.borrow_mut();
-        let sequences = store.solana_ibc_store.packet_acknowledgement_sequence_sets.get_mut(&(
-            ack_path.port_id.clone().to_string(),
-            ack_path.channel_id.clone().to_string(),
-        ));
+        let sequences = store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get_mut(&(
+                ack_path.port_id.clone().to_string(),
+                ack_path.channel_id.clone().to_string(),
+            ));
         if let Some(sequences) = sequences {
             let sequence_as_u64: u64 = ack_path.sequence.into();
             sequences.remove(sequence_as_u64 as usize);
@@ -410,19 +430,26 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn increase_channel_counter(&mut self) -> Result {
         let mut store = self.0.borrow_mut();
         store.solana_ibc_store.channel_counter += 1;
-        msg!("channel_counter has increased to: {}", store.solana_ibc_store.channel_counter);
+        msg!(
+            "channel_counter has increased to: {}",
+            store.solana_ibc_store.channel_counter
+        );
         Ok(())
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
         let mut store = self.0.borrow_mut();
-        let host_height = ibc::Height::new(store.solana_ibc_store.height.0, store.solana_ibc_store.height.1)
-            .map_err(ContextError::ClientError)
-            .unwrap();
+        let host_height = ibc::Height::new(
+            store.solana_ibc_store.height.0,
+            store.solana_ibc_store.height.1,
+        )
+        .map_err(ContextError::ClientError)
+        .unwrap();
         let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
-            store.solana_ibc_store
+        store
+            .solana_ibc_store
             .ibc_events_history
             .entry(inner_host_height)
             .or_default()
