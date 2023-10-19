@@ -405,7 +405,8 @@ impl SolanaIbcStorage<'_, '_> {
         ),
     > {
         let store = self.0.borrow();
-        store.next_sequence
+        store
+            .next_sequence
             .get(&(path.port_id.to_string(), path.channel_id.to_string()))
             .and_then(|triple| triple.get(index))
             .ok_or_else(|| (path.port_id.clone(), path.channel_id.clone()))

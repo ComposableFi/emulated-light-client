@@ -28,7 +28,7 @@ use crate::consensus_state::AnyConsensusState;
 use crate::trie_key::TrieKey;
 use crate::{
     EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaTimestamp, SolanaIbcStorageTest,
+    InnerSequence, SolanaIbcStorage, SolanaIbcStorageTest, SolanaTimestamp,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;

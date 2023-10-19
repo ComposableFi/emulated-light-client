@@ -101,7 +101,7 @@ pub mod solana_ibc {
                 .packet_acknowledgement_sequence_sets
                 .clone(),
             ibc_events_history: solana_ibc_store.ibc_events_history.clone(),
-            trie: trie,
+            trie,
         };
 
         let mut store =
@@ -151,8 +151,7 @@ pub mod solana_ibc {
         solana_ibc_store.port_channel_id_set =
             sol_store.port_channel_id_set.clone();
         solana_ibc_store.channel_counter = sol_store.channel_counter;
-        solana_ibc_store.next_sequence =
-            sol_store.next_sequence.clone();
+        solana_ibc_store.next_sequence = sol_store.next_sequence.clone();
         solana_ibc_store.packet_commitment_sequence_sets =
             sol_store.packet_commitment_sequence_sets.clone();
         solana_ibc_store.packet_receipt_sequence_sets =
