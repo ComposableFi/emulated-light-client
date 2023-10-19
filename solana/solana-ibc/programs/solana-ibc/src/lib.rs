@@ -10,7 +10,6 @@ use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
-use module_holder::ModuleHolder;
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 const TEST_TRIE_SEED: &[u8] = b"test_trie";
@@ -22,7 +21,6 @@ declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 mod client_state;
 mod consensus_state;
 mod execution_context;
-mod module_holder;
 #[cfg(test)]
 mod tests;
 mod transfer;
@@ -74,7 +72,6 @@ pub mod solana_ibc {
 
         let solana_real_storage = SolanaIbcStorageTest {
             height: solana_ibc_store.height,
-            module_holder: solana_ibc_store.module_holder.clone(),
             clients: solana_ibc_store.clients.clone(),
             client_id_set: solana_ibc_store.client_id_set.clone(),
             client_counter: solana_ibc_store.client_counter,
@@ -138,7 +135,6 @@ pub mod solana_ibc {
         let mut binding = store.clone();
         let sol_store = binding.borrow_mut().0.borrow();
         solana_ibc_store.height = sol_store.height;
-        solana_ibc_store.module_holder = sol_store.module_holder.clone();
         solana_ibc_store.clients = sol_store.clients.clone();
         solana_ibc_store.client_id_set = sol_store.client_id_set.clone();
         solana_ibc_store.client_counter = sol_store.client_counter;
@@ -224,8 +220,6 @@ pub type InnerConsensusState = String; // Serialized
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
 pub struct SolanaIbcStorageTemp {
     pub height: InnerHeight,
-    /// To support the mutable borrow in `Router::get_route_mut`.
-    pub module_holder: ModuleHolder,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
@@ -273,8 +267,6 @@ pub struct SolanaIbcStorageTemp {
 #[derive(Debug)]
 pub struct SolanaIbcStorageTest<'a, 'b> {
     pub height: InnerHeight,
-    /// To support the mutable borrow in `Router::get_route_mut`.
-    pub module_holder: ModuleHolder,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
