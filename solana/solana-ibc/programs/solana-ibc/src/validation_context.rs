@@ -170,53 +170,41 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
 
     fn get_next_sequence_send(
         &self,
-        seq_send_path: &SeqSendPath,
+        path: &SeqSendPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_send_key =
-            (seq_send_path.0.to_string(), seq_send_path.1.to_string());
-        match self.next_sequence_send.get(&seq_send_key) {
-            Some(sequence_set) => Ok(Sequence::from(*sequence_set)),
-            None => Err(ContextError::PacketError(
-                PacketError::MissingNextSendSeq {
-                    port_id: seq_send_path.0.clone(),
-                    channel_id: seq_send_path.1.clone(),
-                },
-            )),
-        }
+        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Send)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextSendSeq {
+                    port_id,
+                    channel_id,
+                })
+            })
     }
 
     fn get_next_sequence_recv(
         &self,
-        seq_recv_path: &SeqRecvPath,
+        path: &SeqRecvPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_recv_key =
-            (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
-        match self.next_sequence_recv.get(&seq_recv_key) {
-            Some(sequence) => Ok(Sequence::from(*sequence)),
-            None => Err(ContextError::PacketError(
-                PacketError::MissingNextRecvSeq {
-                    port_id: seq_recv_path.0.clone(),
-                    channel_id: seq_recv_path.1.clone(),
-                },
-            )),
-        }
+        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Recv)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextRecvSeq {
+                    port_id,
+                    channel_id,
+                })
+            })
     }
 
     fn get_next_sequence_ack(
         &self,
-        seq_ack_path: &SeqAckPath,
+        path: &SeqAckPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        let seq_ack_key =
-            (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
-        match self.next_sequence_ack.get(&seq_ack_key) {
-            Some(sequence) => Ok(Sequence::from(*sequence)),
-            None => {
-                Err(ContextError::PacketError(PacketError::MissingNextAckSeq {
-                    port_id: seq_ack_path.0.clone(),
-                    channel_id: seq_ack_path.1.clone(),
-                }))
-            }
-        }
+        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Ack)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextAckSeq {
+                    port_id,
+                    channel_id,
+                })
+            })
     }
 
     fn get_packet_commitment(
@@ -386,6 +374,25 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             delay_period_time,
             &self.max_expected_time_per_block(),
         )
+    }
+}
+
+impl SolanaIbcStorage<'_, '_> {
+    fn get_next_sequence(
+        &self,
+        path: crate::trie_key::SequencePath<'_>,
+        index: super::SequenceTripleIdx,
+    ) -> core::result::Result<
+        Sequence,
+        (
+            ibc::core::ics24_host::identifier::PortId,
+            ibc::core::ics24_host::identifier::ChannelId,
+        ),
+    > {
+        self.next_sequence
+            .get(&(path.port_id.to_string(), path.channel_id.to_string()))
+            .and_then(|triple| triple.get(index))
+            .ok_or_else(|| (path.port_id.clone(), path.channel_id.clone()))
     }
 }
 
