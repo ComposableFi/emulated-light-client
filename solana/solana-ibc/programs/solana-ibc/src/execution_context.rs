@@ -27,8 +27,8 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::trie_key::TrieKey;
 use crate::{
-    EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaIbcStorageTest, SolanaTimestamp,
+    EmitIBCEvent, InnerChannelId, InnerPortId,
+    InnerSequence, SolanaIbcStorage, SolanaIbcStorageTest,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
@@ -127,27 +127,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             timestamp
         );
         let mut store = self.0.borrow_mut();
-        let mut new_map: BTreeMap<InnerHeight, SolanaTimestamp> =
-            BTreeMap::new();
-        BTreeMap::insert(
-            &mut new_map,
-            (height.revision_number(), height.revision_height()),
-            timestamp.nanoseconds(),
-        );
-        if !store.client_processed_times.contains_key(&client_id.to_string()) {
-            store
-                .client_processed_times
-                .insert(client_id.to_string().clone(), new_map);
-        }
-        store.client_processed_times.get_mut(&client_id.to_string()).map(
-            |processed_times| {
-                BTreeMap::insert(
-                    processed_times,
-                    (height.revision_number(), height.revision_height()),
-                    timestamp.nanoseconds(),
-                )
-            },
-        );
+        store.client_processed_times
+            .entry(client_id.to_string())
+            .or_default()
+            .insert(
+                (height.revision_number(), height.revision_height()),
+                timestamp.nanoseconds(),
+            );
         Ok(())
     }
 
@@ -164,31 +150,14 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             height,
             host_height
         );
-        let mut new_map: BTreeMap<InnerHeight, HostHeight> = BTreeMap::new();
         let mut store = self.0.borrow_mut();
-        BTreeMap::insert(
-            &mut new_map,
-            (height.revision_number(), height.revision_height()),
-            (host_height.revision_number(), host_height.revision_height()),
-        );
-        if !store.client_processed_heights.contains_key(&client_id.to_string())
-        {
-            store
-                .client_processed_heights
-                .insert(client_id.to_string().clone(), new_map);
-        }
-        store.client_processed_heights.get_mut(&client_id.to_string()).map(
-            |processed_heights| {
-                BTreeMap::insert(
-                    processed_heights,
-                    (height.revision_number(), height.revision_height()),
-                    (
-                        host_height.revision_number(),
-                        host_height.revision_height(),
-                    ),
-                )
-            },
-        );
+        store.client_processed_heights
+            .entry(client_id.to_string())
+            .or_default()
+            .insert(
+                (height.revision_number(), height.revision_height()),
+                (host_height.revision_number(), host_height.revision_height()),
+            );
         Ok(())
     }
 
