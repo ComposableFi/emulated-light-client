@@ -35,7 +35,7 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
-        match self.clients.get(&client_id.to_string()) {
+        match self.clients.get(client_id.as_str()) {
             Some(data) => {
                 let client: AnyClientState =
                     serde_json::from_str(data).unwrap();
@@ -112,7 +112,7 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         &self,
         conn_id: &ConnectionId,
     ) -> std::result::Result<ConnectionEnd, ContextError> {
-        match self.connections.get(&conn_id.to_string()) {
+        match self.connections.get(conn_id.as_str()) {
             Some(data) => {
                 let connection: ConnectionEnd =
                     serde_json::from_str(data).unwrap();
@@ -282,7 +282,7 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Timestamp, ContextError> {
         self.client_processed_times
-            .get(&client_id.to_string())
+            .get(client_id.as_str())
             .and_then(|processed_times| {
                 processed_times
                     .get(&(height.revision_number(), height.revision_height()))
@@ -305,7 +305,7 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Height, ContextError> {
         self.client_processed_heights
-            .get(&client_id.to_string())
+            .get(client_id.as_str())
             .and_then(|processed_heights| {
                 processed_heights
                     .get(&(height.revision_number(), height.revision_height()))
