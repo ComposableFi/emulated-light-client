@@ -4,7 +4,6 @@
 extern crate alloc;
 
 use alloc::collections::BTreeMap;
-use core::borrow::Borrow;
 use core::cell::RefCell;
 use std::rc::Rc;
 
@@ -42,8 +41,6 @@ mod magic {
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-    use std::borrow::BorrowMut;
-
     use super::*;
 
     pub fn deliver(
@@ -117,8 +114,8 @@ pub mod solana_ibc {
                 match ibc::core::MsgEnvelope::try_from(msg) {
                     Ok(msg) => {
                         match ibc::core::dispatch(
-                            store.borrow_mut(),
-                            router.borrow_mut(),
+                            &mut store,
+                            &mut router,
                             msg,
                         ) {
                             Ok(()) => (),
@@ -131,7 +128,7 @@ pub mod solana_ibc {
             });
 
         let binding = store.clone();
-        let sol_store = binding.0.try_borrow_mut().unwrap();
+        let sol_store = binding.0.borrow_mut();
         solana_ibc_store.height = sol_store.height;
         solana_ibc_store.clients = sol_store.clients.clone();
         solana_ibc_store.client_id_set = sol_store.client_id_set.clone();
@@ -369,7 +366,8 @@ struct SolanaIbcStorage<'a, 'b>(Rc<RefCell<SolanaIbcStorageTest<'a, 'b>>>);
 impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
-        match module_id.borrow() {
+        let module_id = core::borrow::Borrow::borrow(module_id);
+        match module_id {
             ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
@@ -379,7 +377,8 @@ impl Router for SolanaIbcStorage<'_, '_> {
         &mut self,
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
-        match module_id.borrow() {
+        let module_id = core::borrow::Borrow::borrow(module_id);
+        match module_id {
             ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
