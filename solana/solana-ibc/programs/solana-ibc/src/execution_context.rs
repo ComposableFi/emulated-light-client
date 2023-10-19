@@ -396,81 +396,41 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
     fn store_next_sequence_send(
         &mut self,
-        seq_send_path: &SeqSendPath,
+        path: &SeqSendPath,
         seq: Sequence,
     ) -> Result {
-        msg!(
-            "store_next_sequence_send: path: {}, seq: {:?}",
-            seq_send_path,
-            seq
-        );
-        let mut store = self.0.borrow_mut();
-        let seq_send_key =
-            (seq_send_path.0.to_string(), seq_send_path.1.to_string());
-
-        let next_seq_send_trie_key = TrieKey::from(seq_send_path);
-        let trie = store.trie.as_mut().unwrap();
-        let seq_in_u64: u64 = seq.into();
-        let seq_in_bytes = seq_in_u64.to_be_bytes();
-
-        trie.set(
-            &next_seq_send_trie_key,
-            &lib::hash::CryptoHash::digest(&seq_in_bytes),
+        msg!("store_next_sequence_send: path: {path}, seq: {seq}");
+        self.store_next_sequence(
+            path.into(),
+            super::SequenceTripleIdx::Send,
+            seq,
         )
-        .unwrap();
-
-        store.next_sequence_send.insert(seq_send_key, u64::from(seq));
-        Ok(())
     }
 
     fn store_next_sequence_recv(
         &mut self,
-        seq_recv_path: &SeqRecvPath,
+        path: &SeqRecvPath,
         seq: Sequence,
     ) -> Result {
-        msg!(
-            "store_next_sequence_recv: path: {}, seq: {:?}",
-            seq_recv_path,
-            seq
-        );
-        let mut store = self.0.borrow_mut();
-        let seq_recv_key =
-            (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
-        let next_seq_recv_trie_key = TrieKey::from(seq_recv_path);
-        let trie = store.trie.as_mut().unwrap();
-        let seq_in_u64: u64 = seq.into();
-        let seq_in_bytes = seq_in_u64.to_be_bytes();
-
-        trie.set(
-            &next_seq_recv_trie_key,
-            &lib::hash::CryptoHash::digest(&seq_in_bytes),
+        msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
+        self.store_next_sequence(
+            path.into(),
+            super::SequenceTripleIdx::Recv,
+            seq,
         )
-        .unwrap();
-        store.next_sequence_recv.insert(seq_recv_key, u64::from(seq));
-        Ok(())
     }
 
     fn store_next_sequence_ack(
         &mut self,
-        seq_ack_path: &SeqAckPath,
+        path: &SeqAckPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_ack: path: {}, seq: {:?}", seq_ack_path, seq);
-        let seq_ack_key =
-            (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
-        let mut store = self.0.borrow_mut();
-        let next_seq_ack_trie_key = TrieKey::from(seq_ack_path);
-        let trie = store.trie.as_mut().unwrap();
-        let seq_in_u64: u64 = seq.into();
-        let seq_in_bytes = seq_in_u64.to_be_bytes();
-
-        trie.set(
-            &next_seq_ack_trie_key,
-            &lib::hash::CryptoHash::digest(&seq_in_bytes),
+        msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
+        self.store_next_sequence(
+            path.into(),
+            super::SequenceTripleIdx::Ack,
+            seq,
         )
-        .unwrap();
-        store.next_sequence_ack.insert(seq_ack_key, u64::from(seq));
-        Ok(())
     }
 
     fn increase_channel_counter(&mut self) -> Result {
@@ -504,6 +464,26 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
+
+impl SolanaIbcStorage<'_, '_> {
+    fn store_next_sequence(
+        &mut self,
+        path: crate::trie_key::SequencePath<'_>,
+        index: super::SequenceTripleIdx,
+        seq: Sequence,
+    ) -> Result {
+        let map_key = (path.port_id.to_string(), path.channel_id.to_string());
+        let triple = self.next_sequence.entry(map_key).or_default();
+        triple.set(index, seq);
+
+        let trie_key = TrieKey::from(path);
+        let trie = self.trie.as_mut().unwrap();
+        trie.set(&trie_key, &triple.to_hash()).unwrap();
+
+        Ok(())
+    }
+}
+
 
 fn record_packet_sequence(
     hash_map: &mut BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,

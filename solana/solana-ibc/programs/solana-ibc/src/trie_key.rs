@@ -40,6 +40,12 @@ use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
 // to avoid heap allocations.
 pub struct TrieKey(Vec<u8>);
 
+/// A path for next send, receive and ack sequence paths.
+pub struct SequencePath<'a> {
+    pub port_id: &'a PortId,
+    pub channel_id: &'a ChannelId,
+}
+
 /// Constructs a new [`TrieKey`] by concatenating key components.
 ///
 /// The first argument to the macro is a [`Tag`] object.  Remaining must
@@ -114,21 +120,31 @@ impl From<&ChannelEndPath> for TrieKey {
     }
 }
 
-impl From<&SeqSendPath> for TrieKey {
-    fn from(path: &SeqSendPath) -> Self {
-        Self::from_channel_path(Tag::NextSequenceSend, &path.0, &path.1)
+impl<'a> From<&'a SeqSendPath> for SequencePath<'a> {
+    fn from(path: &'a SeqSendPath) -> Self {
+        Self { port_id: &path.0, channel_id: &path.1 }
     }
 }
 
-impl From<&SeqRecvPath> for TrieKey {
-    fn from(path: &SeqRecvPath) -> Self {
-        Self::from_channel_path(Tag::NextSequenceRecv, &path.0, &path.1)
+impl<'a> From<&'a SeqRecvPath> for SequencePath<'a> {
+    fn from(path: &'a SeqRecvPath) -> Self {
+        Self { port_id: &path.0, channel_id: &path.1 }
     }
 }
 
-impl From<&SeqAckPath> for TrieKey {
-    fn from(path: &SeqAckPath) -> Self {
-        Self::from_channel_path(Tag::NextSequenceAck, &path.0, &path.1)
+impl<'a> From<&'a SeqAckPath> for SequencePath<'a> {
+    fn from(path: &'a SeqAckPath) -> Self {
+        Self { port_id: &path.0, channel_id: &path.1 }
+    }
+}
+
+impl From<SequencePath<'_>> for TrieKey {
+    fn from(path: SequencePath<'_>) -> Self {
+        Self::from_channel_path(
+            Tag::NextSequence,
+            path.port_id,
+            path.channel_id,
+        )
     }
 }
 
@@ -169,16 +185,14 @@ impl From<&AckPath> for TrieKey {
 /// for different objects stored in the trie.
 #[repr(u8)]
 enum Tag {
-    ClientState = 1,
-    ConsensusState = 2,
-    Connection = 3,
-    ChannelEnd = 4,
-    NextSequenceSend = 5,
-    NextSequenceRecv = 6,
-    NextSequenceAck = 7,
-    Commitment = 8,
-    Receipt = 9,
-    Ack = 10,
+    ClientState = 0,
+    ConsensusState = 1,
+    Connection = 2,
+    ChannelEnd = 3,
+    NextSequence = 4,
+    Commitment = 5,
+    Receipt = 6,
+    Ack = 8,
 }
 
 /// Component of a [`TrieKey`].
