@@ -2,7 +2,7 @@
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
 
-use std::cell::RefCell;
+use core::cell::RefCell;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -101,7 +101,7 @@ pub mod solana_ibc {
                 .packet_acknowledgement_sequence_sets
                 .clone(),
             ibc_events_history: solana_ibc_store.ibc_events_history.clone(),
-            trie: Some(trie),
+            trie: trie,
         };
 
         let mut store =
@@ -359,7 +359,7 @@ pub struct SolanaIbcStorageTest<'a, 'b> {
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The history of IBC events.
     pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
-    pub trie: Option<trie::AccountTrie<'a, 'b>>,
+    pub trie: trie::AccountTrie<'a, 'b>,
 }
 
 #[derive(Debug, Clone)]

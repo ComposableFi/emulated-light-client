@@ -28,7 +28,7 @@ use crate::consensus_state::AnyConsensusState;
 use crate::trie_key::TrieKey;
 use crate::{
     EmitIBCEvent, HostHeight, InnerChannelId, InnerHeight, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaTimestamp,
+    InnerSequence, SolanaIbcStorage, SolanaTimestamp, SolanaIbcStorageTest,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
@@ -54,7 +54,7 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let mut store = self.0.borrow_mut();
 
         let client_state_trie_key = TrieKey::from(&client_state_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         msg!(
             "THis is serialized client state {}",
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
@@ -88,7 +88,7 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
             serde_json::to_string(&consensus_state).unwrap();
 
         let consensus_state_trie_key = TrieKey::from(&consensus_state_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &consensus_state_trie_key,
             &lib::hash::CryptoHash::digest(
@@ -207,7 +207,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let serialized_connection_end =
             serde_json::to_string(&connection_end).unwrap();
         let connection_trie_key = TrieKey::from(connection_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &connection_trie_key,
             &lib::hash::CryptoHash::digest(
@@ -261,7 +261,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         );
         let mut store = self.0.borrow_mut();
         let commitment_trie_key = TrieKey::from(commitment_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &commitment_trie_key,
             &lib::hash::CryptoHash::digest(&commitment.into_vec()),
@@ -309,7 +309,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         );
         let mut store = self.0.borrow_mut();
         let receipt_trie_key = TrieKey::from(receipt_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
         trie.seal(&receipt_trie_key).unwrap();
         record_packet_sequence(
@@ -333,7 +333,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         );
         let mut store = self.0.borrow_mut();
         let ack_commitment_trie_key = TrieKey::from(ack_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &ack_commitment_trie_key,
             &lib::hash::CryptoHash::digest(&ack_commitment.into_vec()),
@@ -380,7 +380,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
         let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
         let channel_end_trie_key = TrieKey::from(channel_end_path);
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut &mut store.trie;
         trie.set(
             &channel_end_trie_key,
             &lib::hash::CryptoHash::digest(&serialized_channel_end),
@@ -400,7 +400,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Send,
             seq,
@@ -413,7 +414,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Recv,
             seq,
@@ -426,7 +428,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Ack,
             seq,
@@ -465,19 +468,17 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl SolanaIbcStorage<'_, '_> {
+impl SolanaIbcStorageTest<'_, '_> {
     fn store_next_sequence(
         &mut self,
         path: crate::trie_key::SequencePath<'_>,
         index: super::SequenceTripleIdx,
         seq: Sequence,
     ) -> Result {
-        let mut store = self.0.borrow_mut();
-        let trie = store.trie.as_mut().unwrap();
+        let trie = &mut self.trie;
+        let next_seq = &mut self.next_sequence;
         let map_key = (path.port_id.to_string(), path.channel_id.to_string());
-        let binding = self.clone();
-        let mut store_clone = binding.0.borrow_mut();
-        let triple = store_clone.next_sequence.entry(map_key).or_default();
+        let triple = next_seq.entry(map_key).or_default();
         triple.set(index, seq);
 
         let trie_key = TrieKey::from(path);
