@@ -52,17 +52,14 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let serialized_client_state =
             serde_json::to_string(&client_state).unwrap();
 
-        let client_state_trie_key = &TrieKey::ClientState {
-            client_id: client_state_path.0.to_string(),
-        }
-        .to_vec();
+        let client_state_trie_key = TrieKey::from(&client_state_path);
         let trie = self.trie.as_mut().unwrap();
         msg!(
             "THis is serialized client state {}",
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
         );
         trie.set(
-            client_state_trie_key,
+            &client_state_trie_key,
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
@@ -88,15 +85,10 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let serialized_consensus_state =
             serde_json::to_string(&consensus_state).unwrap();
 
-        let consensus_state_trie_key = &TrieKey::ConsensusState {
-            client_id: consensus_state_path.client_id.to_string(),
-            height: consensus_state_path.height,
-            epoch: consensus_state_path.epoch,
-        }
-        .to_vec();
+        let consensus_state_trie_key = TrieKey::from(&consensus_state_path);
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            consensus_state_trie_key,
+            &consensus_state_trie_key,
             &lib::hash::CryptoHash::digest(
                 serialized_consensus_state.as_bytes(),
             ),
@@ -205,10 +197,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
         let serialized_connection_end =
             serde_json::to_string(&connection_end).unwrap();
-        let connection_trie_key = &TrieKey::from(connection_path).to_vec();
+        let connection_trie_key = TrieKey::from(connection_path);
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            connection_trie_key,
+            &connection_trie_key,
             &lib::hash::CryptoHash::digest(
                 serialized_connection_end.as_bytes(),
             ),
@@ -254,10 +246,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             commitment_path,
             commitment
         );
-        let commitment_trie_key = &TrieKey::from(commitment_path).to_vec();
+        let commitment_trie_key = TrieKey::from(commitment_path);
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            commitment_trie_key,
+            &commitment_trie_key,
             &lib::hash::CryptoHash::digest(&commitment.into_vec()),
         )
         .unwrap();
@@ -300,10 +292,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             receipt_path,
             receipt
         );
-        let receipt_trie_key = &TrieKey::from(receipt_path).to_vec();
+        let receipt_trie_key = TrieKey::from(receipt_path);
         let trie = self.trie.as_mut().unwrap();
-        trie.set(receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
-        trie.seal(receipt_trie_key).unwrap();
+        trie.set(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
+        trie.seal(&receipt_trie_key).unwrap();
         record_packet_sequence(
             &mut self.packet_receipt_sequence_sets,
             &receipt_path.port_id,
@@ -323,10 +315,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             ack_path,
             ack_commitment
         );
-        let ack_commitment_trie_key = &TrieKey::from(ack_path).to_vec();
+        let ack_commitment_trie_key = TrieKey::from(ack_path);
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            ack_commitment_trie_key,
+            &ack_commitment_trie_key,
             &lib::hash::CryptoHash::digest(&ack_commitment.into_vec()),
         )
         .unwrap();
@@ -368,10 +360,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         ));
 
         let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
-        let channel_end_trie_key = &TrieKey::from(channel_end_path).to_vec();
+        let channel_end_trie_key = TrieKey::from(channel_end_path);
         let trie = self.trie.as_mut().unwrap();
         trie.set(
-            channel_end_trie_key,
+            &channel_end_trie_key,
             &lib::hash::CryptoHash::digest(&serialized_channel_end),
         )
         .unwrap();
@@ -396,13 +388,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         let seq_send_key =
             (seq_send_path.0.to_string(), seq_send_path.1.to_string());
 
-        let next_seq_send_trie_key = &TrieKey::from(seq_send_path).to_vec();
+        let next_seq_send_trie_key = TrieKey::from(seq_send_path);
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            next_seq_send_trie_key,
+            &next_seq_send_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();
@@ -423,13 +415,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         );
         let seq_recv_key =
             (seq_recv_path.0.to_string(), seq_recv_path.1.to_string());
-        let next_seq_recv_trie_key = &TrieKey::from(seq_recv_path).to_vec();
+        let next_seq_recv_trie_key = TrieKey::from(seq_recv_path);
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            next_seq_recv_trie_key,
+            &next_seq_recv_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();
@@ -445,13 +437,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         msg!("store_next_sequence_ack: path: {}, seq: {:?}", seq_ack_path, seq);
         let seq_ack_key =
             (seq_ack_path.0.to_string(), seq_ack_path.1.to_string());
-        let next_seq_ack_trie_key = &TrieKey::from(seq_ack_path).to_vec();
+        let next_seq_ack_trie_key = TrieKey::from(seq_ack_path);
         let trie = self.trie.as_mut().unwrap();
         let seq_in_u64: u64 = seq.into();
         let seq_in_bytes = seq_in_u64.to_be_bytes();
 
         trie.set(
-            next_seq_ack_trie_key,
+            &next_seq_ack_trie_key,
             &lib::hash::CryptoHash::digest(&seq_in_bytes),
         )
         .unwrap();
