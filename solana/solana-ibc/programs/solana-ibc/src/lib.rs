@@ -5,7 +5,7 @@ extern crate alloc;
 
 use alloc::collections::BTreeMap;
 use core::cell::RefCell;
-use std::rc::Rc;
+use alloc::rc::Rc;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
