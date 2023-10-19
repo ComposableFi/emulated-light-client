@@ -212,7 +212,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
     fn increase_connection_counter(&mut self) -> Result {
         let store = self.0.borrow_mut();
-        store.connection_counter.checked_add(1).unwrap();
+        store.connection_counter = store.connection_counter.checked_add(1).unwrap();
         msg!(
             "connection_counter has increased to: {}",
             store.connection_counter
