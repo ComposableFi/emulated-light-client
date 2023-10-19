@@ -20,7 +20,7 @@ use ibc::Any;
 use ibc_proto::protobuf::Protobuf;
 
 use crate::{
-    accounts, instruction, AnyCheck, SolanaIbcStorageTemp, ID,
+    accounts, instruction, AnyCheck, PrivateStorage, ID,
     SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
 };
 
@@ -100,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("demo sig: {sig}");
 
     // Retrieve and validate state
-    let solana_ibc_storage_account: SolanaIbcStorageTemp =
+    let solana_ibc_storage_account: PrivateStorage =
         program.account(solana_ibc_storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
@@ -111,7 +111,7 @@ fn anchor_test_deliver() -> Result<()> {
 // #[test]
 // fn internal_test() {
 //     let authority = Keypair::new();
-//     let mut solana_ibc_store = SolanaIbcStorage::new(authority.pubkey());
+//     let mut solana_ibc_store = IbcStorage::new(authority.pubkey());
 //     let mock_client_state = MockClientState::new(MockHeader::default());
 //     let mock_cs_state = MockConsensusState::new(MockHeader::default());
 //     let client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();

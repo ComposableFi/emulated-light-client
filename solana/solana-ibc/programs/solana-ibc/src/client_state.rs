@@ -24,7 +24,7 @@ use ibc_proto::protobuf::Protobuf;
 use serde::{Deserialize, Serialize};
 
 use super::consensus_state::AnyConsensusState;
-use crate::SolanaIbcStorage;
+use crate::IbcStorage;
 
 const TENDERMINT_CLIENT_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ClientState";
@@ -82,10 +82,10 @@ impl From<AnyClientState> for Any {
     }
 }
 
-impl ClientStateValidation<SolanaIbcStorage<'_, '_>> for AnyClientState {
+impl ClientStateValidation<IbcStorage<'_, '_>> for AnyClientState {
     fn verify_client_message(
         &self,
-        ctx: &SolanaIbcStorage,
+        ctx: &IbcStorage,
         client_id: &ClientId,
         client_message: Any,
         update_kind: &UpdateKind,
@@ -111,7 +111,7 @@ impl ClientStateValidation<SolanaIbcStorage<'_, '_>> for AnyClientState {
 
     fn check_for_misbehaviour(
         &self,
-        ctx: &SolanaIbcStorage,
+        ctx: &IbcStorage,
         client_id: &ClientId,
         client_message: Any,
         update_kind: &UpdateKind,
@@ -137,7 +137,7 @@ impl ClientStateValidation<SolanaIbcStorage<'_, '_>> for AnyClientState {
 
     fn status(
         &self,
-        _ctx: &SolanaIbcStorage,
+        _ctx: &IbcStorage,
         _client_id: &ClientId,
     ) -> Result<ibc::core::ics02_client::client_state::Status, ClientError>
     {
@@ -283,10 +283,10 @@ impl From<MockClientState> for AnyClientState {
     fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
 }
 
-impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
+impl ClientStateExecution<IbcStorage<'_, '_>> for AnyClientState {
     fn initialise(
         &self,
-        ctx: &mut SolanaIbcStorage,
+        ctx: &mut IbcStorage,
         client_id: &ClientId,
         consensus_state: Any,
     ) -> Result<(), ClientError> {
@@ -303,7 +303,7 @@ impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
 
     fn update_state(
         &self,
-        ctx: &mut SolanaIbcStorage,
+        ctx: &mut IbcStorage,
         client_id: &ClientId,
         header: Any,
     ) -> Result<Vec<Height>, ClientError> {
@@ -320,7 +320,7 @@ impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
 
     fn update_state_on_misbehaviour(
         &self,
-        ctx: &mut SolanaIbcStorage,
+        ctx: &mut IbcStorage,
         client_id: &ClientId,
         client_message: Any,
         update_kind: &UpdateKind,
@@ -346,7 +346,7 @@ impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
 
     fn update_state_on_upgrade(
         &self,
-        ctx: &mut SolanaIbcStorage,
+        ctx: &mut IbcStorage,
         client_id: &ClientId,
         upgraded_client_state: Any,
         upgraded_consensus_state: Any,
@@ -371,9 +371,7 @@ impl ClientStateExecution<SolanaIbcStorage<'_, '_>> for AnyClientState {
     }
 }
 
-impl ibc::clients::ics07_tendermint::CommonContext
-    for SolanaIbcStorage<'_, '_>
-{
+impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
     type ConversionError = ClientError;
 
     type AnyConsensusState = AnyConsensusState;
@@ -387,7 +385,7 @@ impl ibc::clients::ics07_tendermint::CommonContext
 }
 
 #[cfg(any(test, feature = "mocks"))]
-impl MockClientContext for SolanaIbcStorage<'_, '_> {
+impl MockClientContext for IbcStorage<'_, '_> {
     type ConversionError = ClientError;
     type AnyConsensusState = AnyConsensusState;
 
@@ -403,9 +401,7 @@ impl MockClientContext for SolanaIbcStorage<'_, '_> {
     }
 }
 
-impl ibc::clients::ics07_tendermint::ValidationContext
-    for SolanaIbcStorage<'_, '_>
-{
+impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
         ValidationContext::host_timestamp(self)
     }
@@ -416,8 +412,10 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
         let end_height = (height.revision_number() + 1, 1);
-        let solana_ibc_store = &self.0.borrow().solana_ibc_store;
-        match solana_ibc_store
+        match self
+            .0
+            .borrow()
+            .private
             .consensus_states
             .get(&(client_id.to_string(), end_height))
         {
@@ -438,8 +436,10 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
         let end_height = (height.revision_number(), 1);
-        let solana_ibc_store = &self.0.borrow().solana_ibc_store;
-        match solana_ibc_store
+        match self
+            .0
+            .borrow()
+            .private
             .consensus_states
             .get(&(client_id.to_string(), end_height))
         {

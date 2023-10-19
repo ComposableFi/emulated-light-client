@@ -7,10 +7,10 @@ use ibc::applications::transfer::PrefixedCoin;
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::Signer;
 
-// use crate::module_holder::SolanaIbcStorage<'_,'_>;
-use crate::SolanaIbcStorage;
+// use crate::module_holder::IbcStorage<'_,'_>;
+use crate::IbcStorage;
 
-impl TokenTransferExecutionContext for SolanaIbcStorage<'_, '_> {
+impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
     fn send_coins_execute(
         &mut self,
         _from: &Self::AccountId,
@@ -56,7 +56,7 @@ impl TokenTransferExecutionContext for SolanaIbcStorage<'_, '_> {
     }
 }
 
-impl TokenTransferValidationContext for SolanaIbcStorage<'_, '_> {
+impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     type AccountId = Signer;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
