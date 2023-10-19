@@ -108,8 +108,8 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
 
 impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn increase_client_counter(&mut self) -> Result {
-        let store = self.0.borrow_mut();
-        store.client_counter.checked_add(1).unwrap();
+        let mut store = self.0.borrow_mut();
+        store.client_counter = store.client_counter.checked_add(1).unwrap();
         msg!("client_counter has increased to: {}", store.client_counter);
         Ok(())
     }
