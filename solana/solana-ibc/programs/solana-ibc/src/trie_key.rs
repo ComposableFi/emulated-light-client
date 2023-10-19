@@ -12,6 +12,30 @@ use ibc::core::ics24_host::path::{
 use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
 
 /// A key used for indexing entries in the provable storage.
+///
+/// The key is built from IBC storage paths.  The first byte is discriminant
+/// determining the type of path and the rest are concatenated components
+/// encoded in binary.  The key format can be visualised as the following enum:
+///
+/// ```ignore
+/// enum TrieKey {
+///     ClientState      { client_id: String },
+///     ConsensusState   { client_id: String, epoch: u64, height: u64 },
+///     Connection       { connection_id: u32 },
+///     ChannelEnd       { port_id: String, channel_id: u32 },
+///     NextSequenceSend { port_id: String, channel_id: u32 },
+///     NextSequenceRecv { port_id: String, channel_id: u32 },
+///     NextSequenceAck  { port_id: String, channel_id: u32 },
+///     Commitment       { port_id: String, channel_id: u32, sequence: u64 },
+///     Receipts         { port_id: String, channel_id: u32, sequence: u64 },
+///     Acks             { port_id: String, channel_id: u32, sequence: u64 },
+/// }
+/// ```
+///
+/// Integers are encoded using big-endian to guarantee dense encoding of
+/// consecutive keys (i.e. sequence 10 is immediately followed by 11 which would
+/// not be the case in little-endian encoding).  This is also one reason why we
+/// don’t just use Borsh encoding.
 // TODO(mina86): Look into using lib::varint::Buffer or some kind of small vec
 // to avoid heap allocations.
 pub struct TrieKey(Vec<u8>);
