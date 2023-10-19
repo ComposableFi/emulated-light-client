@@ -261,6 +261,7 @@ impl Module for SolanaIbcStorage<'_, '_> {
         _channel_id: &ChannelId,
         _counterparty_version: &Version,
     ) -> Result<ModuleExtras, ChannelError> {
+        // TODO(#35): Verify port_id is valid.
         Ok(ModuleExtras::empty())
     }
 
@@ -269,6 +270,7 @@ impl Module for SolanaIbcStorage<'_, '_> {
         _port_id: &PortId,
         _channel_id: &ChannelId,
     ) -> Result<ModuleExtras, ChannelError> {
+        // TODO(#35): Verify port_id is valid.
         Ok(ModuleExtras::empty())
     }
 
@@ -277,6 +279,7 @@ impl Module for SolanaIbcStorage<'_, '_> {
         _port_id: &PortId,
         _channel_id: &ChannelId,
     ) -> Result<ModuleExtras, ChannelError> {
+        // TODO(#35): Verify port_id is valid.
         Ok(ModuleExtras::empty())
     }
 
@@ -285,6 +288,7 @@ impl Module for SolanaIbcStorage<'_, '_> {
         _port_id: &PortId,
         _channel_id: &ChannelId,
     ) -> Result<ModuleExtras, ChannelError> {
+        // TODO(#35): Verify port_id is valid.
         Ok(ModuleExtras::empty())
     }
 }
