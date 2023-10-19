@@ -3,6 +3,7 @@
 #![allow(clippy::result_large_err)]
 
 use core::cell::RefCell;
+use core::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
@@ -128,8 +129,8 @@ pub mod solana_ibc {
                 errors
             });
 
-        let mut binding = store.clone();
-        let sol_store = binding.borrow_mut().0.borrow();
+        let binding = store.clone();
+        let sol_store = binding.0.try_borrow_mut().unwrap();
         solana_ibc_store.height = sol_store.height;
         solana_ibc_store.clients = sol_store.clients.clone();
         solana_ibc_store.client_id_set = sol_store.client_id_set.clone();
@@ -367,8 +368,10 @@ struct SolanaIbcStorage<'a, 'b>(Rc<RefCell<SolanaIbcStorageTest<'a, 'b>>>);
 impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
-        match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+        match module_id.borrow() {
+            ibc::applications::transfer::MODULE_ID_STR => {
+                Some(self)
+            }
             _ => None,
         }
     }
@@ -377,8 +380,10 @@ impl Router for SolanaIbcStorage<'_, '_> {
         &mut self,
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
-        match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+        match module_id.borrow() {
+            ibc::applications::transfer::MODULE_ID_STR => {
+                Some(self)
+            }
             _ => None,
         }
     }
