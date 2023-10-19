@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
+use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 use module_holder::ModuleHolder;
@@ -90,9 +91,7 @@ pub mod solana_ibc {
             connection_to_client: solana_ibc_store.connection_to_client.clone(),
             port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
             channel_counter: solana_ibc_store.channel_counter,
-            next_sequence_send: solana_ibc_store.next_sequence_send.clone(),
-            next_sequence_recv: solana_ibc_store.next_sequence_recv.clone(),
-            next_sequence_ack: solana_ibc_store.next_sequence_ack.clone(),
+            next_sequence: solana_ibc_store.next_sequence.clone(),
             packet_commitment_sequence_sets: solana_ibc_store
                 .packet_commitment_sequence_sets
                 .clone(),
@@ -129,9 +128,7 @@ pub mod solana_ibc {
             connection_to_client: solana_ibc_store.connection_to_client.clone(),
             port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
             channel_counter: solana_ibc_store.channel_counter,
-            next_sequence_send: solana_ibc_store.next_sequence_send.clone(),
-            next_sequence_recv: solana_ibc_store.next_sequence_recv.clone(),
-            next_sequence_ack: solana_ibc_store.next_sequence_ack.clone(),
+            next_sequence: solana_ibc_store.next_sequence.clone(),
             packet_commitment_sequence_sets: solana_ibc_store
                 .packet_commitment_sequence_sets
                 .clone(),
@@ -192,12 +189,8 @@ pub mod solana_ibc {
         solana_ibc_store.port_channel_id_set =
             solana_real_storage.port_channel_id_set.clone();
         solana_ibc_store.channel_counter = solana_real_storage.channel_counter;
-        solana_ibc_store.next_sequence_send =
-            solana_real_storage.next_sequence_send.clone();
-        solana_ibc_store.next_sequence_recv =
-            solana_real_storage.next_sequence_recv.clone();
-        solana_ibc_store.next_sequence_ack =
-            solana_real_storage.next_sequence_ack.clone();
+        solana_ibc_store.next_sequence =
+            solana_real_storage.next_sequence.clone();
         solana_ibc_store.packet_commitment_sequence_sets =
             solana_real_storage.packet_commitment_sequence_sets.clone();
         solana_ibc_store.packet_receipt_sequence_sets =
@@ -252,6 +245,59 @@ pub type InnerConnectionEnd = String; // Serialized
 pub type InnerChannelEnd = String; // Serialized
 pub type InnerConsensusState = String; // Serialized
 
+/// A triple of send, receive and acknowledge sequences.
+#[derive(
+    Clone,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+)]
+pub struct InnerSequenceTriple {
+    sequences: [u64; 3],
+    mask: u8,
+}
+
+#[derive(Clone, Copy)]
+pub enum SequenceTripleIdx {
+    Send = 0,
+    Recv = 1,
+    Ack = 2,
+}
+
+impl InnerSequenceTriple {
+    /// Returns sequence at given index or `None` if it wasn’t set yet.
+    pub fn get(&self, idx: SequenceTripleIdx) -> Option<Sequence> {
+        if self.mask & (1 << (idx as u32)) == 1 {
+            Some(Sequence::from(self.sequences[idx as usize]))
+        } else {
+            None
+        }
+    }
+
+    /// Sets sequence at given index.
+    pub fn set(&mut self, idx: SequenceTripleIdx, seq: Sequence) {
+        self.sequences[idx as usize] = u64::from(seq);
+        self.mask |= 1 << (idx as u32)
+    }
+
+    /// Encodes the object as a `CryptoHash` so it can be stored in the trie
+    /// directly.
+    pub fn to_hash(&self) -> lib::hash::CryptoHash {
+        let mut hash = lib::hash::CryptoHash::default();
+        let (first, tail) = stdx::split_array_mut::<8, 24, 32>(&mut hash.0);
+        let (second, tail) = stdx::split_array_mut::<8, 16, 24>(tail);
+        let (third, tail) = stdx::split_array_mut::<8, 8, 16>(tail);
+        *first = self.sequences[0].to_be_bytes();
+        *second = self.sequences[1].to_be_bytes();
+        *third = self.sequences[2].to_be_bytes();
+        tail[0] = self.mask;
+        hash
+    }
+}
+
 #[account]
 #[derive(Debug)]
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
@@ -283,12 +329,15 @@ pub struct SolanaIbcStorageTemp {
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
-    pub next_sequence_send:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_recv:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_ack:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
+
+    /// Next send, receive and ack sequence for given (port, channel).
+    ///
+    /// We’re storing all three sequences in a single object to reduce amount of
+    /// different maps we need to maintain.  This saves us on the amount of
+    /// trie nodes we need to maintain.
+    pub next_sequence:
+        BTreeMap<(InnerPortId, InnerChannelId), InnerSequenceTriple>,
+
     /// The sequence numbers of the packet commitments.
     pub packet_commitment_sequence_sets:
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
@@ -331,12 +380,15 @@ pub struct SolanaIbcStorage<'a, 'b> {
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
-    pub next_sequence_send:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_recv:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
-    pub next_sequence_ack:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequence>,
+
+    /// Next send, receive and ack sequence for given (port, channel).
+    ///
+    /// We’re storing all three sequences in a single object to reduce amount of
+    /// different maps we need to maintain.  This saves us on the amount of
+    /// trie nodes we need to maintain.
+    pub next_sequence:
+        BTreeMap<(InnerPortId, InnerChannelId), InnerSequenceTriple>,
+
     /// The sequence numbers of the packet commitments.
     pub packet_commitment_sequence_sets:
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
