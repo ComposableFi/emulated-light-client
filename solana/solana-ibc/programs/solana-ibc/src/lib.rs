@@ -68,38 +68,7 @@ pub mod solana_ibc {
             .ok_or(ProgramError::InvalidAccountData)?;
 
         let solana_real_storage = SolanaIbcStorageTest {
-            height: solana_ibc_store.height,
-            clients: solana_ibc_store.clients.clone(),
-            client_id_set: solana_ibc_store.client_id_set.clone(),
-            client_counter: solana_ibc_store.client_counter,
-            client_processed_times: solana_ibc_store
-                .client_processed_times
-                .clone(),
-            client_processed_heights: solana_ibc_store
-                .client_processed_heights
-                .clone(),
-            consensus_states: solana_ibc_store.consensus_states.clone(),
-            client_consensus_state_height_sets: solana_ibc_store
-                .client_consensus_state_height_sets
-                .clone(),
-            connection_id_set: solana_ibc_store.connection_id_set.clone(),
-            connection_counter: solana_ibc_store.connection_counter,
-            connections: solana_ibc_store.connections.clone(),
-            channel_ends: solana_ibc_store.channel_ends.clone(),
-            connection_to_client: solana_ibc_store.connection_to_client.clone(),
-            port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
-            channel_counter: solana_ibc_store.channel_counter,
-            next_sequence: solana_ibc_store.next_sequence.clone(),
-            packet_commitment_sequence_sets: solana_ibc_store
-                .packet_commitment_sequence_sets
-                .clone(),
-            packet_receipt_sequence_sets: solana_ibc_store
-                .packet_receipt_sequence_sets
-                .clone(),
-            packet_acknowledgement_sequence_sets: solana_ibc_store
-                .packet_acknowledgement_sequence_sets
-                .clone(),
-            ibc_events_history: solana_ibc_store.ibc_events_history.clone(),
+            solana_ibc_store: solana_ibc_store.clone(),
             trie,
         };
 
@@ -124,8 +93,7 @@ pub mod solana_ibc {
                 errors
             });
 
-        let binding = store.clone();
-        let sol_store = binding.0.borrow_mut();
+        let sol_store = &store.0.borrow_mut().solana_ibc_store;
         solana_ibc_store.height = sol_store.height;
         solana_ibc_store.clients = sol_store.clients.clone();
         solana_ibc_store.client_id_set = sol_store.client_id_set.clone();
@@ -309,51 +277,52 @@ pub struct SolanaIbcStorageTemp {
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
 pub struct SolanaIbcStorageTest<'a, 'b> {
-    pub height: InnerHeight,
-    pub clients: BTreeMap<InnerClientId, InnerClient>,
-    /// The client ids of the clients.
-    pub client_id_set: Vec<InnerClientId>,
-    pub client_counter: u64,
-    pub client_processed_times:
-        BTreeMap<InnerClientId, BTreeMap<InnerHeight, SolanaTimestamp>>,
-    pub client_processed_heights:
-        BTreeMap<InnerClientId, BTreeMap<InnerHeight, HostHeight>>,
-    pub consensus_states:
-        BTreeMap<(InnerClientId, InnerHeight), InnerConsensusState>,
-    /// This collection contains the heights corresponding to all consensus states of
-    /// all clients stored in the contract.
-    pub client_consensus_state_height_sets:
-        BTreeMap<InnerClientId, Vec<InnerHeight>>,
-    /// The connection ids of the connections.
-    pub connection_id_set: Vec<InnerConnectionId>,
-    pub connection_counter: u64,
-    pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
-    pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
-    // Contains the client id corresponding to the connectionId
-    pub connection_to_client: BTreeMap<InnerConnectionId, InnerClientId>,
-    /// The port and channel id tuples of the channels.
-    pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
-    pub channel_counter: u64,
+    // pub height: InnerHeight,
+    // pub clients: BTreeMap<InnerClientId, InnerClient>,
+    // /// The client ids of the clients.
+    // pub client_id_set: Vec<InnerClientId>,
+    // pub client_counter: u64,
+    // pub client_processed_times:
+    //     BTreeMap<InnerClientId, BTreeMap<InnerHeight, SolanaTimestamp>>,
+    // pub client_processed_heights:
+    //     BTreeMap<InnerClientId, BTreeMap<InnerHeight, HostHeight>>,
+    // pub consensus_states:
+    //     BTreeMap<(InnerClientId, InnerHeight), InnerConsensusState>,
+    // /// This collection contains the heights corresponding to all consensus states of
+    // /// all clients stored in the contract.
+    // pub client_consensus_state_height_sets:
+    //     BTreeMap<InnerClientId, Vec<InnerHeight>>,
+    // /// The connection ids of the connections.
+    // pub connection_id_set: Vec<InnerConnectionId>,
+    // pub connection_counter: u64,
+    // pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
+    // pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
+    // // Contains the client id corresponding to the connectionId
+    // pub connection_to_client: BTreeMap<InnerConnectionId, InnerClientId>,
+    // /// The port and channel id tuples of the channels.
+    // pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
+    // pub channel_counter: u64,
 
-    /// Next send, receive and ack sequence for given (port, channel).
-    ///
-    /// We’re storing all three sequences in a single object to reduce amount of
-    /// different maps we need to maintain.  This saves us on the amount of
-    /// trie nodes we need to maintain.
-    pub next_sequence:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequenceTriple>,
+    // /// Next send, receive and ack sequence for given (port, channel).
+    // ///
+    // /// We’re storing all three sequences in a single object to reduce amount of
+    // /// different maps we need to maintain.  This saves us on the amount of
+    // /// trie nodes we need to maintain.
+    // pub next_sequence:
+    //     BTreeMap<(InnerPortId, InnerChannelId), InnerSequenceTriple>,
 
-    /// The sequence numbers of the packet commitments.
-    pub packet_commitment_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    /// The sequence numbers of the packet receipts.
-    pub packet_receipt_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    /// The sequence numbers of the packet acknowledgements.
-    pub packet_acknowledgement_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    /// The history of IBC events.
-    pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
+    // /// The sequence numbers of the packet commitments.
+    // pub packet_commitment_sequence_sets:
+    //     BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
+    // /// The sequence numbers of the packet receipts.
+    // pub packet_receipt_sequence_sets:
+    //     BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
+    // /// The sequence numbers of the packet acknowledgements.
+    // pub packet_acknowledgement_sequence_sets:
+    //     BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
+    // /// The history of IBC events.
+    // pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
+    pub solana_ibc_store: SolanaIbcStorageTemp,
     pub trie: trie::AccountTrie<'a, 'b>,
 }
 
