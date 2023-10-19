@@ -20,7 +20,7 @@ use ibc::core::ics24_host::path::{
     SeqRecvPath, SeqSendPath,
 };
 use ibc::core::timestamp::Timestamp;
-use ibc::core::{ExecutionContext, ValidationContext};
+use ibc::core::{ContextError, ExecutionContext};
 use ibc::Height;
 
 use crate::client_state::AnyClientState;
@@ -28,6 +28,7 @@ use crate::consensus_state::AnyConsensusState;
 use crate::trie_key::TrieKey;
 use crate::{
     EmitIBCEvent, InnerChannelId, InnerPortId, InnerSequence, SolanaIbcStorage,
+    SolanaIbcStorageTest,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
@@ -50,9 +51,10 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         let client_state_key = client_state_path.0.to_string();
         let serialized_client_state =
             serde_json::to_string(&client_state).unwrap();
-
+        let mut store = self.0.borrow_mut();
+        // let mut solana_ibc_store = &store.solana_ibc_store;
         let client_state_trie_key = TrieKey::from(&client_state_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         msg!(
             "THis is serialized client state {}",
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
@@ -62,8 +64,14 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
             &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
         )
         .unwrap();
-        self.clients.insert(client_state_key, serialized_client_state);
-        self.client_id_set.push(client_state_path.0.to_string());
+        store
+            .solana_ibc_store
+            .clients
+            .insert(client_state_key, serialized_client_state);
+        store
+            .solana_ibc_store
+            .client_id_set
+            .push(client_state_path.0.to_string());
         Ok(())
     }
 
@@ -81,11 +89,12 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
             consensus_state_path.client_id.to_string(),
             (consensus_state_path.epoch, consensus_state_path.height),
         );
+        let mut store = self.0.borrow_mut();
         let serialized_consensus_state =
             serde_json::to_string(&consensus_state).unwrap();
 
         let consensus_state_trie_key = TrieKey::from(&consensus_state_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &consensus_state_trie_key,
             &lib::hash::CryptoHash::digest(
@@ -94,18 +103,25 @@ impl ClientExecutionContext for SolanaIbcStorage<'_, '_> {
         )
         .unwrap();
 
-        self.consensus_states
+        store
+            .solana_ibc_store
+            .consensus_states
             .insert(consensus_state_key, serialized_consensus_state);
-        self.height.0 = consensus_state_path.epoch;
-        self.height.1 = consensus_state_path.height;
+        store.solana_ibc_store.height.0 = consensus_state_path.epoch;
+        store.solana_ibc_store.height.1 = consensus_state_path.height;
         Ok(())
     }
 }
 
 impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn increase_client_counter(&mut self) -> Result {
-        self.client_counter.checked_add(1).unwrap();
-        msg!("client_counter has increased to: {}", self.client_counter);
+        let mut store = self.0.borrow_mut();
+        store.solana_ibc_store.client_counter =
+            store.solana_ibc_store.client_counter.checked_add(1).unwrap();
+        msg!(
+            "client_counter has increased to: {}",
+            store.solana_ibc_store.client_counter
+        );
         Ok(())
     }
 
@@ -121,7 +137,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             height,
             timestamp
         );
-        self.client_processed_times
+        let mut store = self.0.borrow_mut();
+        store
+            .solana_ibc_store
+            .client_processed_times
             .entry(client_id.to_string())
             .or_default()
             .insert(
@@ -144,7 +163,10 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             height,
             host_height
         );
-        self.client_processed_heights
+        let mut store = self.0.borrow_mut();
+        store
+            .solana_ibc_store
+            .client_processed_heights
             .entry(client_id.to_string())
             .or_default()
             .insert(
@@ -165,10 +187,11 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             connection_end
         );
 
+        let mut store = self.0.borrow_mut();
         let serialized_connection_end =
             serde_json::to_string(&connection_end).unwrap();
         let connection_trie_key = TrieKey::from(connection_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &connection_trie_key,
             &lib::hash::CryptoHash::digest(
@@ -177,7 +200,9 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         )
         .unwrap();
 
-        self.connections
+        store
+            .solana_ibc_store
+            .connections
             .insert(connection_path.0.to_string(), serialized_connection_end);
         Ok(())
     }
@@ -192,16 +217,21 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             client_connection_path,
             conn_id
         );
-        self.connection_to_client
+        let mut store = self.0.borrow_mut();
+        store
+            .solana_ibc_store
+            .connection_to_client
             .insert(conn_id.to_string(), client_connection_path.0.to_string());
         Ok(())
     }
 
     fn increase_connection_counter(&mut self) -> Result {
-        self.connection_counter.checked_add(1).unwrap();
+        let mut store = self.0.borrow_mut();
+        store.solana_ibc_store.connection_counter =
+            store.solana_ibc_store.connection_counter.checked_add(1).unwrap();
         msg!(
             "connection_counter has increased to: {}",
-            self.connection_counter
+            store.solana_ibc_store.connection_counter
         );
         Ok(())
     }
@@ -216,8 +246,9 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             commitment_path,
             commitment
         );
+        let mut store = self.0.borrow_mut();
         let commitment_trie_key = TrieKey::from(commitment_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &commitment_trie_key,
             &lib::hash::CryptoHash::digest(&commitment.into_vec()),
@@ -225,7 +256,7 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         .unwrap();
 
         record_packet_sequence(
-            &mut self.packet_commitment_sequence_sets,
+            &mut store.solana_ibc_store.packet_commitment_sequence_sets,
             &commitment_path.port_id,
             &commitment_path.channel_id,
             &commitment_path.sequence,
@@ -238,10 +269,12 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         commitment_path: &CommitmentPath,
     ) -> Result {
         msg!("delete_packet_commitment: path: {}", commitment_path);
-        let sequences = self.packet_commitment_sequence_sets.get_mut(&(
-            commitment_path.port_id.clone().to_string(),
-            commitment_path.channel_id.clone().to_string(),
-        ));
+        let mut store = self.0.borrow_mut();
+        let sequences =
+            store.solana_ibc_store.packet_commitment_sequence_sets.get_mut(&(
+                commitment_path.port_id.clone().to_string(),
+                commitment_path.channel_id.clone().to_string(),
+            ));
         if let Some(sequences) = sequences {
             let index = sequences
                 .iter()
@@ -262,12 +295,13 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             receipt_path,
             receipt
         );
+        let mut store = self.0.borrow_mut();
         let receipt_trie_key = TrieKey::from(receipt_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
         trie.seal(&receipt_trie_key).unwrap();
         record_packet_sequence(
-            &mut self.packet_receipt_sequence_sets,
+            &mut store.solana_ibc_store.packet_receipt_sequence_sets,
             &receipt_path.port_id,
             &receipt_path.channel_id,
             &receipt_path.sequence,
@@ -285,15 +319,16 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             ack_path,
             ack_commitment
         );
+        let mut store = self.0.borrow_mut();
         let ack_commitment_trie_key = TrieKey::from(ack_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut store.trie;
         trie.set(
             &ack_commitment_trie_key,
             &lib::hash::CryptoHash::digest(&ack_commitment.into_vec()),
         )
         .unwrap();
         record_packet_sequence(
-            &mut self.packet_acknowledgement_sequence_sets,
+            &mut store.solana_ibc_store.packet_acknowledgement_sequence_sets,
             &ack_path.port_id,
             &ack_path.channel_id,
             &ack_path.sequence,
@@ -303,10 +338,14 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
 
     fn delete_packet_acknowledgement(&mut self, ack_path: &AckPath) -> Result {
         msg!("delete_packet_acknowledgement: path: {}", ack_path,);
-        let sequences = self.packet_acknowledgement_sequence_sets.get_mut(&(
-            ack_path.port_id.clone().to_string(),
-            ack_path.channel_id.clone().to_string(),
-        ));
+        let mut store = self.0.borrow_mut();
+        let sequences = store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get_mut(&(
+                ack_path.port_id.clone().to_string(),
+                ack_path.channel_id.clone().to_string(),
+            ));
         if let Some(sequences) = sequences {
             let sequence_as_u64: u64 = ack_path.sequence.into();
             sequences.remove(sequence_as_u64 as usize);
@@ -324,21 +363,22 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             channel_end_path,
             channel_end
         );
-        self.port_channel_id_set.push((
+        let mut store = self.0.borrow_mut();
+        store.solana_ibc_store.port_channel_id_set.push((
             channel_end_path.0.clone().to_string(),
             channel_end_path.1.clone().to_string(),
         ));
 
         let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
         let channel_end_trie_key = TrieKey::from(channel_end_path);
-        let trie = self.trie.as_mut().unwrap();
+        let trie = &mut &mut store.trie;
         trie.set(
             &channel_end_trie_key,
             &lib::hash::CryptoHash::digest(&serialized_channel_end),
         )
         .unwrap();
 
-        self.channel_ends.insert(
+        store.solana_ibc_store.channel_ends.insert(
             (channel_end_path.0.to_string(), channel_end_path.1.to_string()),
             serde_json::to_string(&channel_end).unwrap(),
         );
@@ -351,7 +391,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Send,
             seq,
@@ -364,7 +405,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Recv,
             seq,
@@ -377,7 +419,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
-        self.store_next_sequence(
+        let store: &mut SolanaIbcStorageTest<'_, '_> = &mut self.0.borrow_mut();
+        store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Ack,
             seq,
@@ -385,17 +428,29 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     }
 
     fn increase_channel_counter(&mut self) -> Result {
-        self.channel_counter += 1;
-        msg!("channel_counter has increased to: {}", self.channel_counter);
+        let mut store = self.0.borrow_mut();
+        store.solana_ibc_store.channel_counter += 1;
+        msg!(
+            "channel_counter has increased to: {}",
+            store.solana_ibc_store.channel_counter
+        );
         Ok(())
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
-        let host_height = self.host_height().unwrap();
+        let mut store = self.0.borrow_mut();
+        let host_height = ibc::Height::new(
+            store.solana_ibc_store.height.0,
+            store.solana_ibc_store.height.1,
+        )
+        .map_err(ContextError::ClientError)
+        .unwrap();
         let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
-        self.ibc_events_history
+        store
+            .solana_ibc_store
+            .ibc_events_history
             .entry(inner_host_height)
             .or_default()
             .push(event_in_bytes.clone());
@@ -411,19 +466,20 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl SolanaIbcStorage<'_, '_> {
+impl SolanaIbcStorageTest<'_, '_> {
     fn store_next_sequence(
         &mut self,
         path: crate::trie_key::SequencePath<'_>,
         index: super::SequenceTripleIdx,
         seq: Sequence,
     ) -> Result {
+        let trie = &mut self.trie;
+        let next_seq = &mut self.solana_ibc_store.next_sequence;
         let map_key = (path.port_id.to_string(), path.channel_id.to_string());
-        let triple = self.next_sequence.entry(map_key).or_default();
+        let triple = next_seq.entry(map_key).or_default();
         triple.set(index, seq);
 
         let trie_key = TrieKey::from(path);
-        let trie = self.trie.as_mut().unwrap();
         trie.set(&trie_key, &triple.to_hash()).unwrap();
 
         Ok(())

@@ -35,7 +35,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
-        match self.clients.get(client_id.as_str()) {
+        let store = self.0.borrow();
+        match store.solana_ibc_store.clients.get(client_id.as_str()) {
             Some(data) => {
                 let client: AnyClientState =
                     serde_json::from_str(data).unwrap();
@@ -64,7 +65,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             client_cons_state_path.client_id.to_string(),
             (client_cons_state_path.epoch, client_cons_state_path.height),
         );
-        match self.consensus_states.get(consensus_state_key) {
+        let store = self.0.borrow();
+        match store.solana_ibc_store.consensus_states.get(consensus_state_key) {
             Some(data) => {
                 let result: Self::AnyConsensusState =
                     serde_json::from_str(data).unwrap();
@@ -83,8 +85,12 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
-        ibc::Height::new(self.height.0, self.height.1)
-            .map_err(ContextError::ClientError)
+        let store = self.0.borrow();
+        ibc::Height::new(
+            store.solana_ibc_store.height.0,
+            store.solana_ibc_store.height.1,
+        )
+        .map_err(ContextError::ClientError)
     }
 
     fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
@@ -105,14 +111,16 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     }
 
     fn client_counter(&self) -> std::result::Result<u64, ContextError> {
-        Ok(self.client_counter)
+        let store = self.0.borrow();
+        Ok(store.solana_ibc_store.client_counter)
     }
 
     fn connection_end(
         &self,
         conn_id: &ConnectionId,
     ) -> std::result::Result<ConnectionEnd, ContextError> {
-        match self.connections.get(conn_id.as_str()) {
+        let store = self.0.borrow();
+        match store.solana_ibc_store.connections.get(conn_id.as_str()) {
             Some(data) => {
                 let connection: ConnectionEnd =
                     serde_json::from_str(data).unwrap();
@@ -144,7 +152,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     }
 
     fn connection_counter(&self) -> std::result::Result<u64, ContextError> {
-        Ok(self.connection_counter)
+        let store = self.0.borrow();
+        Ok(store.solana_ibc_store.connection_counter)
     }
 
     fn channel_end(
@@ -153,7 +162,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     ) -> std::result::Result<ChannelEnd, ContextError> {
         let channel_end_key =
             &(channel_end_path.0.to_string(), channel_end_path.1.to_string());
-        match self.channel_ends.get(channel_end_key) {
+        let store = self.0.borrow();
+        match store.solana_ibc_store.channel_ends.get(channel_end_key) {
             Some(data) => {
                 let channel_end: ChannelEnd =
                     serde_json::from_str(data).unwrap();
@@ -215,7 +225,12 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             commitment_path.port_id.to_string(),
             commitment_path.channel_id.to_string(),
         );
-        match self.packet_acknowledgement_sequence_sets.get(&commitment_key) {
+        let store = self.0.borrow();
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&commitment_key)
+        {
             Some(data) => {
                 let data_in_u8: Vec<u8> =
                     data.iter().map(|x| *x as u8).collect();
@@ -237,7 +252,12 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
             receipt_path.port_id.to_string(),
             receipt_path.channel_id.to_string(),
         );
-        match self.packet_acknowledgement_sequence_sets.get(&receipt_key) {
+        let store = self.0.borrow();
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&receipt_key)
+        {
             Some(data) => {
                 match data.binary_search(&u64::from(receipt_path.sequence)) {
                     Ok(_) => Ok(Receipt::Ok),
@@ -262,7 +282,12 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     ) -> std::result::Result<AcknowledgementCommitment, ContextError> {
         let ack_key =
             (ack_path.port_id.to_string(), ack_path.channel_id.to_string());
-        match self.packet_acknowledgement_sequence_sets.get(&ack_key) {
+        let store = self.0.borrow();
+        match store
+            .solana_ibc_store
+            .packet_acknowledgement_sequence_sets
+            .get(&ack_key)
+        {
             Some(data) => {
                 let data_in_u8: Vec<u8> =
                     data.iter().map(|x| *x as u8).collect();
@@ -281,7 +306,10 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> std::result::Result<Timestamp, ContextError> {
-        self.client_processed_times
+        let store = self.0.borrow();
+        store
+            .solana_ibc_store
+            .client_processed_times
             .get(client_id.as_str())
             .and_then(|processed_times| {
                 processed_times
@@ -304,7 +332,10 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> std::result::Result<Height, ContextError> {
-        self.client_processed_heights
+        let store = self.0.borrow();
+        store
+            .solana_ibc_store
+            .client_processed_heights
             .get(client_id.as_str())
             .and_then(|processed_heights| {
                 processed_heights
@@ -325,7 +356,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
     }
 
     fn channel_counter(&self) -> std::result::Result<u64, ContextError> {
-        Ok(self.channel_counter)
+        let store = self.0.borrow();
+        Ok(store.solana_ibc_store.channel_counter)
     }
 
     fn max_expected_time_per_block(&self) -> Duration {
@@ -389,7 +421,10 @@ impl SolanaIbcStorage<'_, '_> {
             ibc::core::ics24_host::identifier::ChannelId,
         ),
     > {
-        self.next_sequence
+        let store = self.0.borrow();
+        store
+            .solana_ibc_store
+            .next_sequence
             .get(&(path.port_id.to_string(), path.channel_id.to_string()))
             .and_then(|triple| triple.get(index))
             .ok_or_else(|| (path.port_id.clone(), path.channel_id.clone()))

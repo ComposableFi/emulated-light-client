@@ -416,7 +416,11 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
         let end_height = (height.revision_number() + 1, 1);
-        match self.consensus_states.get(&(client_id.to_string(), end_height)) {
+        let solana_ibc_store = &self.0.borrow().solana_ibc_store;
+        match solana_ibc_store
+            .consensus_states
+            .get(&(client_id.to_string(), end_height))
+        {
             Some(data) => {
                 let result: Self::AnyConsensusState =
                     serde_json::from_str(data).unwrap();
@@ -434,7 +438,11 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
         let end_height = (height.revision_number(), 1);
-        match self.consensus_states.get(&(client_id.to_string(), end_height)) {
+        let solana_ibc_store = &self.0.borrow().solana_ibc_store;
+        match solana_ibc_store
+            .consensus_states
+            .get(&(client_id.to_string(), end_height))
+        {
             Some(data) => {
                 let result: Self::AnyConsensusState =
                     serde_json::from_str(data).unwrap();
