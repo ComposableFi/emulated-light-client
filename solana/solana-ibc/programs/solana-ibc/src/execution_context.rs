@@ -120,7 +120,6 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
         height: Height,
         timestamp: Timestamp,
     ) -> Result {
-        msg!("I am here inside update time");
         msg!(
             "store_update_time - client_id: {}, height: {}, timestamp: {}",
             client_id,

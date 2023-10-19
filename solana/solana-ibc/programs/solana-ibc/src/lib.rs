@@ -67,9 +67,6 @@ pub mod solana_ibc {
         let trie = trie::AccountTrie::new(account.try_borrow_mut_data()?)
             .ok_or(ProgramError::InvalidAccountData)?;
 
-        msg!("Before trie {:?}", trie.hash());
-
-
         let solana_real_storage = SolanaIbcStorageTest {
             height: solana_ibc_store.height,
             clients: solana_ibc_store.clients.clone(),
