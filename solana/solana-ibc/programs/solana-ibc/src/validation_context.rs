@@ -292,7 +292,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Timestamp, ContextError> {
         let store = self.0.borrow();
-        store.client_processed_times
+        store
+            .client_processed_times
             .get(client_id.as_str())
             .and_then(|processed_times| {
                 processed_times
@@ -316,7 +317,8 @@ impl ValidationContext for SolanaIbcStorage<'_, '_> {
         height: &Height,
     ) -> std::result::Result<Height, ContextError> {
         let store = self.0.borrow();
-        store.client_processed_heights
+        store
+            .client_processed_heights
             .get(client_id.as_str())
             .and_then(|processed_heights| {
                 processed_heights

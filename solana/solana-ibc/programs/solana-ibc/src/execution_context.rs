@@ -27,8 +27,8 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::trie_key::TrieKey;
 use crate::{
-    EmitIBCEvent, InnerChannelId, InnerPortId,
-    InnerSequence, SolanaIbcStorage, SolanaIbcStorageTest,
+    EmitIBCEvent, InnerChannelId, InnerPortId, InnerSequence, SolanaIbcStorage,
+    SolanaIbcStorageTest,
 };
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
@@ -127,7 +127,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             timestamp
         );
         let mut store = self.0.borrow_mut();
-        store.client_processed_times
+        store
+            .client_processed_times
             .entry(client_id.to_string())
             .or_default()
             .insert(
@@ -151,7 +152,8 @@ impl ExecutionContext for SolanaIbcStorage<'_, '_> {
             host_height
         );
         let mut store = self.0.borrow_mut();
-        store.client_processed_heights
+        store
+            .client_processed_heights
             .entry(client_id.to_string())
             .or_default()
             .insert(
