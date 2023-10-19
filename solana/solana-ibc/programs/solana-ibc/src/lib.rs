@@ -366,7 +366,8 @@ pub trait SolanaIbcStorageHost {
 impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
-        match module_id.to_string().as_str() {
+        let module_id = core::borrow::Borrow::borrow(module_id);
+        match module_id {
             ibc::applications::transfer::MODULE_ID_STR => {
                 Some(&self.module_holder)
             }
@@ -378,7 +379,8 @@ impl Router for SolanaIbcStorage<'_, '_> {
         &mut self,
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
-        match module_id.to_string().as_str() {
+        let module_id = core::borrow::Borrow::borrow(module_id);
+        match module_id {
             ibc::applications::transfer::MODULE_ID_STR => {
                 Some(&mut self.module_holder)
             }
