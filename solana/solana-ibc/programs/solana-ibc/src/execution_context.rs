@@ -472,12 +472,15 @@ impl SolanaIbcStorage<'_, '_> {
         index: super::SequenceTripleIdx,
         seq: Sequence,
     ) -> Result {
+        let mut store = self.0.borrow_mut();
+        let trie = store.trie.as_mut().unwrap();
         let map_key = (path.port_id.to_string(), path.channel_id.to_string());
-        let triple = self.next_sequence.entry(map_key).or_default();
+        let binding = self.clone();
+        let mut store_clone = binding.0.borrow_mut();
+        let triple = store_clone.next_sequence.entry(map_key).or_default();
         triple.set(index, seq);
 
         let trie_key = TrieKey::from(path);
-        let trie = self.trie.as_mut().unwrap();
         trie.set(&trie_key, &triple.to_hash()).unwrap();
 
         Ok(())

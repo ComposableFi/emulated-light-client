@@ -104,52 +104,11 @@ pub mod solana_ibc {
             trie: Some(trie),
         };
 
-<<<<<<< HEAD
         let mut store =
             SolanaIbcStorage(Rc::<RefCell<SolanaIbcStorageTest>>::new(
                 solana_real_storage.into(),
             ));
         let mut router = store.clone();
-=======
-        let mut solana_real_storage_another = SolanaIbcStorage {
-            height: solana_ibc_store.height,
-            module_holder: solana_ibc_store.module_holder.clone(),
-            clients: solana_ibc_store.clients.clone(),
-            client_id_set: solana_ibc_store.client_id_set.clone(),
-            client_counter: solana_ibc_store.client_counter,
-            client_processed_times: solana_ibc_store
-                .client_processed_times
-                .clone(),
-            client_processed_heights: solana_ibc_store
-                .client_processed_heights
-                .clone(),
-            consensus_states: solana_ibc_store.consensus_states.clone(),
-            client_consensus_state_height_sets: solana_ibc_store
-                .client_consensus_state_height_sets
-                .clone(),
-            connection_id_set: solana_ibc_store.connection_id_set.clone(),
-            connection_counter: solana_ibc_store.connection_counter,
-            connections: solana_ibc_store.connections.clone(),
-            channel_ends: solana_ibc_store.channel_ends.clone(),
-            connection_to_client: solana_ibc_store.connection_to_client.clone(),
-            port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
-            channel_counter: solana_ibc_store.channel_counter,
-            next_sequence: solana_ibc_store.next_sequence.clone(),
-            packet_commitment_sequence_sets: solana_ibc_store
-                .packet_commitment_sequence_sets
-                .clone(),
-            packet_receipt_sequence_sets: solana_ibc_store
-                .packet_receipt_sequence_sets
-                .clone(),
-            packet_acknowledgement_sequence_sets: solana_ibc_store
-                .packet_acknowledgement_sequence_sets
-                .clone(),
-            ibc_events_history: solana_ibc_store.ibc_events_history.clone(),
-            trie: None,
-        };
-
-        let router = &mut solana_real_storage_another;
->>>>>>> 9688148cb79db1623e63ff5f4eaec2a83516c5b0
 
         let errors =
             all_messages.into_iter().fold(vec![], |mut errors, msg| {
@@ -190,10 +149,10 @@ pub mod solana_ibc {
         solana_ibc_store.connection_to_client =
             sol_store.connection_to_client.clone();
         solana_ibc_store.port_channel_id_set =
-            solana_real_storage.port_channel_id_set.clone();
-        solana_ibc_store.channel_counter = solana_real_storage.channel_counter;
+            sol_store.port_channel_id_set.clone();
+        solana_ibc_store.channel_counter = sol_store.channel_counter;
         solana_ibc_store.next_sequence =
-            solana_real_storage.next_sequence.clone();
+            sol_store.next_sequence.clone();
         solana_ibc_store.packet_commitment_sequence_sets =
             sol_store.packet_commitment_sequence_sets.clone();
         solana_ibc_store.packet_receipt_sequence_sets =
