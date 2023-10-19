@@ -2,6 +2,7 @@
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
 
+use core::borrow::Borrow;
 use std::collections::BTreeMap;
 
 use anchor_lang::prelude::*;
@@ -418,7 +419,7 @@ pub trait SolanaIbcStorageHost {
 impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
-        match module_id.to_string().as_str() {
+        match module_id.borrow() {
             ibc::applications::transfer::MODULE_ID_STR => {
                 Some(&self.module_holder)
             }
@@ -430,7 +431,7 @@ impl Router for SolanaIbcStorage<'_, '_> {
         &mut self,
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
-        match module_id.to_string().as_str() {
+        match module_id.borrow() {
             ibc::applications::transfer::MODULE_ID_STR => {
                 Some(&mut self.module_holder)
             }
