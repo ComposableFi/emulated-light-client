@@ -13,14 +13,11 @@ use ibc::Signer;
 use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use serde::{Deserialize, Serialize};
 
-use crate::module_holder::ModuleHolder;
-use crate::SolanaIbcStorageHost;
+use crate::SolanaIbcStorage;
 
 mod impls;
 
-impl SolanaIbcStorageHost for ModuleHolder {}
-
-impl Module for ModuleHolder {
+impl Module for SolanaIbcStorage<'_, '_> {
     fn on_chan_open_init_validate(
         &self,
         order: Order,
@@ -256,6 +253,39 @@ impl Module for ModuleHolder {
                 description: e.to_string(),
             }),
         )
+    }
+
+    fn on_chan_open_ack_execute(
+        &mut self,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+        _counterparty_version: &Version,
+    ) -> Result<ModuleExtras, ChannelError> {
+        Ok(ModuleExtras::empty())
+    }
+
+    fn on_chan_open_confirm_execute(
+        &mut self,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+    ) -> Result<ModuleExtras, ChannelError> {
+        Ok(ModuleExtras::empty())
+    }
+
+    fn on_chan_close_init_execute(
+        &mut self,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+    ) -> Result<ModuleExtras, ChannelError> {
+        Ok(ModuleExtras::empty())
+    }
+
+    fn on_chan_close_confirm_execute(
+        &mut self,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+    ) -> Result<ModuleExtras, ChannelError> {
+        Ok(ModuleExtras::empty())
     }
 }
 

@@ -14,7 +14,7 @@ type DataRef<'a, 'b> = RefMut<'a, &'b mut [u8]>;
 const SZ: usize = sealable_trie::nodes::RawNode::SIZE;
 
 /// Trie stored in a Solana account.
-// #[account]
+#[derive(Debug)]
 pub struct AccountTrie<'a, 'b>(
     core::mem::ManuallyDrop<sealable_trie::Trie<Allocator<'a, 'b>>>,
 );
@@ -128,6 +128,7 @@ impl Header {
     }
 }
 
+#[derive(Debug)]
 pub struct Allocator<'a, 'b> {
     /// Pool of memory to allocate blocks in.
     ///

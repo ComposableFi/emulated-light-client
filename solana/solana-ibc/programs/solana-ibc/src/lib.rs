@@ -2,7 +2,9 @@
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
 
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+use std::rc::Rc;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -39,6 +41,8 @@ mod magic {
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use std::borrow::BorrowMut;
+
     use super::*;
 
     pub fn deliver(
@@ -67,7 +71,8 @@ pub mod solana_ibc {
 
         msg!("Before trie {:?}", trie.hash());
 
-        let mut solana_real_storage = SolanaIbcStorage {
+
+        let solana_real_storage = SolanaIbcStorageTest {
             height: solana_ibc_store.height,
             module_holder: solana_ibc_store.module_holder.clone(),
             clients: solana_ibc_store.clients.clone(),
@@ -106,54 +111,19 @@ pub mod solana_ibc {
             trie: Some(trie),
         };
 
-        let mut solana_real_storage_another = SolanaIbcStorage {
-            height: solana_ibc_store.height,
-            module_holder: solana_ibc_store.module_holder.clone(),
-            clients: solana_ibc_store.clients.clone(),
-            client_id_set: solana_ibc_store.client_id_set.clone(),
-            client_counter: solana_ibc_store.client_counter,
-            client_processed_times: solana_ibc_store
-                .client_processed_times
-                .clone(),
-            client_processed_heights: solana_ibc_store
-                .client_processed_heights
-                .clone(),
-            consensus_states: solana_ibc_store.consensus_states.clone(),
-            client_consensus_state_height_sets: solana_ibc_store
-                .client_consensus_state_height_sets
-                .clone(),
-            connection_id_set: solana_ibc_store.connection_id_set.clone(),
-            connection_counter: solana_ibc_store.connection_counter,
-            connections: solana_ibc_store.connections.clone(),
-            channel_ends: solana_ibc_store.channel_ends.clone(),
-            connection_to_client: solana_ibc_store.connection_to_client.clone(),
-            port_channel_id_set: solana_ibc_store.port_channel_id_set.clone(),
-            channel_counter: solana_ibc_store.channel_counter,
-            next_sequence_send: solana_ibc_store.next_sequence_send.clone(),
-            next_sequence_recv: solana_ibc_store.next_sequence_recv.clone(),
-            next_sequence_ack: solana_ibc_store.next_sequence_ack.clone(),
-            packet_commitment_sequence_sets: solana_ibc_store
-                .packet_commitment_sequence_sets
-                .clone(),
-            packet_receipt_sequence_sets: solana_ibc_store
-                .packet_receipt_sequence_sets
-                .clone(),
-            packet_acknowledgement_sequence_sets: solana_ibc_store
-                .packet_acknowledgement_sequence_sets
-                .clone(),
-            ibc_events_history: solana_ibc_store.ibc_events_history.clone(),
-            trie: None,
-        };
-
-        let router = &mut solana_real_storage_another;
+        let mut store =
+            SolanaIbcStorage(Rc::<RefCell<SolanaIbcStorageTest>>::new(
+                solana_real_storage.into(),
+            ));
+        let mut router = store.clone();
 
         let errors =
             all_messages.into_iter().fold(vec![], |mut errors, msg| {
                 match ibc::core::MsgEnvelope::try_from(msg) {
                     Ok(msg) => {
                         match ibc::core::dispatch(
-                            &mut solana_real_storage,
-                            router,
+                            store.borrow_mut(),
+                            router.borrow_mut(),
                             msg,
                         ) {
                             Ok(()) => (),
@@ -165,47 +135,44 @@ pub mod solana_ibc {
                 errors
             });
 
-        solana_ibc_store.height = solana_real_storage.height;
-        solana_ibc_store.module_holder =
-            solana_real_storage.module_holder.clone();
-        solana_ibc_store.clients = solana_real_storage.clients.clone();
-        solana_ibc_store.client_id_set =
-            solana_real_storage.client_id_set.clone();
-        solana_ibc_store.client_counter = solana_real_storage.client_counter;
+        let mut binding = store.clone();
+        let sol_store = binding.borrow_mut().0.borrow();
+        solana_ibc_store.height = sol_store.height;
+        solana_ibc_store.module_holder = sol_store.module_holder.clone();
+        solana_ibc_store.clients = sol_store.clients.clone();
+        solana_ibc_store.client_id_set = sol_store.client_id_set.clone();
+        solana_ibc_store.client_counter = sol_store.client_counter;
         solana_ibc_store.client_processed_times =
-            solana_real_storage.client_processed_times.clone();
+            sol_store.client_processed_times.clone();
         solana_ibc_store.client_processed_heights =
-            solana_real_storage.client_processed_heights.clone();
-        solana_ibc_store.consensus_states =
-            solana_real_storage.consensus_states.clone();
+            sol_store.client_processed_heights.clone();
+        solana_ibc_store.consensus_states = sol_store.consensus_states.clone();
         solana_ibc_store.client_consensus_state_height_sets =
-            solana_real_storage.client_consensus_state_height_sets.clone();
+            sol_store.client_consensus_state_height_sets.clone();
         solana_ibc_store.connection_id_set =
-            solana_real_storage.connection_id_set.clone();
-        solana_ibc_store.connection_counter =
-            solana_real_storage.connection_counter;
-        solana_ibc_store.connections = solana_real_storage.connections.clone();
-        solana_ibc_store.channel_ends =
-            solana_real_storage.channel_ends.clone();
+            sol_store.connection_id_set.clone();
+        solana_ibc_store.connection_counter = sol_store.connection_counter;
+        solana_ibc_store.connections = sol_store.connections.clone();
+        solana_ibc_store.channel_ends = sol_store.channel_ends.clone();
         solana_ibc_store.connection_to_client =
-            solana_real_storage.connection_to_client.clone();
+            sol_store.connection_to_client.clone();
         solana_ibc_store.port_channel_id_set =
-            solana_real_storage.port_channel_id_set.clone();
-        solana_ibc_store.channel_counter = solana_real_storage.channel_counter;
+            sol_store.port_channel_id_set.clone();
+        solana_ibc_store.channel_counter = sol_store.channel_counter;
         solana_ibc_store.next_sequence_send =
-            solana_real_storage.next_sequence_send.clone();
+            sol_store.next_sequence_send.clone();
         solana_ibc_store.next_sequence_recv =
-            solana_real_storage.next_sequence_recv.clone();
+            sol_store.next_sequence_recv.clone();
         solana_ibc_store.next_sequence_ack =
-            solana_real_storage.next_sequence_ack.clone();
+            sol_store.next_sequence_ack.clone();
         solana_ibc_store.packet_commitment_sequence_sets =
-            solana_real_storage.packet_commitment_sequence_sets.clone();
+            sol_store.packet_commitment_sequence_sets.clone();
         solana_ibc_store.packet_receipt_sequence_sets =
-            solana_real_storage.packet_receipt_sequence_sets.clone();
+            sol_store.packet_receipt_sequence_sets.clone();
         solana_ibc_store.packet_acknowledgement_sequence_sets =
-            solana_real_storage.packet_acknowledgement_sequence_sets.clone();
+            sol_store.packet_acknowledgement_sequence_sets.clone();
         solana_ibc_store.ibc_events_history =
-            solana_real_storage.ibc_events_history.clone();
+            sol_store.ibc_events_history.clone();
 
         msg!("These are errors {:?}", errors);
         msg!("This is final structure {:?}", solana_ibc_store);
@@ -303,7 +270,8 @@ pub struct SolanaIbcStorageTemp {
 }
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
-pub struct SolanaIbcStorage<'a, 'b> {
+#[derive(Debug)]
+pub struct SolanaIbcStorageTest<'a, 'b> {
     pub height: InnerHeight,
     /// To support the mutable borrow in `Router::get_route_mut`.
     pub module_holder: ModuleHolder,
@@ -351,25 +319,14 @@ pub struct SolanaIbcStorage<'a, 'b> {
     pub trie: Option<trie::AccountTrie<'a, 'b>>,
 }
 
-pub trait SolanaIbcStorageHost {
-    ///
-    fn get_solana_ibc_store(
-        _account: Pubkey,
-    ) -> SolanaIbcStorage<'static, 'static> {
-        // Unpack the account
-        todo!()
-    }
-    ///
-    fn set_solana_ibc_store(_store: &SolanaIbcStorage) { todo!() }
-}
+#[derive(Debug, Clone)]
+struct SolanaIbcStorage<'a, 'b>(Rc<RefCell<SolanaIbcStorageTest<'a, 'b>>>);
 
 impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => {
-                Some(&self.module_holder)
-            }
+            ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
@@ -379,14 +336,17 @@ impl Router for SolanaIbcStorage<'_, '_> {
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
         match module_id.to_string().as_str() {
-            ibc::applications::transfer::MODULE_ID_STR => {
-                Some(&mut self.module_holder)
-            }
+            ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
     //
     fn lookup_module(&self, port_id: &PortId) -> Option<ModuleId> {
-        self.module_holder.get_module_id(port_id)
+        match port_id.as_str() {
+            ibc::applications::transfer::PORT_ID_STR => Some(ModuleId::new(
+                ibc::applications::transfer::MODULE_ID_STR.to_string(),
+            )),
+            _ => None,
+        }
     }
 }

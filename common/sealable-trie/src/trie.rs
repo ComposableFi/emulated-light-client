@@ -59,6 +59,7 @@ pub const EMPTY_TRIE_ROOT: CryptoHash = CryptoHash::DEFAULT;
 ///    a single value at a key whose length is withing 36 bytes has a single
 ///    node however if that key is longer than 36 bytes the trie needs at least
 ///    two nodes.
+#[derive(Debug)]
 pub struct Trie<A> {
     /// Pointer to the root node. `None` if the trie is empty or the root node
     /// has been sealed.
