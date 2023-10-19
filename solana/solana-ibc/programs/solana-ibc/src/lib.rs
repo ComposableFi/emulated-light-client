@@ -12,8 +12,8 @@ use module_holder::ModuleHolder;
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 const TEST_TRIE_SEED: &[u8] = b"test_trie";
-pub const CONNECTION_ID_PREFIX: &str = "connection-";
-pub const CHANNEL_ID_PREFIX: &str = "channel-";
+const CONNECTION_ID_PREFIX: &str = "connection-";
+const CHANNEL_ID_PREFIX: &str = "channel-";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 

@@ -1,11 +1,16 @@
 use std::mem::size_of;
 
+use ibc::core::ics04_channel::packet::Sequence;
+use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::core::ics24_host::path::{
     AckPath, ChannelEndPath, CommitmentPath, ConnectionPath, ReceiptPath,
     SeqAckPath, SeqRecvPath, SeqSendPath,
 };
 
-use crate::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
+// Note: We’re not using ChannelId::prefix() and ConnectionId::prefix() because
+// those return the prefix without trailing `-` and we want constants which also
+// include that hyphen.
+use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
 
 pub enum TrieKey {
     ClientState { client_id: String },
@@ -21,7 +26,7 @@ pub enum TrieKey {
 }
 
 #[repr(u8)]
-pub enum TrieKeyWithoutFields {
+enum TrieKeyWithoutFields {
     ClientState = 1,
     ConsensusState = 2,
     Connection = 3,
@@ -34,119 +39,111 @@ pub enum TrieKeyWithoutFields {
     Acks = 10,
 }
 
+/// Strips `prefix` from `data` and parses it to get `T`.  Panics if data
+/// doesn’t start with the prefix or parsing fails.
+fn parse_sans_prefix<T: core::str::FromStr>(
+    prefix: &'static str,
+    data: &str,
+) -> T {
+    data.strip_prefix(prefix)
+        .and_then(|id| id.parse().ok())
+        .unwrap_or_else(|| panic!("invalid identifier: {data}"))
+}
+
+/// Constructs a `(port_id, channel_id)` for creation of a TrieKey.
+///
+/// Panics if `channel_id` is invalid.
+fn handle_port_channel(
+    port_id: &PortId,
+    channel_id: &ChannelId,
+) -> (String, u32) {
+    let port_id = port_id.to_string();
+    let channel_id = parse_sans_prefix(CHANNEL_ID_PREFIX, channel_id.as_str());
+    (port_id, channel_id)
+}
+
+/// Constructs a `(port_id, channel_id, sequence)` for creation of a TrieKey.
+///
+/// Panics if `channel_id` is invalid.
+fn handle_port_channel_seq(
+    port_id: &PortId,
+    channel_id: &ChannelId,
+    sequence: Sequence,
+) -> (String, u32, u64) {
+    let (port_id, channel_id) = handle_port_channel(port_id, channel_id);
+    let sequence = u64::from(sequence);
+    (port_id, channel_id, sequence)
+}
+
 impl From<&ReceiptPath> for TrieKey {
     fn from(path: &ReceiptPath) -> Self {
-        let channel_id = path
-            .channel_id
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::Receipts {
-            port_id: path.port_id.to_string(),
-            channel_id,
-            sequence: u64::from(path.sequence),
-        }
+        let (port_id, channel_id, sequence) = handle_port_channel_seq(
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
+        Self::Receipts { port_id, channel_id, sequence }
     }
 }
 
 impl From<&AckPath> for TrieKey {
     fn from(path: &AckPath) -> Self {
-        let channel_id = path
-            .channel_id
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::Acks {
-            port_id: path.port_id.to_string(),
-            channel_id,
-            sequence: u64::from(path.sequence),
-        }
+        let (port_id, channel_id, sequence) = handle_port_channel_seq(
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
+        Self::Acks { port_id, channel_id, sequence }
     }
 }
 
 impl From<&CommitmentPath> for TrieKey {
     fn from(path: &CommitmentPath) -> Self {
-        let channel_id = path
-            .channel_id
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::Commitment {
-            port_id: path.port_id.to_string(),
-            channel_id,
-            sequence: u64::from(path.sequence),
-        }
+        let (port_id, channel_id, sequence) = handle_port_channel_seq(
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
+        Self::Commitment { port_id, channel_id, sequence }
     }
 }
 
 impl From<&SeqRecvPath> for TrieKey {
     fn from(path: &SeqRecvPath) -> Self {
-        let channel_id = path
-            .1
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::NextSequenceRecv { port_id: path.0.to_string(), channel_id }
+        let (port_id, channel_id) = handle_port_channel(&path.0, &path.1);
+        Self::NextSequenceRecv { port_id, channel_id }
     }
 }
 
 impl From<&SeqSendPath> for TrieKey {
     fn from(path: &SeqSendPath) -> Self {
-        let channel_id = path
-            .1
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::NextSequenceSend { port_id: path.0.to_string(), channel_id }
+        let (port_id, channel_id) = handle_port_channel(&path.0, &path.1);
+        Self::NextSequenceSend { port_id, channel_id }
     }
 }
 
 impl From<&SeqAckPath> for TrieKey {
     fn from(path: &SeqAckPath) -> Self {
-        let channel_id = path
-            .1
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::NextSequenceAck { port_id: path.0.to_string(), channel_id }
+        let (port_id, channel_id) = handle_port_channel(&path.0, &path.1);
+        Self::NextSequenceAck { port_id, channel_id }
     }
 }
 
 impl From<&ChannelEndPath> for TrieKey {
     fn from(path: &ChannelEndPath) -> Self {
-        let channel_id = path
-            .1
-            .as_str()
-            .strip_prefix(CHANNEL_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::ChannelEnd { port_id: path.0.to_string(), channel_id }
+        let (port_id, channel_id) = handle_port_channel(&path.0, &path.1);
+        Self::ChannelEnd { port_id, channel_id }
     }
 }
 
 impl From<&ConnectionPath> for TrieKey {
     fn from(path: &ConnectionPath) -> Self {
-        let connection_id = path
-            .0
-            .as_str()
-            .strip_prefix(CONNECTION_ID_PREFIX)
-            .unwrap()
-            .parse()
-            .unwrap();
-        Self::Connection { connection_id }
+        Self::Connection {
+            connection_id: parse_sans_prefix(
+                CONNECTION_ID_PREFIX,
+                path.0.as_str(),
+            ),
+        }
     }
 }
 
