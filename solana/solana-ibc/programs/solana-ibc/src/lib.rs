@@ -1,11 +1,12 @@
 // anchor_lang::error::Error and anchor_lang::Result is ≥ 160 bytes and there’s
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
+extern crate alloc;
 
-use core::cell::RefCell;
 use core::borrow::Borrow;
-use std::collections::BTreeMap;
+use core::cell::RefCell;
 use std::rc::Rc;
+use alloc::collections::BTreeMap;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -369,9 +370,7 @@ impl Router for SolanaIbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         match module_id.borrow() {
-            ibc::applications::transfer::MODULE_ID_STR => {
-                Some(self)
-            }
+            ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
@@ -381,9 +380,7 @@ impl Router for SolanaIbcStorage<'_, '_> {
         module_id: &ModuleId,
     ) -> Option<&mut dyn Module> {
         match module_id.borrow() {
-            ibc::applications::transfer::MODULE_ID_STR => {
-                Some(self)
-            }
+            ibc::applications::transfer::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
