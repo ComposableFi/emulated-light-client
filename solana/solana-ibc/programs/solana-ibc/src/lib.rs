@@ -113,11 +113,8 @@ pub mod solana_ibc {
             all_messages.into_iter().fold(vec![], |mut errors, msg| {
                 match ibc::core::MsgEnvelope::try_from(msg) {
                     Ok(msg) => {
-                        match ibc::core::dispatch(
-                            &mut store,
-                            &mut router,
-                            msg,
-                        ) {
+                        match ibc::core::dispatch(&mut store, &mut router, msg)
+                        {
                             Ok(()) => (),
                             Err(e) => errors.push(e),
                         }
