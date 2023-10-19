@@ -142,8 +142,8 @@ impl From<SequencePath<'_>> for TrieKey {
     fn from(path: SequencePath<'_>) -> Self {
         Self::from_channel_path(
             Tag::NextSequence,
-            &path.port_id,
-            &path.channel_id,
+            path.port_id,
+            path.channel_id,
         )
     }
 }
