@@ -14,7 +14,7 @@ use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
-const TEST_TRIE_SEED: &[u8] = b"test_trie";
+const TRIE_SEED: &[u8] = b"trie";
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 
@@ -133,7 +133,7 @@ pub struct Deliver<'info> {
     pub sender: Signer<'info>,
     #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
     pub storage: Account<'info, PrivateStorage>,
-    #[account(init_if_needed, payer = sender, seeds = [TEST_TRIE_SEED], bump, space = 1000)]
+    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
     /// CHECK:
     pub trie: AccountInfo<'info>,
     pub system_program: Program<'info, System>,

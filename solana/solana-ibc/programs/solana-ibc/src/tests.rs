@@ -21,7 +21,7 @@ use ibc_proto::protobuf::Protobuf;
 
 use crate::{
     accounts, instruction, AnyCheck, PrivateStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TEST_TRIE_SEED,
+    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
 };
 
 const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -66,7 +66,7 @@ fn anchor_test_deliver() -> Result<()> {
     // Build, sign, and send program instruction
     let seeds = &[SOLANA_IBC_STORAGE_SEED];
     let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
-    let trie_seeds = &[TEST_TRIE_SEED];
+    let trie_seeds = &[TRIE_SEED];
     let trie = Pubkey::find_program_address(trie_seeds, &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
