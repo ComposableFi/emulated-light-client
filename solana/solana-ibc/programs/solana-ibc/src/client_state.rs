@@ -1,4 +1,5 @@
 use anchor_lang::solana_program::msg;
+use borsh::maybestd::io;
 use ibc::clients::ics07_tendermint::client_state::ClientState as TmClientState;
 use ibc::core::ics02_client::client_state::{
     ClientStateCommon, ClientStateExecution, ClientStateValidation, UpdateKind,
@@ -13,23 +14,17 @@ use ibc::core::ics24_host::path::{ClientConsensusStatePath, Path};
 use ibc::core::timestamp::Timestamp;
 use ibc::core::{ContextError, ValidationContext};
 #[cfg(any(test, feature = "mocks"))]
-use ibc::mock::client_state::{
-    MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
-};
+use ibc::mock::client_state::{MockClientContext, MockClientState};
 use ibc::{Any, Height};
 use ibc_proto::ibc::lightclients::tendermint::v1::ClientState as RawTmClientState;
 #[cfg(any(test, feature = "mocks"))]
 use ibc_proto::ibc::mock::ClientState as RawMockClientState;
 use ibc_proto::protobuf::Protobuf;
-use serde::{Deserialize, Serialize};
 
 use super::consensus_state::AnyConsensusState;
 use crate::IbcStorage;
 
-const TENDERMINT_CLIENT_STATE_TYPE_URL: &str =
-    "/ibc.lightclients.tendermint.v1.ClientState";
-
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
     #[cfg(any(test, feature = "mocks"))]
@@ -38,47 +33,123 @@ pub enum AnyClientState {
 
 impl Protobuf<Any> for AnyClientState {}
 
-impl TryFrom<Any> for AnyClientState {
-    type Error = ClientError;
+/// Discriminants used when borsh-encoding [`AnyClientState`].
+#[derive(Clone, Copy, PartialEq, Eq, strum::FromRepr)]
+#[repr(u8)]
+enum AnyClientStateTag {
+    Tendermint = 0,
+    #[cfg(any(test, feature = "mocks"))]
+    Mock = 255,
+}
 
-    fn try_from(raw: Any) -> Result<Self, Self::Error> {
-        match raw.type_url.as_str() {
-            TENDERMINT_CLIENT_STATE_TYPE_URL => Ok(AnyClientState::Tendermint(
-                Protobuf::<RawTmClientState>::decode_vec(&raw.value).map_err(
-                    |e| ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    },
-                )?,
-            )),
+impl AnyClientStateTag {
+    /// Returns tag from protobuf type URL.  Returns `None` if the type URL is
+    /// not recognised.
+    fn from_type_url(url: &str) -> Option<Self> {
+        match url {
+            AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             #[cfg(any(test, feature = "mocks"))]
-            MOCK_CLIENT_STATE_TYPE_URL => Ok(AnyClientState::Mock(
-                Protobuf::<RawMockClientState>::decode_vec(&raw.value)
-                    .map_err(|e| ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?,
-            )),
-            _ => Err(ClientError::UnknownClientStateType {
-                client_state_type: raw.type_url,
-            }),
+            AnyClientState::MOCK_TYPE => Some(Self::Mock),
+            _ => None,
+        }
+    }
+}
+
+impl AnyClientState {
+    /// Protobuf type URL for Tendermint client state used in Any message.
+    const TENDERMINT_TYPE: &str = ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
+    #[cfg(any(test, feature = "mocks"))]
+    /// Protobuf type URL for Mock client state used in Any message.
+    const MOCK_TYPE: &str = ibc::mock::client_state::MOCK_CLIENT_STATE_TYPE_URL;
+
+    /// Encodes the payload and returns discriminants that allow decoding the
+    /// value later.
+    ///
+    /// Returns a `(tag, type, value)` triple where `tag` is discriminant
+    /// identifying variant of the enum, `type` is protobuf type URL
+    /// corresponding to the client state and `value` is the client state
+    /// encoded as protobuf.
+    ///
+    /// `(tag, value)` is used when borsh-encoding and `(type, value)` is used
+    /// in Any protobuf message.  To decode value [`Self::from_tagged`] can be
+    /// used potentially going through [`AnyClientStateTag::from_type_url`] if
+    /// necessary.
+    fn to_any(&self) -> (AnyClientStateTag, &str, Vec<u8>) {
+        match self {
+            AnyClientState::Tendermint(state) => (
+                AnyClientStateTag::Tendermint,
+                Self::TENDERMINT_TYPE,
+                Protobuf::<RawTmClientState>::encode_vec(state),
+            ),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(state) => (
+                AnyClientStateTag::Mock,
+                Self::MOCK_TYPE,
+                Protobuf::<RawMockClientState>::encode_vec(state),
+            ),
+        }
+    }
+
+    /// Decodes protobuf corresponding to specified enum variant.
+    fn from_tagged(
+        tag: AnyClientStateTag,
+        value: Vec<u8>,
+    ) -> Result<Self, ibc_proto::protobuf::Error> {
+        match tag {
+            AnyClientStateTag::Tendermint => {
+                Protobuf::<RawTmClientState>::decode_vec(&value)
+                    .map(Self::Tendermint)
+            }
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientStateTag::Mock => {
+                Protobuf::<RawMockClientState>::decode_vec(&value)
+                    .map(Self::Mock)
+            }
         }
     }
 }
 
 impl From<AnyClientState> for Any {
     fn from(value: AnyClientState) -> Self {
-        match value {
-            AnyClientState::Tendermint(client_state) => Any {
-                type_url: TENDERMINT_CLIENT_STATE_TYPE_URL.to_string(),
-                value: Protobuf::<RawTmClientState>::encode_vec(&client_state),
-            },
-            #[cfg(any(test, feature = "mocks"))]
-            AnyClientState::Mock(mock_client_state) => Any {
-                type_url: MOCK_CLIENT_STATE_TYPE_URL.to_string(),
-                value: Protobuf::<RawMockClientState>::encode_vec(
-                    &mock_client_state,
-                ),
-            },
+        let (_, type_url, value) = value.to_any();
+        Any { type_url: type_url.into(), value }
+    }
+}
+
+impl TryFrom<Any> for AnyClientState {
+    type Error = ClientError;
+
+    fn try_from(raw: Any) -> Result<Self, Self::Error> {
+        let tag = AnyClientStateTag::from_type_url(raw.type_url.as_str())
+            .ok_or_else(|| ClientError::UnknownClientStateType {
+                client_state_type: raw.type_url,
+            })?;
+        Self::from_tagged(tag, raw.value).map_err(|err| {
+            ClientError::ClientSpecific { description: err.to_string() }
+        })
+    }
+}
+
+impl borsh::BorshSerialize for AnyClientState {
+    fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
+        let (tag, _, value) = self.to_any();
+        (tag as u8, value).serialize(wr)
+    }
+}
+
+impl borsh::BorshDeserialize for AnyClientState {
+    fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
+        let (tag, value) = <(u8, Vec<u8>)>::deserialize_reader(rd)?;
+        let res = AnyClientStateTag::from_repr(tag)
+            .map(|tag| Self::from_tagged(tag, value));
+        match res {
+            None => Err(format!("invalid AnyClientState tag: {tag}")),
+            Some(Err(err)) => {
+                Err(format!("unable to decode AnyClientState: {err}"))
+            }
+            Some(Ok(value)) => Ok(value),
         }
+        .map_err(|msg| io::Error::new(io::ErrorKind::InvalidData, msg))
     }
 }
 

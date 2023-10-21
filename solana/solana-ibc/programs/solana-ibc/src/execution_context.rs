@@ -49,20 +49,11 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             client_state,
         );
         let client_state_key = client_state_path.0.to_string();
-        let serialized_client_state =
-            serde_json::to_string(&client_state).unwrap();
+        let serialized_client_state = borsh::to_vec(&client_state).unwrap();
+        let hash = lib::hash::CryptoHash::digest(&serialized_client_state);
         let mut store = self.0.borrow_mut();
-        let client_state_trie_key = TrieKey::from(&client_state_path);
-        let trie = &mut store.provable;
-        msg!(
-            "THis is serialized client state {}",
-            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
-        );
-        trie.set(
-            &client_state_trie_key,
-            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
-        )
-        .unwrap();
+        msg!("This is serialized client state {hash}");
+        store.provable.set(&TrieKey::from(&client_state_path), &hash).unwrap();
         store.private.clients.insert(client_state_key, serialized_client_state);
         store.private.client_id_set.push(client_state_path.0.to_string());
         Ok(())

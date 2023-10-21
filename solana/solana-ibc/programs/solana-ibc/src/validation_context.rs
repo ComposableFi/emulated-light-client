@@ -35,19 +35,17 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
-        let store = self.0.borrow();
-        match store.private.clients.get(client_id.as_str()) {
-            Some(data) => {
-                let client: AnyClientState =
-                    serde_json::from_str(data).unwrap();
-                Ok(client)
-            }
-            None => Err(ContextError::ClientError(
-                ClientError::ClientStateNotFound {
+        self.0
+            .borrow()
+            .private
+            .clients
+            .get(client_id.as_str())
+            .map(|data| borsh::BorshDeserialize::try_from_slice(&data).unwrap())
+            .ok_or_else(|| {
+                ContextError::ClientError(ClientError::ClientStateNotFound {
                     client_id: client_id.clone(),
-                },
-            )),
-        }
+                })
+            })
     }
 
     fn decode_client_state(
