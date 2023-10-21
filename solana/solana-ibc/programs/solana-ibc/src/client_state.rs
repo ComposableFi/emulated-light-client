@@ -141,21 +141,12 @@ impl ClientStateValidation<IbcStorage<'_, '_>> for AnyClientState {
         _ctx: &IbcStorage,
         _client_id: &ClientId,
     ) -> Result<Status, ClientError> {
-        match self {
-            AnyClientState::Tendermint(client_state) => {
-                if client_state.is_frozen() {
-                    return Ok(Status::Frozen);
-                }
-                Ok(Status::Active)
-            }
+        let is_frozen = match self {
+            AnyClientState::Tendermint(state) => state.is_frozen(),
             #[cfg(any(test, feature = "mocks"))]
-            AnyClientState::Mock(mock_client_state) => {
-                if mock_client_state.is_frozen() {
-                    return Ok(Status::Frozen);
-                }
-                Ok(Status::Active)
-            }
-        }
+            AnyClientState::Mock(state) => state.is_frozen(),
+        };
+        Ok(if is_frozen { Status::Frozen } else { Status::Active })
     }
 }
 
