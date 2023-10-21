@@ -1,7 +1,8 @@
 use anchor_lang::solana_program::msg;
 use ibc::clients::ics07_tendermint::client_state::ClientState as TmClientState;
 use ibc::core::ics02_client::client_state::{
-    ClientStateCommon, ClientStateExecution, ClientStateValidation, UpdateKind,
+    ClientStateCommon, ClientStateExecution, ClientStateValidation, Status,
+    UpdateKind,
 };
 use ibc::core::ics02_client::client_type::ClientType;
 use ibc::core::ics02_client::error::ClientError;
@@ -139,9 +140,22 @@ impl ClientStateValidation<IbcStorage<'_, '_>> for AnyClientState {
         &self,
         _ctx: &IbcStorage,
         _client_id: &ClientId,
-    ) -> Result<ibc::core::ics02_client::client_state::Status, ClientError>
-    {
-        todo!()
+    ) -> Result<Status, ClientError> {
+        match self {
+            AnyClientState::Tendermint(client_state) => {
+                if client_state.is_frozen() {
+                    return Ok(Status::Frozen);
+                }
+                Ok(Status::Active)
+            }
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(mock_client_state) => {
+                if mock_client_state.is_frozen() {
+                    return Ok(Status::Frozen);
+                }
+                Ok(Status::Active)
+            }
+        }
     }
 }
 
