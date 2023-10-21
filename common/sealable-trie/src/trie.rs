@@ -6,6 +6,7 @@ use memory::Ptr;
 use crate::nodes::{Node, NodeRef, RawNode, Reference};
 use crate::{bits, proof};
 
+mod del;
 mod seal;
 mod set;
 #[cfg(test)]
@@ -244,9 +245,8 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     pub fn set(&mut self, key: &[u8], value_hash: &CryptoHash) -> Result<()> {
         let (ptr, hash) = (self.root_ptr, self.root_hash.clone());
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
-        let (ptr, hash) =
-            set::SetContext::new(&mut self.alloc, key, value_hash)
-                .set(ptr, &hash)?;
+        let (ptr, hash) = set::Context::new(&mut self.alloc, key, value_hash)
+            .set(ptr, &hash)?;
         self.root_ptr = Some(ptr);
         self.root_hash = hash;
         Ok(())
@@ -264,17 +264,33 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     /// an error.
     // TODO(mina86): Add seal_with_proof.
     pub fn seal(&mut self, key: &[u8]) -> Result<()> {
-        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
         if self.root_hash == EMPTY_TRIE_ROOT {
             return Err(Error::NotFound);
         }
-
-        let seal = seal::SealContext::new(&mut self.alloc, key)
+        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        let removed = seal::Context::new(&mut self.alloc, key)
             .seal(NodeRef::new(self.root_ptr, &self.root_hash))?;
-        if seal {
+        if removed {
             self.root_ptr = None;
         }
         Ok(())
+    }
+
+    /// Deletes value at given key.  Returns `false` if key was not found.
+    pub fn del(&mut self, key: &[u8]) -> Result<bool> {
+        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        let res = del::Context::new(&mut self.alloc, key)
+            .del(self.root_ptr, &self.root_hash);
+        match res {
+            Ok(res) => {
+                let (ptr, hash) = res.unwrap_or((None, EMPTY_TRIE_ROOT));
+                self.root_ptr = ptr;
+                self.root_hash = hash;
+                Ok(true)
+            }
+            Err(Error::NotFound) => Ok(false),
+            Err(err) => Err(err),
+        }
     }
 
     /// Prints the trie.  Used for testing and debugging only.

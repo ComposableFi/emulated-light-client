@@ -26,6 +26,7 @@ anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
 derive_more = "0.99.17"
+hex-literal = "0.4.1"
 ibc = { version = "0.45.0", default-features = false, features = ["serde", "borsh"] }
 ibc-proto = { version = "0.35.0", default-features = false, features = ["serde"] }
 pretty_assertions = "1.4.0"

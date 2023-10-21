@@ -6,7 +6,7 @@ use crate::bits;
 use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
-pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
+pub(super) struct Context<'a, A: memory::Allocator<Value = super::Value>> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -20,7 +20,7 @@ pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
     wlog: memory::WriteLog<'a, A>,
 }
 
-impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     pub(super) fn new(
         alloc: &'a mut A,
         key: bits::Slice<'a>,
