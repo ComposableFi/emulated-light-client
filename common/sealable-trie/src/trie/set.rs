@@ -216,14 +216,11 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     fn handle_value(
         &mut self,
         nref: (Ptr, &CryptoHash),
-        value: ValueRef,
+        value: ValueRef<'_, ()>,
         child: NodeRef,
     ) -> Result<(Ptr, CryptoHash)> {
-        if value.is_sealed {
-            return Err(Error::Sealed);
-        }
         let node = if self.key.is_empty() {
-            RawNode::value(ValueRef::new(false, self.value_hash), child)
+            RawNode::value(ValueRef::new((), self.value_hash), child)
         } else {
             let (ptr, hash) = self.handle(child)?;
             RawNode::value(value, NodeRef::new(Some(ptr), &hash))
@@ -254,6 +251,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
                     rf @ OwnedRef::Value(_) => Ok(rf),
                     OwnedRef::Node(p, h) => {
                         let child = NodeRef::new(Some(p), &h);
+                        let value = ValueRef::new((), value.hash);
                         let node = RawNode::value(value, child);
                         self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
                     }
@@ -313,7 +311,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         ptr: Ptr,
         hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
-        let value = ValueRef::new(false, value_hash);
+        let value = ValueRef::new((), value_hash);
         let child = NodeRef::new(Some(ptr), hash);
         self.alloc_node(RawNode::value(value, child))
     }

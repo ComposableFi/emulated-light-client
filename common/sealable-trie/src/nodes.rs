@@ -55,7 +55,13 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
         child: Reference<'a, P, S>,
     },
     Value {
-        value: ValueRef<'a, S>,
+        /// Reference to value held in the node.
+        ///
+        /// Note that the value can never be sealed.  If it was sealed, the
+        /// entire node would be sealed so rather than Value node existing the
+        /// parent would have a sealed NodeRef.
+        value: ValueRef<'a, ()>,
+        /// Reference to Branch or Extension rooted at the node.
         child: NodeRef<'a, P>,
     },
 }
@@ -78,11 +84,10 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 //    36-byte array which holds the key extension.  Only `o..o+k` bits in it
 //    are the actual key; others are set to zero.
 //
-// Value:     11s0_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
-//    <vhash> is the hash of the stored value.  `s` is zero if the value hasn’t
-//    been sealed, one otherwise.  <node-ref> is a references the child node
-//    which points to the subtrie rooted at the key of the value.  Value node
-//    can only point at Branch or Extension node.
+// Value:     1100_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
+//    <vhash> is the hash of the stored value.  <node-ref> is a references the
+//    child node which points to the subtrie rooted at the key of the value.
+//    Value node can only point at Branch or Extension node.
 // ```
 //
 // A Reference is a 36-byte sequence consisting of a 4-byte pointer and
@@ -165,7 +170,7 @@ impl<'a, P, S> Node<'a, P, S> {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value: ValueRef<'a, S>, child: NodeRef<'a, P>) -> Self {
+    pub fn value(value: ValueRef<'a, ()>, child: NodeRef<'a, P>) -> Self {
         Self::Value { value, child }
     }
 
@@ -292,11 +297,12 @@ impl RawNode {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value: ValueRef, child: NodeRef) -> Self {
+    pub fn value(value: ValueRef<'_, ()>, child: NodeRef) -> Self {
         let mut res = Self([0; RawNode::SIZE]);
+        res.0[0] = 0xC0;
         let (lft, rht) = res.halfs_mut();
-        *lft = Reference::Value(value).encode();
-        lft[0] |= 0x80;
+        let (_, lft) = stdx::split_array_mut::<4, 32, 36>(lft);
+        *lft = value.hash.0;
         *rht = Reference::Node(child).encode();
         res
     }
@@ -325,11 +331,10 @@ impl RawNode {
             let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
             let num = u32::from_be_bytes(*num);
             debug_assert_eq!(
-                0xC000_0000,
-                num & !0x2000_0000,
+                0xC000_0000, num,
                 "Failed decoding raw node: {self:?}",
             );
-            let value = ValueRef::new(num & 0x2000_0000 != 0, value.into());
+            let value = ValueRef::new((), value.into());
             let child = right.try_into().unwrap_or_else(|_| {
                 debug_assert!(false, "Failed decoding raw node: {self:?}");
                 NodeRef::new(None, &CryptoHash::DEFAULT)
