@@ -91,7 +91,7 @@ pub mod solana_ibc {
         // TODO(dhruvja): Since Solana-program uses rustc version 1.69
         // and Rc::into_inner() is supported only from 1.70 and above
         // so using the inner function instead.
-        let inner = Rc::try_unwrap(store.0).ok().unwrap().into_inner();
+        let inner = Rc::try_unwrap(store.0).unwrap().into_inner();
 
         msg!("These are errors {:?}", errors);
         msg!("This is final structure {:?}", inner.private);
