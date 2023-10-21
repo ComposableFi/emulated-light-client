@@ -434,7 +434,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             ibc::Height::new(store.private.height.0, store.private.height.1)
                 .map_err(ContextError::ClientError)
                 .unwrap();
-        let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
+        let ibc_event = borsh::to_vec(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
         store
@@ -442,8 +442,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             .ibc_events_history
             .entry(inner_host_height)
             .or_default()
-            .push(event_in_bytes.clone());
-        emit!(EmitIBCEvent { ibc_event: event_in_bytes });
+            .push(ibc_event.clone());
+        emit!(EmitIBCEvent { ibc_event });
         Ok(())
     }
 
