@@ -60,7 +60,8 @@ impl AnyClientState {
     const TENDERMINT_TYPE: &str = ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
-    const MOCK_TYPE: &'static str = ibc::mock::client_state::MOCK_CLIENT_STATE_TYPE_URL;
+    const MOCK_TYPE: &'static str =
+        ibc::mock::client_state::MOCK_CLIENT_STATE_TYPE_URL;
 
     /// Encodes the payload and returns discriminants that allow decoding the
     /// value later.
