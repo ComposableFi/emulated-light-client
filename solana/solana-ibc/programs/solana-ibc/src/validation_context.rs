@@ -40,7 +40,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
             .private
             .clients
             .get(client_id.as_str())
-            .map(|data| borsh::BorshDeserialize::try_from_slice(&data).unwrap())
+            .map(|data| borsh::BorshDeserialize::try_from_slice(data).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::ClientStateNotFound {
                     client_id: client_id.clone(),

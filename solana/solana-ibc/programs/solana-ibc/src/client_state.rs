@@ -60,7 +60,7 @@ impl AnyClientState {
     const TENDERMINT_TYPE: &str = ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
-    const MOCK_TYPE: &str = ibc::mock::client_state::MOCK_CLIENT_STATE_TYPE_URL;
+    const MOCK_TYPE: &'static str = ibc::mock::client_state::MOCK_CLIENT_STATE_TYPE_URL;
 
     /// Encodes the payload and returns discriminants that allow decoding the
     /// value later.
@@ -121,7 +121,7 @@ impl TryFrom<Any> for AnyClientState {
 
     fn try_from(raw: Any) -> Result<Self, Self::Error> {
         let tag = AnyClientStateTag::from_type_url(raw.type_url.as_str())
-            .ok_or_else(|| ClientError::UnknownClientStateType {
+            .ok_or(ClientError::UnknownClientStateType {
                 client_state_type: raw.type_url,
             })?;
         Self::from_tagged(tag, raw.value).map_err(|err| {
