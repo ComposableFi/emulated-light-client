@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::fmt;
 
 #[cfg(test)]
@@ -11,15 +12,14 @@ use crate::nodes;
 /// even if going over all the bits gives the same result.
 #[derive(Clone, Copy)]
 pub struct Slice<'a> {
-    /// Offset in bits to start the slice in `bytes`.
+    /// Offset in bits to start the slice in underlying bytes.
     ///
-    /// In other words, how many most significant bits to skip from `bytes`.
-    /// This is always less than eight (i.e. we never skip more than one byte).
+    /// In other words, how many most significant bits to skip from underlying
+    /// bytes.  This is always less than eight (i.e. we never skip more than one
+    /// byte).
     pub(crate) offset: u8,
 
     /// Length of the slice in bits.
-    ///
-    /// `length + offset` is never more than `36 * 8`.
     pub(crate) length: u16,
 
     /// The bytes to read the bits from.
@@ -31,6 +31,23 @@ pub struct Slice<'a> {
     pub(crate) ptr: *const u8,
 
     phantom: core::marker::PhantomData<&'a [u8]>,
+}
+
+/// Representation of an owned slice of bits.
+///
+/// This is owned version of [`Slice`] though it has very limited set of
+/// features only allowing some forms of concatenation.
+#[derive(Clone)]
+pub struct Owned {
+    /// Offset in bits to start the slice in `bytes`.
+    offset: u8,
+
+    /// Length of the slice in bits.
+    length: u16,
+
+    /// The underlying bytes to read the bits from.
+    // Invariant: `bytes.len() == (offset + length + 7) / 8`.
+    bytes: Vec<u8>,
 }
 
 /// An iterator over chunks of a slice where each chunk (except for the last
@@ -498,6 +515,136 @@ impl<'a> Slice<'a> {
     }
 }
 
+impl From<Slice<'_>> for Owned {
+    fn from(slice: Slice<'_>) -> Self {
+        Self {
+            bytes: slice.bytes().to_vec(),
+            offset: slice.offset,
+            length: slice.length,
+        }
+    }
+}
+
+impl Owned {
+    /// Constructs a new one-bit owned slice.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// assert_eq!(bits::Slice::new(&[255], 0, 1).unwrap(),
+    ///            bits::Owned::bit(true, 0));
+    /// assert_eq!(bits::Slice::new(&[255], 5, 1).unwrap(),
+    ///            bits::Owned::bit(true, 5));
+    /// assert_ne!(bits::Slice::new(&[255], 5, 1).unwrap(),
+    ///            bits::Owned::bit(true, 0));
+    /// ```
+    pub fn bit(bit: bool, offset: u8) -> Self {
+        Self { bytes: alloc::vec![255 * u8::from(bit)], offset, length: 1 }
+    }
+
+    /// Prepends given slice by a specified bit.
+    ///
+    /// Returns `None` if length (in bits) of the resulting slice would exceed
+    /// `u16::MAX`.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
+    /// let got = bits::Owned::unshift(false, suffix).unwrap();
+    /// assert_eq!(bits::Slice::new(&[124], 0, 6).unwrap(), got);
+    ///
+    /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
+    /// let got = bits::Owned::unshift(true, suffix).unwrap();
+    /// assert_eq!(bits::Slice::new(&[252], 0, 6).unwrap(), got);
+    ///
+    /// let suffix = bits::Slice::new(&[255], 0, 5).unwrap();
+    /// let got = bits::Owned::unshift(true, suffix).unwrap();
+    /// assert_eq!(bits::Slice::new(&[255, 255], 7, 6).unwrap(), got);
+    /// ```
+    pub fn unshift(bit: bool, suffix: Slice) -> Option<Self> {
+        let length = suffix.length.checked_add(1)?;
+        let (bytes, offset) = if suffix.is_empty() {
+            let offset = suffix.offset.checked_sub(1).unwrap_or(7);
+            let bytes = alloc::vec![255 * u8::from(bit)];
+            (bytes, offset)
+        } else if let Some(offset) = suffix.offset.checked_sub(1) {
+            let mut bytes = suffix.bytes().to_vec();
+            bytes[0] &= 0x7F >> offset;
+            bytes[0] |= (0x80 * u8::from(bit)) >> offset;
+            (bytes, offset)
+        } else {
+            let bit = u8::from(bit);
+            let bytes = [core::slice::from_ref(&bit), suffix.bytes()].concat();
+            (bytes, 7)
+        };
+        Some(Self { bytes, offset, length })
+    }
+
+    /// Concatenates a [`Slice`] with [`Owned`].
+    ///
+    /// Returns `None` if end of `prefix` doesn’t align with start of `suffix`
+    /// or if resulting length is too large.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let prefix = bits::Slice::new(&[255], 1, 5).unwrap();
+    /// let suffix = bits::Owned::bit(true, 6);
+    /// let got = bits::Owned::concat(prefix, suffix).unwrap();
+    /// assert_eq!(bits::Slice::new(&[126], 1, 6).unwrap(), got);
+    ///
+    /// let prefix = bits::Slice::new(&[0, 0], 6, 3).unwrap();;
+    /// let suffix = got;
+    /// let got = bits::Owned::concat(prefix, suffix).unwrap();
+    /// assert_eq!(bits::Slice::new(&[0, 126], 6, 9).unwrap(), got);
+    /// ```
+    pub fn concat(prefix: Slice, mut suffix: Self) -> Option<Self> {
+        let bits = usize::from(prefix.offset) + usize::from(prefix.length);
+        if usize::from(suffix.offset) != bits % 8 {
+            // Misaligned slices.
+            return None;
+        }
+
+        let length = suffix.length.checked_add(prefix.length)?;
+        let mut prefix_bytes = prefix.bytes();
+
+        // Take last partial byte from prefix and add it to suffix.  This aligns
+        // the seam to byte boundary and makes concatenation trivial.
+        if suffix.length > 0 && suffix.offset != 0 {
+            if let Some((last, bytes)) = prefix_bytes.split_last() {
+                prefix_bytes = bytes;
+                let mask = 255 >> suffix.offset;
+                suffix.bytes[0] &= mask;
+                suffix.bytes[0] |= *last & !mask;
+            }
+        }
+
+        let bytes = if prefix_bytes.is_empty() {
+            suffix.bytes
+        } else {
+            [prefix_bytes, suffix.bytes.as_slice()].concat()
+        };
+        Some(Self { bytes, offset: prefix.offset, length })
+    }
+
+    /// Borrows the owned slice.
+    pub fn as_slice(&self) -> Slice {
+        Slice {
+            offset: self.offset,
+            length: self.length,
+            ptr: self.bytes.as_ptr(),
+            phantom: Default::default(),
+        }
+    }
+}
+
 impl core::cmp::PartialEq for Slice<'_> {
     /// Compares two slices to see if they contain the same bits and have the
     /// same offset.
@@ -534,6 +681,21 @@ impl core::cmp::PartialEq for Slice<'_> {
                 lhs[1..len - 1] == rhs[1..len - 1]
         }
     }
+}
+
+impl core::cmp::PartialEq for Owned {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool { self.as_slice() == other.as_slice() }
+}
+
+impl core::cmp::PartialEq<Slice<'_>> for Owned {
+    #[inline]
+    fn eq(&self, other: &Slice) -> bool { &self.as_slice() == other }
+}
+
+impl core::cmp::PartialEq<Owned> for Slice<'_> {
+    #[inline]
+    fn eq(&self, other: &Owned) -> bool { self == &other.as_slice() }
 }
 
 impl fmt::Display for Slice<'_> {
@@ -582,8 +744,23 @@ impl fmt::Display for Slice<'_> {
 }
 
 impl fmt::Debug for Slice<'_> {
+    #[inline]
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
         debug_fmt("Slice", self, fmtr)
+    }
+}
+
+impl fmt::Display for Owned {
+    #[inline]
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.as_slice().fmt(fmtr)
+    }
+}
+
+impl fmt::Debug for Owned {
+    #[inline]
+    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+        debug_fmt("Owned", &self.as_slice(), fmtr)
     }
 }
 
@@ -609,6 +786,7 @@ fn debug_fmt(
 impl<'a> core::iter::Iterator for Chunks<'a> {
     type Item = Slice<'a>;
 
+    #[inline]
     fn next(&mut self) -> Option<Slice<'a>> {
         const MAX_LENGTH: u16 = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
         let length = (MAX_LENGTH - u16::from(self.0.offset)).min(self.0.length);
@@ -619,6 +797,7 @@ impl<'a> core::iter::Iterator for Chunks<'a> {
         }
     }
 
+    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         let len = self.len();
         (len, Some(len))
@@ -916,4 +1095,41 @@ fn test_pop() {
 
     test_set(false, |slice| slice.pop_front());
     test_set(true, |slice| slice.pop_back());
+}
+
+#[test]
+fn test_owned_unshift() {
+    for offset in 0..7 {
+        let slice = Slice::new(&[255], offset, 1).unwrap();
+        let want = if offset == 0 {
+            Slice::new(&[1, 128], 7, 2)
+        } else {
+            Slice::new(&[255], offset - 1, 2)
+        }
+        .unwrap();
+        let got = Owned::unshift(true, slice).unwrap();
+        assert_eq!(want, got, "offset: {offset}");
+    }
+}
+
+#[test]
+fn test_owned_concat() {
+    for len in 0..8 {
+        let bytes = (0xFF00_u16 >> len).to_be_bytes();
+        let want = if len == 8 {
+            Slice::new(&bytes, 0, 16)
+        } else {
+            Slice::new(&bytes[1..], 0, 8)
+        }
+        .unwrap();
+
+        let prefix = Slice::new(&[255], 0, len).unwrap();
+        let suffix = Owned {
+            bytes: alloc::vec![0],
+            offset: (len % 8) as u8,
+            length: if len == 8 { 8 } else { 8 - len },
+        };
+        let got = Owned::concat(prefix, suffix).unwrap();
+        assert_eq!(want, got, "len: {len}");
+    }
 }
