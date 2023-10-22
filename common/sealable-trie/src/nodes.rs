@@ -314,12 +314,12 @@ impl RawNode {
     // TODO(mina86): Convert debug_assertions to the method returning Result.
     pub fn decode(&self) -> Node {
         let (left, right) = self.halfs();
-        let right = Reference::from_raw(right, false);
+        let right = Reference::from_raw(right);
         // `>> 6` to grab the two most significant bits only.
         let tag = self.first() >> 6;
         if tag == 0 || tag == 1 {
             // Branch
-            Node::Branch { children: [Reference::from_raw(left, false), right] }
+            Node::Branch { children: [Reference::from_raw(left), right] }
         } else if tag == 2 {
             // Extension
             let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
@@ -402,12 +402,9 @@ impl<'a> Reference<'a> {
     /// must be zero.
     ///
     /// In debug builds, panics if `bytes` has non-canonical representation,
-    /// i.e. any unused bits are set.  `value_high_bit` in this case determines
-    /// whether for value reference the most significant bit should be set or
-    /// not.  This is to facilitate decoding Value nodes.  The argument is
-    /// ignored in builds with debug assertions disabled.
+    /// i.e. any unused bits are set.
     // TODO(mina86): Convert debug_assertions to the method returning Result.
-    fn from_raw(bytes: &'a [u8; 36], value_high_bit: bool) -> Self {
+    fn from_raw(bytes: &'a [u8; 36]) -> Self {
         let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
         let ptr = u32::from_be_bytes(*ptr);
         let hash = hash.into();
@@ -421,12 +418,12 @@ impl<'a> Reference<'a> {
             let ptr = Ptr::new_truncated(ptr);
             Self::Node(NodeRef { ptr, hash })
         } else {
-            // * The most significant bit is set only if value_high_bit is true.
             // * The second most significant bit (so 0b4000_0000) is always set.
             // * The third most significant bit (so 0b2000_0000) specifies
             //   whether value is sealed.
+            // * All other bits are cleared.
             debug_assert_eq!(
-                0x4000_0000 | (u32::from(value_high_bit) << 31),
+                0x4000_0000,
                 ptr & !0x2000_0000,
                 "Failed decoding Reference: {bytes:?}"
             );
