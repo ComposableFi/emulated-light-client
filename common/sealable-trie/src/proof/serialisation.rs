@@ -331,6 +331,8 @@ fn test_item_borsh() {
 
 #[test]
 fn test_actual_borsh() {
+    use lib::u3::U3;
+
     #[track_caller]
     fn test(want_actual: Actual, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_actual).unwrap();
@@ -397,7 +399,7 @@ fn test_actual_borsh() {
     fn make_extension(
         left: u16,
         bytes: &[u8],
-        offset: u8,
+        offset: U3,
         length: u16,
         is_value: bool,
     ) -> Actual {
@@ -410,7 +412,7 @@ fn test_actual_borsh() {
     }
 
     #[rustfmt::skip]
-    test(make_extension(0, &[0xFF; 34], 0, 34 * 8, false), &[
+    test(make_extension(0, &[0xFF; 34], U3::_0, 34 * 8, false), &[
         /* tag: */ 0x84,
         /* left: */ 0, 0,
         /* key: */ 8, 128,
@@ -422,7 +424,7 @@ fn test_actual_borsh() {
     ]);
 
     #[rustfmt::skip]
-    test(make_extension(0xDEAD, &[1], 7, 1, true), &[
+    test(make_extension(0xDEAD, &[1], U3::_7, 1, true), &[
         /* tag: */ 0x85,
         /* left: */ 0xAD, 0xDE,
         /* key: */ 0, 15, 1,
