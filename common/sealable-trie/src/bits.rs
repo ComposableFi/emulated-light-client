@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+use lib::u3::U3;
+
 pub mod ext_key;
 
 pub use ext_key::{Chunks, ExtKey};
@@ -18,7 +20,7 @@ pub struct Slice<'a> {
     /// In other words, how many most significant bits to skip from underlying
     /// bytes.  This is always less than eight (i.e. we never skip more than one
     /// byte).
-    pub(crate) offset: u8,
+    pub(crate) offset: U3,
 
     /// Length of the slice in bits.
     pub(crate) length: u16,
@@ -41,7 +43,7 @@ pub struct Slice<'a> {
 #[derive(Clone, Default)]
 pub struct Owned {
     /// Offset in bits to start the slice in `bytes`.
-    offset: u8,
+    offset: U3,
 
     /// Length of the slice in bits.
     length: u16,
@@ -57,24 +59,20 @@ impl<'a> Slice<'a> {
     /// `bytes` is underlying bytes slice to read bits from.
     ///
     /// `offset` specifies how many most significant bits of the first byte of
-    /// the bytes slice to skip.  Must be at most 7.
+    /// the bytes slice to skip.
     ///
     /// `length` specifies length in bits of the entire bit slice.
     ///
-    /// Returns `None` if `offset` or `length` is too large or `bytes` doesn’t
-    /// have enough underlying data for the length of the slice.
+    /// Returns `None` if `offset + length` is too large (dosn’t fit `u16`) or
+    /// `bytes` doesn’t have enough underlying data for the length of the slice.
     #[inline]
-    pub fn new(bytes: &'a [u8], offset: u8, length: u16) -> Option<Self> {
-        if offset >= 8 {
-            false
-        } else if length == 0 {
-            true
-        } else {
-            u32::from(length) + u32::from(offset) <=
-                u32::try_from(bytes.len())
-                    .unwrap_or(u32::MAX)
-                    .saturating_mul(8)
-        }
+    pub fn new(bytes: &'a [u8], offset: U3, length: u16) -> Option<Self> {
+        let needs_bits = length.checked_add(u16::from(offset))?;
+        (length == 0 ||
+            needs_bits <=
+                u16::try_from(bytes.len())
+                    .unwrap_or(u16::MAX)
+                    .saturating_mul(8))
         .then_some(Self {
             offset,
             length,
@@ -90,7 +88,7 @@ impl<'a> Slice<'a> {
     #[inline]
     pub fn from_bytes(bytes: &'a [u8]) -> Option<Self> {
         Some(Self {
-            offset: 0,
+            offset: U3::_0,
             length: u16::try_from(bytes.len().checked_mul(8)?).ok()?,
             ptr: bytes.as_ptr(),
             phantom: Default::default(),
@@ -104,7 +102,7 @@ impl<'a> Slice<'a> {
     /// are all cleared.
     pub fn new_check_zeros(
         bytes: &'a [u8],
-        offset: u8,
+        offset: U3,
         length: u16,
     ) -> Option<Self> {
         Self::new(bytes, offset, length).filter(|slice| {
@@ -131,9 +129,10 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
+    /// let mut slice = Slice::new(&[0x60], U3::_0, 3).unwrap();
     /// assert_eq!(Some(false), slice.pop_front());
     /// assert_eq!(Some(true), slice.pop_front());
     /// assert_eq!(Some(true), slice.pop_front());
@@ -147,8 +146,8 @@ impl<'a> Slice<'a> {
         // SAFETY: self.length != 0 ⇒ self.ptr points at a valid byte and
         // `self.ptr + 1` is valid pointer value.
         let (first, rest) = unsafe { (self.ptr.read(), self.ptr.add(1)) };
-        let bit = first & (0x80 >> self.offset) != 0;
-        self.offset = (self.offset + 1) % 8;
+        let bit = first & (0x80u8 >> self.offset) != 0;
+        self.offset = self.offset.wrapping_inc();
         if self.offset == 0 {
             self.ptr = rest;
         }
@@ -161,9 +160,10 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
+    /// let mut slice = Slice::new(&[0x60], U3::_0, 3).unwrap();
     /// assert_eq!(Some(true), slice.pop_back());
     /// assert_eq!(Some(true), slice.pop_back());
     /// assert_eq!(Some(false), slice.pop_back());
@@ -191,15 +191,16 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0x81], 0, 8).unwrap();
+    /// let mut slice = Slice::new(&[0x81], U3::_0, 8).unwrap();
     /// let head = slice.pop_front_slice(4).unwrap();
-    /// assert_eq!(bits::Slice::new(&[0x80], 0, 4), Some(head));
-    /// assert_eq!(bits::Slice::new(&[0x01], 4, 4), Some(slice));
+    /// assert_eq!(Slice::new(&[0x80], U3::_0, 4), Some(head));
+    /// assert_eq!(Slice::new(&[0x01], U3::_4, 4), Some(slice));
     ///
     /// assert_eq!(None, slice.pop_front_slice(5));
-    /// assert_eq!(bits::Slice::new(&[0x01], 4, 4), Some(slice));
+    /// assert_eq!(Slice::new(&[0x01], U3::_4, 4), Some(slice));
     /// ```
     #[inline]
     pub fn pop_front_slice(&mut self, length: u16) -> Option<Self> {
@@ -218,15 +219,16 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0x81], 0, 8).unwrap();
+    /// let mut slice = Slice::new(&[0x81], U3::_0, 8).unwrap();
     /// let tail = slice.pop_back_slice(4).unwrap();
-    /// assert_eq!(bits::Slice::new(&[0x80], 0, 4), Some(slice));
-    /// assert_eq!(bits::Slice::new(&[0x01], 4, 4), Some(tail));
+    /// assert_eq!(Slice::new(&[0x80], U3::_0, 4), Some(slice));
+    /// assert_eq!(Slice::new(&[0x01], U3::_4, 4), Some(tail));
     ///
     /// assert_eq!(None, slice.pop_back_slice(5));
-    /// assert_eq!(bits::Slice::new(&[0x80], 0, 4), Some(slice));
+    /// assert_eq!(Slice::new(&[0x80], U3::_0, 4), Some(slice));
     /// ```
     #[inline]
     pub fn pop_back_slice(&mut self, length: u16) -> Option<Self> {
@@ -259,7 +261,7 @@ impl<'a> Slice<'a> {
             self.ptr.add((usize::from(self.offset) + usize::from(length)) / 8)
         };
         let right = Slice {
-            offset: (self.offset + length as u8 % 8) % 8,
+            offset: self.offset.wrapping_add(length),
             length: remaining,
             ptr,
             phantom: self.phantom,
@@ -275,14 +277,15 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0xAA, 0xA0], 0, 12).unwrap();
+    /// let mut slice = Slice::new(&[0xAA, 0xA0], U3::_0, 12).unwrap();
     ///
-    /// assert!(slice.starts_with(bits::Slice::new(&[0xAA], 0, 4).unwrap()));
-    /// assert!(!slice.starts_with(bits::Slice::new(&[0xFF], 0, 4).unwrap()));
+    /// assert!(slice.starts_with(Slice::new(&[0xAA], U3::_0, 4).unwrap()));
+    /// assert!(!slice.starts_with(Slice::new(&[0xFF], U3::_0, 4).unwrap()));
     /// // Different offset:
-    /// assert!(!slice.starts_with(bits::Slice::new(&[0xAA], 4, 4).unwrap()));
+    /// assert!(!slice.starts_with(Slice::new(&[0xAA], U3::_4, 4).unwrap()));
     /// ```
     #[inline]
     pub fn starts_with(&self, prefix: Slice<'_>) -> bool {
@@ -304,25 +307,26 @@ impl<'a> Slice<'a> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// let mut slice = bits::Slice::new(&[0xAA, 0xA0], 0, 12).unwrap();
+    /// let mut slice = Slice::new(&[0xAA, 0xA0], U3::_0, 12).unwrap();
     ///
-    /// assert!(slice.strip_prefix(bits::Slice::new(&[0xAA], 0, 4).unwrap()));
-    /// assert_eq!(bits::Slice::new(&[0x0A, 0xA0], 4, 8).unwrap(), slice);
+    /// assert!(slice.strip_prefix(Slice::new(&[0xAA], U3::_0, 4).unwrap()));
+    /// assert_eq!(Slice::new(&[0x0A, 0xA0], U3::_4, 8).unwrap(), slice);
     ///
     /// // Doesn’t match:
-    /// assert!(!slice.strip_prefix(bits::Slice::new(&[0x0F], 4, 4).unwrap()));
+    /// assert!(!slice.strip_prefix(Slice::new(&[0x0F], U3::_4, 4).unwrap()));
     /// // Different offset:
-    /// assert!(!slice.strip_prefix(bits::Slice::new(&[0xAA], 0, 4).unwrap()));
+    /// assert!(!slice.strip_prefix(Slice::new(&[0xAA], U3::_0, 4).unwrap()));
     /// // Too long:
-    /// assert!(!slice.strip_prefix(bits::Slice::new(&[0x0A, 0xAA], 4, 12).unwrap()));
+    /// assert!(!slice.strip_prefix(Slice::new(&[0x0A, 0xAA], U3::_4, 12).unwrap()));
     ///
-    /// assert!(slice.strip_prefix(bits::Slice::new(&[0xAA, 0xAA], 4, 6).unwrap()));
-    /// assert_eq!(bits::Slice::new(&[0x20], 2, 2).unwrap(), slice);
+    /// assert!(slice.strip_prefix(Slice::new(&[0xAA, 0xAA], U3::_4, 6).unwrap()));
+    /// assert_eq!(Slice::new(&[0x20], U3::_2, 2).unwrap(), slice);
     ///
     /// assert!(slice.strip_prefix(slice.clone()));
-    /// assert_eq!(bits::Slice::new(&[0x00], 4, 0).unwrap(), slice);
+    /// assert_eq!(Slice::new(&[0x00], U3::_4, 0).unwrap(), slice);
     /// ```
     #[inline]
     pub fn strip_prefix(&mut self, prefix: Slice<'_>) -> bool {
@@ -356,42 +360,43 @@ impl<'a> Slice<'a> {
     ///
     /// ```
     /// # use sealable_trie::bits::{Slice, ExtKey};
+    /// # use lib::u3::U3;
     ///
     /// // Some common prefix
-    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let mut key = Slice::new(&[0xFF], U3::_0, 8).unwrap();
     /// let (prefix, other) = key.forward_common_prefix(
-    ///     ExtKey::new(&[0xF0], 0, 8).unwrap()
+    ///     ExtKey::new(&[0xF0], U3::_0, 8).unwrap()
     /// );
-    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 4).unwrap()), prefix);
-    /// assert_eq!(Slice::new(&[0xFF], 4, 4).unwrap(), key);
-    /// assert_eq!(Some(ExtKey::new(&[0xF0], 4, 4).unwrap()), other);
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], U3::_0, 4).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], U3::_4, 4).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0xF0], U3::_4, 4).unwrap()), other);
     ///
     /// // No common prefix
-    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let mut key = Slice::new(&[0xFF], U3::_0, 8).unwrap();
     /// let (prefix, other) = key.forward_common_prefix(
-    ///     ExtKey::new(&[0x0F], 0, 8).unwrap()
+    ///     ExtKey::new(&[0x0F], U3::_0, 8).unwrap()
     /// );
     /// assert_eq!(None, prefix);
-    /// assert_eq!(Slice::new(&[0xFF], 0, 8).unwrap(), key);
-    /// assert_eq!(Some(ExtKey::new(&[0x0F], 0, 8).unwrap()), other);
+    /// assert_eq!(Slice::new(&[0xFF], U3::_0, 8).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0x0F], U3::_0, 8).unwrap()), other);
     ///
     /// // other is prefix of key
-    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let mut key = Slice::new(&[0xFF], U3::_0, 8).unwrap();
     /// let (prefix, other) = key.forward_common_prefix(
-    ///     ExtKey::new(&[0xFF], 0, 6).unwrap()
+    ///     ExtKey::new(&[0xFF], U3::_0, 6).unwrap()
     /// );
-    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 6).unwrap()), prefix);
-    /// assert_eq!(Slice::new(&[0xFF], 6, 2).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], U3::_0, 6).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], U3::_6, 2).unwrap(), key);
     /// assert_eq!(None, other);
     ///
     /// // key is prefix of other
-    /// let mut key = Slice::new(&[0xFF], 0, 6).unwrap();
+    /// let mut key = Slice::new(&[0xFF], U3::_0, 6).unwrap();
     /// let (prefix, other) = key.forward_common_prefix(
-    ///     ExtKey::new(&[0xFF], 0, 8).unwrap()
+    ///     ExtKey::new(&[0xFF], U3::_0, 8).unwrap()
     /// );
-    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 6).unwrap()), prefix);
-    /// assert_eq!(Slice::new(&[0xFF], 6, 0).unwrap(), key);
-    /// assert_eq!(Some(ExtKey::new(&[0xFF], 6, 2).unwrap()), other);
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], U3::_0, 6).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], U3::_6, 0).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], U3::_6, 2).unwrap()), other);
     /// ```
     pub fn forward_common_prefix<'b>(
         &mut self,
@@ -411,7 +416,7 @@ impl<'a> Slice<'a> {
                 (Some(lhs), Some(rhs)) => (lhs.0 ^ rhs.0, lhs.1, rhs.1),
                 _ => return 0,
             };
-            let fst = fst & (0xFF >> offset);
+            let fst = fst & (0xFFu8 >> offset);
 
             let total_bits_matched = if fst != 0 {
                 fst.leading_zeros()
@@ -459,12 +464,12 @@ impl<'a> Slice<'a> {
     /// Based on provided bit offset (which must be ≤ 7) and bit length of the
     /// slice returns: mask of bits in the first byte that are part of the
     /// slice and mask of bits in the last byte that are part of the slice.
-    fn masks(offset: u8, length: u16) -> (u8, u8) {
+    fn masks(offset: U3, length: u16) -> (u8, u8) {
         let bits = usize::from(offset) + usize::from(length);
         // `1 << 20` is an arbitrary number which is divisible by 8 and greater
         // than bits.
         let tail = ((1 << 20) - bits) % 8;
-        (0xFF >> offset, 0xFF << tail)
+        (0xFFu8 >> offset, 0xFFu8 << tail)
     }
 }
 
@@ -472,7 +477,7 @@ impl<'a> Default for Slice<'a> {
     fn default() -> Self {
         static NUL: u8 = 0;
         Slice {
-            offset: 0,
+            offset: U3::_0,
             length: 0,
             ptr: &NUL as *const u8,
             phantom: core::marker::PhantomData,
@@ -500,16 +505,17 @@ impl Owned {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::{Owned, Slice};
+    /// # use lib::u3::U3;
     ///
-    /// assert_eq!(bits::Slice::new(&[255], 0, 1).unwrap(),
-    ///            bits::Owned::bit(true, 0));
-    /// assert_eq!(bits::Slice::new(&[255], 5, 1).unwrap(),
-    ///            bits::Owned::bit(true, 5));
-    /// assert_ne!(bits::Slice::new(&[255], 5, 1).unwrap(),
-    ///            bits::Owned::bit(true, 0));
+    /// assert_eq!(Slice::new(&[255], U3::_0, 1).unwrap(),
+    ///            Owned::bit(true, U3::_0));
+    /// assert_eq!(Slice::new(&[255], U3::_5, 1).unwrap(),
+    ///            Owned::bit(true, U3::_5));
+    /// assert_ne!(Slice::new(&[255], U3::_5, 1).unwrap(),
+    ///            Owned::bit(true, U3::_0));
     /// ```
-    pub fn bit(bit: bool, offset: u8) -> Self {
+    pub fn bit(bit: bool, offset: U3) -> Self {
         Self { bytes: alloc::vec![255 * u8::from(bit)], offset, length: 1 }
     }
 
@@ -521,35 +527,36 @@ impl Owned {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::{Owned, Slice};
+    /// # use lib::u3::U3;
     ///
-    /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
-    /// let got = bits::Owned::unshift(false, suffix).unwrap();
-    /// assert_eq!(bits::Slice::new(&[124], 0, 6).unwrap(), got);
+    /// let suffix = Slice::new(&[255], U3::_1, 5).unwrap();
+    /// let got = Owned::unshift(false, suffix).unwrap();
+    /// assert_eq!(Slice::new(&[124], U3::_0, 6).unwrap(), got);
     ///
-    /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
-    /// let got = bits::Owned::unshift(true, suffix).unwrap();
-    /// assert_eq!(bits::Slice::new(&[252], 0, 6).unwrap(), got);
+    /// let suffix = Slice::new(&[255], U3::_1, 5).unwrap();
+    /// let got = Owned::unshift(true, suffix).unwrap();
+    /// assert_eq!(Slice::new(&[252], U3::_0, 6).unwrap(), got);
     ///
-    /// let suffix = bits::Slice::new(&[255], 0, 5).unwrap();
-    /// let got = bits::Owned::unshift(true, suffix).unwrap();
-    /// assert_eq!(bits::Slice::new(&[255, 255], 7, 6).unwrap(), got);
+    /// let suffix = Slice::new(&[255], U3::_0, 5).unwrap();
+    /// let got = Owned::unshift(true, suffix).unwrap();
+    /// assert_eq!(Slice::new(&[255, 255], U3::_7, 6).unwrap(), got);
     /// ```
     pub fn unshift(bit: bool, suffix: Slice) -> Option<Self> {
         let length = suffix.length.checked_add(1)?;
         let (bytes, offset) = if suffix.is_empty() {
-            let offset = suffix.offset.checked_sub(1).unwrap_or(7);
+            let offset = suffix.offset.wrapping_dec();
             let bytes = alloc::vec![255 * u8::from(bit)];
             (bytes, offset)
-        } else if let Some(offset) = suffix.offset.checked_sub(1) {
+        } else if let Some(offset) = suffix.offset.checked_dec() {
             let mut bytes = suffix.bytes().to_vec();
-            bytes[0] &= 0x7F >> offset;
+            bytes[0] &= 0x7Fu8 >> offset;
             bytes[0] |= (0x80 * u8::from(bit)) >> offset;
             (bytes, offset)
         } else {
             let bit = u8::from(bit);
             let bytes = [core::slice::from_ref(&bit), suffix.bytes()].concat();
-            (bytes, 7)
+            (bytes, U3::MAX)
         };
         Some(Self { bytes, offset, length })
     }
@@ -562,17 +569,18 @@ impl Owned {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::{Owned, Slice};
+    /// # use lib::u3::U3;
     ///
-    /// let prefix = bits::Slice::new(&[255], 1, 5).unwrap();
-    /// let suffix = bits::Owned::bit(true, 6);
-    /// let got = bits::Owned::concat(prefix, suffix.as_slice()).unwrap();
-    /// assert_eq!(bits::Slice::new(&[126], 1, 6).unwrap(), got);
+    /// let prefix = Slice::new(&[255], U3::_1, 5).unwrap();
+    /// let suffix = Owned::bit(true, U3::_6);
+    /// let got = Owned::concat(prefix, suffix.as_slice()).unwrap();
+    /// assert_eq!(Slice::new(&[126], U3::_1, 6).unwrap(), got);
     ///
-    /// let prefix = bits::Slice::new(&[0, 0], 6, 3).unwrap();;
+    /// let prefix = Slice::new(&[0, 0], U3::_6, 3).unwrap();;
     /// let suffix = got.as_slice();
-    /// let got = bits::Owned::concat(prefix, suffix).unwrap();
-    /// assert_eq!(bits::Slice::new(&[0, 126], 6, 9).unwrap(), got);
+    /// let got = Owned::concat(prefix, suffix).unwrap();
+    /// assert_eq!(Slice::new(&[0, 126], U3::_6, 9).unwrap(), got);
     /// ```
     pub fn concat(
         prefix: Slice,
@@ -598,7 +606,7 @@ impl Owned {
             // Otherwise, the two slices have one byte that overlaps.
             // Concatenate excluding the first byte of the suffix and
             let mut bytes = [pre_bytes, &suf_bytes[1..]].concat();
-            let mask = 255 >> suffix.offset;
+            let mask = 255u8 >> suffix.offset;
             bytes[pre_bytes.len() - 1] &= !mask;
             bytes[pre_bytes.len() - 1] |= suf_bytes[0] & mask;
             bytes
@@ -629,14 +637,15 @@ impl core::cmp::PartialEq for Slice<'_> {
     /// ## Example
     ///
     /// ```
-    /// # use sealable_trie::bits;
+    /// # use sealable_trie::bits::Slice;
+    /// # use lib::u3::U3;
     ///
-    /// assert_eq!(bits::Slice::new(&[0xFF], 0, 6),
-    ///            bits::Slice::new(&[0xFF], 0, 6));
-    /// assert_ne!(bits::Slice::new(&[0xFF], 0, 6),
-    ///            bits::Slice::new(&[0xF0], 0, 6));
-    /// assert_ne!(bits::Slice::new(&[0xFF], 0, 6),
-    ///            bits::Slice::new(&[0xFF], 2, 6));
+    /// assert_eq!(Slice::new(&[0xFF], U3::_0, 6),
+    ///            Slice::new(&[0xFF], U3::_0, 6));
+    /// assert_ne!(Slice::new(&[0xFF], U3::_0, 6),
+    ///            Slice::new(&[0xF0], U3::_0, 6));
+    /// assert_ne!(Slice::new(&[0xFF], U3::_0, 6),
+    ///            Slice::new(&[0xFF], U3::_2, 6));
     /// ```
     fn eq(&self, other: &Self) -> bool {
         if self.offset != other.offset || self.length != other.length {
@@ -683,19 +692,20 @@ impl core::cmp::PartialEq<Owned> for Slice<'_> {
 /// empty if its offset is non-zero.
 ///
 /// ```
-/// # use sealable_trie::bits;
+/// # use sealable_trie::bits::{MisalignedError, Slice};
+/// # use lib::u3::U3;
 ///
-/// let slice = bits::Slice::new(b"A", 0, 8).unwrap();
+/// let slice = Slice::new(b"A", U3::_0, 8).unwrap();
 /// assert_eq!(b"A", <Vec<u8>>::try_from(slice).unwrap().as_slice());
 ///
-/// let slice = bits::Slice::new(b"A", 0, 0).unwrap();
+/// let slice = Slice::new(b"A", U3::_0, 0).unwrap();
 /// assert_eq!(b"", <Vec<u8>>::try_from(slice).unwrap().as_slice());
 ///
-/// let slice = bits::Slice::new(b"A", 0, 4).unwrap();
-/// assert_eq!(Err(bits::MisalignedError), <Vec<u8>>::try_from(slice));
+/// let slice = Slice::new(b"A", U3::_0, 4).unwrap();
+/// assert_eq!(Err(MisalignedError), <Vec<u8>>::try_from(slice));
 ///
-/// let slice = bits::Slice::new(b"A", 4, 0).unwrap();
-/// assert_eq!(Err(bits::MisalignedError), <Vec<u8>>::try_from(slice));
+/// let slice = Slice::new(b"A", U3::_4, 0).unwrap();
+/// assert_eq!(Err(MisalignedError), <Vec<u8>>::try_from(slice));
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MisalignedError;
@@ -795,7 +805,7 @@ fn debug_fmt(
 #[test]
 fn test_new_check_zeros() {
     #[track_caller]
-    fn test(ok: bool, bytes: &[u8], offset: u8, length: u16) {
+    fn test(ok: bool, bytes: &[u8], offset: U3, length: u16) {
         assert_eq!(ok, Slice::new_check_zeros(bytes, offset, length).is_some());
         // Appending non-zero bytes makes it invalid.
         let mut bytes = [bytes, &[1][..]].concat();
@@ -807,51 +817,52 @@ fn test_new_check_zeros() {
         }
     }
 
-    test(true, &[], 0, 0);
-    test(true, &[], 4, 0);
-    test(false, &[8], 0, 1);
-    test(true, &[8], 4, 1);
-    test(false, &[16], 4, 1);
-    test(true, &[16], 3, 1);
-    test(false, &[24], 3, 1);
+    test(true, &[], U3::_0, 0);
+    test(true, &[], U3::_4, 0);
+    test(false, &[8], U3::_0, 1);
+    test(true, &[8], U3::_4, 1);
+    test(false, &[16], U3::_4, 1);
+    test(true, &[16], U3::_3, 1);
+    test(false, &[24], U3::_3, 1);
 }
 
 #[test]
 fn test_common_prefix() {
-    let mut slice = Slice::new(&[0x86, 0xE9], 1, 15).unwrap();
-    let key = ExtKey::new(&[0x06, 0xE9], 1, 15).unwrap();
+    let mut slice = Slice::new(&[0x86, 0xE9], U3::_1, 15).unwrap();
+    let key = ExtKey::new(&[0x06, 0xE9], U3::_1, 15).unwrap();
     let (prefix, suffix) = slice.forward_common_prefix(key);
     let want = (
-        Some(ExtKey::new(&[0x06, 0xE9], 1, 15).unwrap()),
+        Some(ExtKey::new(&[0x06, 0xE9], U3::_1, 15).unwrap()),
         None,
-        Slice::new(&[], 0, 0).unwrap(),
+        Slice::new(&[], U3::_0, 0).unwrap(),
     );
     assert_eq!(want, (prefix, suffix, slice));
 }
 
 #[test]
 fn test_display() {
-    fn test(want: &str, bytes: &[u8], offset: u8, length: u16) {
-        use alloc::string::ToString;
-
-        let got = Slice::new(bytes, offset, length).unwrap().to_string();
-        assert_eq!(want, got)
+    fn test(want: &str, bytes: &[u8], offset: U3, length: u16) {
+        let slice = Slice::new(bytes, offset, length).unwrap();
+        assert_eq!(want, alloc::format!("{slice}"));
     }
 
-    test("0b111111..", &[0xFF], 0, 6);
-    test("0b..1111..", &[0xFF], 2, 4);
-    test("0b..111111_11......", &[0xFF, 0xFF], 2, 8);
-    test("0b..111111_11111111_11......", &[0xFF, 0xFF, 0xFF], 2, 16);
+    test("0b111111..", &[0xFF], U3::_0, 6);
+    test("0b..1111..", &[0xFF], U3::_2, 4);
+    test("0b..111111_11......", &[0xFF, 0xFF], U3::_2, 8);
+    test("0b..111111_11111111_11......", &[0xFF, 0xFF, 0xFF], U3::_2, 16);
 
-    test("0b10101010", &[0xAA], 0, 8);
-    test("0b...0101.", &[0xAA], 3, 4);
+    test("0b10101010", &[0xAA], U3::_0, 8);
+    test("0b...0101.", &[0xAA], U3::_3, 4);
 }
 
 #[test]
 fn test_eq() {
-    assert_eq!(Slice::new(&[0xFF], 0, 8), Slice::new(&[0xFF], 0, 8));
-    assert_eq!(Slice::new(&[0xFF], 0, 4), Slice::new(&[0xF0], 0, 4));
-    assert_eq!(Slice::new(&[0xFF], 4, 4), Slice::new(&[0x0F], 4, 4));
+    assert_eq!(Slice::new(&[0xFF], U3::_0, 8), Slice::new(&[0xFF], U3::_0, 8));
+    assert_eq!(Slice::new(&[0xFF], U3::_0, 4), Slice::new(&[0xF0], U3::_0, 4));
+    assert_eq!(Slice::new(&[0xFF], U3::_4, 4), Slice::new(&[0x0F], U3::_4, 4));
+
+    assert_ne!(Slice::new(&[0xFF], U3::_0, 8), Slice::new(&[0xFF], U3::_0, 6));
+    assert_ne!(Slice::new(&[0xFF], U3::_0, 4), Slice::new(&[0xFF], U3::_4, 4));
 }
 
 #[test]
@@ -881,8 +892,11 @@ fn test_pop() {
     fn test_set(reverse: bool, pop: fn(&mut Slice) -> Option<bool>) {
         for start in 0..8 {
             for end in start..=24 {
-                let slice =
-                    Slice::new(&BYTES[..], start as u8, (end - start) as u16);
+                let slice = Slice::new(
+                    &BYTES[..],
+                    U3::try_from(start).unwrap(),
+                    (end - start) as u16,
+                );
                 test(&WANT[start..end], slice.unwrap(), reverse, pop);
             }
         }
@@ -894,14 +908,16 @@ fn test_pop() {
 
 #[test]
 fn test_owned_unshift() {
-    for offset in 0..7 {
+    for offset in 0..7u8 {
+        let offset = U3::try_from(offset).unwrap();
         let slice = Slice::new(&[255], offset, 1).unwrap();
-        let want = if offset == 0 {
-            Slice::new(&[1, 128], 7, 2)
-        } else {
-            Slice::new(&[255], offset - 1, 2)
-        }
-        .unwrap();
+        let want = offset
+            .checked_dec()
+            .map_or_else(
+                || Slice::new(&[1, 128], U3::_7, 2),
+                |offset| Slice::new(&[255], offset, 2),
+            )
+            .unwrap();
         let got = Owned::unshift(true, slice).unwrap();
         assert_eq!(want, got, "offset: {offset}");
     }
@@ -911,10 +927,10 @@ fn test_owned_unshift() {
 fn test_owned_concat() {
     for len in 0..=8 {
         let bytes = (0xFF00_u16 >> len).to_be_bytes();
-        let want = Slice::new(&bytes[1..], 0, 8).unwrap();
+        let want = Slice::new(&bytes[1..], U3::_0, 8).unwrap();
 
-        let prefix = Slice::new(&[255], 0, len).unwrap();
-        let suffix = Slice::new(&[0], len as u8 % 8, 8 - len).unwrap();
+        let prefix = Slice::new(&[255], U3::_0, len).unwrap();
+        let suffix = Slice::new(&[0], U3::wrap(len), 8 - len).unwrap();
         let got = Owned::concat(prefix, suffix).unwrap();
         assert_eq!(want, got, "len: {len}");
     }
@@ -922,7 +938,7 @@ fn test_owned_concat() {
 
 #[test]
 fn test_owned_concat_empty() {
-    for offset in 0..8 {
+    for offset in U3::all() {
         let slice = Slice::new(&[], offset, 0).unwrap();
         let got = Owned::concat(slice, slice).unwrap();
         assert_eq!(slice, got, "offset: {offset}");
