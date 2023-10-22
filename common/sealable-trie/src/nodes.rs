@@ -228,8 +228,17 @@ impl<'a, P, S> Node<'a, P, S> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BadExtensionKey;
+#[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
+pub enum DecodeError {
+    #[display(fmt = "Invalid extension key")]
+    BadExtensionKey,
+    #[display(fmt = "Invalid Value node")]
+    BadValueNode,
+    #[display(fmt = "Invalid node reference")]
+    BadNodeRef,
+    #[display(fmt = "Invalid value reference")]
+    BadValueRef,
+}
 
 impl<'a> Node<'a> {
     /// Builds raw representation of given node.
@@ -311,36 +320,32 @@ impl RawNode {
     ///
     /// In debug builds panics if `node` holds malformed representation, i.e. if
     /// any unused bits (which must be cleared) are set.
-    // TODO(mina86): Convert debug_assertions to the method returning Result.
-    pub fn decode(&self) -> Node {
+    pub fn decode(&self) -> Result<Node, DecodeError> {
         let (left, right) = self.halfs();
-        let right = Reference::from_raw(right);
+        let right = Reference::from_raw(right)?;
         // `>> 6` to grab the two most significant bits only.
         let tag = self.first() >> 6;
-        if tag == 0 || tag == 1 {
+        Ok(if tag == 0 || tag == 1 {
             // Branch
-            Node::Branch { children: [Reference::from_raw(left), right] }
+            Node::Branch { children: [Reference::from_raw(left)?, right] }
         } else if tag == 2 {
             // Extension
-            let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
-                panic!("Failed decoding raw: {self:?}");
-            });
+            let key = Slice::decode(left, 0x80)
+                .ok_or(DecodeError::BadExtensionKey)?;
             Node::Extension { key, child: right }
         } else {
             // Value
-            let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
-            let num = u32::from_be_bytes(*num);
-            debug_assert_eq!(
-                0xC000_0000, num,
-                "Failed decoding raw node: {self:?}",
-            );
-            let value = ValueRef::new((), value.into());
-            let child = right.try_into().unwrap_or_else(|_| {
-                debug_assert!(false, "Failed decoding raw node: {self:?}");
-                NodeRef::new(None, &CryptoHash::DEFAULT)
-            });
-            Node::Value { value, child }
-        }
+            let (num, hash) = Reference::into_parts(left);
+            if num != 0xC000_0000 {
+                return Err(DecodeError::BadValueNode);
+            }
+            Node::Value {
+                value: ValueRef::new((), hash),
+                child: right
+                    .try_into()
+                    .map_err(|_| DecodeError::BadValueNode)?,
+            }
+        })
     }
 
     /// Returns the first byte in the raw representation.
@@ -395,41 +400,39 @@ impl<'a> Reference<'a> {
         }
     }
 
+    /// Parses raw node reference representation into the pointer and hash
+    /// parts.
+    ///
+    /// This is an internal helper method which splits the buffer without doing
+    /// any validation on it.
+    fn into_parts(bytes: &'a [u8; 36]) -> (u32, &'a CryptoHash) {
+        let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
+        (u32::from_be_bytes(*ptr), hash.into())
+    }
+
     /// Parses bytes to form a raw node reference representation.
     ///
     /// Assumes that the bytes are trusted.  I.e. doesn’t verify that the most
     /// significant bit is zero or that if second bit is one than pointer value
     /// must be zero.
-    ///
-    /// In debug builds, panics if `bytes` has non-canonical representation,
-    /// i.e. any unused bits are set.
-    // TODO(mina86): Convert debug_assertions to the method returning Result.
-    fn from_raw(bytes: &'a [u8; 36]) -> Self {
-        let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
-        let ptr = u32::from_be_bytes(*ptr);
-        let hash = hash.into();
-        if ptr & 0x4000_0000 == 0 {
-            // The two most significant bits must be zero.
-            debug_assert_eq!(
-                0,
-                ptr & 0xC000_0000,
-                "Failed decoding Reference: {bytes:?}"
-            );
-            let ptr = Ptr::new_truncated(ptr);
+    fn from_raw(bytes: &'a [u8; 36]) -> Result<Self, DecodeError> {
+        let (ptr, hash) = Self::into_parts(bytes);
+        Ok(if ptr & 0x4000_0000 == 0 {
+            // The two most significant bits must be zero.  Ptr::new fails if
+            // they aren’t.
+            let ptr = Ptr::new(ptr).map_err(|_| DecodeError::BadNodeRef)?;
             Self::Node(NodeRef { ptr, hash })
         } else {
             // * The second most significant bit (so 0b4000_0000) is always set.
             // * The third most significant bit (so 0b2000_0000) specifies
             //   whether value is sealed.
             // * All other bits are cleared.
-            debug_assert_eq!(
-                0x4000_0000,
-                ptr & !0x2000_0000,
-                "Failed decoding Reference: {bytes:?}"
-            );
+            if ptr & !0x2000_0000 != 0x4000_0000 {
+                return Err(DecodeError::BadValueRef);
+            }
             let is_sealed = ptr & 0x2000_0000 != 0;
             Self::Value(ValueRef { is_sealed, hash })
-        }
+        })
     }
 
     /// Encodes the node reference into the buffer.

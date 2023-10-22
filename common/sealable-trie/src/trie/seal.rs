@@ -31,7 +31,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = RawNode(*self.alloc.get(ptr));
-        let node = node.decode();
+        let node = node.decode()?;
         debug_assert_eq!(*nref.hash, node.hash());
 
         let result = match node {
@@ -91,8 +91,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         child: NodeRef,
     ) -> Result<SealResult> {
         if self.key.is_empty() {
-            prune(self.alloc, child.ptr);
-            Ok(SealResult::Free)
+            prune(self.alloc, child.ptr).map(|()| SealResult::Free)
         } else if self.seal(child)? {
             let child = NodeRef::new(None, child.hash);
             let node = RawNode::value(value, child);
@@ -135,19 +134,19 @@ enum SealResult {
 fn prune(
     alloc: &mut impl memory::Allocator<Value = super::Value>,
     ptr: Option<Ptr>,
-) {
+) -> Result<()> {
     let mut ptr = match ptr {
         Some(ptr) => ptr,
-        None => return,
+        None => return Ok(()),
     };
     let mut queue = Vec::new();
     loop {
-        let children = get_children(alloc.get(ptr).into());
+        let children = get_children(alloc.get(ptr).into())?;
         alloc.free(ptr);
         match children {
             (None, None) => match queue.pop() {
                 Some(p) => ptr = p,
-                None => break,
+                None => break Ok(()),
             },
             (Some(p), None) | (None, Some(p)) => ptr = p,
             (Some(lhs), Some(rht)) => {
@@ -158,7 +157,7 @@ fn prune(
     }
 }
 
-fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
+fn get_children(node: &RawNode) -> Result<(Option<Ptr>, Option<Ptr>)> {
     fn get_ptr(child: Reference) -> Option<Ptr> {
         match child {
             Reference::Node(node) => node.ptr,
@@ -166,9 +165,9 @@ fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
         }
     }
 
-    match node.decode() {
+    Ok(match node.decode()? {
         Node::Branch { children: [lft, rht] } => (get_ptr(lft), get_ptr(rht)),
         Node::Extension { child, .. } => (get_ptr(child), None),
         Node::Value { child, .. } => (child.ptr, None),
-    }
+    })
 }

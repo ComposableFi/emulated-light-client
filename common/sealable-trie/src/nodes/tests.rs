@@ -25,7 +25,7 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 pub(super) fn raw_from_node(node: &Node) -> RawNode {
     let raw = node.encode().unwrap_or_else(|err| panic!("{err:?}: {node:?}"));
     assert_eq!(
-        *node,
+        Ok(*node),
         raw.decode(),
         "Node → RawNode → Node gave different result:\n Raw: {raw:?}"
     );
@@ -44,7 +44,7 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 fn check_node_encoding(node: Node, want: [u8; RawNode::SIZE], want_hash: &str) {
     let raw = raw_from_node(&node);
     assert_eq!(want, raw.0, "Unexpected raw representation");
-    assert_eq!(node, RawNode(want).decode(), "Bad Raw→Node conversion");
+    assert_eq!(Ok(node), RawNode(want).decode(), "Bad Raw→Node conversion");
 
     let want_hash = b64decode(want_hash);
     assert_eq!(want_hash, node.hash(), "Unexpected hash of {node:?}");
