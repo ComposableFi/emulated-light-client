@@ -50,15 +50,7 @@ pub mod solana_ibc {
         msg!("Called deliver method");
         let _sender = ctx.accounts.sender.to_account_info();
 
-        let all_messages = messages
-            .into_iter()
-            .map(|message| ibc::Any {
-                type_url: message.type_url,
-                value: message.value,
-            })
-            .collect::<Vec<_>>();
-
-        msg!("These are messages {:?}", all_messages);
+        msg!("These are messages {:?}", messages);
 
         let private: &mut PrivateStorage = &mut ctx.accounts.storage;
         msg!("This is private_store {:?}", private);
@@ -71,21 +63,21 @@ pub mod solana_ibc {
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let errors =
-            all_messages.into_iter().fold(vec![], |mut errors, msg| {
-                match ibc::core::MsgEnvelope::try_from(msg) {
-                    Ok(msg) => {
-                        match ibc::core::dispatch(&mut store, &mut router, msg)
-                        {
-                            Ok(()) => (),
-                            Err(e) => errors.push(e),
-                        }
-                    }
-                    Err(e) => errors.push(e),
-                }
-                errors
+        let mut errors = Vec::new();
+        for msg in messages {
+            let msg = ibc_proto::google::protobuf::Any {
+                type_url: msg.type_url,
+                value: msg.value,
+            };
+            let res = ibc::core::MsgEnvelope::try_from(msg).and_then(|msg| {
+                ibc::core::dispatch(&mut store, &mut router, msg)
             });
+            if let Err(err) = res {
+                errors.push(err);
+            }
+        }
 
+        // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
 
         // TODO(dhruvja): Since Solana-program uses rustc version 1.69

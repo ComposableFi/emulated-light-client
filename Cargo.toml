@@ -27,8 +27,8 @@ base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
-ibc = { version = "0.45.0", default-features = false, features = ["serde", "borsh"] }
-ibc-proto = { version = "0.35.0", default-features = false, features = ["serde"] }
+ibc = { version = "0.47.0", default-features = false, features = ["serde", "borsh"] }
+ibc-proto = { version = "0.37.1", default-features = false, features = ["serde"] }
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 serde = "1"
@@ -55,4 +55,4 @@ curve25519-dalek = { git = "https://github.com/dhruvja/curve25519-dalek", branch
 # eyre has a mutable global variable which is something Solana
 # programs cannot have.  tendermint crate enables eyre; patch it to
 # version that doesn’t do that.
-tendermint = { git = "https://github.com/mina86/tendermint-rs.git", branch = "33.2-sans-eyre" }
+tendermint = { git = "https://github.com/mina86/tendermint-rs.git", branch = "34.0-sans-eyre" }
