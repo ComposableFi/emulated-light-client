@@ -86,10 +86,18 @@ pub enum Error {
     NotFound,
     #[display(fmt = "Not enough space")]
     OutOfMemory,
+    #[display(fmt = "Error decoding node: {}", "_0")]
+    BadRawNode(crate::nodes::DecodeError),
 }
 
 impl From<memory::OutOfMemory> for Error {
+    #[inline]
     fn from(_: memory::OutOfMemory) -> Self { Self::OutOfMemory }
+}
+
+impl From<crate::nodes::DecodeError> for Error {
+    #[inline]
+    fn from(err: crate::nodes::DecodeError) -> Self { Self::BadRawNode(err) }
 }
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
@@ -175,7 +183,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
         let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
-            let node = <&RawNode>::from(node).decode();
+            let node = <&RawNode>::from(node).decode()?;
             debug_assert_eq!(node_hash, node.hash());
 
             let child = match node {
@@ -324,19 +332,23 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             println!(" (sealed)");
             return;
         };
-        match <&RawNode>::from(self.alloc.get(ptr)).decode() {
-            Node::Branch { children } => {
+        let node = <&RawNode>::from(self.alloc.get(ptr));
+        match node.decode() {
+            Ok(Node::Branch { children }) => {
                 println!(" Branch");
                 print_ref(children[0], depth + 2);
                 print_ref(children[1], depth + 2);
             }
-            Node::Extension { key, child } => {
+            Ok(Node::Extension { key, child }) => {
                 println!(" Extension {key}");
                 print_ref(child, depth + 2);
             }
-            Node::Value { value, child } => {
+            Ok(Node::Value { value, child }) => {
                 println!(" Value {}", value.hash);
                 print_ref(Reference::from(child), depth + 2);
+            }
+            Err(err) => {
+                println!(" BadRawNode: {err}: {node:?}");
             }
         }
     }

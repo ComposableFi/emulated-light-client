@@ -19,7 +19,7 @@ fn stress_test_raw_encoding_round_trip() {
     let mut raw = RawNode([0; RawNode::SIZE]);
     for _ in 0..get_iteration_count(1) {
         gen_random_raw_node(&mut rng, &mut raw.0);
-        let node = raw.decode();
+        let node = raw.decode().unwrap();
         // Test RawNode→Node→RawNode round trip conversion.
         assert_eq!(Ok(raw), node.encode(), "node: {node:?}");
     }
@@ -91,7 +91,7 @@ fn stress_test_node_encoding_round_trip() {
         let node = gen_random_node(&mut rng, &mut buf);
 
         let raw = super::tests::raw_from_node(&node);
-        assert_eq!(node, raw.decode(), "Failed decoding Raw: {raw:?}");
+        assert_eq!(Ok(node), raw.decode(), "Failed decoding Raw: {raw:?}");
     }
 }
 

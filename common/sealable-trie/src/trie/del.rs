@@ -66,7 +66,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     fn handle(&mut self, nref: NodeRef, from_ext: bool) -> Result<Action> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = RawNode(*self.wlog.allocator().get(ptr));
-        let node = node.decode();
+        let node = node.decode()?;
         debug_assert_eq!(*nref.hash, node.hash());
 
         match node {
@@ -102,7 +102,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 (children[0], child)
             };
             let node = RawNode::branch(left, right);
-            return Ok(Action::Ref(self.set_node(ptr, node)));
+            return self.set_node(ptr, node).map(Action::Ref);
         }
 
         // The child has been deleted.  We need to convert this Branch into an
@@ -114,7 +114,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         Ok(self
             .maybe_pop_extension(child, &|key| {
                 bits::Owned::unshift(side == 0, key).unwrap()
-            })
+            })?
             .unwrap_or_else(|| {
                 Action::Ext(
                     bits::Owned::bit(side == 0, key_offset),
@@ -162,7 +162,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 let action = self
                     .maybe_pop_extension(Reference::Node(child), &|key| {
                         key.into()
-                    });
+                    })?;
                 if let Some(action) = action {
                     return Ok(action);
                 }
@@ -172,21 +172,29 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
 
         // Traverse into the child and handle that.
         let action = self.handle(child, false)?;
-        Ok(match self.ref_from_action(action)? {
+        match self.ref_from_action(action)? {
             None => {
                 // We’re deleting the child which means we need to delete the
                 // Value node and replace parent’s reference to ValueRef.
                 self.del_node(ptr);
                 let value = ValueRef::new(false, value.hash);
-                Action::Ref(value.into())
+                Ok(Action::Ref(value.into()))
             }
             Some(OwnedRef::Node(child_ptr, hash)) => {
                 let child = NodeRef::new(child_ptr, &hash);
                 let node = RawNode::value(value, child);
-                Action::Ref(self.set_node(ptr, node))
+                self.set_node(ptr, node).map(Action::Ref)
             }
-            Some(OwnedRef::Value(..)) => unreachable!(),
-        })
+            Some(OwnedRef::Value(..)) => {
+                // The only possible way we’ve reached here if the self.handle
+                // call above recursively called self.handle_value (since this
+                // method is the only one which may Value references).  But if
+                // that happens, it means that we had a Value node whose child
+                // was another Value node.  This is an invalid trie (since Value
+                // may only point at Branch or Extension) so we report an error.
+                Err(Error::BadRawNode(crate::nodes::DecodeError::BadValueNode))
+            }
+        }
     }
 
     /// If `child` is a node reference pointing at an Extension node, pops that
@@ -195,27 +203,28 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         &mut self,
         child: Reference,
         make_key: &dyn Fn(bits::Slice) -> bits::Owned,
-    ) -> Option<Action> {
+    ) -> Result<Option<Action>> {
         if let Reference::Node(NodeRef { ptr: Some(ptr), hash }) = child {
             let node = RawNode(*self.wlog.allocator().get(ptr));
-            let node = node.decode();
+            let node = node.decode()?;
             debug_assert_eq!(*hash, node.hash());
 
             if let Node::Extension { key, child } = node {
                 // Drop the child Extension and merge keys.
                 self.del_node(ptr);
-                return Some(Action::Ext(make_key(key), OwnedRef::from(child)));
+                let action = Action::Ext(make_key(key), OwnedRef::from(child));
+                return Ok(Some(action));
             }
         }
-        None
+        Ok(None)
     }
 
     /// Sets value of a node cell at given address and returns an [`OwnedRef`]
     /// pointing at the node.
-    fn set_node(&mut self, ptr: Ptr, node: RawNode) -> OwnedRef {
-        let hash = node.decode().hash();
+    fn set_node(&mut self, ptr: Ptr, node: RawNode) -> Result<OwnedRef> {
+        let hash = node.decode()?.hash();
         self.wlog.set(ptr, *node);
-        OwnedRef::Node(Some(ptr), hash)
+        Ok(OwnedRef::Node(Some(ptr), hash))
     }
 
     /// Frees a node.
@@ -236,7 +245,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         for chunk in key.as_slice().chunks().rev() {
             let node = RawNode::extension(chunk, child.to_ref()).unwrap();
             let ptr = self.wlog.alloc(node.0)?;
-            child = OwnedRef::Node(Some(ptr), node.decode().hash());
+            child = OwnedRef::Node(Some(ptr), node.decode()?.hash());
         }
 
         Ok(Some(child))
