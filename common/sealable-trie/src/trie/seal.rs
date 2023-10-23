@@ -7,7 +7,7 @@ use crate::bits;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::seal`] operation.
-pub(super) struct SealContext<'a, A> {
+pub(super) struct Context<'a, A> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -18,7 +18,7 @@ pub(super) struct SealContext<'a, A> {
     alloc: &'a mut A,
 }
 
-impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     pub(super) fn new(alloc: &'a mut A, key: bits::Slice<'a>) -> Self {
         Self { key, alloc }
     }
@@ -57,10 +57,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
         &mut self,
         mut children: [Reference; 2],
     ) -> Result<SealResult> {
-        let side = match self.key.pop_front() {
-            None => return Err(Error::NotFound),
-            Some(bit) => usize::from(bit),
-        };
+        let side = usize::from(self.key.pop_front().ok_or(Error::NotFound)?);
         match self.seal_child(children[side])? {
             None => Ok(SealResult::Done),
             Some(_) if children[1 - side].is_sealed() => Ok(SealResult::Free),
