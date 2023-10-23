@@ -17,7 +17,8 @@ use ibc::core::{ContextError, ValidationContext};
 use ibc::mock::client_state::{
     MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
 };
-use ibc::{Any, Height};
+use ibc::Height;
+use ibc_proto::google::protobuf::Any;
 use ibc_proto::ibc::lightclients::tendermint::v1::ClientState as RawTmClientState;
 #[cfg(any(test, feature = "mocks"))]
 use ibc_proto::ibc::mock::ClientState as RawMockClientState;
@@ -153,7 +154,7 @@ impl ClientStateValidation<IbcStorage<'_, '_>> for AnyClientState {
 impl ClientStateCommon for AnyClientState {
     fn verify_consensus_state(
         &self,
-        consensus_state: ibc::Any,
+        consensus_state: Any,
     ) -> Result<(), ClientError> {
         match self {
             AnyClientState::Tendermint(client_state) => {
@@ -387,6 +388,31 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
     ) -> Result<Self::AnyConsensusState, ContextError> {
         ValidationContext::consensus_state(self, client_cons_state_path)
     }
+
+    fn consensus_state_heights(
+        &self,
+        client_id: &ClientId,
+    ) -> Result<Vec<Height>, ContextError> {
+        // TODO(mina86): use BTreeMap::range here so that we don’t iterate over
+        // the entire map.
+        self.0
+            .borrow()
+            .private
+            .consensus_states
+            .keys()
+            .filter(|(client, _)| client == client_id.as_str())
+            .map(|(_, height)| ibc::Height::new(height.0, height.1))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(ContextError::from)
+    }
+
+    fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
+        ValidationContext::host_timestamp(self)
+    }
+
+    fn host_height(&self) -> Result<Height, ContextError> {
+        ValidationContext::host_height(self)
+    }
 }
 
 #[cfg(any(test, feature = "mocks"))]
@@ -404,35 +430,34 @@ impl MockClientContext for IbcStorage<'_, '_> {
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
         ValidationContext::host_timestamp(self)
     }
+
+    fn host_height(&self) -> Result<ibc::Height, ContextError> {
+        ValidationContext::host_height(self)
+    }
 }
 
 impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
-    fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
-        ValidationContext::host_timestamp(self)
-    }
-
     fn next_consensus_state(
         &self,
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
+        // TODO(mina86): This needs to look for the next consensus state.  It’s
+        // not guaranteed that it’ll have successive height.  We need to use
+        // BTreeMap::range here.
         let end_height = (height.revision_number() + 1, 1);
-        match self
-            .0
+        self.0
             .borrow()
             .private
             .consensus_states
             .get(&(client_id.to_string(), end_height))
-        {
-            Some(data) => {
-                let result: Self::AnyConsensusState =
-                    serde_json::from_str(data).unwrap();
-                Ok(Some(result))
-            }
-            None => Err(ContextError::ClientError(
-                ClientError::ImplementationSpecific,
-            )),
-        }
+            .map(|encoded| serde_json::from_str(encoded))
+            .transpose()
+            .map_err(|err| {
+                ContextError::ClientError(ClientError::ClientSpecific {
+                    description: err.to_string(),
+                })
+            })
     }
 
     fn prev_consensus_state(
@@ -440,22 +465,21 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
+        // TODO(mina86): This needs to look for the previous consensus state.
+        // It’s not guaranteed that it’ll have successive height.  We need to
+        // use BTreeMap::range here.
         let end_height = (height.revision_number(), 1);
-        match self
-            .0
+        self.0
             .borrow()
             .private
             .consensus_states
             .get(&(client_id.to_string(), end_height))
-        {
-            Some(data) => {
-                let result: Self::AnyConsensusState =
-                    serde_json::from_str(data).unwrap();
-                Ok(Some(result))
-            }
-            None => Err(ContextError::ClientError(
-                ClientError::ImplementationSpecific,
-            )),
-        }
+            .map(|encoded| serde_json::from_str(encoded))
+            .transpose()
+            .map_err(|err| {
+                ContextError::ClientError(ClientError::ClientSpecific {
+                    description: err.to_string(),
+                })
+            })
     }
 }

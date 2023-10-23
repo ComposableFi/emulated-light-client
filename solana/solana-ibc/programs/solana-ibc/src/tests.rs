@@ -20,7 +20,7 @@ use ibc::core::ics24_host::identifier::ClientId;
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
-use ibc::Any;
+use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
 
 use crate::{
