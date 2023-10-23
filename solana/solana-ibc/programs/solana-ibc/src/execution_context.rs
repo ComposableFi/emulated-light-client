@@ -109,6 +109,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         &mut self,
         path: ClientConsensusStatePath,
     ) -> Result<(), ContextError> {
+        msg!("delete_consensus_state({})", path);
         let key = (path.client_id.to_string(), (path.epoch, path.height));
         let mut store = self.0.borrow_mut();
         store.private.consensus_states.remove(&key);
@@ -161,6 +162,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         height: Height,
         timestamp: Timestamp,
     ) -> Result<(), ContextError> {
+        msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
         self.0
             .borrow_mut()
             .private
@@ -180,6 +182,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         height: Height,
         host_height: Height,
     ) -> Result<(), ContextError> {
+        msg!("store_update_height({}, {}, {})", client_id, height, host_height);
         self.0
             .borrow_mut()
             .private
