@@ -90,12 +90,10 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
 
     fn seal_value(
         &mut self,
-        value: ValueRef,
+        value: ValueRef<'_, ()>,
         child: NodeRef,
     ) -> Result<SealResult> {
-        if value.is_sealed {
-            Err(Error::Sealed)
-        } else if self.key.is_empty() {
+        if self.key.is_empty() {
             prune(self.alloc, child.ptr);
             Ok(SealResult::Free)
         } else if self.seal(child)? {

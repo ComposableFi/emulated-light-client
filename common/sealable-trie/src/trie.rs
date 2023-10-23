@@ -199,9 +199,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                 }
 
                 Node::Value { value, child } => {
-                    if value.is_sealed {
-                        return Err(Error::Sealed);
-                    } else if key.is_empty() {
+                    if key.is_empty() {
                         proof!(proof push proof::Item::Value(child.hash.clone()));
                         let proof = proof!(proof rev.build());
                         return Ok((Some(value.hash.clone()), proof));
@@ -321,8 +319,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                 print_ref(child, depth + 2);
             }
             Node::Value { value, child } => {
-                let is_sealed = if value.is_sealed { " (sealed)" } else { "" };
-                println!(" Value {}{}", value.hash, is_sealed);
+                println!(" Value {}", value.hash);
                 print_ref(Reference::from(child), depth + 2);
             }
         }

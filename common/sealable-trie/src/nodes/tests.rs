@@ -255,7 +255,7 @@ fn test_extension_hash_bad_key() {
 #[rustfmt::skip]
 fn test_value_encoding() {
     check_node_encoding(Node::Value {
-        value: ValueRef::new(false, &ONE),
+        value: ValueRef::new((), &ONE),
         child: NodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xC0, 0, 0, 0,
@@ -265,20 +265,10 @@ fn test_value_encoding() {
     ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
 
     check_node_encoding(Node::Value {
-        value: ValueRef::new(true, &ONE),
-        child: NodeRef::new(Some(BEEF), &TWO),
-    }, [
-        /* tag:   */ 0xE0, 0, 0, 0,
-        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0, 0, 0xBE, 0xEF,
-        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
-
-    check_node_encoding(Node::Value {
-        value: ValueRef::new(true, &ONE),
+        value: ValueRef::new((), &ONE),
         child: NodeRef::new(None, &TWO),
     }, [
-        /* tag:   */ 0xE0, 0, 0, 0,
+        /* tag:   */ 0xC0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr:   */ 0, 0, 0, 0,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2

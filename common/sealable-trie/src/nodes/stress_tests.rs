@@ -72,7 +72,7 @@ fn gen_random_raw_node(
     } else {
         // Value.  Most bits in the first four bytes must be zero and child must
         // be a node reference.
-        bytes[0] &= 0xE0;
+        bytes[0] = 0xC0;
         bytes[1] = 0;
         bytes[2] = 0;
         bytes[3] = 0;
@@ -126,8 +126,7 @@ fn gen_random_node<'a>(
         }
         2 => {
             let num = rng.gen::<u32>();
-            let is_sealed = num & 0x8000_0000 != 0;
-            let value = ValueRef::new(is_sealed, left.into());
+            let value = ValueRef::new((), left.into());
             let ptr = Ptr::new(num & 0x7FFF_FFFF).ok().flatten();
             let child = NodeRef::new(ptr, right.into());
             Node::value(value, child)
