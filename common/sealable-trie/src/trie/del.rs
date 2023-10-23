@@ -136,10 +136,10 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         self.del_node(ptr);
         Ok(match self.handle_reference(child, true)? {
             Action::Drop => Action::Drop,
-            Action::Ref(child) => Action::Ext(key.into(), child.into()),
+            Action::Ref(child) => Action::Ext(key.into(), child),
             Action::Ext(suffix, child) => {
                 let key = bits::Owned::concat(key, suffix).unwrap();
-                Action::Ext(key, child.into())
+                Action::Ext(key, child)
             }
         })
     }
