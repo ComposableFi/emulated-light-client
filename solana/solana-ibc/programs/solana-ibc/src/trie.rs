@@ -66,7 +66,7 @@ impl<D: DataRef + Sized> core::ops::Drop for AccountTrie<D> {
         }
         .encode();
         // Avoid writing data if we’re not changing anything.
-        if alloc.data.get(..hdr.len()).unwrap() != &hdr {
+        if alloc.data.get(..hdr.len()) != Some(&hdr[..]) {
             alloc.data.get_mut(..hdr.len()).unwrap().copy_from_slice(&hdr);
         }
     }
