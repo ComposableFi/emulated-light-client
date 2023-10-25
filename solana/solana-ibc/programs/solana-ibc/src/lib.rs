@@ -26,17 +26,9 @@ mod execution_context;
 #[cfg(test)]
 mod tests;
 mod transfer;
-mod trie;
 mod trie_key;
 mod validation_context;
 // mod client_context;
-
-/// Discriminants for the data stored in the accounts.
-mod magic {
-    pub(crate) const UNINITIALISED: u32 = 0;
-    pub(crate) const TRIE_ROOT: u32 = 1;
-}
-
 
 
 #[anchor_lang::program]
@@ -56,8 +48,9 @@ pub mod solana_ibc {
         msg!("This is private_store {:?}", private);
 
         let account = &ctx.accounts.trie;
-        let provable = trie::AccountTrie::new(account.try_borrow_mut_data()?)
-            .ok_or(ProgramError::InvalidAccountData)?;
+        let provable =
+            solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
+                .ok_or(ProgramError::InvalidAccountData)?;
 
         let inner = IbcStorageInner { private, provable };
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
@@ -238,7 +231,8 @@ pub struct PrivateStorage {
 #[derive(Debug)]
 pub struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
-    pub provable: trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
+    pub provable:
+        solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
 }
 
 #[derive(Debug, Clone)]

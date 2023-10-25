@@ -5,15 +5,7 @@ use solana_program::program::set_return_data;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 
-mod trie;
-
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
-
-/// Discriminants for the data stored in the accounts.
-mod magic {
-    pub(crate) const UNINITIALISED: u32 = 0;
-    pub(crate) const TRIE_ROOT: u32 = 1;
-}
 
 solana_program::entrypoint!(process_instruction);
 
@@ -26,8 +18,9 @@ pub fn process_instruction(
     if account.owner != program_id {
         return Err(ProgramError::IncorrectProgramId);
     }
-    let mut trie = trie::AccountTrie::new(account.try_borrow_mut_data()?)
-        .ok_or(ProgramError::InvalidAccountData)?;
+    let mut trie =
+        solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
+            .ok_or(ProgramError::InvalidAccountData)?;
     match Instruction::decode(instruction)? {
         Instruction::Get { key, include_proof } => {
             handle_get(trie, key, include_proof)?;
@@ -43,7 +36,7 @@ pub fn process_instruction(
 }
 
 fn handle_get(
-    trie: trie::AccountTrie,
+    trie: solana_trie::AccountTrie<core::cell::RefMut<'_, &'_ mut [u8]>>,
     key: &[u8],
     include_proof: bool,
 ) -> Result {

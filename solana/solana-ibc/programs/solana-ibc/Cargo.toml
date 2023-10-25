@@ -24,7 +24,7 @@ serde_json.workspace = true
 
 lib.workspace = true
 memory.workspace = true
-sealable-trie.workspace = true
+solana-trie.workspace = true
 stdx.workspace = true
 
 [dev-dependencies]
