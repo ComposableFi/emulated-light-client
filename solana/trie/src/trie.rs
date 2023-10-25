@@ -1,33 +1,56 @@
-use core::cell::RefMut;
 use core::mem::ManuallyDrop;
 
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
-use crate::magic;
-
-type DataRef<'a, 'b> = RefMut<'a, &'b mut [u8]>;
-
 const SZ: usize = sealable_trie::nodes::RawNode::SIZE;
 
 /// Trie stored in a Solana account.
-pub(crate) struct AccountTrie<'a, 'b>(
-    core::mem::ManuallyDrop<sealable_trie::Trie<Allocator<'a, 'b>>>,
+#[derive(Debug)]
+pub struct AccountTrie<D: DataRef + Sized>(
+    ManuallyDrop<sealable_trie::Trie<Allocator<D>>>,
 );
 
-impl<'a, 'b> AccountTrie<'a, 'b> {
+/// Access to the account data underlying the trie.
+pub trait DataRef {
+    /// Returns size of the referenced data in bytes.
+    fn len(&self) -> usize;
+
+    /// Returns whether the data is empty.
+    fn is_empty(&self) -> bool { self.len() == 0 }
+
+    /// Returns a shared reference to a byte or subslice depending on the type
+    /// of index.
+    ///
+    /// Returns `None` if index is out of bounds.
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output>;
+
+    /// Returns a shared reference to a byte or subslice depending on the type
+    /// of index.
+    ///
+    /// Returns `None` if index is out of bounds.
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output>;
+}
+
+impl<D: DataRef + Sized> AccountTrie<D> {
     /// Creates a new Trie from data in an account.
     ///
     /// If the data in the account isn’t initialised (i.e. has zero
     /// discriminant) initialises a new empty trie.
-    pub(crate) fn new(data: DataRef<'a, 'b>) -> Option<Self> {
+    pub fn new(data: D) -> Option<Self> {
         let (alloc, root) = Allocator::new(data)?;
         let trie = sealable_trie::Trie::from_parts(alloc, root.0, root.1);
         Some(Self(ManuallyDrop::new(trie)))
     }
 }
 
-impl<'a, 'b> core::ops::Drop for AccountTrie<'a, 'b> {
+impl<D: DataRef + Sized> core::ops::Drop for AccountTrie<D> {
     /// Updates the header in the Solana account.
     fn drop(&mut self) {
         // SAFETY: Once we’re done with self.0 we are dropped and no one else is
@@ -39,12 +62,12 @@ impl<'a, 'b> core::ops::Drop for AccountTrie<'a, 'b> {
             root_hash,
             next_block: alloc.next_block,
             first_free: alloc.first_free.map_or(0, |ptr| ptr.get()),
-        };
-        alloc
-            .data
-            .get_mut(..Header::ENCODED_SIZE)
-            .unwrap()
-            .copy_from_slice(&hdr.encode());
+        }
+        .encode();
+        // Avoid writing data if we’re not changing anything.
+        if alloc.data.get(..hdr.len()) != Some(&hdr[..]) {
+            alloc.data.get_mut(..hdr.len()).unwrap().copy_from_slice(&hdr);
+        }
     }
 }
 
@@ -61,43 +84,44 @@ impl Header {
     /// Size of the encoded header.
     const ENCODED_SIZE: usize = 64;
 
+    /// Magic number indicating account data has not been initialised yet.
+    const MAGIC_UNINITIALISED: [u8; 8] = [0; 8];
+
+    /// Magic number indicating version 1 of the trie.  This is a random 64-bit
+    /// number.
+    // To be perfectly honest, I’m not sure if the magic numbers are that
+    // important.  Should we just have a regular increasing number?  My idea
+    // here is to avoid accidentally interpreting other account data as a trie
+    // but is that really a concern? — mina86
+    const MAGIC_V1: [u8; 8] = [0xd2, 0x97, 0x1f, 0x41, 0x20, 0x4a, 0xd6, 0xed];
+
     /// Decodes the header from given block of memory.
     ///
     /// Returns `None` if the block is shorter than length of encoded header or
     /// encoded data is invalid.
     // Encoding:
-    //     magic:       u32
-    //     version:     u32
+    //     magic:       u64
     //     root_ptr:    u32
     //     root_hash:   [u8; 32]
     //     next_block:  u32
     //     first_free:  u32
     //     padding:     [u8; 12],
-    fn decode(data: &[u8]) -> Option<Self> {
+    fn decode(data: &impl DataRef) -> Option<Self> {
         let data = data.get(..Self::ENCODED_SIZE)?.try_into().unwrap();
-
-        // Check magic number.  Zero means the account hasn’t been initialised
-        // so return default value, and anything other than magic::TRIE_ROOT
-        // means it’s an account storing data different than a trie root.
-        let (magic, data) = read::<4, 60, 64, _>(data, u32::from_ne_bytes);
-        if magic == magic::UNINITIALISED {
-            return Some(Self {
+        let (magic, data) = stdx::split_array_ref::<8, 56, 64>(data);
+        match *magic {
+            Self::MAGIC_UNINITIALISED => Some(Self {
                 root_ptr: None,
                 root_hash: sealable_trie::trie::EMPTY_TRIE_ROOT,
                 next_block: Self::ENCODED_SIZE as u32,
                 first_free: 0,
-            });
-        } else if magic != magic::TRIE_ROOT {
-            return None;
+            }),
+            Self::MAGIC_V1 => Self::decode_v1(data),
+            _ => None,
         }
+    }
 
-        // Check version.  This is for future-proofing in case format of the
-        // encoding changes.
-        let (version, data) = read::<4, 56, 60, _>(data, u32::from_ne_bytes);
-        if version != 0 {
-            return None;
-        }
-
+    fn decode_v1(data: &[u8; 56]) -> Option<Self> {
         let (root_ptr, data) = read::<4, 52, 56, _>(data, u32::from_ne_bytes);
         let (root_hash, data) = read::<32, 20, 52, _>(data, CryptoHash);
         let (next_block, data) = read::<4, 16, 20, _>(data, u32::from_ne_bytes);
@@ -114,8 +138,7 @@ impl Header {
 
         let mut buf = [0; Self::ENCODED_SIZE];
         let data = &mut buf;
-        let data = write::<4, 60, 64>(data, magic::TRIE_ROOT.to_ne_bytes());
-        let data = write::<4, 56, 60>(data, [0; 4]);
+        let data = write::<8, 56, 64>(data, Self::MAGIC_V1);
         let data = write::<4, 52, 56>(data, root_ptr);
         let data = write::<32, 20, 52>(data, self.root_hash.0);
         let data = write::<4, 16, 20>(data, self.next_block.to_ne_bytes());
@@ -124,11 +147,12 @@ impl Header {
     }
 }
 
-pub(crate) struct Allocator<'a, 'b> {
+#[derive(Debug)]
+pub struct Allocator<D> {
     /// Pool of memory to allocate blocks in.
     ///
     /// The data is always at least long enough to fit encoded [`Header`].
-    data: DataRef<'a, 'b>,
+    data: D,
 
     /// Position of the next unallocated block.
     ///
@@ -142,10 +166,10 @@ pub(crate) struct Allocator<'a, 'b> {
     first_free: Option<Ptr>,
 }
 
-impl<'a, 'b> Allocator<'a, 'b> {
+impl<D: DataRef> Allocator<D> {
     /// Initialises the allocator with data in given account.
-    fn new(data: DataRef<'a, 'b>) -> Option<(Self, (Option<Ptr>, CryptoHash))> {
-        let hdr = Header::decode(*data)?;
+    fn new(data: D) -> Option<(Self, (Option<Ptr>, CryptoHash))> {
+        let hdr = Header::decode(&data)?;
         let next_block = hdr.next_block;
         let first_free = Ptr::new(hdr.first_free).ok()?;
         let alloc = Self { data, next_block, first_free };
@@ -174,7 +198,7 @@ impl<'a, 'b> Allocator<'a, 'b> {
     }
 }
 
-impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
+impl<D: DataRef + Sized> memory::Allocator for Allocator<D> {
     type Value = [u8; SZ];
 
     fn alloc(
@@ -189,19 +213,16 @@ impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
         Ok(ptr)
     }
 
-    #[inline]
     fn get(&self, ptr: Ptr) -> &Self::Value {
         let idx = ptr.get() as usize;
         self.data.get(idx..idx + SZ).unwrap().try_into().unwrap()
     }
 
-    #[inline]
     fn get_mut(&mut self, ptr: Ptr) -> &mut Self::Value {
         let idx = ptr.get() as usize;
         self.data.get_mut(idx..idx + SZ).unwrap().try_into().unwrap()
     }
 
-    #[inline]
     fn free(&mut self, ptr: Ptr) {
         let next =
             self.first_free.map_or([0; 4], |ptr| ptr.get().to_ne_bytes());
@@ -211,15 +232,118 @@ impl<'a, 'b> memory::Allocator for Allocator<'a, 'b> {
     }
 }
 
-
-
-impl<'a, 'b> core::ops::Deref for AccountTrie<'a, 'b> {
-    type Target = sealable_trie::Trie<Allocator<'a, 'b>>;
+impl<D: DataRef> core::ops::Deref for AccountTrie<D> {
+    type Target = sealable_trie::Trie<Allocator<D>>;
     fn deref(&self) -> &Self::Target { &self.0 }
 }
 
-impl<'a, 'b> core::ops::DerefMut for AccountTrie<'a, 'b> {
+impl<D: DataRef> core::ops::DerefMut for AccountTrie<D> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+}
+
+impl DataRef for [u8] {
+    #[inline]
+    fn len(&self) -> usize { (*self).len() }
+
+    #[inline]
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output> {
+        self.get(index)
+    }
+
+    #[inline]
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output> {
+        self.get_mut(index)
+    }
+}
+
+impl<const N: usize> DataRef for [u8; N] {
+    #[inline]
+    fn len(&self) -> usize { N }
+
+    #[inline]
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output> {
+        self[..].get(index)
+    }
+
+    #[inline]
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output> {
+        self[..].get_mut(index)
+    }
+}
+
+impl DataRef for Vec<u8> {
+    #[inline]
+    fn len(&self) -> usize { (**self).len() }
+
+    #[inline]
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output> {
+        (**self).get(index)
+    }
+
+    #[inline]
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output> {
+        (**self).get_mut(index)
+    }
+}
+
+impl<D: DataRef + ?Sized> DataRef for &'_ mut D {
+    #[inline]
+    fn len(&self) -> usize { (**self).len() }
+
+    #[inline]
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output> {
+        (**self).get(index)
+    }
+
+    #[inline]
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output> {
+        (**self).get_mut(index)
+    }
+}
+
+impl<D: DataRef + ?Sized> DataRef for core::cell::RefMut<'_, D> {
+    #[inline]
+    fn len(&self) -> usize { (**self).len() }
+
+    #[inline]
+    fn get<I: core::slice::SliceIndex<[u8]>>(
+        &self,
+        index: I,
+    ) -> Option<&I::Output> {
+        (**self).get(index)
+    }
+
+    #[inline]
+    fn get_mut<I: core::slice::SliceIndex<[u8]>>(
+        &mut self,
+        index: I,
+    ) -> Option<&mut I::Output> {
+        (**self).get_mut(index)
+    }
 }
 
 /// Reads fixed-width value from start of the buffer and returns the value and
@@ -275,8 +399,7 @@ fn test_header_encoding() {
 
     #[rustfmt::skip]
     assert_eq!([
-        /* magic: */     1, 0, 0, 0,
-        /* version: */   0, 0, 0, 0,
+        /* magic: */     0xd2, 0x97, 0x1f, 0x41, 0x20, 0x4a, 0xd6, 0xed,
         /* root_ptr: */  164, 1, 0, 0,
         /* root_hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
