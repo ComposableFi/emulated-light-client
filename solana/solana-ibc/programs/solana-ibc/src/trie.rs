@@ -214,19 +214,16 @@ impl<D: DataRef + Sized> memory::Allocator for Allocator<D> {
         Ok(ptr)
     }
 
-    #[inline]
     fn get(&self, ptr: Ptr) -> &Self::Value {
         let idx = ptr.get() as usize;
         self.data.get(idx..idx + SZ).unwrap().try_into().unwrap()
     }
 
-    #[inline]
     fn get_mut(&mut self, ptr: Ptr) -> &mut Self::Value {
         let idx = ptr.get() as usize;
         self.data.get_mut(idx..idx + SZ).unwrap().try_into().unwrap()
     }
 
-    #[inline]
     fn free(&mut self, ptr: Ptr) {
         let next =
             self.first_free.map_or([0; 4], |ptr| ptr.get().to_ne_bytes());
