@@ -238,7 +238,7 @@ pub struct PrivateStorage {
 #[derive(Debug)]
 pub struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
-    pub provable: trie::AccountTrie<'a, 'b>,
+    pub provable: trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
 }
 
 #[derive(Debug, Clone)]
