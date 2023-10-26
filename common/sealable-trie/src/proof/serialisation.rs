@@ -105,8 +105,8 @@ impl BorshDeserialize for Proof {
 impl BorshDeserialize for Proof {
     fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
         let tag = u16::deserialize(rd)?;
-        let is_membership = tag & 1 == 0;
-        let len = usize::try_from(tag / 2).unwrap();
+        let is_membership = tag & (1 << NON_MEMBERSHIP_SHIFT) == 0;
+        let len = usize::from(tag & !(1 << NON_MEMBERSHIP_SHIFT));
 
         // len == 0 means there’s no Actual or Items.  Return empty proof.
         // (Note: empty membership proof never verifies but is valid as far as
