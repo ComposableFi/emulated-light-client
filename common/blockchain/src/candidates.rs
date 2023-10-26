@@ -99,32 +99,51 @@ impl<PK: PubKey> Candidates<PK> {
             .fold(0, |sum, c| sum.checked_add(c.stake.get()).unwrap())
     }
 
-    /// Returns top validators if changed since last call.
-    pub fn maybe_get_head(&mut self) -> Option<Vec<Validator<PK>>> {
-        if !self.changed {
-            return None;
-        }
-        let validators = self
-            .candidates
-            .iter()
-            .take(self.max_validators())
-            .map(Validator::from)
-            .collect::<Vec<_>>();
-        self.changed = false;
-        Some(validators)
+    /// Returns top validators if changed since last time changed flag was
+    /// cleared.
+    ///
+    /// To clear changed flag, use [`Self::clear_changed_flag`].
+    pub fn maybe_get_head(&self) -> Option<Vec<Validator<PK>>> {
+        self.changed.then(|| {
+            self.candidates
+                .iter()
+                .take(self.max_validators())
+                .map(Validator::from)
+                .collect::<Vec<_>>()
+        })
     }
 
+    /// Clears the changed flag.
+    ///
+    /// Changed flag is set automatically whenever head of the candidates list
+    /// is modified (note that changes outside of the head of candidates list do
+    /// not affect the flag).
+    pub fn clear_changed_flag(&mut self) { self.changed = false; }
+
     /// Adds a new candidates or updates existing candidate’s stake.
+    ///
+    /// If `stake` is zero, removes the candidate from the set.
     pub fn update(
         &mut self,
         cfg: &chain::Config,
         pubkey: PK,
         stake: u128,
     ) -> Result<(), UpdateCandidateError> {
-        let stake = NonZeroU128::new(stake)
-            .filter(|stake| *stake >= cfg.min_validator_stake)
-            .ok_or(UpdateCandidateError::NotEnoughValidatorStake)?;
-        let candidate = Candidate { pubkey, stake };
+        match NonZeroU128::new(stake) {
+            None => self.do_remove(cfg, &pubkey),
+            Some(stake) if stake < cfg.min_validator_stake => {
+                Err(UpdateCandidateError::NotEnoughValidatorStake)
+            }
+            Some(stake) => self.do_update(cfg, Candidate { pubkey, stake }),
+        }
+    }
+
+    /// Adds a new candidates or updates existing candidate’s stake.
+    fn do_update(
+        &mut self,
+        cfg: &chain::Config,
+        candidate: Candidate<PK>,
+    ) -> Result<(), UpdateCandidateError> {
         let old_pos =
             self.candidates.iter().position(|el| el.pubkey == candidate.pubkey);
         let mut new_pos =
@@ -143,7 +162,7 @@ impl<PK: PubKey> Candidates<PK> {
     }
 
     /// Removes an existing candidate.
-    pub fn remove(
+    fn do_remove(
         &mut self,
         cfg: &chain::Config,
         pubkey: &PK,

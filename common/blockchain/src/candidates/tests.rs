@@ -121,23 +121,23 @@ fn test_candidates_0() {
     // Check minimum total stake and count are checked
     assert_eq!(
         Err(NotEnoughTotalStake),
-        candidates.remove(&cfg_with_min_total_stake(10), &pk('E')),
+        candidates.update(&cfg_with_min_total_stake(10), pk('E'), 0),
     );
     assert_eq!(
         Err(NotEnoughValidators),
-        candidates.remove(&cfg_with_min_validators(5), &pk('E')),
+        candidates.update(&cfg_with_min_validators(5), pk('E'), 0),
     );
 
     // Removal is idempotent
     for _ in 0..2 {
-        candidates.remove(&cfg_with_min_validators(2), &pk('E')).unwrap();
+        candidates.update(&cfg_with_min_validators(2), pk('E'), 0).unwrap();
         check([('D', 4), ('C', 3), ('B', 2), ('A', 1)], &candidates);
     }
 
     // Go below max_validators of candidates.
-    candidates.remove(&cfg_with_min_validators(1), &pk('C')).unwrap();
-    candidates.remove(&cfg_with_min_validators(1), &pk('B')).unwrap();
-    candidates.remove(&cfg_with_min_validators(1), &pk('A')).unwrap();
+    candidates.update(&cfg_with_min_validators(1), pk('C'), 0).unwrap();
+    candidates.update(&cfg_with_min_validators(1), pk('B'), 0).unwrap();
+    candidates.update(&cfg_with_min_validators(1), pk('A'), 0).unwrap();
     check([('D', 4)], &candidates);
 
     // Minimum validator stake is checked
@@ -261,7 +261,7 @@ impl TestCtx {
         let count = self.candidates.candidates.len();
         let head_stake = self.candidates.head_stake;
 
-        let res = self.candidates.remove(&self.config, &pubkey);
+        let res = self.candidates.update(&self.config, pubkey.clone(), 0);
         self.check();
 
         if let Err(err) = res {
@@ -380,11 +380,7 @@ impl TestCtx {
     fn test(&mut self, data: &[u8]) {
         let old_state = self.candidates.clone();
         let pubkey = MockPubKey((data[0]).into());
-        let op = if data[2] % 2 == 0 {
-            Ok(pubkey)
-        } else {
-            Err((pubkey, u128::from(data[1])))
-        };
+        let op = (pubkey, u128::from(data[1]));
 
         let this = self as *mut TestCtx;
         let res = std::panic::catch_unwind(|| {
@@ -392,19 +388,17 @@ impl TestCtx {
             // self.candidates may be in inconsistent state.  This is fine since
             // we’re panicking anyway.
             let this = unsafe { &mut *this };
-            match &op {
-                Ok(pubkey) => this.test_remove(pubkey.clone()),
-                Err((pubkey, stake)) => {
-                    this.test_update(pubkey.clone(), *stake)
-                }
+            match op.clone() {
+                (pubkey, 0) => this.test_remove(pubkey),
+                (pubkey, stake) => this.test_update(pubkey.clone(), stake),
             }
         });
 
         if let Err(err) = res {
             std::eprintln!("{:?}", old_state);
             match op {
-                Ok(pubkey) => std::eprintln!("  Remove {pubkey:?}"),
-                Err((pubkey, stake)) => {
+                (pubkey, 0) => std::eprintln!("  Remove {pubkey:?}"),
+                (pubkey, stake) => {
                     std::eprintln!(" Update {pubkey:?} staking {stake}")
                 }
             }
@@ -421,10 +415,10 @@ fn stress_test() {
     let mut rng = rand::thread_rng();
     let mut ctx = TestCtx::new(&mut rng);
     let mut n = lib::test_utils::get_iteration_count(1);
-    let mut buf = [0u8; 3 * 1024];
+    let mut buf = [0u8; 2 * 1024];
     while n > 0 {
         rng.fill(&mut buf[..]);
-        for data in buf.chunks_exact(3).take(n) {
+        for data in buf.chunks_exact(2).take(n) {
             ctx.test(data);
         }
         n = n.saturating_sub(1024);
