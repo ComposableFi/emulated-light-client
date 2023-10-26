@@ -102,8 +102,10 @@ impl BorshDeserialize for Proof {
 impl BorshSerialize for Item {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
         match self {
-            Self::Branch(child) => (u8::from(child.is_value) << 4, &child.hash),
-            Self::Value(hash) => (0x30, hash),
+            Self::Branch(child) => {
+                (u8::from(child.is_value) << 4, child.hash.as_array())
+            }
+            Self::Value(hash) => (0x30, hash.as_array()),
             Self::Extension(key_len) => {
                 // to_be_bytes rather than borsh’s serialise because it’s part
                 // of tag so we need to keep most significant byte first.
@@ -141,7 +143,7 @@ fn deserialize_item_cont(
                 .ok_or_else(|| invalid_data("empty Item::Extension".into()))
                 .map(Item::Extension)
         }
-        0x30 => CryptoHash::deserialize_reader(rd).map(Item::Value),
+        0x30 => Ok(Item::Value(CryptoHash(<_>::deserialize_reader(rd)?))),
         _ => Err(invalid_data(format!("invalid Item tag: {first}"))),
     }
 }
@@ -155,7 +157,8 @@ impl BorshSerialize for Actual {
         match self {
             Self::Branch(left, right) => {
                 let vv = u8::from(left.is_value) * 2 + u8::from(right.is_value);
-                ((0x80 | vv), &left.hash, &right.hash).serialize(wr)
+                ((0x80 | vv), left.hash.as_array(), right.hash.as_array())
+                    .serialize(wr)
             }
             Self::Extension(left, key, child) => {
                 (0x84 | u8::from(child.is_value)).serialize(wr)?;
@@ -163,10 +166,10 @@ impl BorshSerialize for Actual {
                 // Note: We’re not encoding length of the bytes slice since it
                 // can be recovered from the contents of the bytes slice.
                 wr.write_all(key)?;
-                child.hash.serialize(wr)
+                child.hash.as_array().serialize(wr)
             }
             Self::LookupKeyLeft(left, hash) => {
-                (0x86u8, left, &hash).serialize(wr)
+                (0x86u8, left, hash.as_array()).serialize(wr)
             }
         }
     }
@@ -224,7 +227,7 @@ fn deserialize_actual_cont(
             Ok(Actual::Extension(left, key, child))
         }
         0x86 => BorshDeserialize::deserialize_reader(rd)
-            .map(|(left, hash)| Actual::LookupKeyLeft(left, hash)),
+            .map(|(left, hash)| Actual::LookupKeyLeft(left, CryptoHash(hash))),
         _ => Err(invalid_data(format!("invalid Actual tag: {first}"))),
     }
 }
@@ -276,7 +279,9 @@ fn deserialize_owned_ref(
     rd: &mut impl io::Read,
     is_value: bool,
 ) -> io::Result<OwnedRef> {
-    CryptoHash::deserialize_reader(rd).map(|hash| OwnedRef { is_value, hash })
+    <_>::deserialize_reader(rd)
+        .map(CryptoHash)
+        .map(|hash| OwnedRef { is_value, hash })
 }
 
 /// Returns an `io::Error` of kind `InvalidData` with specified message.

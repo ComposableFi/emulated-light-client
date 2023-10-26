@@ -22,6 +22,3 @@ rand.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
 memory = { workspace = true, features = ["test_utils"] }
-
-[features]
-borsh = ["dep:borsh", "lib/borsh"]
