@@ -442,16 +442,16 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        // TODO(mina86): This needs to look for the next consensus state.  It’s
-        // not guaranteed that it’ll have successive height.  We need to use
-        // BTreeMap::range here.
-        let end_height = (height.revision_number() + 1, 1);
+        use core::ops::Bound;
+        let height = (height.revision_number(), height.revision_height());
+        let min = (client_id.to_string(), height);
         self.0
             .borrow()
             .private
             .consensus_states
-            .get(&(client_id.to_string(), end_height))
-            .map(|encoded| serde_json::from_str(encoded))
+            .range((Bound::Excluded(min), Bound::Unbounded))
+            .next()
+            .map(|(_, encoded)| serde_json::from_str(encoded))
             .transpose()
             .map_err(|err| {
                 ContextError::ClientError(ClientError::ClientSpecific {
@@ -465,16 +465,14 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        // TODO(mina86): This needs to look for the previous consensus state.
-        // It’s not guaranteed that it’ll have successive height.  We need to
-        // use BTreeMap::range here.
-        let end_height = (height.revision_number(), 1);
+        let height = (height.revision_number(), height.revision_height());
         self.0
             .borrow()
             .private
             .consensus_states
-            .get(&(client_id.to_string(), end_height))
-            .map(|encoded| serde_json::from_str(encoded))
+            .range(..(client_id.to_string(), height))
+            .next_back()
+            .map(|(_, encoded)| serde_json::from_str(encoded))
             .transpose()
             .map_err(|err| {
                 ContextError::ClientError(ClientError::ClientSpecific {
