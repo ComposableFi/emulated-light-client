@@ -14,13 +14,14 @@ use borsh09::maybestd::io;
 #[cfg(feature = "borsh09")]
 use borsh09::{BorshDeserialize, BorshSerialize};
 use lib::hash::CryptoHash;
-use lib::varint::VarInt;
 #[cfg(test)]
 use pretty_assertions::assert_eq;
 
 use super::{Actual, Item, OwnedRef, Proof};
 
-// Encoding: <varint((items.len() + has_actual) * 2 + is_non_membership)>
+const NON_MEMBERSHIP_SHIFT: u32 = 15;
+
+// Encoding: <(items.len() + has_actual + (is_non_membership << 15)) as u16>
 //           <actual>? <item>*
 impl BorshSerialize for Proof {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
@@ -30,13 +31,15 @@ impl BorshSerialize for Proof {
         };
 
         debug_assert!(!membership || actual.is_none());
-        let tag = items
-            .len()
-            .checked_add(usize::from(actual.is_some()))
-            .and_then(|tag| tag.checked_mul(2))
-            .and_then(|tag| u32::try_from(tag + usize::from(!membership)).ok())
-            .unwrap();
-        VarInt(tag).serialize(wr)?;
+        u16::try_from(items.len())
+            .ok()
+            .and_then(|tag| tag.checked_add(u16::from(actual.is_some())))
+            .filter(|tag| *tag < 8192)
+            .map(|tag| tag | (u16::from(!membership) << NON_MEMBERSHIP_SHIFT))
+            .ok_or_else(|| {
+                invalid_data(format!("proof too long: {}", items.len()))
+            })?
+            .serialize(wr)?;
         if let Some(actual) = actual {
             actual.serialize(wr)?;
         }
@@ -50,9 +53,9 @@ impl BorshSerialize for Proof {
 #[cfg(feature = "borsh")]
 impl BorshDeserialize for Proof {
     fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
-        let tag = VarInt::deserialize_reader(rd)?.0;
-        let is_membership = tag & 1 == 0;
-        let len = usize::try_from(tag / 2).unwrap();
+        let tag = u16::deserialize_reader(rd)?;
+        let is_membership = tag & (1 << NON_MEMBERSHIP_SHIFT) == 0;
+        let len = usize::from(tag & !(1 << NON_MEMBERSHIP_SHIFT));
 
         // len == 0 means there’s no Actual or Items.  Return empty proof.
         // (Note: empty membership proof never verifies but is valid as far as
@@ -101,7 +104,7 @@ impl BorshDeserialize for Proof {
 #[cfg(feature = "borsh09")]
 impl BorshDeserialize for Proof {
     fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
-        let tag = VarInt::deserialize(rd)?.0;
+        let tag = u16::deserialize(rd)?;
         let is_membership = tag & 1 == 0;
         let len = usize::try_from(tag / 2).unwrap();
 
@@ -157,8 +160,10 @@ impl BorshDeserialize for Proof {
 impl BorshSerialize for Item {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
         match self {
-            Self::Branch(child) => (u8::from(child.is_value) << 4, &child.hash),
-            Self::Value(hash) => (0x30, hash),
+            Self::Branch(child) => {
+                (u8::from(child.is_value) << 4, child.hash.as_array())
+            }
+            Self::Value(hash) => (0x30, hash.as_array()),
             Self::Extension(key_len) => {
                 // to_be_bytes rather than borsh’s serialise because it’s part
                 // of tag so we need to keep most significant byte first.
@@ -207,16 +212,13 @@ fn deserialize_item_cont(
                 .ok_or_else(|| invalid_data("empty Item::Extension".into()))
                 .map(Item::Extension)
         }
-        0x30 => CryptoHash::deserialize_reader(rd).map(Item::Value),
+        0x30 => Ok(Item::Value(CryptoHash(<_>::deserialize_reader(rd)?))),
         _ => Err(invalid_data(format!("invalid Item tag: {first}"))),
     }
 }
 
 #[cfg(feature = "borsh09")]
-fn deserialize_item_cont(
-    first: u8,
-    rd: &mut impl io::Read,
-) -> io::Result<Item> {
+fn deserialize_item_cont(first: u8, rd: &mut &[u8]) -> io::Result<Item> {
     match first {
         0x00 | 0x10 => deserialize_owned_ref(rd, first != 0).map(Item::Branch),
         0x20 | 0x21 => {
@@ -225,7 +227,7 @@ fn deserialize_item_cont(
                 .ok_or_else(|| invalid_data("empty Item::Extension".into()))
                 .map(Item::Extension)
         }
-        0x30 => CryptoHash::deserialize(rd).map(Item::Value),
+        0x30 => Ok(Item::Value(CryptoHash(<_>::deserialize(rd)?))),
         _ => Err(invalid_data(format!("invalid Item tag: {first}"))),
     }
 }
@@ -240,7 +242,8 @@ impl BorshSerialize for Actual {
         match self {
             Self::Branch(left, right) => {
                 let vv = u8::from(left.is_value) * 2 + u8::from(right.is_value);
-                ((0x80 | vv), &left.hash, &right.hash).serialize(wr)
+                ((0x80 | vv), left.hash.as_array(), right.hash.as_array())
+                    .serialize(wr)
             }
             Self::Extension(left, key, child) => {
                 (0x84 | u8::from(child.is_value)).serialize(wr)?;
@@ -248,10 +251,10 @@ impl BorshSerialize for Actual {
                 // Note: We’re not encoding length of the bytes slice since it
                 // can be recovered from the contents of the bytes slice.
                 wr.write_all(key)?;
-                child.hash.serialize(wr)
+                child.hash.as_array().serialize(wr)
             }
             Self::LookupKeyLeft(left, hash) => {
-                (0x86u8, left, &hash).serialize(wr)
+                (0x86u8, left, hash.as_array()).serialize(wr)
             }
         }
     }
@@ -263,7 +266,8 @@ impl BorshSerialize for Actual {
         match self {
             Self::Branch(left, right) => {
                 let vv = u8::from(left.is_value) * 2 + u8::from(right.is_value);
-                ((0x80 | vv), &left.hash, &right.hash).serialize(wr)
+                ((0x80 | vv), left.hash.as_array(), right.hash.as_array())
+                    .serialize(wr)
             }
             Self::Extension(left, key, child) => {
                 (0x84 | u8::from(child.is_value)).serialize(wr)?;
@@ -271,10 +275,10 @@ impl BorshSerialize for Actual {
                 // Note: We’re not encoding length of the bytes slice since it
                 // can be recovered from the contents of the bytes slice.
                 wr.write_all(key)?;
-                child.hash.serialize(wr)
+                child.hash.as_array().serialize(wr)
             }
             Self::LookupKeyLeft(left, hash) => {
-                (0x86u8, left, &hash).serialize(wr)
+                (0x86u8, left, hash.as_array()).serialize(wr)
             }
         }
     }
@@ -292,7 +296,7 @@ impl BorshDeserialize for Actual {
 #[cfg(feature = "borsh09")]
 impl BorshDeserialize for Actual {
     #[inline]
-    fn deserialize(rd:  &mut &[u8]) -> io::Result<Self> {
+    fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
         let tag = u8::deserialize(rd)?;
         deserialize_actual_cont(tag, rd)
     }
@@ -305,6 +309,7 @@ impl BorshDeserialize for Actual {
 /// function as `first`.
 ///
 /// See [`ItemOrActual`] for reasoning behind this function.
+#[cfg(feature = "borsh")]
 fn deserialize_actual_cont(
     first: u8,
     rd: &mut impl io::Read,
@@ -342,7 +347,48 @@ fn deserialize_actual_cont(
             Ok(Actual::Extension(left, key, child))
         }
         0x86 => BorshDeserialize::deserialize_reader(rd)
-            .map(|(left, hash)| Actual::LookupKeyLeft(left, hash)),
+            .map(|(left, hash)| Actual::LookupKeyLeft(left, CryptoHash(hash))),
+        _ => Err(invalid_data(format!("invalid Actual tag: {first}"))),
+    }
+}
+
+#[cfg(feature = "borsh09")]
+fn deserialize_actual_cont(first: u8, rd: &mut &[u8]) -> io::Result<Actual> {
+    use borsh09::maybestd::io::Read;
+    match first {
+        0x80..=0x83 => {
+            let left = deserialize_owned_ref(rd, first & 2 != 0)?;
+            let right = deserialize_owned_ref(rd, first & 1 != 0)?;
+            Ok(Actual::Branch(left, right))
+        }
+        0x84 | 0x85 => {
+            use crate::nodes::MAX_EXTENSION_KEY_SIZE;
+
+            let left = u16::deserialize(rd)?;
+
+            // Decode key.  We need to parse contents of the buffer to determine
+            // the length.
+            let mut buf = [0; { MAX_EXTENSION_KEY_SIZE + 2 }];
+            let (head, tail) = stdx::split_array_mut::<
+                2,
+                { MAX_EXTENSION_KEY_SIZE },
+                { MAX_EXTENSION_KEY_SIZE + 2 },
+            >(&mut buf);
+            *head = BorshDeserialize::deserialize(rd)?;
+            let tag = u16::from_be_bytes(*head);
+            let len = ((tag % 8) + tag / 8 + 7) / 8;
+            let tail = tail.get_mut(..usize::from(len)).ok_or_else(|| {
+                invalid_data(format!("Actual::Extension key too long: {len}"))
+            })?;
+            rd.read_exact(tail)?;
+            let key = buf[..usize::from(len) + 2].to_vec().into_boxed_slice();
+
+            let child = deserialize_owned_ref(rd, first == 0x85)?;
+
+            Ok(Actual::Extension(left, key, child))
+        }
+        0x86 => BorshDeserialize::deserialize(rd)
+            .map(|(left, hash)| Actual::LookupKeyLeft(left, CryptoHash(hash))),
         _ => Err(invalid_data(format!("invalid Actual tag: {first}"))),
     }
 }
@@ -408,16 +454,18 @@ fn deserialize_owned_ref(
     rd: &mut impl io::Read,
     is_value: bool,
 ) -> io::Result<OwnedRef> {
-    CryptoHash::deserialize_reader(rd).map(|hash| OwnedRef { is_value, hash })
+    <_>::deserialize_reader(rd)
+        .map(CryptoHash)
+        .map(|hash| OwnedRef { is_value, hash })
 }
 
 
 #[cfg(feature = "borsh09")]
 fn deserialize_owned_ref(
-    rd: &mut impl io::Read,
+    rd: &mut &[u8],
     is_value: bool,
 ) -> io::Result<OwnedRef> {
-    CryptoHash::deserialize(rd).map(|hash| OwnedRef { is_value, hash })
+    <_>::deserialize(rd).map(CryptoHash).map(|hash| OwnedRef { is_value, hash })
 }
 
 /// Returns an `io::Error` of kind `InvalidData` with specified message.
@@ -428,6 +476,7 @@ fn invalid_data(msg: String) -> io::Error {
 
 #[test]
 fn test_item_borsh() {
+    #[cfg(feature = "borsh")]
     #[track_caller]
     fn test(want_item: Item, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_item).unwrap();
@@ -439,6 +488,22 @@ fn test_item_borsh() {
         );
 
         let got = ItemOrActual::deserialize_reader(&mut want_bytes.clone())
+            .map_err(|err| err.to_string());
+        assert_eq!(Ok(ItemOrActual::Item(want_item)), got);
+    }
+
+    #[cfg(feature = "borsh09")]
+    #[track_caller]
+    fn test(want_item: Item, want_bytes: &[u8]) {
+        let got_bytes = borsh09::to_vec(&want_item).unwrap();
+        let got_item = Item::deserialize(&mut want_bytes.clone())
+            .map_err(|err| err.to_string());
+        assert_eq!(
+            (Ok(&want_item), want_bytes),
+            (got_item.as_ref(), got_bytes.as_slice()),
+        );
+
+        let got = ItemOrActual::deserialize(&mut want_bytes.clone())
             .map_err(|err| err.to_string());
         assert_eq!(Ok(ItemOrActual::Item(want_item)), got);
     }
@@ -467,6 +532,7 @@ fn test_item_borsh() {
 
 #[test]
 fn test_actual_borsh() {
+    #[cfg(feature = "borsh")]
     #[track_caller]
     fn test(want_actual: Actual, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_actual).unwrap();
@@ -479,6 +545,24 @@ fn test_actual_borsh() {
         );
 
         let got = ItemOrActual::deserialize_reader(&mut want_bytes.clone())
+            .map_err(|err| err.to_string());
+
+        assert_eq!(Ok(ItemOrActual::Actual(want_actual)), got);
+    }
+
+    #[cfg(feature = "borsh09")]
+    #[track_caller]
+    fn test(want_actual: Actual, want_bytes: &[u8]) {
+        let got_bytes = borsh09::to_vec(&want_actual).unwrap();
+        let got_actual = Actual::deserialize(&mut want_bytes.clone())
+            .map_err(|err| err.to_string());
+
+        assert_eq!(
+            (Ok(&want_actual), want_bytes),
+            (got_actual.as_ref(), got_bytes.as_slice()),
+        );
+
+        let got = ItemOrActual::deserialize(&mut want_bytes.clone())
             .map_err(|err| err.to_string());
 
         assert_eq!(Ok(ItemOrActual::Actual(want_actual)), got);
@@ -590,6 +674,19 @@ fn test_proof_borsh() {
     use alloc::vec;
 
     #[track_caller]
+    #[cfg(feature = "borsh09")]
+    fn test(want_proof: Proof, want_bytes: &[u8]) {
+        let got_bytes = borsh09::to_vec(&want_proof).unwrap();
+        let got_proof = Proof::deserialize(&mut want_bytes.clone())
+            .map_err(|err| err.to_string());
+        assert_eq!(
+            (Ok(&want_proof), want_bytes),
+            (got_proof.as_ref(), got_bytes.as_slice()),
+        );
+    }
+
+    #[track_caller]
+    #[cfg(feature = "borsh")]
     fn test(want_proof: Proof, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_proof).unwrap();
         let got_proof = Proof::deserialize_reader(&mut want_bytes.clone())
@@ -603,36 +700,41 @@ fn test_proof_borsh() {
     let item = Item::Extension(NonZeroU16::new(42).unwrap());
     let actual = Actual::LookupKeyLeft(NonZeroU16::MIN, CryptoHash::test(1));
 
-    test(Proof::Positive(super::Membership(vec![])), &[0]);
-    test(Proof::Positive(super::Membership(vec![item.clone()])), &[2, 32, 42]);
+    test(Proof::Positive(super::Membership(vec![])), &[0, 0]);
+    test(Proof::Positive(super::Membership(vec![item.clone()])), &[
+        1, 0, 32, 42,
+    ]);
     test(
         Proof::Positive(super::Membership(vec![item.clone(), item.clone()])),
-        &[4, 32, 42, 32, 42],
+        &[2, 0, 32, 42, 32, 42],
     );
-    test(Proof::Negative(super::NonMembership(None, vec![])), &[1]);
+    test(Proof::Negative(super::NonMembership(None, vec![])), &[0, 0x80]);
     test(Proof::Negative(super::NonMembership(None, vec![item.clone()])), &[
-        3, 32, 42,
+        1, 0x80, 32, 42,
     ]);
+    #[rustfmt::skip]
     test(
         Proof::Negative(super::NonMembership(
             Some(actual.clone().into()),
             vec![],
         )),
         &[
-            /* proof tag: */ 3, /* actual: */ 134, 1, 0, 0, 0, 0, 1,
-            0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
-            0, 1, 0, 0, 0, 1,
+            /* proof tag: */ 1, 0x80,
+            /* actual: */ 134, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+                          0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
         ],
     );
+    #[rustfmt::skip]
     test(
         Proof::Negative(super::NonMembership(
             Some(actual.clone().into()),
             vec![item.clone()],
         )),
         &[
-            /* proof tag: */ 5, /* actual: */ 134, 1, 0, 0, 0, 0, 1,
-            0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
-            0, 1, 0, 0, 0, 1, /* item: */ 32, 42,
+            /* proof tag: */ 2, 0x80,
+            /* actual: */ 134, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+                          0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+            /* item: */ 32, 42,
         ],
     );
 }

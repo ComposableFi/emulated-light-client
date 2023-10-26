@@ -85,6 +85,10 @@ impl CryptoHash {
         Self(buf)
     }
 
+    /// Returns a shared reference to the underlying bytes array.
+    #[inline]
+    pub fn as_array(&self) -> &[u8; Self::LENGTH] { &self.0 }
+
     /// Returns a shared reference to the hash as slice of bytes.
     #[inline]
     pub fn as_slice(&self) -> &[u8] { &self.0[..] }
