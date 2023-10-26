@@ -7,7 +7,7 @@ use lib::hash::CryptoHash;
 use crate::bits;
 use crate::nodes::{Node, NodeRef, Reference, ValueRef};
 
-#[cfg(feature = "borsh")]
+#[cfg(any(feature = "borsh", feature = "borsh09"))]
 mod serialisation;
 
 /// A proof of a membership or non-membership of a key.

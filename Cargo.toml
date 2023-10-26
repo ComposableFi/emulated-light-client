@@ -26,6 +26,7 @@ codegen-units = 1
 anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
+borsh09 = { package = "borsh", version = "0.9", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
 ibc = { version = "0.47.0", default-features = false, features = ["serde", "borsh"] }
@@ -42,7 +43,7 @@ strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
-sealable-trie = { path = "common/sealable-trie" }
+sealable-trie = { path = "common/sealable-trie", features = ["borsh09"] }
 solana-trie = { path = "solana/trie" }
 stdx = { path = "common/stdx" }
 

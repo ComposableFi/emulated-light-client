@@ -5,8 +5,14 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::num::NonZeroU16;
 
+#[cfg(feature = "borsh")]
 use borsh::maybestd::io;
+#[cfg(feature = "borsh")]
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "borsh09")]
+use borsh09::maybestd::io;
+#[cfg(feature = "borsh09")]
+use borsh09::{BorshDeserialize, BorshSerialize};
 use lib::hash::CryptoHash;
 use lib::varint::VarInt;
 #[cfg(test)]
@@ -41,6 +47,7 @@ impl BorshSerialize for Proof {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for Proof {
     fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
         let tag = VarInt::deserialize_reader(rd)?.0;
@@ -91,6 +98,57 @@ impl BorshDeserialize for Proof {
     }
 }
 
+#[cfg(feature = "borsh09")]
+impl BorshDeserialize for Proof {
+    fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
+        let tag = VarInt::deserialize(rd)?.0;
+        let is_membership = tag & 1 == 0;
+        let len = usize::try_from(tag / 2).unwrap();
+
+        // len == 0 means there’s no Actual or Items.  Return empty proof.
+        // (Note: empty membership proof never verifies but is valid as far as
+        // serialisation is concerned).
+        if len == 0 {
+            return Ok(if is_membership {
+                Proof::Positive(super::Membership(Vec::new()))
+            } else {
+                Proof::Negative(super::NonMembership(None, Vec::new()))
+            });
+        }
+
+        // In non-membership proofs the first entry may be either Item or
+        // Actual.  In membership proofs deserialise Item since that’s the only
+        // thing we can have.
+        let first = match is_membership {
+            true => Item::deserialize(rd).map(ItemOrActual::Item),
+            false => ItemOrActual::deserialize(rd),
+        }?;
+        let mut items = Vec::with_capacity(
+            len - usize::from(matches!(first, ItemOrActual::Actual(_))),
+        );
+        let actual = match first {
+            ItemOrActual::Item(item) => {
+                items.push(item);
+                None
+            }
+            ItemOrActual::Actual(actual) => Some(actual),
+        };
+
+        for _ in 1..len {
+            items.push(Item::deserialize(rd)?);
+        }
+
+        Ok(if is_membership {
+            Proof::Positive(super::Membership(items))
+        } else {
+            Proof::Negative(super::NonMembership(
+                actual.map(alloc::boxed::Box::new),
+                items,
+            ))
+        })
+    }
+}
+
 // Encoding:
 //  - 0x00 <hash>  — Branch with node child
 //  - 0x10 <hash>  — Branch with value child
@@ -111,10 +169,20 @@ impl BorshSerialize for Item {
     }
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for Item {
     #[inline]
     fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
         let tag = u8::deserialize_reader(rd)?;
+        deserialize_item_cont(tag, rd)
+    }
+}
+
+#[cfg(feature = "borsh09")]
+impl BorshDeserialize for Item {
+    #[inline]
+    fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
+        let tag = u8::deserialize(rd)?;
         deserialize_item_cont(tag, rd)
     }
 }
@@ -126,6 +194,7 @@ impl BorshDeserialize for Item {
 /// as `first`.
 ///
 /// See [`ItemOrActual`] for reasoning behind this function.
+#[cfg(feature = "borsh")]
 fn deserialize_item_cont(
     first: u8,
     rd: &mut impl io::Read,
@@ -143,10 +212,29 @@ fn deserialize_item_cont(
     }
 }
 
+#[cfg(feature = "borsh09")]
+fn deserialize_item_cont(
+    first: u8,
+    rd: &mut impl io::Read,
+) -> io::Result<Item> {
+    match first {
+        0x00 | 0x10 => deserialize_owned_ref(rd, first != 0).map(Item::Branch),
+        0x20 | 0x21 => {
+            let second = u8::deserialize(rd)?;
+            NonZeroU16::new(u16::from_be_bytes([first & 1, second]))
+                .ok_or_else(|| invalid_data("empty Item::Extension".into()))
+                .map(Item::Extension)
+        }
+        0x30 => CryptoHash::deserialize(rd).map(Item::Value),
+        _ => Err(invalid_data(format!("invalid Item tag: {first}"))),
+    }
+}
+
 // Encoding:
 //  - 0b1000_00vv <hash> <hash>            — Branch
 //  - 0b1000_010v <left> <key-buf> <hash>  — Extension
 //  - 0b1000_0110 <left> <hash>            — LookupKeyLeft
+#[cfg(feature = "borsh")]
 impl BorshSerialize for Actual {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
         match self {
@@ -169,10 +257,43 @@ impl BorshSerialize for Actual {
     }
 }
 
+#[cfg(feature = "borsh09")]
+impl BorshSerialize for Actual {
+    fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
+        match self {
+            Self::Branch(left, right) => {
+                let vv = u8::from(left.is_value) * 2 + u8::from(right.is_value);
+                ((0x80 | vv), &left.hash, &right.hash).serialize(wr)
+            }
+            Self::Extension(left, key, child) => {
+                (0x84 | u8::from(child.is_value)).serialize(wr)?;
+                left.serialize(wr)?;
+                // Note: We’re not encoding length of the bytes slice since it
+                // can be recovered from the contents of the bytes slice.
+                wr.write_all(key)?;
+                child.hash.serialize(wr)
+            }
+            Self::LookupKeyLeft(left, hash) => {
+                (0x86u8, left, &hash).serialize(wr)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for Actual {
     #[inline]
     fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
         let tag = u8::deserialize_reader(rd)?;
+        deserialize_actual_cont(tag, rd)
+    }
+}
+
+#[cfg(feature = "borsh09")]
+impl BorshDeserialize for Actual {
+    #[inline]
+    fn deserialize(rd:  &mut &[u8]) -> io::Result<Self> {
+        let tag = u8::deserialize(rd)?;
         deserialize_actual_cont(tag, rd)
     }
 }
@@ -248,9 +369,22 @@ enum ItemOrActual {
     Actual(Actual),
 }
 
+#[cfg(feature = "borsh")]
 impl BorshDeserialize for ItemOrActual {
     fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
         let tag = u8::deserialize_reader(rd)?;
+        if tag & 0x80 == 0 {
+            deserialize_item_cont(tag, rd).map(Self::Item)
+        } else {
+            deserialize_actual_cont(tag, rd).map(Self::Actual)
+        }
+    }
+}
+
+#[cfg(feature = "borsh09")]
+impl BorshDeserialize for ItemOrActual {
+    fn deserialize(rd: &mut &[u8]) -> io::Result<Self> {
+        let tag = u8::deserialize(rd)?;
         if tag & 0x80 == 0 {
             deserialize_item_cont(tag, rd).map(Self::Item)
         } else {
@@ -269,11 +403,21 @@ impl BorshDeserialize for ItemOrActual {
 ///
 /// This deserialises an `OwnedRef` with the `is_value` flag provided by the
 /// caller.
+#[cfg(feature = "borsh")]
 fn deserialize_owned_ref(
     rd: &mut impl io::Read,
     is_value: bool,
 ) -> io::Result<OwnedRef> {
     CryptoHash::deserialize_reader(rd).map(|hash| OwnedRef { is_value, hash })
+}
+
+
+#[cfg(feature = "borsh09")]
+fn deserialize_owned_ref(
+    rd: &mut impl io::Read,
+    is_value: bool,
+) -> io::Result<OwnedRef> {
+    CryptoHash::deserialize(rd).map(|hash| OwnedRef { is_value, hash })
 }
 
 /// Returns an `io::Error` of kind `InvalidData` with specified message.
