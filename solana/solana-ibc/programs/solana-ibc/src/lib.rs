@@ -9,13 +9,13 @@ use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 const TRIE_SEED: &[u8] = b"trie";
+const PACKET_SEED: &[u8] = b"packet";
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 
@@ -54,8 +54,9 @@ pub mod solana_ibc {
         let provable =
             solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
                 .ok_or(ProgramError::InvalidAccountData)?;
+        let packets: &mut IBCPackets = &mut ctx.accounts.packets;
 
-        let inner = IbcStorageInner { private, provable };
+        let inner = IbcStorageInner { private, provable, packets };
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
@@ -75,15 +76,15 @@ pub mod solana_ibc {
                         let serialized_packet = borsh::to_vec(&packet).unwrap();
                         // Find if the packet already exists
                         match inner_store
-                            .private
                             .packets
+                            .0
                             .iter()
                             .find(|&pack| pack == &serialized_packet)
                         {
                             Some(_) => (),
                             None => inner_store
-                                .private
                                 .packets
+                                .0
                                 .push(serialized_packet),
                         }
                     }
@@ -121,6 +122,8 @@ pub struct Deliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
     /// CHECK:
     pub trie: AccountInfo<'info>,
+    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
+    pub packets: Account<'info, IBCPackets>,
     pub system_program: Program<'info, System>,
 }
 
@@ -252,12 +255,17 @@ pub struct PrivateStorage {
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The history of IBC events.
     pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
-    pub packets: Vec<InnerPacketMsg>,
 }
+
+#[account]
+#[derive(Debug)]
+pub struct IBCPackets(Vec<InnerPacketMsg>);
+
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
 pub struct IbcStorageInner<'a, 'b> {
+    pub packets: &'a mut IBCPackets,
     pub private: &'a mut PrivateStorage,
     pub provable:
         solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,

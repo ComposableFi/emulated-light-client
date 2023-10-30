@@ -25,7 +25,7 @@ use ibc_proto::protobuf::Protobuf;
 
 use crate::{
     accounts, instruction, AnyCheck, PrivateStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+    SOLANA_IBC_STORAGE_SEED, TRIE_SEED, PACKET_SEED,
 };
 
 const CLIENT_CREATE_CLIENT: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -75,6 +75,8 @@ fn anchor_test_deliver() -> Result<()> {
     let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
     let trie_seeds = &[TRIE_SEED];
     let trie = Pubkey::find_program_address(trie_seeds, &crate::ID).0;
+    let packet_seeds = &[PACKET_SEED];
+    let packets = Pubkey::find_program_address(packet_seeds, &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
@@ -97,6 +99,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage: solana_ibc_storage,
             trie,
             system_program: system_program::ID,
+            packets,
         })
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
@@ -147,6 +150,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage: solana_ibc_storage,
             trie,
             system_program: system_program::ID,
+            packets
         })
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
