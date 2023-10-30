@@ -254,7 +254,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         store
             .private
             .client_to_connection
-            .insert( client_connection_path.0.to_string(), conn_id.to_string(),);
+            .insert(client_connection_path.0.to_string(), conn_id.to_string());
         Ok(())
     }
 
