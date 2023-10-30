@@ -82,10 +82,9 @@ pub mod solana_ibc {
                             .find(|&pack| pack == &serialized_packet)
                         {
                             Some(_) => (),
-                            None => inner_store
-                                .packets
-                                .0
-                                .push(serialized_packet),
+                            None => {
+                                inner_store.packets.0.push(serialized_packet)
+                            }
                         }
                     }
                     _ => (),

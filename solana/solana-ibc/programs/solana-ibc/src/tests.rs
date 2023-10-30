@@ -24,8 +24,8 @@ use ibc_proto::google::protobuf::Any;
 use ibc_proto::protobuf::Protobuf;
 
 use crate::{
-    accounts, instruction, AnyCheck, PrivateStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TRIE_SEED, PACKET_SEED,
+    accounts, instruction, AnyCheck, PrivateStorage, ID, PACKET_SEED,
+    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
 };
 
 const CLIENT_CREATE_CLIENT: &str = "/ibc.core.client.v1.MsgCreateClient";
@@ -150,7 +150,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage: solana_ibc_storage,
             trie,
             system_program: system_program::ID,
-            packets
+            packets,
         })
         .args(instruction::Deliver { messages: all_messages })
         .payer(authority.clone())
