@@ -397,7 +397,7 @@ impl TestCtx {
         if let Err(err) = res {
             std::eprintln!("{:?}", old_state);
             match stake {
-                0 => std::eprintln!("  Remove {pubkey:?}"),
+                0 => std::eprintln!(" Remove {pubkey:?}"),
                 _ => std::eprintln!(" Update {pubkey:?} staking {stake}"),
             }
             std::eprintln!("{:?}", self.candidates);
