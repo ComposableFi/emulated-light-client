@@ -70,7 +70,7 @@ pub mod solana_ibc {
                     ibc::core::dispatch(&mut store, &mut router, msg.clone());
                 match msg {
                     MsgEnvelope::Packet(packet) => {
-                        // store the packet wherever you want if you don't have it
+                        // store the packet if not exists
                         let mut inner_store = store.0.borrow_mut();
                         let serialized_packet = borsh::to_vec(&packet).unwrap();
                         // Find if the packet already exists
