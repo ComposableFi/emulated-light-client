@@ -68,6 +68,10 @@ pub(crate) mod test_utils {
     )]
     pub struct MockPubKey(pub u32);
 
+    impl MockPubKey {
+        pub fn make_signer(&self) -> MockSigner { MockSigner(*self) }
+    }
+
     /// A mock implementation of a Signer.  Offers no security; intended for
     /// tests only.
     #[derive(Clone, Copy, PartialEq, Eq)]

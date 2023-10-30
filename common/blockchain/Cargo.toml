@@ -11,7 +11,7 @@ derive_more.workspace = true
 lib = { workspace = true, features = ["borsh"] }
 
 [dev-dependencies]
-lib = { workspace = true, features = ["borsh", "test_utils"] }
+lib = { workspace = true, features = ["test_utils"] }
 rand.workspace = true
 stdx.workspace = true
 
