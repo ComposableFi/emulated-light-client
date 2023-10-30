@@ -375,12 +375,12 @@ impl TestCtx {
         );
     }
 
-    /// Performs a random test.  `data` must be a three-element slice.  The
-    /// random test is determined from values in the slice.
-    fn test(&mut self, data: &[u8]) {
+    /// Performs a random test.  `data` must be a two-element slice.  The random
+    /// test is determined from values in the slice.
+    fn test(&mut self, pubkey: u8, stake: u8) {
         let old_state = self.candidates.clone();
-        let pubkey = MockPubKey((data[0]).into());
-        let op = (pubkey, u128::from(data[1]));
+        let pubkey = MockPubKey(u32::from(pubkey));
+        let stake = u128::from(stake);
 
         let this = self as *mut TestCtx;
         let res = std::panic::catch_unwind(|| {
@@ -388,19 +388,17 @@ impl TestCtx {
             // self.candidates may be in inconsistent state.  This is fine since
             // we’re panicking anyway.
             let this = unsafe { &mut *this };
-            match op.clone() {
-                (pubkey, 0) => this.test_remove(pubkey),
-                (pubkey, stake) => this.test_update(pubkey.clone(), stake),
+            match u128::from(stake) {
+                0 => this.test_remove(pubkey),
+                _ => this.test_update(pubkey.clone(), stake),
             }
         });
 
         if let Err(err) = res {
             std::eprintln!("{:?}", old_state);
-            match op {
-                (pubkey, 0) => std::eprintln!("  Remove {pubkey:?}"),
-                (pubkey, stake) => {
-                    std::eprintln!(" Update {pubkey:?} staking {stake}")
-                }
+            match stake {
+                0 => std::eprintln!("  Remove {pubkey:?}"),
+                _ => std::eprintln!(" Update {pubkey:?} staking {stake}"),
             }
             std::eprintln!("{:?}", self.candidates);
             std::panic::resume_unwind(err);
@@ -419,7 +417,7 @@ fn stress_test() {
     while n > 0 {
         rng.fill(&mut buf[..]);
         for data in buf.chunks_exact(2).take(n) {
-            ctx.test(data);
+            ctx.test(data[0], data[1]);
         }
         n = n.saturating_sub(1024);
     }
