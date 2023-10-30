@@ -9,6 +9,7 @@ use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
+use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
@@ -33,6 +34,8 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use ibc::core::MsgEnvelope;
+
     use super::*;
 
     pub fn deliver(
@@ -63,7 +66,30 @@ pub mod solana_ibc {
                 value: msg.value,
             };
             let res = ibc::core::MsgEnvelope::try_from(msg).and_then(|msg| {
-                ibc::core::dispatch(&mut store, &mut router, msg)
+                let result =
+                    ibc::core::dispatch(&mut store, &mut router, msg.clone());
+                match msg {
+                    MsgEnvelope::Packet(packet) => {
+                        // store the packet wherever you want if you don't have it
+                        let mut inner_store = store.0.borrow_mut();
+                        let serialized_packet = borsh::to_vec(&packet).unwrap();
+                        // Find if the packet already exists
+                        match inner_store
+                            .private
+                            .packets
+                            .iter()
+                            .find(|&pack| pack == &serialized_packet)
+                        {
+                            Some(_) => (),
+                            None => inner_store
+                                .private
+                                .packets
+                                .push(serialized_packet),
+                        }
+                    }
+                    _ => (),
+                }
+                result
             });
             if let Err(err) = res {
                 errors.push(err);
@@ -122,6 +148,7 @@ pub type InnerClient = String; // Serialized
 pub type InnerConnectionEnd = String; // Serialized
 pub type InnerChannelEnd = String; // Serialized
 pub type InnerConsensusState = String; // Serialized
+pub type InnerPacketMsg = Vec<u8>;
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -225,6 +252,7 @@ pub struct PrivateStorage {
         BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The history of IBC events.
     pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
+    pub packets: Vec<InnerPacketMsg>,
 }
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
