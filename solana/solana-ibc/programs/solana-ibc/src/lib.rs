@@ -201,7 +201,7 @@ pub struct PrivateStorage {
     pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
     pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
     // Contains the client id corresponding to the connectionId
-    pub connection_to_client: BTreeMap<InnerConnectionId, InnerClientId>,
+    pub client_to_connection: BTreeMap<InnerClientId, InnerConnectionId>,
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
