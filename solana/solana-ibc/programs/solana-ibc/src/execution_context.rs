@@ -253,8 +253,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.0.borrow_mut();
         store
             .private
-            .connection_to_client
-            .insert(conn_id.to_string(), client_connection_path.0.to_string());
+            .client_to_connection
+            .insert(client_connection_path.0.to_string(), conn_id.to_string());
         Ok(())
     }
 

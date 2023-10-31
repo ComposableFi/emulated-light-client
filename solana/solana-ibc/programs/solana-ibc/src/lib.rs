@@ -41,7 +41,7 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        messages: Vec<AnyCheck>,
+        messages: Vec<ibc::core::MsgEnvelope>,
     ) -> Result<()> {
         msg!("Called deliver method");
         let _sender = ctx.accounts.sender.to_account_info();
@@ -61,35 +61,28 @@ pub mod solana_ibc {
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let mut errors = Vec::new();
-        for msg in messages {
-            let msg = ibc_proto::google::protobuf::Any {
-                type_url: msg.type_url,
-                value: msg.value,
-            };
-            let res = ibc::core::MsgEnvelope::try_from(msg).and_then(|msg| {
-                let result =
-                    ibc::core::dispatch(&mut store, &mut router, msg.clone());
-                    if let MsgEnvelope::Packet(packet) = msg {
-                        // store the packet if not exists
-                        // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
-                        let mut inner_store = store.0.borrow_mut();
-                        match inner_store
-                            .packets
-                            .0
-                            .iter()
-                            .find(|&pack| &packet == pack)
-                        {
-                            Some(_) => (),
-                            None => inner_store.packets.0.push(packet),
-                        }
+        let errors = messages
+            .into_iter()
+            .map(|msg| {
+                let result = ibc::core::dispatch(&mut store, &mut router, msg.clone());
+                if let MsgEnvelope::Packet(packet) = msg {
+                    // store the packet if not exists
+                    // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
+                    let mut inner_store = store.0.borrow_mut();
+                    match inner_store
+                        .packets
+                        .0
+                        .iter()
+                        .find(|&pack| &packet == pack)
+                    {
+                        Some(_) => (),
+                        None => inner_store.packets.0.push(packet),
                     }
+                } 
                 result
-            });
-            if let Err(err) = res {
-                errors.push(err);
-            }
-        }
+            })
+            .filter_map(core::result::Result::err)
+            .collect::<Vec<_>>();
 
         // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
@@ -107,6 +100,7 @@ pub mod solana_ibc {
         Ok(())
     }
 }
+
 #[derive(Accounts)]
 pub struct Deliver<'info> {
     #[account(mut)]
@@ -124,12 +118,6 @@ pub struct Deliver<'info> {
 #[event]
 pub struct EmitIBCEvent {
     pub ibc_event: Vec<u8>,
-}
-
-#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]
-pub struct AnyCheck {
-    pub type_url: String,
-    pub value: Vec<u8>,
 }
 
 pub type InnerHeight = (u64, u64);
@@ -224,7 +212,7 @@ pub struct PrivateStorage {
     pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
     pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
     // Contains the client id corresponding to the connectionId
-    pub connection_to_client: BTreeMap<InnerConnectionId, InnerClientId>,
+    pub client_to_connection: BTreeMap<InnerClientId, InnerConnectionId>,
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
