@@ -64,7 +64,8 @@ pub mod solana_ibc {
         let errors = messages
             .into_iter()
             .map(|msg| {
-                let result = ibc::core::dispatch(&mut store, &mut router, msg.clone());
+                let result =
+                    ibc::core::dispatch(&mut store, &mut router, msg.clone());
                 if let MsgEnvelope::Packet(packet) = msg {
                     // store the packet if not exists
                     // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
@@ -78,7 +79,7 @@ pub mod solana_ibc {
                         Some(_) => (),
                         None => inner_store.packets.0.push(packet),
                     }
-                } 
+                }
                 result
             })
             .filter_map(core::result::Result::err)
