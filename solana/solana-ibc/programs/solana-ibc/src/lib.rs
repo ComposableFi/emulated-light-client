@@ -5,6 +5,7 @@ extern crate alloc;
 
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
+use ibc::core::ics04_channel::msgs::PacketMsg;
 use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
@@ -73,18 +74,11 @@ pub mod solana_ibc {
                     MsgEnvelope::Packet(packet) => {
                         // store the packet if not exists
                         let mut inner_store = store.0.borrow_mut();
-                        let serialized_packet = borsh::to_vec(&packet).unwrap();
-                        // Find if the packet already exists
-                        match inner_store
-                            .packets
-                            .0
-                            .iter()
-                            .find(|&pack| pack == &serialized_packet)
-                        {
+                        match inner_store.packets.0.iter().find(|&pack| 
+                           &packet == pack
+                        ) {
                             Some(_) => (),
-                            None => {
-                                inner_store.packets.0.push(serialized_packet)
-                            }
+                            None => inner_store.packets.0.push(packet),
                         }
                     }
                     _ => (),
@@ -150,7 +144,6 @@ pub type InnerClient = String; // Serialized
 pub type InnerConnectionEnd = String; // Serialized
 pub type InnerChannelEnd = String; // Serialized
 pub type InnerConsensusState = String; // Serialized
-pub type InnerPacketMsg = Vec<u8>;
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -258,7 +251,7 @@ pub struct PrivateStorage {
 
 #[account]
 #[derive(Debug)]
-pub struct IBCPackets(Vec<InnerPacketMsg>);
+pub struct IBCPackets(Vec<PacketMsg>);
 
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
