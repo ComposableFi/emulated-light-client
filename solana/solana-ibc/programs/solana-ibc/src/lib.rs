@@ -72,6 +72,7 @@ pub mod solana_ibc {
                     ibc::core::dispatch(&mut store, &mut router, msg.clone());
                     if let MsgEnvelope::Packet(packet) = msg {
                         // store the packet if not exists
+                        // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
                         let mut inner_store = store.0.borrow_mut();
                         match inner_store
                             .packets
