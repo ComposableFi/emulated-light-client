@@ -5,11 +5,11 @@ extern crate alloc;
 
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
-use ibc::core::ics04_channel::msgs::PacketMsg;
 use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
+use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
@@ -74,9 +74,12 @@ pub mod solana_ibc {
                     MsgEnvelope::Packet(packet) => {
                         // store the packet if not exists
                         let mut inner_store = store.0.borrow_mut();
-                        match inner_store.packets.0.iter().find(|&pack| 
-                           &packet == pack
-                        ) {
+                        match inner_store
+                            .packets
+                            .0
+                            .iter()
+                            .find(|&pack| &packet == pack)
+                        {
                             Some(_) => (),
                             None => inner_store.packets.0.push(packet),
                         }
