@@ -6,34 +6,30 @@ use std::collections::HashSet as Set;
 
 use lib::hash::CryptoHash;
 
-use crate::candidates::Candidates;
 pub use crate::candidates::UpdateCandidateError;
-use crate::height::HostHeight;
-use crate::validators::PubKey;
-use crate::{block, chain, epoch};
 
 pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
-    config: chain::Config,
+    config: crate::Config,
 
     /// Current latest block which has been signed by quorum of validators.
-    block: block::Block<PK>,
+    block: crate::Block<PK>,
 
     /// Epoch of the next block.
     ///
     /// If `block` defines new epoch, this is copy of `block.next_epoch`
     /// otherwise this is epoch of the current block.  In other words, this is
     /// epoch which specifies validators set for `pending_block`.
-    next_epoch: epoch::Epoch<PK>,
+    next_epoch: crate::Epoch<PK>,
 
     /// Next block which is waiting for quorum of validators to sign.
     pending_block: Option<PendingBlock<PK>>,
 
     /// Height at which current epoch was defined.
-    epoch_height: HostHeight,
+    epoch_height: crate::HostHeight,
 
     /// Set of validator candidates to consider for the next epoch.
-    candidates: Candidates<PK>,
+    candidates: crate::Candidates<PK>,
 }
 
 /// Pending block waiting for signatures.
@@ -41,7 +37,7 @@ pub struct ChainManager<PK> {
 /// Once quorum of validators sign the block it’s promoted to the current block.
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
-    next_block: block::Block<PK>,
+    next_block: crate::Block<PK>,
     /// Hash of the block.
     ///
     /// This is what validators are signing.  It equals `next_block.calc_hash()`
@@ -69,7 +65,7 @@ pub enum GenerateError {
     /// a new block.
     UnchangedState,
     /// An error while generating block.
-    Inner(block::GenerateError),
+    Inner(crate::block::GenerateError),
 }
 
 /// Error while accepting a signature from a validator.
@@ -83,17 +79,19 @@ pub enum AddSignatureError {
     BadValidator,
 }
 
-impl<PK: PubKey> ChainManager<PK> {
+impl<PK: crate::PubKey> ChainManager<PK> {
     pub fn new(
-        config: chain::Config,
-        genesis: block::Block<PK>,
+        config: crate::Config,
+        genesis: crate::Block<PK>,
     ) -> Result<Self, BadGenesis> {
         if !genesis.is_genesis() {
             return Err(BadGenesis);
         }
         let next_epoch = genesis.next_epoch.clone().ok_or(BadGenesis)?;
-        let candidates =
-            Candidates::new(config.max_validators, next_epoch.validators());
+        let candidates = crate::Candidates::new(
+            config.max_validators,
+            next_epoch.validators(),
+        );
         let epoch_height = genesis.host_height;
         Ok(Self {
             config,
@@ -107,7 +105,7 @@ impl<PK: PubKey> ChainManager<PK> {
 
     /// Returns the head of the chain as a `(finalised, block)` pair where
     /// `finalised` indicates whether the block has been finalised.
-    pub fn head(&self) -> (bool, &block::Block<PK>) {
+    pub fn head(&self) -> (bool, &crate::Block<PK>) {
         match self.pending_block {
             None => (true, &self.block),
             Some(ref pending) => (false, &pending.next_block),
@@ -125,7 +123,7 @@ impl<PK: PubKey> ChainManager<PK> {
     /// head of the blockchain and `force` is not set.
     pub fn generate_next(
         &mut self,
-        host_height: HostHeight,
+        host_height: crate::HostHeight,
         host_timestamp: u64,
         state_root: CryptoHash,
         force: bool,
@@ -177,14 +175,14 @@ impl<PK: PubKey> ChainManager<PK> {
     /// `self.candidates`.
     fn maybe_generate_next_epoch(
         &mut self,
-        host_height: HostHeight,
-    ) -> Option<epoch::Epoch<PK>> {
+        host_height: crate::HostHeight,
+    ) -> Option<crate::Epoch<PK>> {
         if !host_height
             .check_delta_from(self.epoch_height, self.config.min_epoch_length)
         {
             return None;
         }
-        epoch::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
+        crate::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
             // SAFETY: 1. ‘total / 2 ≥ 0’ thus ‘total / 2 + 1 > 0’.
             // 2. ‘total / 2 <= u128::MAX / 2’ thus ‘total / 2 + 1 < u128::MAX’.
             let quorum =
@@ -258,14 +256,14 @@ impl<PK: PubKey> ChainManager<PK> {
 fn test_generate() {
     use crate::validators::MockPubKey;
 
-    let epoch = epoch::Epoch::test(&[(1, 2), (2, 2), (3, 2)]);
+    let epoch = crate::Epoch::test(&[(1, 2), (2, 2), (3, 2)]);
     assert_eq!(4, epoch.quorum_stake().get());
 
     let ali = epoch.validators()[0].clone();
     let bob = epoch.validators()[1].clone();
     let eve = epoch.validators()[2].clone();
 
-    let genesis = block::Block::generate_genesis(
+    let genesis = crate::Block::generate_genesis(
         1.into(),
         1.into(),
         1,
@@ -273,7 +271,7 @@ fn test_generate() {
         epoch,
     )
     .unwrap();
-    let config = chain::Config {
+    let config = crate::Config {
         min_validators: core::num::NonZeroU16::MIN,
         max_validators: core::num::NonZeroU16::new(3).unwrap(),
         min_validator_stake: core::num::NonZeroU128::MIN,
@@ -296,7 +294,9 @@ fn test_generate() {
     );
     // Inner error.
     assert_eq!(
-        Err(GenerateError::Inner(block::GenerateError::BadHostTimestamp)),
+        Err(GenerateError::Inner(
+            crate::block::GenerateError::BadHostTimestamp
+        )),
         mgr.generate_next(5.into(), 1, CryptoHash::test(1), false)
     );
     // Force create even if state hasn’t changed.
