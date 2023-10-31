@@ -10,6 +10,7 @@ use ibc::core::router::{Module, ModuleId, Router};
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 const TRIE_SEED: &[u8] = b"trie";
 const PACKET_SEED: &[u8] = b"packet";
+
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 use ibc::core::MsgEnvelope;
@@ -21,6 +22,7 @@ declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 mod client_state;
 mod consensus_state;
 mod ed25519;
+mod error;
 mod execution_context;
 mod storage;
 #[cfg(test)]
@@ -55,11 +57,9 @@ pub mod solana_ibc {
 
         {
             let mut router = store.clone();
-            if let Err(e) =
-                ibc::core::dispatch(&mut store, &mut router, message.clone())
-            {
-                return err!(Error::RouterError(&e));
-            }
+            ibc::core::dispatch(&mut store, &mut router, message.clone())
+                .map_err(error::Error::RouterError)
+                .map_err(|err| error!((&err)))?;
         }
         if let MsgEnvelope::Packet(packet) = message {
             // store the packet if not exists
@@ -89,7 +89,7 @@ pub struct Deliver<'info> {
     sender: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
+    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED], bump, space = 10000)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
@@ -104,32 +104,6 @@ pub struct Deliver<'info> {
     packets: Account<'info, IBCPackets>,
 
     system_program: Program<'info, System>,
-}
-
-/// Error returned when handling a request.
-#[derive(Clone, strum::AsRefStr, strum::EnumDiscriminants)]
-#[strum_discriminants(repr(u32))]
-pub enum Error<'a> {
-    RouterError(&'a ibc::core::RouterError),
-}
-
-impl Error<'_> {
-    pub fn name(&self) -> String { self.as_ref().into() }
-}
-
-impl core::fmt::Display for Error<'_> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RouterError(err) => write!(fmtr, "{err}"),
-        }
-    }
-}
-
-impl From<Error<'_>> for u32 {
-    fn from(err: Error<'_>) -> u32 {
-        let code = ErrorDiscriminants::from(err) as u32;
-        anchor_lang::error::ERROR_CODE_OFFSET + code
-    }
 }
 
 #[event]
