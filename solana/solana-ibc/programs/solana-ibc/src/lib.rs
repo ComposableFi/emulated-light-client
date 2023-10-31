@@ -37,12 +37,10 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        messages: Vec<ibc::core::MsgEnvelope>,
+        message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        msg!("Called deliver method");
+        msg!("Called deliver method: {message}");
         let _sender = ctx.accounts.sender.to_account_info();
-
-        msg!("These are messages {:?}", messages);
 
         let private: &mut PrivateStorage = &mut ctx.accounts.storage;
         msg!("This is private_store {:?}", private);
@@ -56,11 +54,9 @@ pub mod solana_ibc {
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let errors = messages
-            .into_iter()
-            .map(|msg| ibc::core::dispatch(&mut store, &mut router, msg))
-            .filter_map(core::result::Result::err)
-            .collect::<Vec<_>>();
+        if let Err(e) = ibc::core::dispatch(&mut store, &mut router, message) {
+            return err!(Error::RouterError(&e));
+        }
 
         // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
@@ -70,7 +66,6 @@ pub mod solana_ibc {
         // so using the inner function instead.
         let inner = Rc::try_unwrap(store.0).unwrap().into_inner();
 
-        msg!("These are errors {:?}", errors);
         msg!("This is final structure {:?}", inner.private);
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
@@ -89,6 +84,32 @@ pub struct Deliver<'info> {
     /// CHECK:
     pub trie: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
+}
+
+/// Error returned when handling a request.
+#[derive(Clone, strum::AsRefStr, strum::EnumDiscriminants)]
+#[strum_discriminants(repr(u32))]
+pub enum Error<'a> {
+    RouterError(&'a ibc::core::RouterError),
+}
+
+impl Error<'_> {
+    pub fn name(&self) -> String { self.as_ref().into() }
+}
+
+impl core::fmt::Display for Error<'_> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RouterError(err) => write!(fmtr, "{err}"),
+        }
+    }
+}
+
+impl From<Error<'_>> for u32 {
+    fn from(err: Error<'_>) -> u32 {
+        let code = ErrorDiscriminants::from(err) as u32;
+        anchor_lang::error::ERROR_CODE_OFFSET + code
+    }
 }
 
 #[event]
