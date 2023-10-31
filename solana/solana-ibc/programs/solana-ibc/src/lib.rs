@@ -70,8 +70,7 @@ pub mod solana_ibc {
             let res = ibc::core::MsgEnvelope::try_from(msg).and_then(|msg| {
                 let result =
                     ibc::core::dispatch(&mut store, &mut router, msg.clone());
-                match msg {
-                    MsgEnvelope::Packet(packet) => {
+                    if let MsgEnvelope::Packet(packet) = msg {
                         // store the packet if not exists
                         let mut inner_store = store.0.borrow_mut();
                         match inner_store
@@ -84,8 +83,6 @@ pub mod solana_ibc {
                             None => inner_store.packets.0.push(packet),
                         }
                     }
-                    _ => (),
-                }
                 result
             });
             if let Err(err) = res {
