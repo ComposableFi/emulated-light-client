@@ -82,7 +82,7 @@ fn anchor_test_deliver() -> Result<()> {
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
-    let messages = vec![make_message!(
+    let message = make_message!(
         MsgCreateClient::new(
             Any::from(mock_client_state),
             Any::from(mock_cs_state),
@@ -90,7 +90,7 @@ fn anchor_test_deliver() -> Result<()> {
         ),
         ibc::core::ics02_client::msgs::ClientMsg::CreateClient,
         ibc::core::MsgEnvelope::Client,
-    )];
+    );
 
     let sig = program
         .request()
@@ -100,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver { messages })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -122,7 +122,7 @@ fn anchor_test_deliver() -> Result<()> {
     let commitment_prefix: CommitmentPrefix =
         IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
-    let messages = vec![make_message!(
+    let message = make_message!(
         MsgConnectionOpenInit {
             client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
                 .unwrap(),
@@ -137,7 +137,7 @@ fn anchor_test_deliver() -> Result<()> {
         },
         ibc::core::ics03_connection::msgs::ConnectionMsg::OpenInit,
         ibc::core::MsgEnvelope::Connection,
-    )];
+    );
 
     let sig = program
         .request()
@@ -147,7 +147,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver { messages })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
