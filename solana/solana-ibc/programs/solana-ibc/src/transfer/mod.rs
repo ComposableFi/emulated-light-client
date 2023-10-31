@@ -17,7 +17,7 @@ use crate::IbcStorage;
 
 mod impls;
 
-impl Module for IbcStorage<'_, '_> {
+impl Module for IbcStorage<'_, '_, '_> {
     fn on_chan_open_init_validate(
         &self,
         order: Order,

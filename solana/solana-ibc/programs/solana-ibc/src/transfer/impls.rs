@@ -1,3 +1,4 @@
+use anchor_lang::prelude::Pubkey;
 use anchor_lang::solana_program::msg;
 use ibc::applications::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -8,9 +9,9 @@ use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::Signer;
 
 // use crate::module_holder::IbcStorage<'_,'_>;
-use crate::IbcStorage;
+use crate::{IbcStorage, id};
 
-impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
+impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     fn send_coins_execute(
         &mut self,
         _from: &Self::AccountId,
@@ -56,7 +57,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
     }
 }
 
-impl TokenTransferValidationContext for IbcStorage<'_, '_> {
+impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
     type AccountId = Signer;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
@@ -68,9 +69,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let escrow_account =
-            format!("{}.ef.{}", channel_id.as_str(), port_id.as_str(),);
-        Ok(Signer::from(escrow_account))
+        let seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
+        let escrow_account = Pubkey::find_program_address(&seeds, &id());
+        Ok(Signer::from(escrow_account.0.to_string()))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {

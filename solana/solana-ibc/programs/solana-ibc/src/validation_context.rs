@@ -25,7 +25,7 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::IbcStorage;
 
-impl ValidationContext for IbcStorage<'_, '_> {
+impl ValidationContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
@@ -346,7 +346,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
+impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_, '_> {
     fn client_update_time(
         &self,
         client_id: &ClientId,
@@ -402,7 +402,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl IbcStorage<'_, '_> {
+impl IbcStorage<'_, '_, '_> {
     fn get_next_sequence(
         &self,
         path: crate::trie_key::SequencePath<'_>,

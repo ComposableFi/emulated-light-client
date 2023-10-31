@@ -52,7 +52,7 @@ pub mod solana_ibc {
             solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
                 .ok_or(ProgramError::InvalidAccountData)?;
 
-        let inner = IbcStorageInner { private, provable };
+        let inner = IbcStorageInner { private, provable, accounts: ctx.remaining_accounts.to_vec() };
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
@@ -229,16 +229,17 @@ pub struct PrivateStorage {
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub struct IbcStorageInner<'a, 'b> {
+pub struct IbcStorageInner<'a, 'b, 'c> {
     pub private: &'a mut PrivateStorage,
     pub provable:
         solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
+    pub accounts: Vec<AccountInfo<'c>>
 }
 
 #[derive(Debug, Clone)]
-struct IbcStorage<'a, 'b>(Rc<RefCell<IbcStorageInner<'a, 'b>>>);
+struct IbcStorage<'a, 'b, 'c>(Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>);
 
-impl Router for IbcStorage<'_, '_> {
+impl Router for IbcStorage<'_, '_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
