@@ -380,7 +380,6 @@ impl TestCtx {
     fn test(&mut self, pubkey: u8, stake: u8) {
         let old_state = self.candidates.clone();
         let pubkey = MockPubKey(u32::from(pubkey));
-        let stake = u128::from(stake);
 
         let this = self as *mut TestCtx;
         let res = std::panic::catch_unwind(|| {
@@ -388,9 +387,9 @@ impl TestCtx {
             // self.candidates may be in inconsistent state.  This is fine since
             // we’re panicking anyway.
             let this = unsafe { &mut *this };
-            match u128::from(stake) {
+            match stake {
                 0 => this.test_remove(pubkey),
-                _ => this.test_update(pubkey.clone(), stake),
+                _ => this.test_update(pubkey.clone(), u128::from(stake)),
             }
         });
 
