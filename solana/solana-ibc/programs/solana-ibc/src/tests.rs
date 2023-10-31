@@ -21,16 +21,12 @@ use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
 use ibc_proto::google::protobuf::Any;
-use ibc_proto::protobuf::Protobuf;
 
 use crate::{
-    accounts, instruction, AnyCheck, PrivateStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+    accounts, instruction, PrivateStorage, ID, SOLANA_IBC_STORAGE_SEED,
+    TRIE_SEED,
 };
 
-const CLIENT_CREATE_CLIENT: &str = "/ibc.core.client.v1.MsgCreateClient";
-const CONNECTION_OPEN_INIT: &str =
-    "/ibc.core.connection.v1.MsgConnectionOpenInit";
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
@@ -50,6 +46,14 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
     let mock_client_state = MockClientState::new(MockHeader::default());
     let mock_cs_state = MockConsensusState::new(MockHeader::default());
     (mock_client_state, mock_cs_state)
+}
+
+macro_rules! make_message {
+    ($msg:expr, $($variant:path),+ $(,)?) => {{
+        let message = $msg;
+        $( let message = $variant(message); )*
+        message
+    }}
 }
 
 #[test]
@@ -78,17 +82,15 @@ fn anchor_test_deliver() -> Result<()> {
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
-    let create_client_msg = MsgCreateClient::new(
-        Any::from(mock_client_state),
-        Any::from(mock_cs_state),
-        ibc::Signer::from(authority.pubkey().to_string()),
-    );
-    let messages = AnyCheck {
-        type_url: CLIENT_CREATE_CLIENT.to_string(),
-        value: create_client_msg.encode_vec(),
-    };
-
-    let all_messages = [messages].to_vec();
+    let messages = vec![make_message!(
+        MsgCreateClient::new(
+            Any::from(mock_client_state),
+            Any::from(mock_cs_state),
+            ibc::Signer::from(authority.pubkey().to_string()),
+        ),
+        ibc::core::ics02_client::msgs::ClientMsg::CreateClient,
+        ibc::core::MsgEnvelope::Client,
+    )];
 
     let sig = program
         .request()
@@ -98,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver { messages: all_messages })
+        .args(instruction::Deliver { messages })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -120,25 +122,22 @@ fn anchor_test_deliver() -> Result<()> {
     let commitment_prefix: CommitmentPrefix =
         IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
-    let open_init_msg = MsgConnectionOpenInit {
-        client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
-            .unwrap(),
-        version: Some(Version::default()),
-        counterparty: Counterparty::new(
-            counter_party_client_id,
-            None,
-            commitment_prefix,
-        ),
-        delay_period: Duration::from_secs(5),
-        signer: ibc::Signer::from(authority.pubkey().to_string()),
-    };
-
-    let new_message = AnyCheck {
-        type_url: CONNECTION_OPEN_INIT.to_string(),
-        value: open_init_msg.encode_vec(),
-    };
-
-    let all_messages = [new_message].to_vec();
+    let messages = vec![make_message!(
+        MsgConnectionOpenInit {
+            client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
+                .unwrap(),
+            version: Some(Version::default()),
+            counterparty: Counterparty::new(
+                counter_party_client_id,
+                None,
+                commitment_prefix,
+            ),
+            delay_period: Duration::from_secs(5),
+            signer: ibc::Signer::from(authority.pubkey().to_string()),
+        },
+        ibc::core::ics03_connection::msgs::ConnectionMsg::OpenInit,
+        ibc::core::MsgEnvelope::Connection,
+    )];
 
     let sig = program
         .request()
@@ -148,7 +147,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver { messages: all_messages })
+        .args(instruction::Deliver { messages })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {

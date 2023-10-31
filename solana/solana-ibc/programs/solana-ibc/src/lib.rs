@@ -37,7 +37,7 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        messages: Vec<AnyCheck>,
+        messages: Vec<ibc::core::MsgEnvelope>,
     ) -> Result<()> {
         msg!("Called deliver method");
         let _sender = ctx.accounts.sender.to_account_info();
@@ -56,19 +56,11 @@ pub mod solana_ibc {
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let mut errors = Vec::new();
-        for msg in messages {
-            let msg = ibc_proto::google::protobuf::Any {
-                type_url: msg.type_url,
-                value: msg.value,
-            };
-            let res = ibc::core::MsgEnvelope::try_from(msg).and_then(|msg| {
-                ibc::core::dispatch(&mut store, &mut router, msg)
-            });
-            if let Err(err) = res {
-                errors.push(err);
-            }
-        }
+        let errors = messages
+            .into_iter()
+            .map(|msg| ibc::core::dispatch(&mut store, &mut router, msg))
+            .filter_map(core::result::Result::err)
+            .collect::<Vec<_>>();
 
         // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
@@ -86,6 +78,7 @@ pub mod solana_ibc {
         Ok(())
     }
 }
+
 #[derive(Accounts)]
 pub struct Deliver<'info> {
     #[account(mut)]
@@ -101,12 +94,6 @@ pub struct Deliver<'info> {
 #[event]
 pub struct EmitIBCEvent {
     pub ibc_event: Vec<u8>,
-}
-
-#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]
-pub struct AnyCheck {
-    pub type_url: String,
-    pub value: Vec<u8>,
 }
 
 pub type InnerHeight = (u64, u64);
