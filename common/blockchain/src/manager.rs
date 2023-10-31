@@ -8,6 +8,7 @@ use lib::hash::CryptoHash;
 
 pub use crate::candidates::UpdateCandidateError;
 
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
     config: crate::Config,
@@ -35,6 +36,7 @@ pub struct ChainManager<PK> {
 /// Pending block waiting for signatures.
 ///
 /// Once quorum of validators sign the block it’s promoted to the current block.
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: crate::Block<PK>,
