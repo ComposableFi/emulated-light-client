@@ -13,7 +13,6 @@ pub(crate) type InnerClientId = String;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
-pub(crate) type InnerSequence = u64;
 pub(crate) type InnerIbcEvent = Vec<u8>;
 pub(crate) type InnerClient = Vec<u8>; // Serialized
 pub(crate) type InnerConnectionEnd = String; // Serialized
@@ -30,7 +29,7 @@ pub(crate) type InnerConsensusState = String; // Serialized
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
 )]
-pub(crate) struct InnerSequenceTriple {
+pub(crate) struct SequenceTriple {
     sequences: [u64; 3],
     mask: u8,
 }
@@ -42,7 +41,7 @@ pub(crate) enum SequenceTripleIdx {
     Ack = 2,
 }
 
-impl InnerSequenceTriple {
+impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
     pub(crate) fn get(&self, idx: SequenceTripleIdx) -> Option<Sequence> {
         if self.mask & (1 << (idx as u32)) == 1 {
@@ -113,18 +112,8 @@ pub(crate) struct PrivateStorage {
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
-    pub next_sequence:
-        BTreeMap<(InnerPortId, InnerChannelId), InnerSequenceTriple>,
+    pub next_sequence: BTreeMap<(InnerPortId, InnerChannelId), SequenceTriple>,
 
-    /// The sequence numbers of the packet commitments.
-    pub packet_commitment_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    /// The sequence numbers of the packet receipts.
-    pub packet_receipt_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    /// The sequence numbers of the packet acknowledgements.
-    pub packet_acknowledgement_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
     /// The history of IBC events.
     pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
 }
