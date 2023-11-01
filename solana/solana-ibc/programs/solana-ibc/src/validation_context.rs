@@ -39,18 +39,13 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
-        let store = self.borrow();
-        let state =
-            store.private.clients.get(client_id.as_str()).ok_or_else(|| {
-                ClientError::ClientStateNotFound {
-                    client_id: client_id.clone(),
-                }
-            })?;
-        let state =
-            borsh::BorshDeserialize::try_from_slice(state).map_err(|err| {
-                ClientError::Other { description: err.to_string() }
-            })?;
-        Ok(state)
+        deserialise(
+            self.borrow().private.clients.get(client_id.as_str()),
+            || ClientError::ClientStateNotFound {
+                client_id: client_id.clone(),
+            },
+            |description| ClientError::Other { description },
+        )
     }
 
     fn decode_client_state(
@@ -116,19 +111,13 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
-        let store = self.borrow();
-        match store.private.connections.get(conn_id.as_str()) {
-            Some(data) => {
-                let connection: ConnectionEnd =
-                    serde_json::from_str(data).unwrap();
-                Ok(connection)
-            }
-            None => Err(ContextError::ConnectionError(
-                ConnectionError::ConnectionNotFound {
-                    connection_id: conn_id.clone(),
-                },
-            )),
-        }
+        deserialise(
+            self.borrow().private.connections.get(conn_id.as_str()),
+            || ConnectionError::ConnectionNotFound {
+                connection_id: conn_id.clone(),
+            },
+            |description| ConnectionError::Other { description },
+        )
     }
 
     fn validate_self_client(
@@ -157,22 +146,16 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         channel_end_path: &ChannelEndPath,
     ) -> Result<ChannelEnd> {
-        let channel_end_key =
-            &(channel_end_path.0.to_string(), channel_end_path.1.to_string());
-        let store = self.borrow();
-        match store.private.channel_ends.get(channel_end_key) {
-            Some(data) => {
-                let channel_end: ChannelEnd =
-                    serde_json::from_str(data).unwrap();
-                Ok(channel_end)
-            }
-            None => {
-                Err(ContextError::ChannelError(ChannelError::ChannelNotFound {
-                    port_id: channel_end_path.0.clone(),
-                    channel_id: channel_end_path.1.clone(),
-                }))
-            }
-        }
+        let key =
+            (channel_end_path.0.to_string(), channel_end_path.1.to_string());
+        deserialise(
+            self.borrow().private.channel_ends.get(&key),
+            || ChannelError::ChannelNotFound {
+                port_id: channel_end_path.0.clone(),
+                channel_id: channel_end_path.1.clone(),
+            },
+            |description| ChannelError::Other { description },
+        )
     }
 
     fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
@@ -388,4 +371,17 @@ fn calculate_block_delay(
     let delay = delay_period_time.as_secs_f64() /
         max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
+}
+
+fn deserialise<V: borsh::BorshDeserialize, E: Into<ContextError>>(
+    serialised: Option<&Vec<u8>>,
+    not_found: impl FnOnce() -> E,
+    borsh_err: impl FnOnce(String) -> E,
+) -> Result<V> {
+    match serialised.map(|data| V::try_from_slice(data)) {
+        Some(Ok(value)) => Ok(value),
+        Some(Err(err)) => Err(borsh_err(err.to_string())),
+        None => Err(not_found()),
+    }
+    .map_err(|err| err.into())
 }
