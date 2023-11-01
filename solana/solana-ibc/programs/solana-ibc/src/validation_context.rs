@@ -26,10 +26,10 @@ use crate::consensus_state::AnyConsensusState;
 use crate::IbcStorage;
 
 impl ValidationContext for IbcStorage<'_, '_> {
+    type V = Self; // ClientValidationContext
+    type E = Self; // ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
     type AnyClientState = AnyClientState;
-    type E = Self;
-    type ClientValidationContext = Self;
 
     fn client_state(
         &self,
@@ -50,7 +50,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn decode_client_state(
         &self,
-        client_state: ibc::Any,
+        client_state: ibc_proto::google::protobuf::Any,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
         Ok(Self::AnyClientState::try_from(client_state)?)
     }
@@ -131,7 +131,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn validate_self_client(
         &self,
-        client_state_of_host_on_counterparty: ibc::Any,
+        client_state_of_host_on_counterparty: ibc_proto::google::protobuf::Any,
     ) -> std::result::Result<(), ContextError> {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
             .map_err(|e| ClientError::Other {
@@ -292,6 +292,59 @@ impl ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
+    fn channel_counter(&self) -> std::result::Result<u64, ContextError> {
+        let store = self.0.borrow();
+        Ok(store.private.channel_counter)
+    }
+
+    fn max_expected_time_per_block(&self) -> Duration {
+        // In Solana protocol, the block time is 400ms second.
+        // Considering factors such as network latency, as a precaution,
+        // we set the duration to 1 seconds.
+        Duration::from_secs(1)
+    }
+
+    fn validate_message_signer(
+        &self,
+        signer: &ibc::Signer,
+    ) -> std::result::Result<(), ContextError> {
+        match Pubkey::from_str(signer.as_ref()) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(ContextError::ClientError(ClientError::Other {
+                description: format!("Invalid signer: {e:?}"),
+            })),
+        }
+    }
+
+    fn get_client_validation_context(&self) -> &Self::V { self }
+
+    fn get_compatible_versions(
+        &self,
+    ) -> Vec<ibc::core::ics03_connection::version::Version> {
+        ibc::core::ics03_connection::version::get_compatible_versions()
+    }
+
+    fn pick_version(
+        &self,
+        counterparty_candidate_versions: &[ibc::core::ics03_connection::version::Version],
+    ) -> Result<ibc::core::ics03_connection::version::Version, ContextError>
+    {
+        let version = ibc::core::ics03_connection::version::pick_version(
+            &self.get_compatible_versions(),
+            counterparty_candidate_versions,
+        )?;
+        Ok(version)
+    }
+
+    fn block_delay(&self, delay_period_time: &Duration) -> u64 {
+        calculate_block_delay(
+            delay_period_time,
+            &self.max_expected_time_per_block(),
+        )
+    }
+}
+
+impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
     fn client_update_time(
         &self,
         client_id: &ClientId,
@@ -344,59 +397,6 @@ impl ValidationContext for IbcStorage<'_, '_> {
                     ),
                 })
             })
-    }
-
-    fn channel_counter(&self) -> std::result::Result<u64, ContextError> {
-        let store = self.0.borrow();
-        Ok(store.private.channel_counter)
-    }
-
-    fn max_expected_time_per_block(&self) -> Duration {
-        // In Solana protocol, the block time is 400ms second.
-        // Considering factors such as network latency, as a precaution,
-        // we set the duration to 1 seconds.
-        Duration::from_secs(1)
-    }
-
-    fn validate_message_signer(
-        &self,
-        signer: &ibc::Signer,
-    ) -> std::result::Result<(), ContextError> {
-        match Pubkey::from_str(signer.as_ref()) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(ContextError::ClientError(ClientError::Other {
-                description: format!("Invalid signer: {e:?}"),
-            })),
-        }
-    }
-
-    fn get_client_validation_context(&self) -> &Self::ClientValidationContext {
-        self
-    }
-
-    fn get_compatible_versions(
-        &self,
-    ) -> Vec<ibc::core::ics03_connection::version::Version> {
-        ibc::core::ics03_connection::version::get_compatible_versions()
-    }
-
-    fn pick_version(
-        &self,
-        counterparty_candidate_versions: &[ibc::core::ics03_connection::version::Version],
-    ) -> Result<ibc::core::ics03_connection::version::Version, ContextError>
-    {
-        let version = ibc::core::ics03_connection::version::pick_version(
-            &self.get_compatible_versions(),
-            counterparty_candidate_versions,
-        )?;
-        Ok(version)
-    }
-
-    fn block_delay(&self, delay_period_time: &Duration) -> u64 {
-        calculate_block_delay(
-            delay_period_time,
-            &self.max_expected_time_per_block(),
-        )
     }
 }
 

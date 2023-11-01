@@ -26,17 +26,9 @@ mod execution_context;
 #[cfg(test)]
 mod tests;
 mod transfer;
-mod trie;
 mod trie_key;
 mod validation_context;
 // mod client_context;
-
-/// Discriminants for the data stored in the accounts.
-mod magic {
-    pub(crate) const UNINITIALISED: u32 = 0;
-    pub(crate) const TRIE_ROOT: u32 = 1;
-}
-
 
 
 #[anchor_lang::program]
@@ -45,51 +37,35 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        messages: Vec<AnyCheck>,
+        message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        msg!("Called deliver method");
+        msg!("Called deliver method: {message}");
         let _sender = ctx.accounts.sender.to_account_info();
-
-        let all_messages = messages
-            .into_iter()
-            .map(|message| ibc::Any {
-                type_url: message.type_url,
-                value: message.value,
-            })
-            .collect::<Vec<_>>();
-
-        msg!("These are messages {:?}", all_messages);
 
         let private: &mut PrivateStorage = &mut ctx.accounts.storage;
         msg!("This is private_store {:?}", private);
 
         let account = &ctx.accounts.trie;
-        let provable = trie::AccountTrie::new(account.try_borrow_mut_data()?)
-            .ok_or(ProgramError::InvalidAccountData)?;
+        let provable =
+            solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
+                .ok_or(ProgramError::InvalidAccountData)?;
 
         let inner = IbcStorageInner { private, provable };
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let errors =
-            all_messages.into_iter().fold(vec![], |mut errors, msg| {
-                match ibc::core::MsgEnvelope::try_from(msg) {
-                    Ok(msg) => {
-                        match ibc::core::dispatch(&mut store, &mut router, msg)
-                        {
-                            Ok(()) => (),
-                            Err(e) => errors.push(e),
-                        }
-                    }
-                    Err(e) => errors.push(e),
-                }
-                errors
-            });
+        if let Err(e) = ibc::core::dispatch(&mut store, &mut router, message) {
+            return err!(Error::RouterError(&e));
+        }
 
+        // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
-        let inner = Rc::into_inner(store.0).unwrap().into_inner();
 
-        msg!("These are errors {:?}", errors);
+        // TODO(dhruvja): Since Solana-program uses rustc version 1.69
+        // and Rc::into_inner() is supported only from 1.70 and above
+        // so using the inner function instead.
+        let inner = Rc::try_unwrap(store.0).unwrap().into_inner();
+
         msg!("This is final structure {:?}", inner.private);
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
@@ -97,6 +73,7 @@ pub mod solana_ibc {
         Ok(())
     }
 }
+
 #[derive(Accounts)]
 pub struct Deliver<'info> {
     #[account(mut)]
@@ -109,15 +86,35 @@ pub struct Deliver<'info> {
     pub system_program: Program<'info, System>,
 }
 
+/// Error returned when handling a request.
+#[derive(Clone, strum::AsRefStr, strum::EnumDiscriminants)]
+#[strum_discriminants(repr(u32))]
+pub enum Error<'a> {
+    RouterError(&'a ibc::core::RouterError),
+}
+
+impl Error<'_> {
+    pub fn name(&self) -> String { self.as_ref().into() }
+}
+
+impl core::fmt::Display for Error<'_> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RouterError(err) => write!(fmtr, "{err}"),
+        }
+    }
+}
+
+impl From<Error<'_>> for u32 {
+    fn from(err: Error<'_>) -> u32 {
+        let code = ErrorDiscriminants::from(err) as u32;
+        anchor_lang::error::ERROR_CODE_OFFSET + code
+    }
+}
+
 #[event]
 pub struct EmitIBCEvent {
     pub ibc_event: Vec<u8>,
-}
-
-#[derive(Debug, Clone, AnchorSerialize, AnchorDeserialize, PartialEq)]
-pub struct AnyCheck {
-    pub type_url: String,
-    pub value: Vec<u8>,
 }
 
 pub type InnerHeight = (u64, u64);
@@ -212,7 +209,7 @@ pub struct PrivateStorage {
     pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
     pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
     // Contains the client id corresponding to the connectionId
-    pub connection_to_client: BTreeMap<InnerConnectionId, InnerClientId>,
+    pub client_to_connection: BTreeMap<InnerClientId, InnerConnectionId>,
     /// The port and channel id tuples of the channels.
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
@@ -242,7 +239,8 @@ pub struct PrivateStorage {
 #[derive(Debug)]
 pub struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
-    pub provable: trie::AccountTrie<'a, 'b>,
+    pub provable:
+        solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
 }
 
 #[derive(Debug, Clone)]

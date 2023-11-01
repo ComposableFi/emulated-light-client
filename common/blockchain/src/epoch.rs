@@ -108,7 +108,8 @@ impl Epoch<crate::validators::MockPubKey> {
             .copied()
             .map(|(pk, stake)| {
                 total += stake;
-                Validator::new(pk.into(), NonZeroU128::new(stake).unwrap())
+                let pk = crate::validators::MockPubKey(pk);
+                Validator::new(pk, NonZeroU128::new(stake).unwrap())
             })
             .collect();
         Self::new_with(validators, |total| {

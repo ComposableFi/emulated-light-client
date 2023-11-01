@@ -25,7 +25,7 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 pub(super) fn raw_from_node(node: &Node) -> RawNode {
     let raw = node.encode().unwrap_or_else(|err| panic!("{err:?}: {node:?}"));
     assert_eq!(
-        *node,
+        Ok(*node),
         raw.decode(),
         "Node → RawNode → Node gave different result:\n Raw: {raw:?}"
     );
@@ -44,7 +44,7 @@ pub(super) fn raw_from_node(node: &Node) -> RawNode {
 fn check_node_encoding(node: Node, want: [u8; RawNode::SIZE], want_hash: &str) {
     let raw = raw_from_node(&node);
     assert_eq!(want, raw.0, "Unexpected raw representation");
-    assert_eq!(node, RawNode(want).decode(), "Bad Raw→Node conversion");
+    assert_eq!(Ok(node), RawNode(want).decode(), "Bad Raw→Node conversion");
 
     let want_hash = b64decode(want_hash);
     assert_eq!(want_hash, node.hash(), "Unexpected hash of {node:?}");
@@ -255,7 +255,7 @@ fn test_extension_hash_bad_key() {
 #[rustfmt::skip]
 fn test_value_encoding() {
     check_node_encoding(Node::Value {
-        value: ValueRef::new(false, &ONE),
+        value: ValueRef::new((), &ONE),
         child: NodeRef::new(Some(BEEF), &TWO),
     }, [
         /* tag:   */ 0xC0, 0, 0, 0,
@@ -265,20 +265,10 @@ fn test_value_encoding() {
     ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
 
     check_node_encoding(Node::Value {
-        value: ValueRef::new(true, &ONE),
-        child: NodeRef::new(Some(BEEF), &TWO),
-    }, [
-        /* tag:   */ 0xE0, 0, 0, 0,
-        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0, 0, 0xBE, 0xEF,
-        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
-
-    check_node_encoding(Node::Value {
-        value: ValueRef::new(true, &ONE),
+        value: ValueRef::new((), &ONE),
         child: NodeRef::new(None, &TWO),
     }, [
-        /* tag:   */ 0xE0, 0, 0, 0,
+        /* tag:   */ 0xC0, 0, 0, 0,
         /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* ptr:   */ 0, 0, 0, 0,
         /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2

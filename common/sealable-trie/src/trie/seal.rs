@@ -7,7 +7,7 @@ use crate::bits;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::seal`] operation.
-pub(super) struct SealContext<'a, A> {
+pub(super) struct Context<'a, A> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -18,7 +18,7 @@ pub(super) struct SealContext<'a, A> {
     alloc: &'a mut A,
 }
 
-impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     pub(super) fn new(alloc: &'a mut A, key: bits::Slice<'a>) -> Self {
         Self { key, alloc }
     }
@@ -31,7 +31,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
     pub(super) fn seal(&mut self, nref: NodeRef) -> Result<bool> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = RawNode(*self.alloc.get(ptr));
-        let node = node.decode();
+        let node = node.decode()?;
         debug_assert_eq!(*nref.hash, node.hash());
 
         let result = match node {
@@ -57,10 +57,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
         &mut self,
         mut children: [Reference; 2],
     ) -> Result<SealResult> {
-        let side = match self.key.pop_front() {
-            None => return Err(Error::NotFound),
-            Some(bit) => usize::from(bit),
-        };
+        let side = usize::from(self.key.pop_front().ok_or(Error::NotFound)?);
         match self.seal_child(children[side])? {
             None => Ok(SealResult::Done),
             Some(_) if children[1 - side].is_sealed() => Ok(SealResult::Free),
@@ -90,14 +87,11 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SealContext<'a, A> {
 
     fn seal_value(
         &mut self,
-        value: ValueRef,
+        value: ValueRef<'_, ()>,
         child: NodeRef,
     ) -> Result<SealResult> {
-        if value.is_sealed {
-            Err(Error::Sealed)
-        } else if self.key.is_empty() {
-            prune(self.alloc, child.ptr);
-            Ok(SealResult::Free)
+        if self.key.is_empty() {
+            prune(self.alloc, child.ptr).map(|()| SealResult::Free)
         } else if self.seal(child)? {
             let child = NodeRef::new(None, child.hash);
             let node = RawNode::value(value, child);
@@ -140,19 +134,19 @@ enum SealResult {
 fn prune(
     alloc: &mut impl memory::Allocator<Value = super::Value>,
     ptr: Option<Ptr>,
-) {
+) -> Result<()> {
     let mut ptr = match ptr {
         Some(ptr) => ptr,
-        None => return,
+        None => return Ok(()),
     };
     let mut queue = Vec::new();
     loop {
-        let children = get_children(alloc.get(ptr).into());
+        let children = get_children(alloc.get(ptr).into())?;
         alloc.free(ptr);
         match children {
             (None, None) => match queue.pop() {
                 Some(p) => ptr = p,
-                None => break,
+                None => break Ok(()),
             },
             (Some(p), None) | (None, Some(p)) => ptr = p,
             (Some(lhs), Some(rht)) => {
@@ -163,7 +157,7 @@ fn prune(
     }
 }
 
-fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
+fn get_children(node: &RawNode) -> Result<(Option<Ptr>, Option<Ptr>)> {
     fn get_ptr(child: Reference) -> Option<Ptr> {
         match child {
             Reference::Node(node) => node.ptr,
@@ -171,9 +165,9 @@ fn get_children(node: &RawNode) -> (Option<Ptr>, Option<Ptr>) {
         }
     }
 
-    match node.decode() {
+    Ok(match node.decode()? {
         Node::Branch { children: [lft, rht] } => (get_ptr(lft), get_ptr(rht)),
         Node::Extension { child, .. } => (get_ptr(child), None),
         Node::Value { child, .. } => (child.ptr, None),
-    }
+    })
 }

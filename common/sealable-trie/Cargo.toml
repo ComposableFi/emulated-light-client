@@ -16,11 +16,9 @@ memory.workspace = true
 stdx.workspace = true
 
 [dev-dependencies]
+hex-literal.workspace = true
 pretty_assertions.workspace = true
 rand.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
 memory = { workspace = true, features = ["test_utils"] }
-
-[features]
-borsh = ["dep:borsh", "lib/borsh"]

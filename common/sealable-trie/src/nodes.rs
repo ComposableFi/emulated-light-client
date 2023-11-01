@@ -55,7 +55,13 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
         child: Reference<'a, P, S>,
     },
     Value {
-        value: ValueRef<'a, S>,
+        /// Reference to value held in the node.
+        ///
+        /// Note that the value can never be sealed.  If it was sealed, the
+        /// entire node would be sealed so rather than Value node existing the
+        /// parent would have a sealed NodeRef.
+        value: ValueRef<'a, ()>,
+        /// Reference to Branch or Extension rooted at the node.
         child: NodeRef<'a, P>,
     },
 }
@@ -78,11 +84,10 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 //    36-byte array which holds the key extension.  Only `o..o+k` bits in it
 //    are the actual key; others are set to zero.
 //
-// Value:     11s0_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
-//    <vhash> is the hash of the stored value.  `s` is zero if the value hasn’t
-//    been sealed, one otherwise.  <node-ref> is a references the child node
-//    which points to the subtrie rooted at the key of the value.  Value node
-//    can only point at Branch or Extension node.
+// Value:     1100_0000 0000_0000 0000_0000 0000_0000 <vhash> <node-ref>
+//    <vhash> is the hash of the stored value.  <node-ref> is a references the
+//    child node which points to the subtrie rooted at the key of the value.
+//    Value node can only point at Branch or Extension node.
 // ```
 //
 // A Reference is a 36-byte sequence consisting of a 4-byte pointer and
@@ -165,7 +170,7 @@ impl<'a, P, S> Node<'a, P, S> {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value: ValueRef<'a, S>, child: NodeRef<'a, P>) -> Self {
+    pub fn value(value: ValueRef<'a, ()>, child: NodeRef<'a, P>) -> Self {
         Self::Value { value, child }
     }
 
@@ -223,8 +228,17 @@ impl<'a, P, S> Node<'a, P, S> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BadExtensionKey;
+#[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
+pub enum DecodeError {
+    #[display(fmt = "Invalid extension key")]
+    BadExtensionKey,
+    #[display(fmt = "Invalid Value node")]
+    BadValueNode,
+    #[display(fmt = "Invalid node reference")]
+    BadNodeRef,
+    #[display(fmt = "Invalid value reference")]
+    BadValueRef,
+}
 
 impl<'a> Node<'a> {
     /// Builds raw representation of given node.
@@ -292,11 +306,12 @@ impl RawNode {
     }
 
     /// Constructs a Value node with given value hash and child.
-    pub fn value(value: ValueRef, child: NodeRef) -> Self {
+    pub fn value(value: ValueRef<'_, ()>, child: NodeRef) -> Self {
         let mut res = Self([0; RawNode::SIZE]);
+        res.0[0] = 0xC0;
         let (lft, rht) = res.halfs_mut();
-        *lft = Reference::Value(value).encode();
-        lft[0] |= 0x80;
+        let (_, lft) = stdx::split_array_mut::<4, 32, 36>(lft);
+        *lft = value.hash.0;
         *rht = Reference::Node(child).encode();
         res
     }
@@ -305,37 +320,32 @@ impl RawNode {
     ///
     /// In debug builds panics if `node` holds malformed representation, i.e. if
     /// any unused bits (which must be cleared) are set.
-    // TODO(mina86): Convert debug_assertions to the method returning Result.
-    pub fn decode(&self) -> Node {
+    pub fn decode(&self) -> Result<Node, DecodeError> {
         let (left, right) = self.halfs();
-        let right = Reference::from_raw(right, false);
+        let right = Reference::from_raw(right)?;
         // `>> 6` to grab the two most significant bits only.
         let tag = self.first() >> 6;
-        if tag == 0 || tag == 1 {
+        Ok(if tag == 0 || tag == 1 {
             // Branch
-            Node::Branch { children: [Reference::from_raw(left, false), right] }
+            Node::Branch { children: [Reference::from_raw(left)?, right] }
         } else if tag == 2 {
             // Extension
-            let key = Slice::decode(left, 0x80).unwrap_or_else(|| {
-                panic!("Failed decoding raw: {self:?}");
-            });
+            let key = Slice::decode(left, 0x80)
+                .ok_or(DecodeError::BadExtensionKey)?;
             Node::Extension { key, child: right }
         } else {
             // Value
-            let (num, value) = stdx::split_array_ref::<4, 32, 36>(left);
-            let num = u32::from_be_bytes(*num);
-            debug_assert_eq!(
-                0xC000_0000,
-                num & !0x2000_0000,
-                "Failed decoding raw node: {self:?}",
-            );
-            let value = ValueRef::new(num & 0x2000_0000 != 0, value.into());
-            let child = right.try_into().unwrap_or_else(|_| {
-                debug_assert!(false, "Failed decoding raw node: {self:?}");
-                NodeRef::new(None, &CryptoHash::DEFAULT)
-            });
-            Node::Value { value, child }
-        }
+            let (num, hash) = Reference::into_parts(left);
+            if num != 0xC000_0000 {
+                return Err(DecodeError::BadValueNode);
+            }
+            Node::Value {
+                value: ValueRef::new((), hash),
+                child: right
+                    .try_into()
+                    .map_err(|_| DecodeError::BadValueNode)?,
+            }
+        })
     }
 
     /// Returns the first byte in the raw representation.
@@ -390,44 +400,39 @@ impl<'a> Reference<'a> {
         }
     }
 
+    /// Parses raw node reference representation into the pointer and hash
+    /// parts.
+    ///
+    /// This is an internal helper method which splits the buffer without doing
+    /// any validation on it.
+    fn into_parts(bytes: &'a [u8; 36]) -> (u32, &'a CryptoHash) {
+        let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
+        (u32::from_be_bytes(*ptr), hash.into())
+    }
+
     /// Parses bytes to form a raw node reference representation.
     ///
     /// Assumes that the bytes are trusted.  I.e. doesn’t verify that the most
     /// significant bit is zero or that if second bit is one than pointer value
     /// must be zero.
-    ///
-    /// In debug builds, panics if `bytes` has non-canonical representation,
-    /// i.e. any unused bits are set.  `value_high_bit` in this case determines
-    /// whether for value reference the most significant bit should be set or
-    /// not.  This is to facilitate decoding Value nodes.  The argument is
-    /// ignored in builds with debug assertions disabled.
-    // TODO(mina86): Convert debug_assertions to the method returning Result.
-    fn from_raw(bytes: &'a [u8; 36], value_high_bit: bool) -> Self {
-        let (ptr, hash) = stdx::split_array_ref::<4, 32, 36>(bytes);
-        let ptr = u32::from_be_bytes(*ptr);
-        let hash = hash.into();
-        if ptr & 0x4000_0000 == 0 {
-            // The two most significant bits must be zero.
-            debug_assert_eq!(
-                0,
-                ptr & 0xC000_0000,
-                "Failed decoding Reference: {bytes:?}"
-            );
-            let ptr = Ptr::new_truncated(ptr);
+    fn from_raw(bytes: &'a [u8; 36]) -> Result<Self, DecodeError> {
+        let (ptr, hash) = Self::into_parts(bytes);
+        Ok(if ptr & 0x4000_0000 == 0 {
+            // The two most significant bits must be zero.  Ptr::new fails if
+            // they aren’t.
+            let ptr = Ptr::new(ptr).map_err(|_| DecodeError::BadNodeRef)?;
             Self::Node(NodeRef { ptr, hash })
         } else {
-            // * The most significant bit is set only if value_high_bit is true.
             // * The second most significant bit (so 0b4000_0000) is always set.
             // * The third most significant bit (so 0b2000_0000) specifies
             //   whether value is sealed.
-            debug_assert_eq!(
-                0x4000_0000 | (u32::from(value_high_bit) << 31),
-                ptr & !0x2000_0000,
-                "Failed decoding Reference: {bytes:?}"
-            );
+            // * All other bits are cleared.
+            if ptr & !0x2000_0000 != 0x4000_0000 {
+                return Err(DecodeError::BadValueRef);
+            }
             let is_sealed = ptr & 0x2000_0000 != 0;
             Self::Value(ValueRef { is_sealed, hash })
-        }
+        })
     }
 
     /// Encodes the node reference into the buffer.

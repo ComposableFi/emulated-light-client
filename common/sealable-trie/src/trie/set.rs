@@ -6,7 +6,7 @@ use crate::bits;
 use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
-pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
+pub(super) struct Context<'a, A: memory::Allocator<Value = super::Value>> {
     /// Part of the key yet to be traversed.
     ///
     /// It starts as the key user provided and as trie is traversed bits are
@@ -20,7 +20,7 @@ pub(super) struct SetContext<'a, A: memory::Allocator<Value = super::Value>> {
     wlog: memory::WriteLog<'a, A>,
 }
 
-impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
+impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     pub(super) fn new(
         alloc: &'a mut A,
         key: bits::Slice<'a>,
@@ -64,7 +64,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
         let node = RawNode(*self.wlog.allocator().get(nref.0));
-        let node = node.decode();
+        let node = node.decode()?;
         debug_assert_eq!(*nref.1, node.hash());
         match node {
             Node::Branch { children } => self.handle_branch(nref, children),
@@ -97,16 +97,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         let child = owned_ref.to_ref();
         let children =
             if bit { [children[0], child] } else { [child, children[1]] };
-        Ok(self.set_node(nref.0, RawNode::branch(children[0], children[1])))
-        // let child = owned_ref.to_ref();
-        // let (left, right) = if bit == 0 {
-        //     (child, children[1])
-        // } else {
-        //     (children[0], child)
-        // };
-
-        // // Update the node in place with the new child.
-        // Ok((nref.0, self.set_node(nref.0, RawNode::branch(left, right))))
+        self.set_node(nref.0, RawNode::branch(children[0], children[1]))
     }
 
     /// Inserts value assuming current node is an Extension.
@@ -143,7 +134,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         if suffix.is_empty() {
             let owned_ref = self.handle_reference(child)?;
             let node = RawNode::extension(prefix, owned_ref.to_ref()).unwrap();
-            return Ok(self.set_node(nref.0, node));
+            return self.set_node(nref.0, node);
         }
 
         let our = if let Some(bit) = self.key.pop_front() {
@@ -166,7 +157,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
                 self.alloc_value_node(self.value_hash, ptr, &hash)?;
             let child = Reference::node(Some(ptr), &hash);
             let node = RawNode::extension(prefix, child).unwrap();
-            return Ok(self.set_node(nref.0, node));
+            return self.set_node(nref.0, node);
         };
 
         let theirs = usize::from(suffix.pop_front().unwrap());
@@ -203,7 +194,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         let mut children = [their_ref; 2];
         children[our] = our_ref.to_ref();
         let node = RawNode::branch(children[0], children[1]);
-        let (ptr, hash) = self.set_node(nref.0, node);
+        let (ptr, hash) = self.set_node(nref.0, node)?;
 
         match RawNode::extension(prefix, Reference::node(Some(ptr), &hash)) {
             Ok(node) => self.alloc_node(node),
@@ -216,19 +207,16 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
     fn handle_value(
         &mut self,
         nref: (Ptr, &CryptoHash),
-        value: ValueRef,
+        value: ValueRef<'_, ()>,
         child: NodeRef,
     ) -> Result<(Ptr, CryptoHash)> {
-        if value.is_sealed {
-            return Err(Error::Sealed);
-        }
         let node = if self.key.is_empty() {
-            RawNode::value(ValueRef::new(false, self.value_hash), child)
+            RawNode::value(ValueRef::new((), self.value_hash), child)
         } else {
             let (ptr, hash) = self.handle(child)?;
             RawNode::value(value, NodeRef::new(Some(ptr), &hash))
         };
-        Ok(self.set_node(nref.0, node))
+        self.set_node(nref.0, node)
     }
 
     /// Handles a reference which can either point at a node or a value.
@@ -254,6 +242,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
                     rf @ OwnedRef::Value(_) => Ok(rf),
                     OwnedRef::Node(p, h) => {
                         let child = NodeRef::new(Some(p), &h);
+                        let value = ValueRef::new((), value.hash);
                         let node = RawNode::value(value, child);
                         self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
                     }
@@ -313,21 +302,25 @@ impl<'a, A: memory::Allocator<Value = super::Value>> SetContext<'a, A> {
         ptr: Ptr,
         hash: &CryptoHash,
     ) -> Result<(Ptr, CryptoHash)> {
-        let value = ValueRef::new(false, value_hash);
+        let value = ValueRef::new((), value_hash);
         let child = NodeRef::new(Some(ptr), hash);
         self.alloc_node(RawNode::value(value, child))
     }
 
     /// Sets value of a node cell at given address and returns its hash.
-    fn set_node(&mut self, ptr: Ptr, node: RawNode) -> (Ptr, CryptoHash) {
-        let hash = node.decode().hash();
+    fn set_node(
+        &mut self,
+        ptr: Ptr,
+        node: RawNode,
+    ) -> Result<(Ptr, CryptoHash)> {
+        let hash = node.decode().unwrap().hash();
         self.wlog.set(ptr, *node);
-        (ptr, hash)
+        Ok((ptr, hash))
     }
 
     /// Allocates a new node and sets it to given value.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
-        let hash = node.decode().hash();
+        let hash = node.decode()?.hash();
         let ptr = self.wlog.alloc(*node)?;
         Ok((ptr, hash))
     }

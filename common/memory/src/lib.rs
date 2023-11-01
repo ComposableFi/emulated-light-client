@@ -195,9 +195,14 @@ impl<'a, A: Allocator> WriteLog<'a, A> {
     pub fn allocator(&self) -> &A { &*self.alloc }
 
     pub fn alloc(&mut self, value: A::Value) -> Result<Ptr, OutOfMemory> {
-        let ptr = self.alloc.alloc(value)?;
-        self.allocated.push(ptr);
-        Ok(ptr)
+        Ok(if let Some(ptr) = self.freed.pop() {
+            self.set(ptr, value);
+            ptr
+        } else {
+            let ptr = self.alloc.alloc(value)?;
+            self.allocated.push(ptr);
+            ptr
+        })
     }
 
     pub fn set(&mut self, ptr: Ptr, value: A::Value) {

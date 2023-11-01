@@ -34,7 +34,7 @@ use crate::{
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
 impl ClientExecutionContext for IbcStorage<'_, '_> {
-    type ClientValidationContext = Self;
+    type V = Self; // ClientValidationContext
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
@@ -95,17 +95,55 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         store.private.height.1 = consensus_state_path.height;
         Ok(())
     }
-}
 
-impl ExecutionContext for IbcStorage<'_, '_> {
-    fn increase_client_counter(&mut self) -> Result {
+    fn delete_consensus_state(
+        &mut self,
+        path: ClientConsensusStatePath,
+    ) -> Result<(), ContextError> {
+        msg!("delete_consensus_state({})", path);
+        let key = (path.client_id.to_string(), (path.epoch, path.height));
         let mut store = self.0.borrow_mut();
-        store.private.client_counter =
-            store.private.client_counter.checked_add(1).unwrap();
-        msg!(
-            "client_counter has increased to: {}",
-            store.private.client_counter
-        );
+        store.private.consensus_states.remove(&key);
+        store.provable.del(&TrieKey::from(&path)).unwrap();
+        Ok(())
+    }
+
+
+    fn delete_update_height(
+        &mut self,
+        client_id: ClientId,
+        height: Height,
+    ) -> Result<(), ContextError> {
+        self.0
+            .borrow_mut()
+            .private
+            .client_processed_heights
+            .get_mut(client_id.as_str())
+            .and_then(|processed_times| {
+                processed_times.remove(&(
+                    height.revision_number(),
+                    height.revision_height(),
+                ))
+            });
+        Ok(())
+    }
+
+    fn delete_update_time(
+        &mut self,
+        client_id: ClientId,
+        height: Height,
+    ) -> Result<(), ContextError> {
+        self.0
+            .borrow_mut()
+            .private
+            .client_processed_times
+            .get_mut(client_id.as_str())
+            .and_then(|processed_times| {
+                processed_times.remove(&(
+                    height.revision_number(),
+                    height.revision_height(),
+                ))
+            });
         Ok(())
     }
 
@@ -114,15 +152,10 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         client_id: ClientId,
         height: Height,
         timestamp: Timestamp,
-    ) -> Result {
-        msg!(
-            "store_update_time - client_id: {}, height: {}, timestamp: {}",
-            client_id,
-            height,
-            timestamp
-        );
-        let mut store = self.0.borrow_mut();
-        store
+    ) -> Result<(), ContextError> {
+        msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
+        self.0
+            .borrow_mut()
             .private
             .client_processed_times
             .entry(client_id.to_string())
@@ -137,18 +170,12 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     fn store_update_height(
         &mut self,
         client_id: ClientId,
-        height: ibc::Height,
-        host_height: ibc::Height,
-    ) -> Result {
-        msg!(
-            "store_update_height - client_id: {}, height: {:?}, host_height: \
-             {:?}",
-            client_id,
-            height,
-            host_height
-        );
-        let mut store = self.0.borrow_mut();
-        store
+        height: Height,
+        host_height: Height,
+    ) -> Result<(), ContextError> {
+        msg!("store_update_height({}, {}, {})", client_id, height, host_height);
+        self.0
+            .borrow_mut()
             .private
             .client_processed_heights
             .entry(client_id.to_string())
@@ -157,6 +184,19 @@ impl ExecutionContext for IbcStorage<'_, '_> {
                 (height.revision_number(), height.revision_height()),
                 (host_height.revision_number(), host_height.revision_height()),
             );
+        Ok(())
+    }
+}
+
+impl ExecutionContext for IbcStorage<'_, '_> {
+    fn increase_client_counter(&mut self) -> Result {
+        let mut store = self.0.borrow_mut();
+        store.private.client_counter =
+            store.private.client_counter.checked_add(1).unwrap();
+        msg!(
+            "client_counter has increased to: {}",
+            store.private.client_counter
+        );
         Ok(())
     }
 
@@ -204,8 +244,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.0.borrow_mut();
         store
             .private
-            .connection_to_client
-            .insert(conn_id.to_string(), client_connection_path.0.to_string());
+            .client_to_connection
+            .insert(client_connection_path.0.to_string(), conn_id.to_string());
         Ok(())
     }
 
@@ -425,7 +465,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             ibc::Height::new(store.private.height.0, store.private.height.1)
                 .map_err(ContextError::ClientError)
                 .unwrap();
-        let event_in_bytes: Vec<u8> = bincode::serialize(&event).unwrap();
+        let ibc_event = borsh::to_vec(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
         store
@@ -433,8 +473,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             .ibc_events_history
             .entry(inner_host_height)
             .or_default()
-            .push(event_in_bytes.clone());
-        emit!(EmitIBCEvent { ibc_event: event_in_bytes });
+            .push(ibc_event.clone());
+        emit!(EmitIBCEvent { ibc_event });
         Ok(())
     }
 

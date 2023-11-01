@@ -12,19 +12,22 @@ use anchor_client::{Client, Cluster};
 use anyhow::Result;
 use ibc::core::ics02_client::client_state::ClientStateCommon;
 use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
+use ibc::core::ics03_connection::connection::Counterparty;
+use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
+use ibc::core::ics03_connection::version::Version;
+use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
 use ibc::core::ics24_host::identifier::ClientId;
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
-use ibc::Any;
-use ibc_proto::protobuf::Protobuf;
+use ibc_proto::google::protobuf::Any;
 
 use crate::{
-    accounts, instruction, AnyCheck, PrivateStorage, ID,
-    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+    accounts, instruction, PrivateStorage, ID, SOLANA_IBC_STORAGE_SEED,
+    TRIE_SEED,
 };
 
-const TYPE_URL: &str = "/ibc.core.client.v1.MsgCreateClient";
+const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -43,6 +46,14 @@ fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
     let mock_client_state = MockClientState::new(MockHeader::default());
     let mock_cs_state = MockConsensusState::new(MockHeader::default());
     (mock_client_state, mock_cs_state)
+}
+
+macro_rules! make_message {
+    ($msg:expr, $($variant:path),+ $(,)?) => {{
+        let message = $msg;
+        $( let message = $variant(message); )*
+        message
+    }}
 }
 
 #[test]
@@ -71,15 +82,15 @@ fn anchor_test_deliver() -> Result<()> {
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
-    let msg = MsgCreateClient::new(
-        Any::from(mock_client_state),
-        Any::from(mock_cs_state),
-        ibc::Signer::from(authority.pubkey().to_string()),
+    let message = make_message!(
+        MsgCreateClient::new(
+            Any::from(mock_client_state),
+            Any::from(mock_cs_state),
+            ibc::Signer::from(authority.pubkey().to_string()),
+        ),
+        ibc::core::ics02_client::msgs::ClientMsg::CreateClient,
+        ibc::core::MsgEnvelope::Client,
     );
-    let messages =
-        AnyCheck { type_url: TYPE_URL.to_string(), value: msg.encode_vec() };
-
-    let all_messages = [messages].to_vec();
 
     let sig = program
         .request()
@@ -89,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
         })
-        .args(instruction::Deliver { messages: all_messages })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -97,13 +108,54 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
-    println!("demo sig: {sig}");
+    println!("signature for create client: {sig}");
 
     // Retrieve and validate state
     let solana_ibc_storage_account: PrivateStorage =
         program.account(solana_ibc_storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
+
+    let counter_party_client_id =
+        ClientId::new(mock_client_state.client_type(), 1).unwrap();
+
+    let commitment_prefix: CommitmentPrefix =
+        IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
+
+    let message = make_message!(
+        MsgConnectionOpenInit {
+            client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
+                .unwrap(),
+            version: Some(Version::default()),
+            counterparty: Counterparty::new(
+                counter_party_client_id,
+                None,
+                commitment_prefix,
+            ),
+            delay_period: Duration::from_secs(5),
+            signer: ibc::Signer::from(authority.pubkey().to_string()),
+        },
+        ibc::core::ics03_connection::msgs::ConnectionMsg::OpenInit,
+        ibc::core::MsgEnvelope::Connection,
+    );
+
+    let sig = program
+        .request()
+        .accounts(accounts::Deliver {
+            sender: authority.pubkey(),
+            storage: solana_ibc_storage,
+            trie,
+            system_program: system_program::ID,
+        })
+        .args(instruction::Deliver { message })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
+
+    println!("signature for connection open init: {sig}");
 
     Ok(())
 }
