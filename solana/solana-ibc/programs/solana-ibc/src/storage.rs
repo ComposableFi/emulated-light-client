@@ -15,8 +15,8 @@ pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
 pub(crate) type InnerIbcEvent = Vec<u8>;
 pub(crate) type InnerClient = Vec<u8>; // Serialized
-pub(crate) type InnerConnectionEnd = String; // Serialized
-pub(crate) type InnerChannelEnd = String; // Serialized
+pub(crate) type InnerConnectionEnd = Vec<u8>; // Serialized
+pub(crate) type InnerChannelEnd = Vec<u8>; // Serialized
 pub(crate) type InnerConsensusState = String; // Serialized
 
 /// A triple of send, receive and acknowledge sequences.
