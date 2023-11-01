@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::{Clock, Pubkey, SolanaSysvar};
+use anchor_lang::prelude::{borsh, Clock, Pubkey, SolanaSysvar};
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -36,18 +36,17 @@ impl ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
         let store = self.borrow();
-        match store.private.clients.get(client_id.as_str()) {
-            Some(data) => {
-                let client: AnyClientState =
-                    serde_json::from_str(data).unwrap();
-                Ok(client)
-            }
-            None => Err(ContextError::ClientError(
+        let state =
+            store.private.clients.get(client_id.as_str()).ok_or_else(|| {
                 ClientError::ClientStateNotFound {
                     client_id: client_id.clone(),
-                },
-            )),
-        }
+                }
+            })?;
+        let state =
+            borsh::BorshDeserialize::try_from_slice(state).map_err(|err| {
+                ClientError::Other { description: err.to_string() }
+            })?;
+        Ok(state)
     }
 
     fn decode_client_state(

@@ -4,6 +4,7 @@ use anchor_lang::emit;
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
+use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics02_client::ClientExecutionContext;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics04_channel::channel::ChannelEnd;
@@ -38,31 +39,21 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn store_client_state(
         &mut self,
-        client_state_path: ClientStatePath,
+        path: ClientStatePath,
         client_state: Self::AnyClientState,
     ) -> Result {
-        msg!(
-            "store_client_state - path: {}, client_state: {:?}",
-            client_state_path,
-            client_state,
-        );
-        let client_state_key = client_state_path.0.to_string();
-        let serialized_client_state =
-            serde_json::to_string(&client_state).unwrap();
+        msg!("store_client_state({path}, {client_state:?})");
+        let key = path.0.to_string();
+        let serialized = borsh::to_vec(&client_state).map_err(|err| {
+            ClientError::Other { description: err.to_string() }
+        })?;
+        let hash = lib::hash::CryptoHash::digest(&serialized);
+        msg!("This is serialized client state {hash}");
+
         let mut store = self.borrow_mut();
-        let client_state_trie_key = TrieKey::from(&client_state_path);
-        let trie = &mut store.provable;
-        msg!(
-            "THis is serialized client state {}",
-            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes())
-        );
-        trie.set(
-            &client_state_trie_key,
-            &lib::hash::CryptoHash::digest(serialized_client_state.as_bytes()),
-        )
-        .unwrap();
-        store.private.clients.insert(client_state_key, serialized_client_state);
-        store.private.client_id_set.push(client_state_path.0.to_string());
+        store.provable.set(&TrieKey::from(&path), &hash).unwrap();
+        store.private.clients.insert(key.clone(), serialized);
+        store.private.client_id_set.push(key);
         Ok(())
     }
 
@@ -462,9 +453,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
         let mut store = self.borrow_mut();
         let host_height =
-            ibc::Height::new(store.private.height.0, store.private.height.1)
-                .map_err(ContextError::ClientError)
-                .unwrap();
+            ibc::Height::new(store.private.height.0, store.private.height.1)?;
         let ibc_event = borsh::to_vec(&event).unwrap();
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
