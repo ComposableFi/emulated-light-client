@@ -317,7 +317,10 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             channel_end_path.1.to_string(),
         ));
 
-        let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
+        let serialized_channel_end =
+            borsh::to_vec(&channel_end).map_err(|err| ClientError::Other {
+                description: err.to_string(),
+            })?;
         let channel_end_trie_key = TrieKey::from(channel_end_path);
         let trie = &mut &mut store.provable;
         trie.set(
@@ -386,7 +389,9 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let host_height =
             ibc::Height::new(store.private.height.0, store.private.height.1)?;
-        let ibc_event = borsh::to_vec(&event).unwrap();
+        let ibc_event = borsh::to_vec(&event).map_err(|err| {
+            ClientError::Other { description: err.to_string() }
+        })?;
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
         store
