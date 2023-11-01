@@ -9,6 +9,7 @@ use rand::Rng;
 #[track_caller]
 fn do_test_inserts<'a>(
     keys: impl IntoIterator<Item = &'a [u8]>,
+    want_root: &str,
     want_nodes: usize,
     verbose: bool,
 ) -> TestTrie {
@@ -18,6 +19,10 @@ fn do_test_inserts<'a>(
     for key in keys {
         trie.set(key, verbose)
     }
+    if !want_root.is_empty() {
+        let want_root = CryptoHash::from_base64(want_root).unwrap();
+        assert_eq!(&want_root, trie.hash());
+    }
     if want_nodes != usize::MAX {
         assert_eq!(want_nodes, trie.nodes_count());
     }
@@ -25,12 +30,20 @@ fn do_test_inserts<'a>(
 }
 
 #[test]
-fn test_msb_difference() { do_test_inserts([&[0][..], &[0x80][..]], 3, true); }
+fn test_msb_difference() {
+    do_test_inserts(
+        [&[0][..], &[0x80][..]],
+        "Stmrss0PVu2RSGiHibdgHlBNxN/XPsqJsIlWoAAdI5g=",
+        3,
+        true,
+    );
+}
 
 #[test]
 fn test_sequence() {
     do_test_inserts(
         b"0123456789:;<=>?".iter().map(core::slice::from_ref),
+        "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=",
         16,
         true,
     );
@@ -38,20 +51,37 @@ fn test_sequence() {
 
 #[test]
 fn test_2byte_extension() {
-    do_test_inserts([&[123, 40][..], &[134, 233][..]], 3, true);
+    do_test_inserts(
+        [&[123, 40][..], &[134, 233][..]],
+        "KuGB/DlpPNpq95GPa47hyiWwWLqBvwStKohETSTCTWQ=",
+        3,
+        true,
+    );
 }
 
 #[test]
 fn test_prefix() {
     let key = b"xy";
-    do_test_inserts([&key[..], &key[..1]], 3, true);
-    do_test_inserts([&key[..1], &key[..]], 3, true);
+    do_test_inserts(
+        [&key[..], &key[..1]],
+        "gVrQ18qbqdhGPIIXSvlVD5dSyTy1OvduWpPsl4viANw=",
+        3,
+        true,
+    );
+    do_test_inserts(
+        [&key[..1], &key[..]],
+        "8LpINasPAwifquBydtqD7RFSgBZidoc2XmtNkThh23U=",
+        3,
+        true,
+    );
 }
 
 #[test]
 fn test_seal() {
+    const HASH: &str = "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=";
     let mut trie = do_test_inserts(
         b"0123456789:;<=>?".iter().map(core::slice::from_ref),
+        HASH,
         16,
         true,
     );
@@ -59,13 +89,31 @@ fn test_seal() {
     for b in b'0'..=b'?' {
         trie.seal(&[b], true);
     }
+    // Sealing doesn’t affect the hash.
+    let hash = CryptoHash::from_base64(HASH).unwrap();
+    assert_eq!(&hash, trie.hash());
     assert_eq!(1, trie.nodes_count());
 }
+
+#[test]
+fn test_set_and_seal() {
+    const HASH: &str = "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=";
+    let mut trie = TestTrie::new(100);
+    for b in b'0'..=b'?' {
+        trie.set_and_seal(&[b], true);
+    }
+    // Sealing doesn’t affect the hash.
+    let hash = CryptoHash::from_base64(HASH).unwrap();
+    assert_eq!(&hash, trie.hash());
+    assert_eq!(1, trie.nodes_count());
+}
+
 
 #[test]
 fn test_del_simple() {
     let mut trie = do_test_inserts(
         b"0123456789:;<=>?".iter().map(core::slice::from_ref),
+        "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=",
         16,
         true,
     );
@@ -97,7 +145,12 @@ fn test_del_extension_0() {
              00000000 00000000 0000"
         )[..],
     ];
-    let mut trie = do_test_inserts(keys, 5, true);
+    let mut trie = do_test_inserts(
+        keys,
+        "k/+TqL56p1FI5Y7prnZ488jE6QsP1HjbxMNrLvnDEHw=",
+        5,
+        true,
+    );
     trie.del(keys[1], true);
     assert_eq!(2, trie.nodes_count());
 }
@@ -107,7 +160,12 @@ fn test_del_extension_1() {
     // Construct a trie with `Extension → Value → Extension` chain and delete
     // the Value.  The Extensions should be merged into one.
     let keys = [&hex!("00")[..], &hex!("00 FF")[..]];
-    let mut trie = do_test_inserts(keys, 3, true);
+    let mut trie = do_test_inserts(
+        keys,
+        "nmNwDIXQlBwdFRUKHk+1A6mki0W6O3EP5/LIzexY1lc=",
+        3,
+        true,
+    );
     trie.del(keys[0], true);
     assert_eq!(1, trie.nodes_count());
 }
@@ -139,6 +197,7 @@ fn stress_test() {
     let mut rand_keys = RandKeys { buf: &mut [0; 35], rng: rand::thread_rng() };
     let mut trie = do_test_inserts(
         (&mut rand_keys).take((count / 2).max(1)),
+        "",
         usize::MAX,
         false,
     );
@@ -237,6 +296,8 @@ impl TestTrie {
         }
     }
 
+    pub fn hash(&self) -> &CryptoHash { self.trie.hash() }
+
     pub fn is_empty(&self) -> bool {
         if self.trie.is_empty() {
             assert_eq!(0, self.nodes_count());
@@ -268,6 +329,26 @@ impl TestTrie {
         self.trie
             .seal(key)
             .unwrap_or_else(|err| panic!("Failed sealing ‘{key:?}’: {err}"));
+        if verbose {
+            self.trie.print();
+        }
+        assert_eq!(
+            Err(super::Error::Sealed),
+            self.trie.get(key),
+            "Unexpectedly can read ‘{key:?}’ after sealing"
+        )
+    }
+
+    pub fn set_and_seal(&mut self, key: &[u8], verbose: bool) {
+        let value = self.next_value();
+        println!(
+            "{}Inserting and sealing {key:?}",
+            if verbose { "\n" } else { "" }
+        );
+        self.trie
+            .set_and_seal(key, &value)
+            .unwrap_or_else(|err| panic!("Failed setting ‘{key:?}’: {err}"));
+        self.mapping.insert(Key::new(key), value);
         if verbose {
             self.trie.print();
         }

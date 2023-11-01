@@ -316,8 +316,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let receipt_trie_key = TrieKey::from(receipt_path);
         let trie = &mut store.provable;
-        trie.set(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT).unwrap();
-        trie.seal(&receipt_trie_key).unwrap();
+        trie.set_and_seal(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT)
+            .unwrap();
         record_packet_sequence(
             &mut store.private.packet_receipt_sequence_sets,
             &receipt_path.port_id,
