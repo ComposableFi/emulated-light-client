@@ -129,13 +129,41 @@ pub(crate) struct PrivateStorage {
     pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
 }
 
+/// Provable storage, i.e. the trie, held in an account.
+pub type AccountTrie<'a, 'b> =
+    solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>;
+
+/// Checks contents of given unchecked account and returns a trie if it’s valid.
+///
+/// The account needs to be owned by [`crate::ID`] and
+pub fn get_provable_from<'a, 'info>(
+    info: &'a UncheckedAccount<'info>,
+    name: &str,
+) -> Result<AccountTrie<'a, 'info>> {
+    fn get<'a, 'info>(
+        info: &'a AccountInfo<'info>,
+    ) -> Result<AccountTrie<'a, 'info>> {
+        if info.owner == &anchor_lang::system_program::ID &&
+            info.lamports() == 0
+        {
+            Err(Error::from(ErrorCode::AccountNotInitialized))
+        } else if info.owner != &crate::ID {
+            Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
+                .with_pubkeys((*info.owner, crate::ID)))
+        } else {
+            AccountTrie::new(info.try_borrow_mut_data()?)
+                .ok_or(Error::from(ProgramError::InvalidAccountData))
+        }
+    }
+    get(info).map_err(|err| err.with_account_name(name))
+}
+
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
-    pub provable:
-        solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
+    pub provable: AccountTrie<'a, 'b>,
     pub packets: &'a mut IBCPackets,
 }
 
