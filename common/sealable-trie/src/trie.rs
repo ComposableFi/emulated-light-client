@@ -248,13 +248,19 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     /// [`Error::Sealed`] error.
     ///
     /// If `proof` is specified, stores proof nodes into the provided vector.
-    // TODO(mina86): Add set_with_proof as well as set_and_seal and
-    // set_and_seal_with_proof.
+    // TODO(mina86): Add set_with_proof
     pub fn set(&mut self, key: &[u8], value_hash: &CryptoHash) -> Result<()> {
-        let (ptr, hash) = (self.root_ptr, self.root_hash.clone());
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        self.set_impl(key, value_hash)
+    }
+
+    fn set_impl(
+        &mut self,
+        key: bits::Slice<'_>,
+        value_hash: &CryptoHash,
+    ) -> Result<()> {
         let (ptr, hash) = set::Context::new(&mut self.alloc, key, value_hash)
-            .set(ptr, &hash)?;
+            .set(self.root_ptr, &self.root_hash)?;
         self.root_ptr = Some(ptr);
         self.root_hash = hash;
         Ok(())
@@ -276,12 +282,34 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             return Err(Error::NotFound);
         }
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        self.seal_impl(key)
+    }
+
+    fn seal_impl(&mut self, key: bits::Slice<'_>) -> Result<()> {
         let removed = seal::Context::new(&mut self.alloc, key)
             .seal(NodeRef::new(self.root_ptr, &self.root_hash))?;
         if removed {
             self.root_ptr = None;
         }
         Ok(())
+    }
+
+    /// Inserts a new value hash at given key and immediately seals it.
+    ///
+    /// This is equivalent to calling [`Self::set`] followed by [`Self::seal`].
+    /// (In current implementation this is exactly equivalent to doing those two
+    /// calls but in the future the call is intended to be optimised to be more
+    /// efficient).
+    // TODO(mina86): Implement optimised version.
+    // TODO(mina86): Add set_and_seal_with_proof
+    pub fn set_and_seal(
+        &mut self,
+        key: &[u8],
+        value_hash: &CryptoHash,
+    ) -> Result<()> {
+        let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
+        self.set_impl(key.clone(), value_hash)?;
+        self.seal_impl(key)
     }
 
     /// Deletes value at given key.  Returns `false` if key was not found.
