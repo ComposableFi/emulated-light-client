@@ -3,6 +3,7 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
+use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 
 pub(crate) type InnerHeight = (u64, u64);
@@ -74,6 +75,10 @@ impl InnerSequenceTriple {
 
 #[account]
 #[derive(Debug)]
+pub struct IBCPackets(pub Vec<PacketMsg>);
+
+#[account]
+#[derive(Debug)]
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
@@ -131,6 +136,7 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable:
         solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
+    pub packets: &'a mut IBCPackets,
 }
 
 /// A reference-counted reference to the IBC storage.

@@ -10,8 +10,12 @@ use ibc::core::router::{Module, ModuleId, Router};
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
 const TRIE_SEED: &[u8] = b"trie";
+const PACKET_SEED: &[u8] = b"packet";
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
+use ibc::core::MsgEnvelope;
+
+use crate::storage::IBCPackets;
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
@@ -45,18 +49,29 @@ pub mod solana_ibc {
         let provable =
             solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
                 .ok_or(ProgramError::InvalidAccountData)?;
+        let packets: &mut IBCPackets = &mut ctx.accounts.packets;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
+            packets,
         });
 
         {
             let mut router = store.clone();
             if let Err(e) =
-                ibc::core::dispatch(&mut store, &mut router, message)
+                ibc::core::dispatch(&mut store, &mut router, message.clone())
             {
                 return err!(Error::RouterError(&e));
+            }
+        }
+        if let MsgEnvelope::Packet(packet) = message {
+            // store the packet if not exists
+            // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
+            let mut store = store.borrow_mut();
+            let packets = &mut store.packets.0;
+            if !packets.iter().any(|pack| &packet == pack) {
+                packets.push(packet);
             }
         }
 
@@ -80,8 +95,10 @@ pub struct Deliver<'info> {
     storage: Account<'info, storage::PrivateStorage>,
     #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
     /// CHECK:
-    trie: AccountInfo<'info>,
-    system_program: Program<'info, System>,
+    pub trie: AccountInfo<'info>,
+    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
+    pub packets: Account<'info, IBCPackets>,
+    pub system_program: Program<'info, System>,
 }
 
 /// Error returned when handling a request.
