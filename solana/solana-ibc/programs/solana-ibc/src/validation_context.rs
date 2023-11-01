@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::{Clock, Pubkey, SolanaSysvar};
+use anchor_lang::prelude::{borsh, Clock, Pubkey, SolanaSysvar};
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -23,7 +23,7 @@ use ibc::Height;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::IbcStorage;
+use crate::storage::IbcStorage;
 
 impl ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
@@ -35,19 +35,18 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> std::result::Result<Self::AnyClientState, ContextError> {
-        let store = self.0.borrow();
-        match store.private.clients.get(client_id.as_str()) {
-            Some(data) => {
-                let client: AnyClientState =
-                    serde_json::from_str(data).unwrap();
-                Ok(client)
-            }
-            None => Err(ContextError::ClientError(
+        let store = self.borrow();
+        let state =
+            store.private.clients.get(client_id.as_str()).ok_or_else(|| {
                 ClientError::ClientStateNotFound {
                     client_id: client_id.clone(),
-                },
-            )),
-        }
+                }
+            })?;
+        let state =
+            borsh::BorshDeserialize::try_from_slice(state).map_err(|err| {
+                ClientError::Other { description: err.to_string() }
+            })?;
+        Ok(state)
     }
 
     fn decode_client_state(
@@ -65,7 +64,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
             client_cons_state_path.client_id.to_string(),
             (client_cons_state_path.epoch, client_cons_state_path.height),
         );
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store.private.consensus_states.get(consensus_state_key) {
             Some(data) => {
                 let result: Self::AnyConsensusState =
@@ -85,7 +84,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         ibc::Height::new(store.private.height.0, store.private.height.1)
             .map_err(ContextError::ClientError)
     }
@@ -108,7 +107,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn client_counter(&self) -> std::result::Result<u64, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         Ok(store.private.client_counter)
     }
 
@@ -116,7 +115,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         conn_id: &ConnectionId,
     ) -> std::result::Result<ConnectionEnd, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store.private.connections.get(conn_id.as_str()) {
             Some(data) => {
                 let connection: ConnectionEnd =
@@ -149,7 +148,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn connection_counter(&self) -> std::result::Result<u64, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         Ok(store.private.connection_counter)
     }
 
@@ -159,7 +158,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     ) -> std::result::Result<ChannelEnd, ContextError> {
         let channel_end_key =
             &(channel_end_path.0.to_string(), channel_end_path.1.to_string());
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store.private.channel_ends.get(channel_end_key) {
             Some(data) => {
                 let channel_end: ChannelEnd =
@@ -179,39 +178,48 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         path: &SeqSendPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Send)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextSendSeq {
-                    port_id,
-                    channel_id,
-                })
+        self.get_next_sequence(
+            path.into(),
+            crate::storage::SequenceTripleIdx::Send,
+        )
+        .map_err(|(port_id, channel_id)| {
+            ContextError::PacketError(PacketError::MissingNextSendSeq {
+                port_id,
+                channel_id,
             })
+        })
     }
 
     fn get_next_sequence_recv(
         &self,
         path: &SeqRecvPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Recv)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextRecvSeq {
-                    port_id,
-                    channel_id,
-                })
+        self.get_next_sequence(
+            path.into(),
+            crate::storage::SequenceTripleIdx::Recv,
+        )
+        .map_err(|(port_id, channel_id)| {
+            ContextError::PacketError(PacketError::MissingNextRecvSeq {
+                port_id,
+                channel_id,
             })
+        })
     }
 
     fn get_next_sequence_ack(
         &self,
         path: &SeqAckPath,
     ) -> std::result::Result<Sequence, ContextError> {
-        self.get_next_sequence(path.into(), super::SequenceTripleIdx::Ack)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextAckSeq {
-                    port_id,
-                    channel_id,
-                })
+        self.get_next_sequence(
+            path.into(),
+            crate::storage::SequenceTripleIdx::Ack,
+        )
+        .map_err(|(port_id, channel_id)| {
+            ContextError::PacketError(PacketError::MissingNextAckSeq {
+                port_id,
+                channel_id,
             })
+        })
     }
 
     fn get_packet_commitment(
@@ -222,7 +230,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
             commitment_path.port_id.to_string(),
             commitment_path.channel_id.to_string(),
         );
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store
             .private
             .packet_acknowledgement_sequence_sets
@@ -249,7 +257,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
             receipt_path.port_id.to_string(),
             receipt_path.channel_id.to_string(),
         );
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store
             .private
             .packet_acknowledgement_sequence_sets
@@ -279,7 +287,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     ) -> std::result::Result<AcknowledgementCommitment, ContextError> {
         let ack_key =
             (ack_path.port_id.to_string(), ack_path.channel_id.to_string());
-        let store = self.0.borrow();
+        let store = self.borrow();
         match store.private.packet_acknowledgement_sequence_sets.get(&ack_key) {
             Some(data) => {
                 let data_in_u8: Vec<u8> =
@@ -295,7 +303,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn channel_counter(&self) -> std::result::Result<u64, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         Ok(store.private.channel_counter)
     }
 
@@ -352,7 +360,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> std::result::Result<Timestamp, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         store
             .private
             .client_processed_times
@@ -378,7 +386,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> std::result::Result<Height, ContextError> {
-        let store = self.0.borrow();
+        let store = self.borrow();
         store
             .private
             .client_processed_heights
@@ -406,7 +414,7 @@ impl IbcStorage<'_, '_> {
     fn get_next_sequence(
         &self,
         path: crate::trie_key::SequencePath<'_>,
-        index: super::SequenceTripleIdx,
+        index: crate::storage::SequenceTripleIdx,
     ) -> core::result::Result<
         Sequence,
         (
@@ -414,7 +422,7 @@ impl IbcStorage<'_, '_> {
             ibc::core::ics24_host::identifier::ChannelId,
         ),
     > {
-        let store = self.0.borrow();
+        let store = self.borrow();
         store
             .private
             .next_sequence
