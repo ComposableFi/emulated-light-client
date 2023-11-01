@@ -1,9 +1,9 @@
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
-use ibc::core::ics04_channel::msgs::PacketMsg;
 use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
+use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 
 pub(crate) type InnerHeight = (u64, u64);

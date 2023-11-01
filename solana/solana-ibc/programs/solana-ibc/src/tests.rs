@@ -23,7 +23,9 @@ use ibc::mock::header::MockHeader;
 use ibc_proto::google::protobuf::Any;
 
 use crate::storage::PrivateStorage;
-use crate::{accounts, instruction, ID, SOLANA_IBC_STORAGE_SEED, TRIE_SEED, PACKET_SEED};
+use crate::{
+    accounts, instruction, ID, PACKET_SEED, SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 
