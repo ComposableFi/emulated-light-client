@@ -1,9 +1,6 @@
 use alloc::vec::Vec;
 use core::num::{NonZeroU128, NonZeroU16};
 
-use crate::chain;
-use crate::validators::{PubKey, Validator};
-
 #[cfg(test)]
 mod tests;
 
@@ -56,7 +53,7 @@ pub enum UpdateCandidateError {
     NotEnoughValidators,
 }
 
-impl<PK: PubKey> Candidates<PK> {
+impl<PK: crate::PubKey> Candidates<PK> {
     /// Creates a new candidates set from the given list.
     ///
     /// If the list is longer than `max_validators` marks the set as `changed`.
@@ -64,11 +61,11 @@ impl<PK: PubKey> Candidates<PK> {
     /// only the top `max_validators`.
     ///
     /// Note that the value of `max_validators` is preserved.  All methods which
-    /// take `cfg: &chain::Config` as an argument ignore `cfg.max_validators`
+    /// take `cfg: &crate::Config` as an argument ignore `cfg.max_validators`
     /// value and use value of this `max_validators` argument instead.
     pub fn new(
         max_validators: NonZeroU16,
-        validators: &[Validator<PK>],
+        validators: &[crate::Validator<PK>],
     ) -> Self {
         Self::from_candidates(
             max_validators,
@@ -103,12 +100,12 @@ impl<PK: PubKey> Candidates<PK> {
     /// cleared.
     ///
     /// To clear changed flag, use [`Self::clear_changed_flag`].
-    pub fn maybe_get_head(&self) -> Option<Vec<Validator<PK>>> {
+    pub fn maybe_get_head(&self) -> Option<Vec<crate::Validator<PK>>> {
         self.changed.then(|| {
             self.candidates
                 .iter()
                 .take(self.max_validators())
-                .map(Validator::from)
+                .map(crate::Validator::from)
                 .collect::<Vec<_>>()
         })
     }
@@ -125,7 +122,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// If `stake` is zero, removes the candidate from the set.
     pub fn update(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         pubkey: PK,
         stake: u128,
     ) -> Result<(), UpdateCandidateError> {
@@ -141,7 +138,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// Adds a new candidates or updates existing candidate’s stake.
     fn do_update(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         candidate: Candidate<PK>,
     ) -> Result<(), UpdateCandidateError> {
         let old_pos =
@@ -164,7 +161,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// Removes an existing candidate.
     fn do_remove(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         pubkey: &PK,
     ) -> Result<(), UpdateCandidateError> {
         let pos = self.candidates.iter().position(|el| &el.pubkey == pubkey);
@@ -199,7 +196,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// Updates a candidate by changing its position and stake.
     fn update_impl(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         old_pos: usize,
         new_pos: usize,
         candidate: Candidate<PK>,
@@ -245,7 +242,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// updates `self.head_stake` and `self.changed` if necessary.
     fn update_stake_for_remove(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         pos: usize,
     ) -> Result<(), UpdateCandidateError> {
         let max = self.max_validators();
@@ -266,7 +263,7 @@ impl<PK: PubKey> Candidates<PK> {
     /// Subtracts given amount of stake from `head_stake`.
     fn sub_head_stake(
         &mut self,
-        cfg: &chain::Config,
+        cfg: &crate::Config,
         stake: u128,
     ) -> Result<(), UpdateCandidateError> {
         let head_stake = self.head_stake.checked_sub(stake).unwrap();
@@ -347,14 +344,14 @@ impl<PK: Ord> core::cmp::Ord for Candidate<PK> {
     }
 }
 
-impl<PK: PubKey> From<&Candidate<PK>> for Validator<PK> {
+impl<PK: crate::PubKey> From<&Candidate<PK>> for crate::Validator<PK> {
     fn from(candidate: &Candidate<PK>) -> Self {
         Self::new(candidate.pubkey.clone(), candidate.stake)
     }
 }
 
-impl<PK: PubKey> From<&Validator<PK>> for Candidate<PK> {
-    fn from(validator: &Validator<PK>) -> Self {
+impl<PK: crate::PubKey> From<&crate::Validator<PK>> for Candidate<PK> {
+    fn from(validator: &crate::Validator<PK>) -> Self {
         Self { pubkey: validator.pubkey().clone(), stake: validator.stake() }
     }
 }

@@ -1,9 +1,5 @@
 use lib::hash::CryptoHash;
 
-use crate::epoch;
-use crate::height::{BlockHeight, HostHeight};
-use crate::validators::PubKey;
-
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 
 /// A single block of the emulated blockchain.
@@ -28,9 +24,9 @@ pub struct Block<PK> {
     /// Hash of the previous block.
     pub prev_block_hash: CryptoHash,
     /// Height of the emulated blockchain’s block.
-    pub block_height: BlockHeight,
+    pub block_height: crate::BlockHeight,
     /// Height of the host blockchain’s block in which this block was created.
-    pub host_height: HostHeight,
+    pub host_height: crate::HostHeight,
     /// Timestamp of the host blockchani’s block in which this block was created.
     pub host_timestamp: u64,
     /// Hash of the root node of the state trie, i.e. the commitment
@@ -45,7 +41,7 @@ pub struct Block<PK> {
     pub epoch_id: CryptoHash,
 
     /// If present, epoch *the next* block will belong to.
-    pub next_epoch: Option<epoch::Epoch<PK>>,
+    pub next_epoch: Option<crate::Epoch<PK>>,
 }
 
 /// Error while generating new block.
@@ -57,7 +53,7 @@ pub enum GenerateError {
     BadHostTimestamp,
 }
 
-impl<PK: PubKey> Block<PK> {
+impl<PK: crate::PubKey> Block<PK> {
     /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
         self.prev_block_hash == CryptoHash::DEFAULT &&
@@ -94,10 +90,10 @@ impl<PK: PubKey> Block<PK> {
     /// incremented by one.
     pub fn generate_next(
         &self,
-        host_height: HostHeight,
+        host_height: crate::HostHeight,
         host_timestamp: u64,
         state_root: CryptoHash,
-        next_epoch: Option<epoch::Epoch<PK>>,
+        next_epoch: Option<crate::Epoch<PK>>,
     ) -> Result<Self, GenerateError> {
         if host_height <= self.host_height {
             return Err(GenerateError::BadHostHeight);
@@ -130,11 +126,11 @@ impl<PK: PubKey> Block<PK> {
     /// A genesis block is identified by previous block hash and epoch id both
     /// being all-zero hash.
     pub fn generate_genesis(
-        block_height: BlockHeight,
-        host_height: HostHeight,
+        block_height: crate::BlockHeight,
+        host_height: crate::HostHeight,
         host_timestamp: u64,
         state_root: CryptoHash,
-        next_epoch: epoch::Epoch<PK>,
+        next_epoch: crate::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
         Ok(Self {
             version: crate::common::VersionZero,
@@ -158,11 +154,11 @@ fn test_block_generation() {
     let genesis_hash = CryptoHash::from_base64(genesis_hash).unwrap();
 
     let genesis = Block::generate_genesis(
-        BlockHeight::from(0),
-        HostHeight::from(42),
+        crate::BlockHeight::from(0),
+        crate::HostHeight::from(42),
         24,
         CryptoHash::test(66),
-        epoch::Epoch::test(&[(0, 10), (1, 10)]),
+        crate::Epoch::test(&[(0, 10), (1, 10)]),
     )
     .unwrap();
 
@@ -196,7 +192,7 @@ fn test_block_generation() {
     assert_eq!(
         Err(GenerateError::BadHostHeight),
         genesis.generate_next(
-            HostHeight::from(42),
+            crate::HostHeight::from(42),
             100,
             CryptoHash::test(99),
             None
@@ -205,7 +201,7 @@ fn test_block_generation() {
     assert_eq!(
         Err(GenerateError::BadHostTimestamp),
         genesis.generate_next(
-            HostHeight::from(43),
+            crate::HostHeight::from(43),
             24,
             CryptoHash::test(99),
             None
@@ -214,10 +210,15 @@ fn test_block_generation() {
 
     // Create next block and test its behaviour.
     let block = genesis
-        .generate_next(HostHeight::from(50), 50, CryptoHash::test(99), None)
+        .generate_next(
+            crate::HostHeight::from(50),
+            50,
+            CryptoHash::test(99),
+            None,
+        )
         .unwrap();
     assert!(!block.is_genesis());
-    assert_eq!(BlockHeight::from(1), block.block_height);
+    assert_eq!(crate::BlockHeight::from(1), block.block_height);
     assert_eq!(genesis_hash, block.prev_block_hash);
     assert_eq!(genesis_hash, block.epoch_id);
     let hash = "uv7IaNMkac36VYAD/RNtDF14wY/DXxlxzsS2Qi+d4uw=";
@@ -225,9 +226,14 @@ fn test_block_generation() {
     assert_eq!(hash, block.calc_hash());
 
     // Create next block within and introduce a new epoch.
-    let epoch = Some(epoch::Epoch::test(&[(0, 20), (1, 10)]));
+    let epoch = Some(crate::Epoch::test(&[(0, 20), (1, 10)]));
     let block = block
-        .generate_next(HostHeight::from(60), 60, CryptoHash::test(99), epoch)
+        .generate_next(
+            crate::HostHeight::from(60),
+            60,
+            CryptoHash::test(99),
+            epoch,
+        )
         .unwrap();
     assert_eq!(hash, block.prev_block_hash);
     assert_eq!(genesis_hash, block.epoch_id);
@@ -237,7 +243,12 @@ fn test_block_generation() {
 
     // Create next block which belongs to the new epoch.
     let block = block
-        .generate_next(HostHeight::from(65), 65, CryptoHash::test(99), None)
+        .generate_next(
+            crate::HostHeight::from(65),
+            65,
+            CryptoHash::test(99),
+            None,
+        )
         .unwrap();
     assert_eq!(hash, block.prev_block_hash);
     assert_eq!(hash, block.epoch_id);
