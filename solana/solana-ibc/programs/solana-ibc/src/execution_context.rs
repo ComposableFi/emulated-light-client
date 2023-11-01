@@ -296,8 +296,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.0.borrow_mut();
         let sequences =
             store.private.packet_commitment_sequence_sets.get_mut(&(
-                commitment_path.port_id.clone().to_string(),
-                commitment_path.channel_id.clone().to_string(),
+                commitment_path.port_id.to_string(),
+                commitment_path.channel_id.to_string(),
             ));
         if let Some(sequences) = sequences {
             let index = sequences
@@ -365,8 +365,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.0.borrow_mut();
         let sequences =
             store.private.packet_acknowledgement_sequence_sets.get_mut(&(
-                ack_path.port_id.clone().to_string(),
-                ack_path.channel_id.clone().to_string(),
+                ack_path.port_id.to_string(),
+                ack_path.channel_id.to_string(),
             ));
         if let Some(sequences) = sequences {
             let sequence_as_u64: u64 = ack_path.sequence.into();
@@ -387,8 +387,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         );
         let mut store = self.0.borrow_mut();
         store.private.port_channel_id_set.push((
-            channel_end_path.0.clone().to_string(),
-            channel_end_path.1.clone().to_string(),
+            channel_end_path.0.to_string(),
+            channel_end_path.1.to_string(),
         ));
 
         let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
@@ -513,6 +513,6 @@ fn record_packet_sequence(
     channel_id: &ChannelId,
     sequence: &Sequence,
 ) {
-    let key = (port_id.clone().to_string(), channel_id.clone().to_string());
+    let key = (port_id.to_string(), channel_id.to_string());
     hash_map.entry(key).or_default().push(u64::from(*sequence));
 }
