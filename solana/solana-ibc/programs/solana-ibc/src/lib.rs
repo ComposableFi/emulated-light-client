@@ -68,7 +68,7 @@ pub mod solana_ibc {
             let mut store = store.borrow_mut();
             let packets = &mut store.packets.0;
             if !packets.iter().any(|&pack| &packet == pack) {
-                packets.push(packet),
+                packets.push(packet);
             }
         }
 
