@@ -308,7 +308,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
         value_hash: &CryptoHash,
     ) -> Result<()> {
         let key = bits::Slice::from_bytes(key).ok_or(Error::KeyTooLong)?;
-        self.set_impl(key.clone(), value_hash)?;
+        self.set_impl(key, value_hash)?;
         self.seal_impl(key)
     }
 
