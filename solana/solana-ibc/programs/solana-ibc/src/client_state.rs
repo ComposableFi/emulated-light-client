@@ -1,5 +1,6 @@
+use anchor_lang::prelude::borsh;
+use anchor_lang::prelude::borsh::maybestd::io;
 use anchor_lang::solana_program::msg;
-use borsh::maybestd::io;
 use ibc::clients::ics07_tendermint::client_state::ClientState as TmClientState;
 use ibc::core::ics02_client::client_state::{
     ClientStateCommon, ClientStateExecution, ClientStateValidation, Status,
