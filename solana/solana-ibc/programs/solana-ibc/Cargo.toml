@@ -17,6 +17,8 @@ mocks = ["ibc/mocks", "ibc/std"]
 
 [dependencies]
 anchor-lang.workspace = true
+anchor-spl.workspace = true
+uint.workspace = true
 ibc.workspace = true
 ibc-proto.workspace = true
 serde.workspace = true

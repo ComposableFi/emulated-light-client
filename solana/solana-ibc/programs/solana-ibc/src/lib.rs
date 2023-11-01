@@ -14,6 +14,7 @@ use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
+const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 const TRIE_SEED: &[u8] = b"trie";
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
@@ -51,8 +52,12 @@ pub mod solana_ibc {
         let provable =
             solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
                 .ok_or(ProgramError::InvalidAccountData)?;
-
-        let inner = IbcStorageInner { private, provable, accounts: ctx.remaining_accounts.to_vec() };
+        let inner = IbcStorageInner {
+            private,
+            provable,
+            accounts: ctx.remaining_accounts.to_vec(),
+            signer: ctx.accounts.sender.to_account_info(),
+        };
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
@@ -229,17 +234,18 @@ pub struct PrivateStorage {
 
 /// All the structs from IBC are stored as String since they dont implement AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub struct IbcStorageInner<'a, 'b, 'c> {
+pub struct IbcStorageInner<'a, 'b, 'c, 'd> {
     pub private: &'a mut PrivateStorage,
     pub provable:
         solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>,
-    pub accounts: Vec<AccountInfo<'c>>
+    pub accounts: Vec<AccountInfo<'c>>,
+    pub signer: AccountInfo<'d>,
 }
 
 #[derive(Debug, Clone)]
-struct IbcStorage<'a, 'b, 'c>(Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>);
+struct IbcStorage<'a, 'b, 'c, 'd>(Rc<RefCell<IbcStorageInner<'a, 'b, 'c, 'd>>>);
 
-impl Router for IbcStorage<'_, '_, '_> {
+impl Router for IbcStorage<'_, '_, '_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);

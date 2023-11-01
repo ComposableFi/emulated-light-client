@@ -24,6 +24,8 @@ codegen-units = 1
 
 [workspace.dependencies]
 anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
+anchor-spl = "0.28.0"
+uint = "0.9.5"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
 derive_more = "0.99.17"
