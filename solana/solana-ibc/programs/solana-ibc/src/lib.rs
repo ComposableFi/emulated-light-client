@@ -41,12 +41,10 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        messages: Vec<ibc::core::MsgEnvelope>,
+        message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        msg!("Called deliver method");
+        msg!("Called deliver method: {message}");
         let _sender = ctx.accounts.sender.to_account_info();
-
-        msg!("These are messages {:?}", messages);
 
         let private: &mut PrivateStorage = &mut ctx.accounts.storage;
         msg!("This is private_store {:?}", private);
@@ -61,29 +59,18 @@ pub mod solana_ibc {
         let mut store = IbcStorage(Rc::new(RefCell::new(inner)));
         let mut router = store.clone();
 
-        let errors = messages
-            .into_iter()
-            .map(|msg| {
-                let result =
-                    ibc::core::dispatch(&mut store, &mut router, msg.clone());
-                if let MsgEnvelope::Packet(packet) = msg {
-                    // store the packet if not exists
-                    // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
-                    let mut inner_store = store.0.borrow_mut();
-                    match inner_store
-                        .packets
-                        .0
-                        .iter()
-                        .find(|&pack| &packet == pack)
-                    {
-                        Some(_) => (),
-                        None => inner_store.packets.0.push(packet),
-                    }
-                }
-                result
-            })
-            .filter_map(core::result::Result::err)
-            .collect::<Vec<_>>();
+        if let Err(e) = ibc::core::dispatch(&mut store, &mut router, message.clone()) {
+            return err!(Error::RouterError(&e));
+        }
+        if let MsgEnvelope::Packet(packet) = message {
+            // store the packet if not exists
+            // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
+            let mut store = store.borrow_mut();
+            let packets = &mut store.packets.0;
+            if !packets.iter().any(|&pack| &packet == pack) {
+                packets.push(packet),
+            }
+        }
 
         // Drop refcount on store so we can unwrap the Rc object below.
         core::mem::drop(router);
@@ -93,7 +80,6 @@ pub mod solana_ibc {
         // so using the inner function instead.
         let inner = Rc::try_unwrap(store.0).unwrap().into_inner();
 
-        msg!("These are errors {:?}", errors);
         msg!("This is final structure {:?}", inner.private);
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
@@ -114,6 +100,32 @@ pub struct Deliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
     pub packets: Account<'info, IBCPackets>,
     pub system_program: Program<'info, System>,
+}
+
+/// Error returned when handling a request.
+#[derive(Clone, strum::AsRefStr, strum::EnumDiscriminants)]
+#[strum_discriminants(repr(u32))]
+pub enum Error<'a> {
+    RouterError(&'a ibc::core::RouterError),
+}
+
+impl Error<'_> {
+    pub fn name(&self) -> String { self.as_ref().into() }
+}
+
+impl core::fmt::Display for Error<'_> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RouterError(err) => write!(fmtr, "{err}"),
+        }
+    }
+}
+
+impl From<Error<'_>> for u32 {
+    fn from(err: Error<'_>) -> u32 {
+        let code = ErrorDiscriminants::from(err) as u32;
+        anchor_lang::error::ERROR_CODE_OFFSET + code
+    }
 }
 
 #[event]
