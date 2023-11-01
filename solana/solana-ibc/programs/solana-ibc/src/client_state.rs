@@ -24,8 +24,8 @@ use ibc_proto::ibc::lightclients::tendermint::v1::ClientState as RawTmClientStat
 use ibc_proto::ibc::mock::ClientState as RawMockClientState;
 use ibc_proto::protobuf::Protobuf;
 
-use super::consensus_state::AnyConsensusState;
-use crate::IbcStorage;
+use crate::consensus_state::AnyConsensusState;
+use crate::storage::IbcStorage;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AnyClientState {
@@ -468,8 +468,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
     ) -> Result<Vec<Height>, ContextError> {
         // TODO(mina86): use BTreeMap::range here so that we don’t iterate over
         // the entire map.
-        self.0
-            .borrow()
+        self.borrow()
             .private
             .consensus_states
             .keys()
@@ -518,8 +517,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         use core::ops::Bound;
         let height = (height.revision_number(), height.revision_height());
         let min = (client_id.to_string(), height);
-        self.0
-            .borrow()
+        self.borrow()
             .private
             .consensus_states
             .range((Bound::Excluded(min), Bound::Unbounded))
@@ -539,8 +537,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
         let height = (height.revision_number(), height.revision_height());
-        self.0
-            .borrow()
+        self.borrow()
             .private
             .consensus_states
             .range(..(client_id.to_string(), height))

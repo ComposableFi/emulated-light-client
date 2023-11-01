@@ -8,7 +8,7 @@ use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::Signer;
 
 // use crate::module_holder::IbcStorage<'_,'_>;
-use crate::IbcStorage;
+use crate::storage::IbcStorage;
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
     fn send_coins_execute(
