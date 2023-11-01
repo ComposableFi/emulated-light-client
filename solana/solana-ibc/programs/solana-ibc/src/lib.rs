@@ -43,12 +43,8 @@ pub mod solana_ibc {
         let _sender = ctx.accounts.sender.to_account_info();
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        msg!("This is private_store {:?}", private);
-
-        let account = &ctx.accounts.trie;
-        let provable =
-            solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
-                .ok_or(ProgramError::InvalidAccountData)?;
+        msg!("This is private: {private:?}");
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
@@ -91,14 +87,23 @@ pub mod solana_ibc {
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
+
+    /// The account holding private IBC storage.
     #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
     storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
     #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
-    /// CHECK:
-    pub trie: AccountInfo<'info>,
+    trie: UncheckedAccount<'info>,
+
+    /// The account holding packets.
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
-    pub packets: Account<'info, IBCPackets>,
-    pub system_program: Program<'info, System>,
+    packets: Account<'info, IBCPackets>,
+
+    system_program: Program<'info, System>,
 }
 
 /// Error returned when handling a request.
