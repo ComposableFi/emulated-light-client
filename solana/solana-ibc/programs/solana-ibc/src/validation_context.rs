@@ -20,10 +20,12 @@ use ibc::core::ics24_host::path::{
 use ibc::core::timestamp::Timestamp;
 use ibc::core::{ContextError, ValidationContext};
 use ibc::Height;
+use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
+use crate::trie_key::TrieKey;
 
 impl ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
@@ -224,79 +226,40 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn get_packet_commitment(
         &self,
-        commitment_path: &CommitmentPath,
+        path: &CommitmentPath,
     ) -> std::result::Result<PacketCommitment, ContextError> {
-        let commitment_key = (
-            commitment_path.port_id.to_string(),
-            commitment_path.channel_id.to_string(),
-        );
-        let store = self.borrow();
-        match store
-            .private
-            .packet_acknowledgement_sequence_sets
-            .get(&commitment_key)
-        {
-            Some(data) => {
-                let data_in_u8: Vec<u8> =
-                    data.iter().map(|x| *x as u8).collect();
-                Ok(PacketCommitment::from(data_in_u8))
-            }
+        let trie_key = TrieKey::from(path);
+        match self.borrow().provable.get(&trie_key).ok().flatten() {
+            Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ContextError::PacketError(
-                PacketError::PacketReceiptNotFound {
-                    sequence: commitment_path.sequence,
-                },
+                PacketError::PacketReceiptNotFound { sequence: path.sequence },
             )),
         }
     }
 
     fn get_packet_receipt(
         &self,
-        receipt_path: &ReceiptPath,
+        path: &ReceiptPath,
     ) -> std::result::Result<Receipt, ContextError> {
-        let receipt_key = (
-            receipt_path.port_id.to_string(),
-            receipt_path.channel_id.to_string(),
-        );
-        let store = self.borrow();
-        match store
-            .private
-            .packet_acknowledgement_sequence_sets
-            .get(&receipt_key)
-        {
-            Some(data) => {
-                match data.binary_search(&u64::from(receipt_path.sequence)) {
-                    Ok(_) => Ok(Receipt::Ok),
-                    Err(_) => Err(ContextError::PacketError(
-                        PacketError::PacketReceiptNotFound {
-                            sequence: receipt_path.sequence,
-                        },
-                    )),
-                }
-            }
-            None => Err(ContextError::PacketError(
-                PacketError::PacketReceiptNotFound {
-                    sequence: receipt_path.sequence,
-                },
+        let trie_key = TrieKey::from(path);
+        match self.borrow().provable.get(&trie_key).ok().flatten() {
+            Some(hash) if hash == CryptoHash::DEFAULT => Ok(Receipt::Ok),
+            _ => Err(ContextError::PacketError(
+                PacketError::PacketReceiptNotFound { sequence: path.sequence },
             )),
         }
     }
 
     fn get_packet_acknowledgement(
         &self,
-        ack_path: &AckPath,
+        path: &AckPath,
     ) -> std::result::Result<AcknowledgementCommitment, ContextError> {
-        let ack_key =
-            (ack_path.port_id.to_string(), ack_path.channel_id.to_string());
-        let store = self.borrow();
-        match store.private.packet_acknowledgement_sequence_sets.get(&ack_key) {
-            Some(data) => {
-                let data_in_u8: Vec<u8> =
-                    data.iter().map(|x| *x as u8).collect();
-                Ok(AcknowledgementCommitment::from(data_in_u8))
-            }
+        let trie_key = TrieKey::from(path);
+        match self.borrow().provable.get(&trie_key).ok().flatten() {
+            Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ContextError::PacketError(
                 PacketError::PacketAcknowledgementNotFound {
-                    sequence: ack_path.sequence,
+                    sequence: path.sequence,
                 },
             )),
         }

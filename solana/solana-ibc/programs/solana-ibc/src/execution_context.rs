@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use anchor_lang::emit;
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
@@ -12,9 +10,7 @@ use ibc::core::ics04_channel::commitment::{
     AcknowledgementCommitment, PacketCommitment,
 };
 use ibc::core::ics04_channel::packet::{Receipt, Sequence};
-use ibc::core::ics24_host::identifier::{
-    ChannelId, ClientId, ConnectionId, PortId,
-};
+use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
 use ibc::core::ics24_host::path::{
     AckPath, ChannelEndPath, ClientConnectionPath, ClientConsensusStatePath,
     ClientStatePath, CommitmentPath, ConnectionPath, ReceiptPath, SeqAckPath,
@@ -23,10 +19,11 @@ use ibc::core::ics24_host::path::{
 use ibc::core::timestamp::Timestamp;
 use ibc::core::{ContextError, ExecutionContext};
 use ibc::Height;
+use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::storage::{IbcStorage, InnerChannelId, InnerPortId, InnerSequence};
+use crate::storage::IbcStorage;
 use crate::trie_key::TrieKey;
 use crate::EmitIBCEvent;
 
@@ -79,9 +76,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         let trie = &mut store.provable;
         trie.set(
             &consensus_state_trie_key,
-            &lib::hash::CryptoHash::digest(
-                serialized_consensus_state.as_bytes(),
-            ),
+            &CryptoHash::digest(serialized_consensus_state.as_bytes()),
         )
         .unwrap();
 
@@ -212,9 +207,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let trie = &mut store.provable;
         trie.set(
             &connection_trie_key,
-            &lib::hash::CryptoHash::digest(
-                serialized_connection_end.as_bytes(),
-            ),
+            &CryptoHash::digest(serialized_connection_end.as_bytes()),
         )
         .unwrap();
 
@@ -256,116 +249,55 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_packet_commitment(
         &mut self,
-        commitment_path: &CommitmentPath,
+        path: &CommitmentPath,
         commitment: PacketCommitment,
     ) -> Result {
-        msg!(
-            "store_packet_commitment: path: {}, commitment: {:?}",
-            commitment_path,
-            commitment
-        );
-        let mut store = self.borrow_mut();
-        let commitment_trie_key = TrieKey::from(commitment_path);
-        let trie = &mut store.provable;
-        trie.set(
-            &commitment_trie_key,
-            &lib::hash::CryptoHash::digest(&commitment.into_vec()),
-        )
-        .unwrap();
-
-        record_packet_sequence(
-            &mut store.private.packet_commitment_sequence_sets,
-            &commitment_path.port_id,
-            &commitment_path.channel_id,
-            &commitment_path.sequence,
-        );
+        msg!("store_packet_commitment({path}, {commitment:?})");
+        let trie_key = TrieKey::from(path);
+        // PacketCommitment is always 32-byte long.
+        let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
+        self.borrow_mut().provable.set(&trie_key, commitment).unwrap();
         Ok(())
     }
 
-    fn delete_packet_commitment(
-        &mut self,
-        commitment_path: &CommitmentPath,
-    ) -> Result {
-        msg!("delete_packet_commitment: path: {}", commitment_path);
-        let mut store = self.borrow_mut();
-        let sequences =
-            store.private.packet_commitment_sequence_sets.get_mut(&(
-                commitment_path.port_id.to_string(),
-                commitment_path.channel_id.to_string(),
-            ));
-        if let Some(sequences) = sequences {
-            let index = sequences
-                .iter()
-                .position(|x| *x == u64::from(commitment_path.sequence))
-                .unwrap();
-            sequences.remove(index);
-        };
+    fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
+        msg!("delete_packet_commitment({path})");
+        let trie_key = TrieKey::from(path);
+        self.borrow_mut().provable.del(&trie_key).unwrap();
         Ok(())
     }
 
     fn store_packet_receipt(
         &mut self,
-        receipt_path: &ReceiptPath,
-        receipt: Receipt,
+        path: &ReceiptPath,
+        Receipt::Ok: Receipt,
     ) -> Result {
-        msg!(
-            "store_packet_receipt: path: {}, receipt: {:?}",
-            receipt_path,
-            receipt
-        );
-        let mut store = self.borrow_mut();
-        let receipt_trie_key = TrieKey::from(receipt_path);
-        let trie = &mut store.provable;
-        trie.set_and_seal(&receipt_trie_key, &lib::hash::CryptoHash::DEFAULT)
+        msg!("store_packet_receipt({path}, Ok)");
+        let trie_key = TrieKey::from(path);
+        self.borrow_mut()
+            .provable
+            .set_and_seal(&trie_key, &CryptoHash::DEFAULT)
             .unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_receipt_sequence_sets,
-            &receipt_path.port_id,
-            &receipt_path.channel_id,
-            &receipt_path.sequence,
-        );
         Ok(())
     }
 
     fn store_packet_acknowledgement(
         &mut self,
-        ack_path: &AckPath,
-        ack_commitment: AcknowledgementCommitment,
+        path: &AckPath,
+        commitment: AcknowledgementCommitment,
     ) -> Result {
-        msg!(
-            "store_packet_acknowledgement: path: {}, ack_commitment: {:?}",
-            ack_path,
-            ack_commitment
-        );
-        let mut store = self.borrow_mut();
-        let ack_commitment_trie_key = TrieKey::from(ack_path);
-        let trie = &mut store.provable;
-        trie.set(
-            &ack_commitment_trie_key,
-            &lib::hash::CryptoHash::digest(&ack_commitment.into_vec()),
-        )
-        .unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_acknowledgement_sequence_sets,
-            &ack_path.port_id,
-            &ack_path.channel_id,
-            &ack_path.sequence,
-        );
+        msg!("store_packet_acknowledgement({path}, {commitment:?})");
+        let trie_key = TrieKey::from(path);
+        // AcknowledgementCommitment is always 32-byte long.
+        let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
+        self.borrow_mut().provable.set(&trie_key, commitment).unwrap();
         Ok(())
     }
 
-    fn delete_packet_acknowledgement(&mut self, ack_path: &AckPath) -> Result {
-        msg!("delete_packet_acknowledgement: path: {}", ack_path,);
-        let mut store = self.borrow_mut();
-        let sequences =
-            store.private.packet_acknowledgement_sequence_sets.get_mut(&(
-                ack_path.port_id.to_string(),
-                ack_path.channel_id.to_string(),
-            ));
-        if let Some(sequences) = sequences {
-            let sequence_as_u64: u64 = ack_path.sequence.into();
-            sequences.remove(sequence_as_u64 as usize);
-        }
+    fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
+        msg!("delete_packet_acknowledgement({path})");
+        let trie_key = TrieKey::from(path);
+        self.borrow_mut().provable.del(&trie_key).unwrap();
         Ok(())
     }
 
@@ -390,7 +322,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let trie = &mut &mut store.provable;
         trie.set(
             &channel_end_trie_key,
-            &lib::hash::CryptoHash::digest(&serialized_channel_end),
+            &CryptoHash::digest(&serialized_channel_end),
         )
         .unwrap();
 
@@ -493,15 +425,4 @@ impl crate::storage::IbcStorageInner<'_, '_> {
 
         Ok(())
     }
-}
-
-
-fn record_packet_sequence(
-    hash_map: &mut BTreeMap<(InnerPortId, InnerChannelId), Vec<InnerSequence>>,
-    port_id: &PortId,
-    channel_id: &ChannelId,
-    sequence: &Sequence,
-) {
-    let key = (port_id.to_string(), channel_id.to_string());
-    hash_map.entry(key).or_default().push(u64::from(*sequence));
 }
