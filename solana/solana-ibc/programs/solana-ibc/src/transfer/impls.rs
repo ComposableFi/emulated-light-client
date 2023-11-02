@@ -13,7 +13,7 @@ use uint::FromDecStrErr;
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{id, IbcStorage, MINT_ESCROW_SEED};
 
-impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_, '_> {
+impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
     fn send_coins_execute(
         &mut self,
         from: &Self::AccountId,
@@ -221,7 +221,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_, '_> {
     }
 }
 
-impl TokenTransferValidationContext for IbcStorage<'_, '_, '_, '_> {
+impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
     type AccountId = Signer;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {

@@ -33,7 +33,7 @@ use crate::{
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
-impl ClientExecutionContext for IbcStorage<'_, '_, '_, '_> {
+impl ClientExecutionContext for IbcStorage<'_, '_, '_,> {
     type V = Self; // ClientValidationContext
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
@@ -197,7 +197,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_, '_> {
     }
 }
 
-impl ExecutionContext for IbcStorage<'_, '_, '_, '_> {
+impl ExecutionContext for IbcStorage<'_, '_, '_,> {
     fn increase_client_counter(&mut self) -> Result {
         let mut store = self.0.borrow_mut();
         store.private.client_counter =
@@ -422,8 +422,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {path}, seq: {seq}");
-        let store: &mut IbcStorageInner<'_, '_, '_, '_> =
-            &mut self.0.borrow_mut();
+        let mut store = self.0.borrow_mut();
         store.store_next_sequence(
             path.into(),
             super::SequenceTripleIdx::Send,
@@ -437,7 +436,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
-        let store: &mut IbcStorageInner<'_, '_, '_, '_> =
+        let store: &mut IbcStorageInner<'_, '_, '_,> =
             &mut self.0.borrow_mut();
         store.store_next_sequence(
             path.into(),
@@ -452,7 +451,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
-        let store: &mut IbcStorageInner<'_, '_, '_, '_> =
+        let store: &mut IbcStorageInner<'_, '_, '_,> =
             &mut self.0.borrow_mut();
         store.store_next_sequence(
             path.into(),
@@ -498,7 +497,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl IbcStorageInner<'_, '_, '_, '_> {
+impl IbcStorageInner<'_, '_, '_,> {
     fn store_next_sequence(
         &mut self,
         path: crate::trie_key::SequencePath<'_>,

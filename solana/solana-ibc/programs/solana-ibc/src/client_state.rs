@@ -84,7 +84,7 @@ impl From<AnyClientState> for Any {
     }
 }
 
-impl ClientStateValidation<IbcStorage<'_, '_, '_, '_>> for AnyClientState {
+impl ClientStateValidation<IbcStorage<'_, '_, '_,>> for AnyClientState {
     fn verify_client_message(
         &self,
         ctx: &IbcStorage,
@@ -289,7 +289,7 @@ impl From<MockClientState> for AnyClientState {
     fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
 }
 
-impl ClientStateExecution<IbcStorage<'_, '_, '_, '_>> for AnyClientState {
+impl ClientStateExecution<IbcStorage<'_, '_, '_,>> for AnyClientState {
     fn initialise(
         &self,
         ctx: &mut IbcStorage,
@@ -378,7 +378,7 @@ impl ClientStateExecution<IbcStorage<'_, '_, '_, '_>> for AnyClientState {
 }
 
 impl ibc::clients::ics07_tendermint::CommonContext
-    for IbcStorage<'_, '_, '_, '_>
+    for IbcStorage<'_, '_, '_,>
 {
     type ConversionError = ClientError;
 
@@ -418,7 +418,7 @@ impl ibc::clients::ics07_tendermint::CommonContext
 }
 
 #[cfg(any(test, feature = "mocks"))]
-impl MockClientContext for IbcStorage<'_, '_, '_, '_> {
+impl MockClientContext for IbcStorage<'_, '_, '_,> {
     type ConversionError = ClientError;
     type AnyConsensusState = AnyConsensusState;
 
@@ -439,7 +439,7 @@ impl MockClientContext for IbcStorage<'_, '_, '_, '_> {
 }
 
 impl ibc::clients::ics07_tendermint::ValidationContext
-    for IbcStorage<'_, '_, '_, '_>
+    for IbcStorage<'_, '_, '_,>
 {
     fn next_consensus_state(
         &self,
