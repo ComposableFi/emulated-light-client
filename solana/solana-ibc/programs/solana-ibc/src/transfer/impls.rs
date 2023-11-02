@@ -11,7 +11,7 @@ use ibc::Signer;
 use uint::FromDecStrErr;
 
 // use crate::module_holder::IbcStorage<'_,'_>;
-use crate::{id, IbcStorage, MINT_ESCROW_SEED};
+use crate::{IbcStorage, MINT_ESCROW_SEED};
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
     fn send_coins_execute(
@@ -39,7 +39,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             ));
         }
         let (_token_mint_key, bump) =
-            Pubkey::find_program_address(&[base_denom.as_ref()], &id());
+            Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let store = self.0.borrow();
         let sender = store
             .accounts
@@ -99,9 +99,9 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             ));
         }
         let (token_mint_key, bump) =
-            Pubkey::find_program_address(&[base_denom.as_ref()], &id());
+            Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
-            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &id());
+            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.0.borrow();
         let receiver = store
             .accounts
@@ -170,9 +170,9 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             ));
         }
         let (token_mint_key, bump) =
-            Pubkey::find_program_address(&[base_denom.as_ref()], &id());
+            Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
-            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &id());
+            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.0.borrow();
         let burner = store
             .accounts
@@ -235,7 +235,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
     ) -> Result<Self::AccountId, TokenTransferError> {
         let seeds =
             [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
-        let escrow_account = Pubkey::find_program_address(&seeds, &id());
+        let escrow_account = Pubkey::find_program_address(&seeds, &crate::ID);
         Ok(Signer::from(escrow_account.0.to_string()))
     }
 
