@@ -45,7 +45,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
-        check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amount)?;
 
         let (_token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
@@ -70,7 +70,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::transfer(cpi_ctx, U256::from(amount).as_u64())
+        Ok(anchor_spl::token::transfer(cpi_ctx, amount_in_u64)
             .unwrap())
     }
 
@@ -89,7 +89,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
-        check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amount)?;
 
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
@@ -119,7 +119,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::mint_to(cpi_ctx, U256::from(amount).as_u64())
+        Ok(anchor_spl::token::mint_to(cpi_ctx, amount_in_u64)
             .unwrap())
     }
 
@@ -137,7 +137,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let burner_id = account.0;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
-        check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amount)?;
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
@@ -166,7 +166,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::burn(cpi_ctx, U256::from(amount).as_u64())
+        Ok(anchor_spl::token::burn(cpi_ctx, amount_in_u64)
             .unwrap())
     }
 }
