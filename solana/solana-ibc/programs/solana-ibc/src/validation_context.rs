@@ -27,6 +27,8 @@ use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 use crate::trie_key::TrieKey;
 
+type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
+
 impl ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ClientExecutionContext
@@ -36,32 +38,27 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn client_state(
         &self,
         client_id: &ClientId,
-    ) -> std::result::Result<Self::AnyClientState, ContextError> {
-        let store = self.borrow();
-        let state =
-            store.private.clients.get(client_id.as_str()).ok_or_else(|| {
-                ClientError::ClientStateNotFound {
-                    client_id: client_id.clone(),
-                }
-            })?;
-        let state =
-            borsh::BorshDeserialize::try_from_slice(state).map_err(|err| {
-                ClientError::Other { description: err.to_string() }
-            })?;
-        Ok(state)
+    ) -> Result<Self::AnyClientState> {
+        deserialise(
+            self.borrow().private.clients.get(client_id.as_str()),
+            || ClientError::ClientStateNotFound {
+                client_id: client_id.clone(),
+            },
+            |description| ClientError::Other { description },
+        )
     }
 
     fn decode_client_state(
         &self,
         client_state: ibc_proto::google::protobuf::Any,
-    ) -> std::result::Result<Self::AnyClientState, ContextError> {
+    ) -> Result<Self::AnyClientState> {
         Ok(Self::AnyClientState::try_from(client_state)?)
     }
 
     fn consensus_state(
         &self,
         client_cons_state_path: &ClientConsensusStatePath,
-    ) -> std::result::Result<Self::AnyConsensusState, ContextError> {
+    ) -> Result<Self::AnyConsensusState> {
         let consensus_state_key = &(
             client_cons_state_path.client_id.to_string(),
             (client_cons_state_path.epoch, client_cons_state_path.height),
@@ -85,13 +82,13 @@ impl ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn host_height(&self) -> std::result::Result<ibc::Height, ContextError> {
+    fn host_height(&self) -> Result<ibc::Height> {
         let store = self.borrow();
         ibc::Height::new(store.private.height.0, store.private.height.1)
             .map_err(ContextError::ClientError)
     }
 
-    fn host_timestamp(&self) -> std::result::Result<Timestamp, ContextError> {
+    fn host_timestamp(&self) -> Result<Timestamp> {
         let clock = Clock::get().unwrap();
         let current_timestamp = clock.unix_timestamp as u64;
         Ok(Timestamp::from_nanoseconds(current_timestamp).unwrap())
@@ -100,7 +97,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn host_consensus_state(
         &self,
         _height: &ibc::Height,
-    ) -> std::result::Result<Self::AnyConsensusState, ContextError> {
+    ) -> Result<Self::AnyConsensusState> {
         Err(ContextError::ClientError(ClientError::ClientSpecific {
             description: "The `host_consensus_state` is not supported on \
                           Solana protocol."
@@ -108,34 +105,25 @@ impl ValidationContext for IbcStorage<'_, '_> {
         }))
     }
 
-    fn client_counter(&self) -> std::result::Result<u64, ContextError> {
+    fn client_counter(&self) -> Result<u64> {
         let store = self.borrow();
         Ok(store.private.client_counter)
     }
 
-    fn connection_end(
-        &self,
-        conn_id: &ConnectionId,
-    ) -> std::result::Result<ConnectionEnd, ContextError> {
-        let store = self.borrow();
-        match store.private.connections.get(conn_id.as_str()) {
-            Some(data) => {
-                let connection: ConnectionEnd =
-                    serde_json::from_str(data).unwrap();
-                Ok(connection)
-            }
-            None => Err(ContextError::ConnectionError(
-                ConnectionError::ConnectionNotFound {
-                    connection_id: conn_id.clone(),
-                },
-            )),
-        }
+    fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
+        deserialise(
+            self.borrow().private.connections.get(conn_id.as_str()),
+            || ConnectionError::ConnectionNotFound {
+                connection_id: conn_id.clone(),
+            },
+            |description| ConnectionError::Other { description },
+        )
     }
 
     fn validate_self_client(
         &self,
         client_state_of_host_on_counterparty: ibc_proto::google::protobuf::Any,
-    ) -> std::result::Result<(), ContextError> {
+    ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
             .map_err(|e| ClientError::Other {
                 description: format!("Decode ClientState failed: {:?}", e)
@@ -149,7 +137,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         CommitmentPrefix::try_from(b"ibc".to_vec()).unwrap()
     }
 
-    fn connection_counter(&self) -> std::result::Result<u64, ContextError> {
+    fn connection_counter(&self) -> Result<u64> {
         let store = self.borrow();
         Ok(store.private.connection_counter)
     }
@@ -157,29 +145,20 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn channel_end(
         &self,
         channel_end_path: &ChannelEndPath,
-    ) -> std::result::Result<ChannelEnd, ContextError> {
-        let channel_end_key =
-            &(channel_end_path.0.to_string(), channel_end_path.1.to_string());
-        let store = self.borrow();
-        match store.private.channel_ends.get(channel_end_key) {
-            Some(data) => {
-                let channel_end: ChannelEnd =
-                    serde_json::from_str(data).unwrap();
-                Ok(channel_end)
-            }
-            None => {
-                Err(ContextError::ChannelError(ChannelError::ChannelNotFound {
-                    port_id: channel_end_path.0.clone(),
-                    channel_id: channel_end_path.1.clone(),
-                }))
-            }
-        }
+    ) -> Result<ChannelEnd> {
+        let key =
+            (channel_end_path.0.to_string(), channel_end_path.1.to_string());
+        deserialise(
+            self.borrow().private.channel_ends.get(&key),
+            || ChannelError::ChannelNotFound {
+                port_id: channel_end_path.0.clone(),
+                channel_id: channel_end_path.1.clone(),
+            },
+            |description| ChannelError::Other { description },
+        )
     }
 
-    fn get_next_sequence_send(
-        &self,
-        path: &SeqSendPath,
-    ) -> std::result::Result<Sequence, ContextError> {
+    fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
         self.get_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Send,
@@ -192,10 +171,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         })
     }
 
-    fn get_next_sequence_recv(
-        &self,
-        path: &SeqRecvPath,
-    ) -> std::result::Result<Sequence, ContextError> {
+    fn get_next_sequence_recv(&self, path: &SeqRecvPath) -> Result<Sequence> {
         self.get_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Recv,
@@ -208,10 +184,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         })
     }
 
-    fn get_next_sequence_ack(
-        &self,
-        path: &SeqAckPath,
-    ) -> std::result::Result<Sequence, ContextError> {
+    fn get_next_sequence_ack(&self, path: &SeqAckPath) -> Result<Sequence> {
         self.get_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Ack,
@@ -227,7 +200,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn get_packet_commitment(
         &self,
         path: &CommitmentPath,
-    ) -> std::result::Result<PacketCommitment, ContextError> {
+    ) -> Result<PacketCommitment> {
         let trie_key = TrieKey::from(path);
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
@@ -237,10 +210,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn get_packet_receipt(
-        &self,
-        path: &ReceiptPath,
-    ) -> std::result::Result<Receipt, ContextError> {
+    fn get_packet_receipt(&self, path: &ReceiptPath) -> Result<Receipt> {
         let trie_key = TrieKey::from(path);
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) if hash == CryptoHash::DEFAULT => Ok(Receipt::Ok),
@@ -253,7 +223,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn get_packet_acknowledgement(
         &self,
         path: &AckPath,
-    ) -> std::result::Result<AcknowledgementCommitment, ContextError> {
+    ) -> Result<AcknowledgementCommitment> {
         let trie_key = TrieKey::from(path);
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
@@ -265,7 +235,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn channel_counter(&self) -> std::result::Result<u64, ContextError> {
+    fn channel_counter(&self) -> Result<u64> {
         let store = self.borrow();
         Ok(store.private.channel_counter)
     }
@@ -277,10 +247,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         Duration::from_secs(1)
     }
 
-    fn validate_message_signer(
-        &self,
-        signer: &ibc::Signer,
-    ) -> std::result::Result<(), ContextError> {
+    fn validate_message_signer(&self, signer: &ibc::Signer) -> Result {
         match Pubkey::from_str(signer.as_ref()) {
             Ok(_) => Ok(()),
             Err(e) => Err(ContextError::ClientError(ClientError::Other {
@@ -300,8 +267,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn pick_version(
         &self,
         counterparty_candidate_versions: &[ibc::core::ics03_connection::version::Version],
-    ) -> Result<ibc::core::ics03_connection::version::Version, ContextError>
-    {
+    ) -> Result<ibc::core::ics03_connection::version::Version> {
         let version = ibc::core::ics03_connection::version::pick_version(
             &self.get_compatible_versions(),
             counterparty_candidate_versions,
@@ -322,7 +288,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
         height: &Height,
-    ) -> std::result::Result<Timestamp, ContextError> {
+    ) -> Result<Timestamp> {
         let store = self.borrow();
         store
             .private
@@ -348,7 +314,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
         height: &Height,
-    ) -> std::result::Result<Height, ContextError> {
+    ) -> Result<Height> {
         let store = self.borrow();
         store
             .private
@@ -405,4 +371,17 @@ fn calculate_block_delay(
     let delay = delay_period_time.as_secs_f64() /
         max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
+}
+
+fn deserialise<V: borsh::BorshDeserialize, E: Into<ContextError>>(
+    serialised: Option<&Vec<u8>>,
+    not_found: impl FnOnce() -> E,
+    borsh_err: impl FnOnce(String) -> E,
+) -> Result<V> {
+    match serialised.map(|data| V::try_from_slice(data)) {
+        Some(Ok(value)) => Ok(value),
+        Some(Err(err)) => Err(borsh_err(err.to_string())),
+        None => Err(not_found()),
+    }
+    .map_err(|err| err.into())
 }

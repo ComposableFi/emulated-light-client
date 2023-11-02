@@ -40,15 +40,13 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         client_state: Self::AnyClientState,
     ) -> Result {
         msg!("store_client_state({path}, {client_state:?})");
-        let key = path.0.to_string();
-        let serialized = borsh::to_vec(&client_state).map_err(|err| {
-            ClientError::Other { description: err.to_string() }
-        })?;
-        let hash = lib::hash::CryptoHash::digest(&serialized);
-        msg!("This is serialized client state {hash}");
-
         let mut store = self.borrow_mut();
-        store.provable.set(&TrieKey::from(&path), &hash).unwrap();
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(&path),
+            &client_state,
+        )?;
+        let key = path.0.to_string();
         store.private.clients.insert(key.clone(), serialized);
         store.private.client_id_set.push(key);
         Ok(())
@@ -191,30 +189,17 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_connection(
         &mut self,
-        connection_path: &ConnectionPath,
+        path: &ConnectionPath,
         connection_end: ConnectionEnd,
     ) -> Result {
-        msg!(
-            "store_connection: path: {}, connection_end: {:?}",
-            connection_path,
-            connection_end
-        );
-
+        msg!("store_connection({path}, {connection_end:?})");
         let mut store = self.borrow_mut();
-        let serialized_connection_end =
-            serde_json::to_string(&connection_end).unwrap();
-        let connection_trie_key = TrieKey::from(connection_path);
-        let trie = &mut store.provable;
-        trie.set(
-            &connection_trie_key,
-            &CryptoHash::digest(serialized_connection_end.as_bytes()),
-        )
-        .unwrap();
-
-        store
-            .private
-            .connections
-            .insert(connection_path.0.to_string(), serialized_connection_end);
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(path),
+            &connection_end,
+        )?;
+        store.private.connections.insert(path.0.to_string(), serialized);
         Ok(())
     }
 
@@ -303,36 +288,19 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_channel(
         &mut self,
-        channel_end_path: &ChannelEndPath,
+        path: &ChannelEndPath,
         channel_end: ChannelEnd,
     ) -> Result {
-        msg!(
-            "store_channel: path: {}, channel_end: {:?}",
-            channel_end_path,
-            channel_end
-        );
+        msg!("store_channel({path}, {channel_end:?})");
         let mut store = self.borrow_mut();
-        store.private.port_channel_id_set.push((
-            channel_end_path.0.to_string(),
-            channel_end_path.1.to_string(),
-        ));
-
-        let serialized_channel_end =
-            borsh::to_vec(&channel_end).map_err(|err| ClientError::Other {
-                description: err.to_string(),
-            })?;
-        let channel_end_trie_key = TrieKey::from(channel_end_path);
-        let trie = &mut &mut store.provable;
-        trie.set(
-            &channel_end_trie_key,
-            &CryptoHash::digest(&serialized_channel_end),
-        )
-        .unwrap();
-
-        store.private.channel_ends.insert(
-            (channel_end_path.0.to_string(), channel_end_path.1.to_string()),
-            serde_json::to_string(&channel_end).unwrap(),
-        );
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(path),
+            &channel_end,
+        )?;
+        let key = (path.0.to_string(), path.1.to_string());
+        store.private.channel_ends.insert(key.clone(), serialized);
+        store.private.port_channel_id_set.push(key);
         Ok(())
     }
 
@@ -430,4 +398,30 @@ impl crate::storage::IbcStorageInner<'_, '_> {
 
         Ok(())
     }
+}
+
+/// Serialises value and stores its hash in trie under given key.  Returns the
+/// serialised value.
+fn store_serialised_proof(
+    trie: &mut crate::storage::AccountTrie<'_, '_>,
+    key: &TrieKey,
+    value: &impl borsh::BorshSerialize,
+) -> Result<Vec<u8>> {
+    fn store_impl(
+        trie: &mut crate::storage::AccountTrie<'_, '_>,
+        key: &TrieKey,
+        value: borsh::maybestd::io::Result<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        value
+            .map_err(|err| err.to_string())
+            .and_then(|value| {
+                let hash = lib::hash::CryptoHash::digest(&value);
+                trie.set(key, &hash)
+                    .map(|()| value)
+                    .map_err(|err| err.to_string())
+            })
+            .map_err(|description| ClientError::Other { description })
+            .map_err(ContextError::ClientError)
+    }
+    store_impl(trie, key, borsh::to_vec(value))
 }
