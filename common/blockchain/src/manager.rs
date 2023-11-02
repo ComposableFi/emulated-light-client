@@ -183,10 +183,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             return None;
         }
         crate::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
-            // SAFETY: 1. ‘total / 2 ≥ 0’ thus ‘total / 2 + 1 > 0’.
-            // 2. ‘total / 2 <= u128::MAX / 2’ thus ‘total / 2 + 1 < u128::MAX’.
-            let quorum =
-                unsafe { NonZeroU128::new_unchecked(total.get() / 2 + 1) };
+            let quorum = NonZeroU128::new(total.get() / 2 + 1).unwrap();
             // min_quorum_stake may be greater than total_stake so we’re not
             // using .clamp to make sure we never return value higher than
             // total_stake.
