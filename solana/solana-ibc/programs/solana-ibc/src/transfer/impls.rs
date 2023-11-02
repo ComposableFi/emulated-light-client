@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{spl_token, Burn, MintTo, Transfer};
@@ -28,8 +30,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let sender_id = from.to_string();
-        let receiver_id = to.to_string();
+        let sender_id = Pubkey::from_str(&from.to_string()).unwrap();
+        let receiver_id = Pubkey::from_str(&to.to_string()).unwrap();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
@@ -44,12 +46,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let sender = store
             .accounts
             .iter()
-            .find(|account| account.key.to_string() == sender_id)
+            .find(|account| account.key == &sender_id)
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let receiver = store
             .accounts
             .iter()
-            .find(|account| account.key.to_string() == receiver_id)
+            .find(|account| account.key == &receiver_id)
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = store
             .accounts
@@ -89,7 +91,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = account.to_string();
+        let receiver_id = Pubkey::from_str(&account.to_string()).unwrap();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
@@ -106,7 +108,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let receiver = store
             .accounts
             .iter()
-            .find(|account| account.key.to_string() == receiver_id)
+            .find(|account| account.key == &receiver_id)
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_mint = store
             .accounts
@@ -160,7 +162,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = account.to_string();
+        let burner_id = Pubkey::from_str(&account.to_string()).unwrap();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
@@ -177,7 +179,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let burner = store
             .accounts
             .iter()
-            .find(|account| account.key.to_string() == burner_id)
+            .find(|account| account.key == &burner_id)
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_mint = store
             .accounts
@@ -274,3 +276,5 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
         Ok(())
     }
 }
+
+// fn get_account_info_from_key(accounts: Vec<AccountInfo>>, key: Pubkey) -> 
