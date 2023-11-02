@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use anchor_lang::prelude::{AccountInfo, CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
-use anchor_lang::solana_program::pubkey::ParsePubkeyError;
 use anchor_spl::token::{spl_token, Burn, MintTo, Transfer};
 use ibc::applications::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -19,10 +18,10 @@ use crate::{storage::IbcStorage, MINT_ESCROW_SEED};
 pub struct AccountId(Pubkey);
 
 impl TryFrom<ibc::Signer> for AccountId {
-    type Error = ParsePubkeyError;
+    type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(AccountId(Pubkey::from_str(&value.to_string())?))
+        Ok(Pubkey::from_str(&value.as_ref()).map(Self)?)
     }
 }
 
@@ -237,13 +236,11 @@ fn get_account_info_from_key<'a, 'b>(
         .ok_or(TokenTransferError::ParseAccountFailure)
 }
 
-fn check_amount_overflow(amount: Amount) -> Result<(), TokenTransferError> {
-    // Solana transfer only supports u64 so checking if the token transfer amount overflows. If it overflows we return an error
-    // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
-    if amount[0] == u64::MAX {
-        return Err(TokenTransferError::InvalidAmount(
-            FromDecStrErr::InvalidLength,
-        ));
-    }
-    Ok(())
+/// Solana transfer only supports u64 so checking if the token transfer amount overflows. If it overflows we return an error else we return the converted u64   
+fn check_amount_overflow(amount: Amount) -> Result<u64, TokenTransferError> {
+    u64::try_from(U256::from(amount)).map_err(|_| {
+        TokenTransferError::InvalidAmount(
+            FromDecStrErr::InvalidLength
+        )
+    })
 }
