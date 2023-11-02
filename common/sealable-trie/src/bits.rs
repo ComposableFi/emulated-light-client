@@ -403,11 +403,14 @@ impl<'a> Slice<'a> {
 
     /// Returns bytes underlying the bit slice.
     fn bytes(&self) -> &'a [u8] {
+        // We need to special-case zero length to make sure that in situation of
+        // non-zero offset and zero length we return an empty slice.
         let len = match self.length {
             0 => 0,
             _ => (self.underlying_bits_length() + 7) / 8,
         };
-        // SAFETY: `ptr` is guaranteed to be valid pointer point at offset+length valid bits.
+        // SAFETY: `ptr` is guaranteed to be valid pointer point at `offset +
+        // length` valid bits.
         unsafe { core::slice::from_raw_parts(self.ptr, len) }
     }
 
@@ -700,46 +703,35 @@ impl core::cmp::PartialEq<Owned> for Slice<'_> {
 
 impl fmt::Display for Slice<'_> {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fn fmt(buf: &mut [u8], mut byte: u8) {
+        use ascii::AsciiChar;
+
+        fn fmt(buf: &mut [AsciiChar], mut byte: u8) {
             for ch in buf.iter_mut().rev() {
-                *ch = b'0' + (byte & 1);
+                *ch = if byte & 1 == 1 { AsciiChar::_1 } else { AsciiChar::_0 };
                 byte >>= 1;
             }
         }
 
-        let (first, mid) = match self.bytes().split_first() {
-            None => return fmtr.write_str("∅"),
-            Some(pair) => pair,
-        };
+        let mut off = usize::from(self.offset);
+        let mut len = off + usize::from(self.length);
+        let mut buf = [AsciiChar::Null; 9];
+        buf[0] = AsciiChar::b;
 
-        let off = usize::from(self.offset);
-        let len = usize::from(self.length);
-        let mut buf = [0; 10];
-        fmt(&mut buf[2..], *first);
-        buf[0] = b'0';
-        buf[1] = b'b';
-        buf[2..2 + off].fill(b'.');
-
-        let (last, mid) = match mid.split_last() {
-            None => {
-                buf[2 + off + len..].fill(b'.');
-                let val = unsafe { core::str::from_utf8_unchecked(&buf) };
-                return fmtr.write_str(val);
+        fmtr.write_str(if self.length == 0 { "∅" } else { "0" })?;
+        for byte in self.bytes() {
+            fmt(&mut buf[1..], *byte);
+            buf[1..1 + off].fill(AsciiChar::Dot);
+            if len < 8 {
+                buf[1 + len..].fill(AsciiChar::Dot);
+            } else {
+                off = 0;
+                len -= 8 - off;
             }
-            Some(pair) => pair,
-        };
 
-        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf) })?;
-        for byte in mid {
-            write!(fmtr, "_{:08b}", byte)?;
+            fmtr.write_str(<&ascii::AsciiStr>::from(&buf[..]).as_str())?;
+            buf[0] = AsciiChar::UnderScore;
         }
-        fmt(&mut buf[..9], *last);
-        buf[0] = b'_';
-        let len = (off + len) % 8;
-        if len != 0 {
-            buf[1 + len..].fill(b'.');
-        }
-        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..9]) })
+        Ok(())
     }
 }
 

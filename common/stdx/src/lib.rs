@@ -47,28 +47,8 @@ pub fn rsplit_at<const R: usize>(xs: &[u8]) -> Option<(&[u8], &[u8; R])> {
     Some((head, tail.try_into().unwrap()))
 }
 
-/// Splits the slice into a slice of `N`-element arrays and a remainder slice
-/// with length strictly less than `N`.
-///
-/// This is simplified copy of Rust unstable `[T]::as_chunks_mut` method.
-pub fn as_chunks_mut<const N: usize, T>(slice: &mut [T]) -> &mut [[T; N]] {
-    let () = AssertNonZero::<N>::OK;
-
-    let ptr = slice.as_mut_ptr().cast();
-    let len = slice.len() / N;
-    // SAFETY: We already panicked for zero, and ensured by construction
-    // that the length of the subslice is a multiple of N.
-    unsafe { core::slice::from_raw_parts_mut(ptr, len) }
-}
-
 /// Asserts, at compile time, that `A + B == S`.
 struct AssertEqSum<const A: usize, const B: usize, const S: usize>;
 impl<const A: usize, const B: usize, const S: usize> AssertEqSum<A, B, S> {
     const OK: () = assert!(S == A + B);
-}
-
-/// Asserts, at compile time, that `N` is non-zero.
-struct AssertNonZero<const N: usize>;
-impl<const N: usize> AssertNonZero<N> {
-    const OK: () = assert!(N != 0);
 }
