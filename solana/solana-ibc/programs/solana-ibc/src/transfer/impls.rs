@@ -1,21 +1,31 @@
-use std::ops::Deref;
 use std::str::FromStr;
 
 use anchor_lang::prelude::{CpiContext, Pubkey, AccountInfo};
 use anchor_lang::solana_program::msg;
+use anchor_lang::solana_program::pubkey::ParsePubkeyError;
 use anchor_spl::token::{spl_token, Burn, MintTo, Transfer};
 use ibc::applications::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
 use ibc::applications::transfer::error::TokenTransferError;
-use ibc::applications::transfer::PrefixedCoin;
+use ibc::applications::transfer::{PrefixedCoin, Amount};
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
-use ibc::Signer;
 use uint::FromDecStrErr;
 use primitive_types::U256;
 
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{IbcStorage, MINT_ESCROW_SEED};
+
+pub struct InnerPubkey(pub Pubkey);
+
+impl TryFrom<ibc::Signer> for InnerPubkey {
+
+   type Error = ParsePubkeyError; 
+
+   fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
+        Ok(InnerPubkey(Pubkey::from_str(&value.to_string())?))
+   } 
+}
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
     fn send_coins_execute(
@@ -27,23 +37,18 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         msg!(
             "Sending coins from account {} to account {}, trace path {}, base \
              denom {}",
-            from,
-            to,
+            from.0,
+            to.0,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let sender_id = Pubkey::from_str(&from.to_string()).unwrap();
-        let receiver_id = Pubkey::from_str(&to.to_string()).unwrap();
+        let sender_id = from.0;
+        let receiver_id = to.0;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
-        let amount_slice = amount.deref();
-        let amount_u64 = amount_slice[0];
-        // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
-        if amount[0] == u64::MAX {
-            return Err(TokenTransferError::InvalidAmount(
-                FromDecStrErr::InvalidLength,
-            ));
-        }
+
+        check_amount_overflow(amount)?;
+
         let (_token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let store = self.0.borrow();
@@ -77,19 +82,16 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
     ) -> Result<(), TokenTransferError> {
         msg!(
             "Minting coins for account {}, trace path {}, base denom {}",
-            account,
+            account.0,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = Pubkey::from_str(&account.to_string()).unwrap();
+        let receiver_id = account.0;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
-        // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
-        if amount[0] == u64::MAX {
-            return Err(TokenTransferError::InvalidAmount(
-                FromDecStrErr::InvalidLength,
-            ));
-        }
+        
+        check_amount_overflow(amount)?;
+
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
@@ -127,19 +129,14 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
     ) -> Result<(), TokenTransferError> {
         msg!(
             "Burning coins for account {}, trace path {}, base denom {}",
-            account,
+            account.0,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = Pubkey::from_str(&account.to_string()).unwrap();
+        let burner_id = account.0;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
-        // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
-        if amount[0] == u64::MAX {
-            return Err(TokenTransferError::InvalidAmount(
-                FromDecStrErr::InvalidLength,
-            ));
-        }
+        check_amount_overflow(amount)?;
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
@@ -172,7 +169,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
 }
 
 impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
-    type AccountId = Signer;
+    type AccountId = InnerPubkey;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
         Ok(PortId::transfer())
@@ -185,8 +182,8 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
     ) -> Result<Self::AccountId, TokenTransferError> {
         let seeds =
             [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
-        let escrow_account = Pubkey::find_program_address(&seeds, &crate::ID);
-        Ok(Signer::from(escrow_account.0.to_string()))
+        let (escrow_account_key, _bump )= Pubkey::find_program_address(&seeds, &crate::ID);
+        Ok(InnerPubkey(escrow_account_key))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {
@@ -230,4 +227,15 @@ fn get_account_info_from_key<'a, 'b>(accounts: &'a Vec<AccountInfo<'b>>, key: Pu
     .iter()
     .find(|account| account.key == &key)
     .ok_or(TokenTransferError::ParseAccountFailure)
+}
+
+fn check_amount_overflow(amount: Amount) -> Result<(), TokenTransferError> {
+    // Solana transfer only supports u64 so checking if the token transfer amount overflows. If it overflows we return an error
+    // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
+    if amount[0] == u64::MAX {
+        return Err(TokenTransferError::InvalidAmount(
+            FromDecStrErr::InvalidLength,
+        ));
+    }
+    Ok(())
 }
