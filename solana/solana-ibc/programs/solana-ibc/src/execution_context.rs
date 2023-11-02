@@ -357,7 +357,9 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let host_height =
             ibc::Height::new(store.private.height.0, store.private.height.1)?;
-        let ibc_event = borsh::to_vec(&event).unwrap();
+        let ibc_event = borsh::to_vec(&event).map_err(|err| {
+            ClientError::Other { description: err.to_string() }
+        })?;
         let inner_host_height =
             (host_height.revision_height(), host_height.revision_number());
         store

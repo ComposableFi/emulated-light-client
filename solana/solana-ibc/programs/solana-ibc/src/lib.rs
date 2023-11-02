@@ -4,7 +4,6 @@
 extern crate alloc;
 
 use anchor_lang::prelude::*;
-use borsh::{BorshDeserialize, BorshSerialize};
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 
