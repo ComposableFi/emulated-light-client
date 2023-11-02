@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::str::FromStr;
 
 use anchor_lang::prelude::{CpiContext, Pubkey, AccountInfo};
@@ -11,6 +12,7 @@ use ibc::applications::transfer::PrefixedCoin;
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::Signer;
 use uint::FromDecStrErr;
+use primitive_types::U256;
 
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{IbcStorage, MINT_ESCROW_SEED};
@@ -34,6 +36,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let receiver_id = Pubkey::from_str(&to.to_string()).unwrap();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
+        let amount_slice = amount.deref();
+        let amount_u64 = amount_slice[0];
         // Since amount is u256 which is array of u64, so if the amount is above u64 max, it means that the amount value at index 0 is max.
         if amount[0] == u64::MAX {
             return Err(TokenTransferError::InvalidAmount(
@@ -63,7 +67,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::transfer(cpi_ctx, amount[0]).unwrap())
+        Ok(anchor_spl::token::transfer(cpi_ctx, U256::from(amount).as_u64()).unwrap())
     }
 
     fn mint_coins_execute(
@@ -113,7 +117,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::mint_to(cpi_ctx, amount[0]).unwrap())
+        Ok(anchor_spl::token::mint_to(cpi_ctx, U256::from(amount).as_u64()).unwrap())
     }
 
     fn burn_coins_execute(
@@ -163,7 +167,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::burn(cpi_ctx, amount[0]).unwrap())
+        Ok(anchor_spl::token::burn(cpi_ctx, U256::from(amount).as_u64()).unwrap())
     }
 }
 

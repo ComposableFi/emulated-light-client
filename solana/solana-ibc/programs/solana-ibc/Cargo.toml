@@ -23,6 +23,7 @@ ibc.workspace = true
 ibc-proto.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+primitive-types.workspace = true
 
 lib.workspace = true
 memory.workspace = true
