@@ -13,11 +13,11 @@ use ibc::Signer;
 use ibc_proto::ibc::apps::transfer::v2::FungibleTokenPacketData;
 use serde::{Deserialize, Serialize};
 
-use crate::IbcStorage;
+use crate::storage::IbcStorage;
 
 mod impls;
 
-impl Module for IbcStorage<'_, '_, '_,> {
+impl Module for IbcStorage<'_, '_, '_> {
     fn on_chan_open_init_validate(
         &self,
         order: Order,

@@ -3,13 +3,11 @@ use core::num::NonZeroU128;
 
 use borsh::maybestd::io;
 
-use crate::validators::Validator;
-
 /// An epoch describing configuration applying to all blocks within an epoch.
 ///
 /// An epoch is identified by hash of the block it was introduced in.  As such,
 /// epoch’s identifier is unknown until block which defines it in
-/// [`crate::block::Block::next_blok`] field is created.
+/// [`crate::crate::Block::next_blok`] field is created.
 #[derive(Clone, Debug, PartialEq, Eq, borsh::BorshSerialize)]
 pub struct Epoch<PK> {
     /// Version of the structure.  Used to support forward-compatibility.  At
@@ -17,7 +15,7 @@ pub struct Epoch<PK> {
     version: crate::common::VersionZero,
 
     /// Validators set.
-    validators: Vec<Validator<PK>>,
+    validators: Vec<crate::Validator<PK>>,
 
     /// Minimum stake to consider block signed.
     ///
@@ -50,7 +48,7 @@ impl<PK> Epoch<PK> {
     /// a blockchain which cannot generate new blocks since signing them is no
     /// longer possible.
     pub fn new(
-        validators: Vec<Validator<PK>>,
+        validators: Vec<crate::Validator<PK>>,
         quorum_stake: NonZeroU128,
     ) -> Option<Self> {
         Self::new_with(validators, |_| quorum_stake)
@@ -64,7 +62,7 @@ impl<PK> Epoch<PK> {
     /// constructor returns `None`.  Also returns `None` when total stake is
     /// zero.
     pub fn new_with(
-        validators: Vec<Validator<PK>>,
+        validators: Vec<crate::Validator<PK>>,
         quorum_stake: impl FnOnce(NonZeroU128) -> NonZeroU128,
     ) -> Option<Self> {
         let mut total: u128 = 0;
@@ -82,13 +80,15 @@ impl<PK> Epoch<PK> {
     }
 
     /// Returns list of all validators in the epoch.
-    pub fn validators(&self) -> &[Validator<PK>] { self.validators.as_slice() }
+    pub fn validators(&self) -> &[crate::Validator<PK>] {
+        self.validators.as_slice()
+    }
 
     /// Returns stake needed to reach quorum.
     pub fn quorum_stake(&self) -> NonZeroU128 { self.quorum_stake }
 
     /// Finds a validator by their public key.
-    pub fn validator(&self, pk: &PK) -> Option<&Validator<PK>>
+    pub fn validator(&self, pk: &PK) -> Option<&crate::Validator<PK>>
     where
         PK: Eq,
     {
@@ -109,7 +109,7 @@ impl Epoch<crate::validators::MockPubKey> {
             .map(|(pk, stake)| {
                 total += stake;
                 let pk = crate::validators::MockPubKey(pk);
-                Validator::new(pk, NonZeroU128::new(stake).unwrap())
+                crate::Validator::new(pk, NonZeroU128::new(stake).unwrap())
             })
             .collect();
         Self::new_with(validators, |total| {
@@ -124,8 +124,8 @@ fn test_creation() {
     use crate::validators::MockPubKey;
 
     let validators = [
-        Validator::new(MockPubKey(0), NonZeroU128::new(5).unwrap()),
-        Validator::new(MockPubKey(1), NonZeroU128::new(5).unwrap()),
+        crate::Validator::new(MockPubKey(0), NonZeroU128::new(5).unwrap()),
+        crate::Validator::new(MockPubKey(1), NonZeroU128::new(5).unwrap()),
     ];
 
     assert_eq!(None, Epoch::<MockPubKey>::new(Vec::new(), NonZeroU128::MIN));

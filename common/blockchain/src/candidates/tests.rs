@@ -59,9 +59,9 @@ impl Default for Cfg {
     }
 }
 
-impl From<Cfg> for chain::Config {
+impl From<Cfg> for crate::Config {
     fn from(cfg: Cfg) -> Self {
-        chain::Config {
+        crate::Config {
             max_validators: NonZeroU16::MAX,
             min_validators: NonZeroU16::new(cfg.min_validators).unwrap(),
             min_validator_stake: NonZeroU128::new(cfg.min_validator_stake)
@@ -74,15 +74,15 @@ impl From<Cfg> for chain::Config {
     }
 }
 
-fn cfg_with_min_validators(min_validators: u16) -> chain::Config {
+fn cfg_with_min_validators(min_validators: u16) -> crate::Config {
     Cfg { min_validators, ..Default::default() }.into()
 }
 
-fn cfg_with_min_validator_stake(min_validator_stake: u128) -> chain::Config {
+fn cfg_with_min_validator_stake(min_validator_stake: u128) -> crate::Config {
     Cfg { min_validator_stake, ..Default::default() }.into()
 }
 
-fn cfg_with_min_total_stake(min_total_stake: u128) -> chain::Config {
+fn cfg_with_min_total_stake(min_total_stake: u128) -> crate::Config {
     Cfg { min_total_stake, ..Default::default() }.into()
 }
 
@@ -195,7 +195,7 @@ fn test_candidiates_1() {
 }
 
 struct TestCtx {
-    config: chain::Config,
+    config: crate::Config,
     candidates: Candidates<MockPubKey>,
     by_key: alloc::collections::BTreeMap<MockPubKey, u128>,
 }
@@ -225,8 +225,8 @@ impl TestCtx {
     }
 
     /// Generates a test config.
-    fn make_config() -> chain::Config {
-        let mut config = chain::Config::from(Cfg {
+    fn make_config() -> crate::Config {
+        let mut config = crate::Config::from(Cfg {
             min_validators: 64,
             min_validator_stake: 128,
             min_total_stake: 16000,
