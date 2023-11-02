@@ -227,7 +227,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
 }
 
 fn get_account_info_from_key<'a, 'b>(
-    accounts: &'a Vec<AccountInfo<'b>>,
+    accounts: &'a [AccountInfo<'b>],
     key: Pubkey,
 ) -> Result<&'a AccountInfo<'b>, TokenTransferError> {
     accounts
