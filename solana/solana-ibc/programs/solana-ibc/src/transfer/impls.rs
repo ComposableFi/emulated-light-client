@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use anchor_lang::prelude::{CpiContext, Pubkey};
+use anchor_lang::prelude::{CpiContext, Pubkey, AccountInfo};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{spl_token, Burn, MintTo, Transfer};
 use ibc::applications::transfer::context::{
@@ -43,24 +43,10 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let (_token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let store = self.0.borrow();
-        let sender = store
-            .accounts
-            .iter()
-            .find(|account| account.key == &sender_id)
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let receiver = store
-            .accounts
-            .iter()
-            .find(|account| account.key == &receiver_id)
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_program = store
-            .accounts
-            .iter()
-            .find(|&account| {
-                account.key == &spl_token::ID
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-
+        let accounts = &store.accounts;
+        let sender = get_account_info_from_key(accounts, sender_id)?;
+        let receiver = get_account_info_from_key(accounts, receiver_id)?;
+        let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
         let bump_vector = bump.to_le_bytes();
         let inner = vec![base_denom.as_ref(), bump_vector.as_ref()];
         let outer = vec![inner.as_slice()];
@@ -105,32 +91,11 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let (mint_authority_key, _bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.0.borrow();
-        let receiver = store
-            .accounts
-            .iter()
-            .find(|account| account.key == &receiver_id)
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_mint = store
-            .accounts
-            .iter()
-            .find(|account| {
-                account.key == &token_mint_key
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_program = store
-            .accounts
-            .iter()
-            .find(|&account| {
-                account.key == &spl_token::ID
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let mint_authority = store
-            .accounts
-            .iter()
-            .find(|&account| {
-                account.key == &mint_authority_key
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let accounts = &store.accounts;
+        let receiver = get_account_info_from_key(accounts, receiver_id)?;
+        let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
+        let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
+        let mint_authority = get_account_info_from_key(accounts, mint_authority_key)?;
 
         let bump_vector = bump.to_le_bytes();
         let inner = vec![base_denom.as_ref(), bump_vector.as_ref()];
@@ -176,32 +141,11 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
         let (mint_authority_key, _bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.0.borrow();
-        let burner = store
-            .accounts
-            .iter()
-            .find(|account| account.key == &burner_id)
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_mint = store
-            .accounts
-            .iter()
-            .find(|account| {
-                account.key == &token_mint_key
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_program = store
-            .accounts
-            .iter()
-            .find(|&account| {
-                account.key == &spl_token::ID
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let mint_authority = store
-            .accounts
-            .iter()
-            .find(|&account| {
-                account.key == &mint_authority_key
-            })
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let accounts = &store.accounts;
+        let burner = get_account_info_from_key(accounts, burner_id)?;
+        let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
+        let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
+        let mint_authority = get_account_info_from_key(accounts, mint_authority_key)?;
 
         let bump_vector = bump.to_le_bytes();
         let inner = vec![base_denom.as_ref(), bump_vector.as_ref()];
@@ -277,4 +221,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
     }
 }
 
-// fn get_account_info_from_key(accounts: Vec<AccountInfo>>, key: Pubkey) -> 
+fn get_account_info_from_key<'a, 'b>(accounts: &'a Vec<AccountInfo<'b>>, key: Pubkey) -> Result<&'a AccountInfo<'b>, TokenTransferError> {
+    accounts
+    .iter()
+    .find(|account| account.key == &key)
+    .ok_or(TokenTransferError::ParseAccountFailure)
+}
