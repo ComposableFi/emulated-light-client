@@ -16,14 +16,14 @@ use primitive_types::U256;
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{IbcStorage, MINT_ESCROW_SEED};
 
-pub struct InnerPubkey(pub Pubkey);
+pub struct AccountId(Pubkey);
 
-impl TryFrom<ibc::Signer> for InnerPubkey {
+impl TryFrom<ibc::Signer> for AccountId {
 
    type Error = ParsePubkeyError; 
 
    fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(InnerPubkey(Pubkey::from_str(&value.to_string())?))
+        Ok(AccountId(Pubkey::from_str(&value.to_string())?))
    } 
 }
 
@@ -169,7 +169,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
 }
 
 impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
-    type AccountId = InnerPubkey;
+    type AccountId = AccountId;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
         Ok(PortId::transfer())
@@ -183,7 +183,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_,> {
         let seeds =
             [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
         let (escrow_account_key, _bump )= Pubkey::find_program_address(&seeds, &crate::ID);
-        Ok(InnerPubkey(escrow_account_key))
+        Ok(AccountId(escrow_account_key))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {
