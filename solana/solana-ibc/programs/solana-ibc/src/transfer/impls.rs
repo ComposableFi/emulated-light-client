@@ -55,7 +55,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             .accounts
             .iter()
             .find(|&account| {
-                account.key.to_string() == spl_token::ID.to_string()
+                account.key == &spl_token::ID
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
@@ -112,21 +112,21 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             .accounts
             .iter()
             .find(|account| {
-                account.key.to_string() == token_mint_key.to_string()
+                account.key == &token_mint_key
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = store
             .accounts
             .iter()
             .find(|&account| {
-                account.key.to_string() == spl_token::ID.to_string()
+                account.key == &spl_token::ID
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let mint_authority = store
             .accounts
             .iter()
             .find(|&account| {
-                account.key.to_string() == mint_authority_key.to_string()
+                account.key == &mint_authority_key
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
@@ -183,21 +183,21 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_,> {
             .accounts
             .iter()
             .find(|account| {
-                account.key.to_string() == token_mint_key.to_string()
+                account.key == &token_mint_key
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = store
             .accounts
             .iter()
             .find(|&account| {
-                account.key.to_string() == spl_token::ID.to_string()
+                account.key == &spl_token::ID
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let mint_authority = store
             .accounts
             .iter()
             .find(|&account| {
-                account.key.to_string() == mint_authority_key.to_string()
+                account.key == &mint_authority_key
             })
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
