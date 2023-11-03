@@ -15,6 +15,8 @@ use uint::FromDecStrErr;
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{storage::IbcStorage, MINT_ESCROW_SEED};
 
+#[derive(Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
+#[into(owned, ref, ref_mut)]
 pub struct AccountId(Pubkey);
 
 impl TryFrom<ibc::Signer> for AccountId {
@@ -23,6 +25,34 @@ impl TryFrom<ibc::Signer> for AccountId {
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
         Ok(Pubkey::from_str(&value.as_ref()).map(Self)?)
     }
+}
+
+impl PartialEq<Pubkey> for AccountId {
+    #[inline]
+    fn eq(&self, rhs: &Pubkey) -> bool { &self.0 == rhs }
+}
+
+impl PartialEq<AccountId> for Pubkey {
+    #[inline]
+    fn eq(&self, rhs: &AccountId) -> bool { self == &rhs.0 }
+}
+
+impl core::fmt::Debug for AccountId {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.fmt(fmtr)
+    }
+}
+
+impl core::fmt::Display for AccountId {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.fmt(fmtr)
+    }
+}
+
+impl AccountId {
+    fn to_pubkey(&self) -> Pubkey { self.0 }
 }
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
@@ -35,13 +65,13 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         msg!(
             "Sending coins from account {} to account {}, trace path {}, base \
              denom {}",
-            from.0,
-            to.0,
+            from,
+            to,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let sender_id = from.0;
-        let receiver_id = to.0;
+        let sender_id = from.to_pubkey();
+        let receiver_id = to.to_pubkey();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
@@ -70,8 +100,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::transfer(cpi_ctx, amount_in_u64)
-            .unwrap())
+        Ok(anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap())
     }
 
     fn mint_coins_execute(
@@ -81,11 +110,11 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     ) -> Result<(), TokenTransferError> {
         msg!(
             "Minting coins for account {}, trace path {}, base denom {}",
-            account.0,
+            account,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = account.0;
+        let receiver_id = account.to_pubkey();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
@@ -119,8 +148,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::mint_to(cpi_ctx, amount_in_u64)
-            .unwrap())
+        Ok(anchor_spl::token::mint_to(cpi_ctx, amount_in_u64).unwrap())
     }
 
     fn burn_coins_execute(
@@ -130,11 +158,11 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     ) -> Result<(), TokenTransferError> {
         msg!(
             "Burning coins for account {}, trace path {}, base denom {}",
-            account.0,
+            account,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = account.0;
+        let burner_id = account.to_pubkey();
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         let amount_in_u64 = check_amount_overflow(amount)?;
@@ -166,8 +194,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::burn(cpi_ctx, amount_in_u64)
-            .unwrap())
+        Ok(anchor_spl::token::burn(cpi_ctx, amount_in_u64).unwrap())
     }
 }
 
@@ -239,8 +266,6 @@ fn get_account_info_from_key<'a, 'b>(
 /// Solana transfer only supports u64 so checking if the token transfer amount overflows. If it overflows we return an error else we return the converted u64   
 fn check_amount_overflow(amount: Amount) -> Result<u64, TokenTransferError> {
     u64::try_from(U256::from(amount)).map_err(|_| {
-        TokenTransferError::InvalidAmount(
-            FromDecStrErr::InvalidLength
-        )
+        TokenTransferError::InvalidAmount(FromDecStrErr::InvalidLength)
     })
 }
