@@ -15,8 +15,7 @@ use uint::FromDecStrErr;
 // use crate::module_holder::IbcStorage<'_,'_>;
 use crate::{storage::IbcStorage, MINT_ESCROW_SEED};
 
-#[derive(Clone, PartialEq, Eq, derive_more::From, derive_more::Into)]
-#[into(owned, ref, ref_mut)]
+#[derive(Clone, PartialEq, Eq, derive_more::From)]
 pub struct AccountId(Pubkey);
 
 impl TryFrom<ibc::Signer> for AccountId {
@@ -51,8 +50,10 @@ impl core::fmt::Display for AccountId {
     }
 }
 
-impl AccountId {
-    fn to_pubkey(&self) -> Pubkey { self.0 }
+impl From<&AccountId> for Pubkey {
+    fn from(value: &AccountId) -> Self {
+        value.0
+    }
 }
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
@@ -70,8 +71,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let sender_id = from.to_pubkey();
-        let receiver_id = to.to_pubkey();
+        let sender_id = Pubkey::from(from);
+        let receiver_id = Pubkey::from(to);
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
@@ -114,7 +115,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = account.to_pubkey();
+        let receiver_id = Pubkey::from(account);
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
@@ -162,7 +163,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = account.to_pubkey();
+        let burner_id = Pubkey::from(account);
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         let amount_in_u64 = check_amount_overflow(amount)?;

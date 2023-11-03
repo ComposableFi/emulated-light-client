@@ -82,6 +82,12 @@ fn anchor_test_deliver() -> Result<()> {
     let packet_seeds = &[PACKET_SEED];
     let packets = Pubkey::find_program_address(packet_seeds, &crate::ID).0;
 
+    /*
+    *
+    * Create New Mock Client 
+    *
+    */
+
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
     let message = make_message!(
@@ -118,6 +124,12 @@ fn anchor_test_deliver() -> Result<()> {
         program.account(solana_ibc_storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
+
+    /*
+    *
+    * Create New Mock Connection Open Init
+    *
+    */
 
     let counter_party_client_id =
         ClientId::new(mock_client_state.client_type(), 1).unwrap();
