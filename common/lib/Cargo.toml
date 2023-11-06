@@ -8,9 +8,14 @@ edition = "2021"
 base64.workspace = true
 borsh = { workspace = true, optional = true }
 derive_more.workspace = true
-sha2.workspace = true
 
 stdx.workspace = true
+
+[target.'cfg(not(target_os = "solana"))'.dependencies]
+sha2.workspace = true
+
+[target.'cfg(target_os = "solana")'.dependencies]
+solana-program.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

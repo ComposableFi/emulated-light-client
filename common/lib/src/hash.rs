@@ -2,7 +2,6 @@ use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
 #[cfg(feature = "borsh")]
 use borsh::maybestd::io;
-use sha2::Digest;
 
 /// A cryptographic hash.
 #[derive(
@@ -43,16 +42,8 @@ impl CryptoHash {
     /// Returns hash of given bytes.
     #[inline]
     pub fn digest(bytes: &[u8]) -> Self {
-        Self(sha2::Sha256::digest(bytes).into())
-    }
-
-    /// Returns hash of concatenation of given byte slices.
-    #[inline]
-    pub fn digest_vec(slices: &[&[u8]]) -> Self {
         let mut builder = Self::builder();
-        for slice in slices {
-            builder.update(slice);
-        }
+        builder.update(bytes);
         builder.build()
     }
 
@@ -174,6 +165,40 @@ impl<'a> TryFrom<&'a [u8]> for CryptoHash {
     }
 }
 
+#[cfg(not(target_os = "solana"))]
+mod builder {
+    use sha2::Digest;
+
+    #[derive(Default)]
+    pub(super) struct Inner(sha2::Sha256);
+
+    impl Inner {
+        #[inline]
+        pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
+
+        #[inline]
+        pub fn done(self) -> [u8; 32] { self.0.finalize().into() }
+    }
+}
+
+#[cfg(target_os = "solana")]
+mod builder {
+    pub(super) struct Inner(Vec<u8>);
+
+    impl Inner {
+        #[inline]
+        pub fn update(&mut self, bytes: &[u8]) {
+            self.0.extend_from_slice(bytes)
+        }
+
+        #[inline]
+        pub fn done(self) -> [u8; 32] {
+            solana_program::hash::hashv(&[bytes]).to_bytes()
+        }
+    }
+}
+
+
 /// Builder for the cryptographic hash.
 ///
 /// The builder calculates the digest of bytes that it’s fed using the
@@ -183,7 +208,7 @@ impl<'a> TryFrom<&'a [u8]> for CryptoHash {
 /// data to be hashed.  If all data is in a single contiguous buffer it’s more
 /// convenient to use [`CryptoHash::digest`] instead.
 #[derive(Default)]
-pub struct Builder(sha2::Sha256);
+pub struct Builder(builder::Inner);
 
 impl Builder {
     /// Process data, updating the internal state of the digest.
@@ -192,7 +217,7 @@ impl Builder {
 
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
-    pub fn build(self) -> CryptoHash { CryptoHash(self.0.finalize().into()) }
+    pub fn build(self) -> CryptoHash { CryptoHash(self.0.done()) }
 }
 
 #[cfg(feature = "borsh")]
@@ -235,7 +260,6 @@ fn test_new_hash() {
         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
     ]);
     assert_eq!(want, CryptoHash::digest(b"abc"));
-    assert_eq!(want, CryptoHash::digest_vec(&[b"a", b"bc"]));
     let got = {
         let mut builder = CryptoHash::builder();
         builder.update(b"a");
