@@ -27,6 +27,7 @@ anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
 ascii = "1.1.0"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
+bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
 ibc = { version = "0.47.0", default-features = false, features = ["serde", "borsh"] }
@@ -41,6 +42,7 @@ solana-program = "1.16.14"
 solana-sdk = "1.16.14"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 
+blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }

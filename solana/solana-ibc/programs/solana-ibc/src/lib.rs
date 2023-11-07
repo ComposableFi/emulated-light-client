@@ -20,6 +20,7 @@ declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
 mod client_state;
 mod consensus_state;
+mod ed25519;
 mod execution_context;
 mod storage;
 #[cfg(test)]
