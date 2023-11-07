@@ -67,4 +67,4 @@ jobs:
           components: miri
 
       - name: Run tests with Miri
-        run: cargo miri test -- --skip ::stress_test --skip ::anchor
+        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor
