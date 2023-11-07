@@ -86,6 +86,9 @@ impl blockchain::Verifier<PubKey> for Verifier {
 
 /// Parses the `data` as instruction data for the Ed25519 native program and
 /// checks whether the call included verification of the given signature.
+///
+/// `data` must be aligned to two bytes.  This is in practice guaranteed if data
+/// comes from a vector or in general points at a beginning of an allocation.
 fn verify_impl(
     data: &[u8],
     message: &[u8],
