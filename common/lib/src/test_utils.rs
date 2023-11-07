@@ -10,13 +10,22 @@
 /// value reduced by given factor.  Using `divisor` is better than dividing the
 /// result because if requested number of tests is non-zero, this function will
 /// always return at least one.
+///
+/// When running under Miri, the returned value is clamped to be at most five.
+/// The idea being to avoid stress tests, which run for good several second when
+/// run normally, taking minutes or hours when run through Miri.
 pub fn get_iteration_count(divisor: usize) -> usize {
     use core::str::FromStr;
     let n = std::env::var_os("STRESS_TEST_ITERATIONS")
         .map(|val| usize::from_str(val.to_str().unwrap()).unwrap())
         .unwrap_or(100_000);
-    match n {
+    let n = match n {
         0 => 0,
         n => 1.max(n / divisor),
+    };
+    if cfg!(miri) {
+        n.min(5)
+    } else {
+        n
     }
 }
