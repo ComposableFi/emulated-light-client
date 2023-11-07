@@ -199,26 +199,27 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         &mut self,
         pubkey: PK,
         signature: &PK::Signature,
+        verifier: &impl crate::Verifier<PK>,
     ) -> Result<bool, AddSignatureError> {
         let pending = self
             .pending_block
             .as_mut()
             .ok_or(AddSignatureError::NoPendingBlock)?;
-        if pending.signers.contains(&pubkey) {
-            return Ok(false);
-        }
-        if !pubkey.verify(pending.hash.as_slice(), signature) {
-            return Err(AddSignatureError::BadSignature);
-        }
-
-        pending.signing_stake += self
+        let validator_stake = self
             .next_epoch
             .validator(&pubkey)
             .ok_or(AddSignatureError::BadValidator)?
             .stake()
             .get();
-        assert!(pending.signers.insert(pubkey));
+        if !verifier.verify(pending.hash.as_slice(), &pubkey, signature) {
+            return Err(AddSignatureError::BadSignature);
+        }
 
+        if !pending.signers.insert(pubkey) {
+            return Ok(false);
+        }
+
+        pending.signing_stake += validator_stake;
         if pending.signing_stake < self.next_epoch.quorum_stake().get() {
             return Ok(false);
         }
@@ -304,7 +305,7 @@ fn test_generate() {
         validator: &crate::validators::Validator<MockPubKey>,
     ) -> Result<bool, AddSignatureError> {
         let signature = mgr.head().1.sign(&validator.pubkey().make_signer());
-        mgr.add_signature(validator.pubkey().clone(), &signature)
+        mgr.add_signature(validator.pubkey().clone(), &signature, &())
     }
 
     // The head hasn’t been fully signed yet.
@@ -329,11 +330,11 @@ fn test_generate() {
     let signature = mgr.head().1.sign(&pubkey.make_signer());
     assert_eq!(
         Err(AddSignatureError::BadValidator),
-        mgr.add_signature(pubkey, &signature)
+        mgr.add_signature(pubkey, &signature, &())
     );
     assert_eq!(
         Err(AddSignatureError::BadSignature),
-        mgr.add_signature(bob.pubkey().clone(), &signature)
+        mgr.add_signature(bob.pubkey().clone(), &signature, &())
     );
 
     assert_eq!(
