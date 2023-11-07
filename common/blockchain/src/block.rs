@@ -69,17 +69,19 @@ impl<PK: crate::PubKey> Block<PK> {
 
 
     /// Signs the block.
-    pub fn sign<S>(&self, signer: &S) -> PK::Signature
-    where
-        S: crate::validators::Signer<Signature = PK::Signature>,
-    {
+    pub fn sign(&self, signer: &impl crate::Signer<PK>) -> PK::Signature {
         signer.sign(self.calc_hash().as_slice())
     }
 
     /// Verifies signature for the block.
     #[inline]
-    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
-        pk.verify(self.calc_hash().as_slice(), signature)
+    pub fn verify(
+        &self,
+        pubkey: &PK,
+        signature: &PK::Signature,
+        verifier: &impl crate::Verifier<PK>,
+    ) -> bool {
+        verifier.verify(self.calc_hash().as_slice(), pubkey, signature)
     }
 
     /// Constructs next block.
@@ -179,14 +181,14 @@ fn test_block_generation() {
     let signer = MockSigner(pk);
     let signature = genesis.sign(&signer);
     assert_eq!(MockSignature(1722674425, pk), signature);
-    assert!(genesis.verify(&pk, &signature));
-    assert!(!genesis.verify(&MockPubKey(88), &signature));
-    assert!(!genesis.verify(&pk, &MockSignature(0, pk)));
+    assert!(genesis.verify(&pk, &signature, &()));
+    assert!(!genesis.verify(&MockPubKey(88), &signature, &()));
+    assert!(!genesis.verify(&pk, &MockSignature(0, pk), &()));
 
     let mut block = genesis.clone();
     block.host_timestamp += 1;
     assert_ne!(genesis_hash, block.calc_hash());
-    assert!(!block.verify(&pk, &signature));
+    assert!(!block.verify(&pk, &signature, &()));
 
     // Try creating invalid next block.
     assert_eq!(

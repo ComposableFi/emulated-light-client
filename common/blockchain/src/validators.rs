@@ -12,17 +12,23 @@ pub trait PubKey:
 {
     /// Signature corresponding to this public key type.
     type Signature: Clone + borsh::BorshSerialize + borsh::BorshDeserialize;
-
-    /// Verifies the signature for given message.
-    fn verify(&self, message: &[u8], signature: &Self::Signature) -> bool;
 }
 
-pub trait Signer {
-    /// Signature created by this signer.
-    type Signature: Clone + borsh::BorshSerialize + borsh::BorshDeserialize;
+/// Function verifying a signature.
+pub trait Verifier<PK: PubKey> {
+    /// Verify signature for given message.
+    fn verify(
+        &self,
+        message: &[u8],
+        pubkey: &PK,
+        signature: &PK::Signature,
+    ) -> bool;
+}
 
+/// Function generating signatures.
+pub trait Signer<PK: PubKey> {
     /// Signs given message.
-    fn sign(&self, message: &[u8]) -> Self::Signature;
+    fn sign(&self, message: &[u8]) -> PK::Signature;
 }
 
 /// A validator
@@ -115,16 +121,24 @@ pub(crate) mod test_utils {
 
     impl super::PubKey for MockPubKey {
         type Signature = MockSignature;
+    }
 
-        fn verify(&self, message: &[u8], signature: &Self::Signature) -> bool {
-            signature.0 == short_hash(message) && &signature.1 == self
+    impl super::Verifier<MockPubKey> for () {
+        fn verify(
+            &self,
+            message: &[u8],
+            pubkey: &MockPubKey,
+            signature: &<MockPubKey as super::PubKey>::Signature,
+        ) -> bool {
+            signature.0 == short_hash(message) && &signature.1 == pubkey
         }
     }
 
-    impl super::Signer for MockSigner {
-        type Signature = MockSignature;
-
-        fn sign(&self, message: &[u8]) -> Self::Signature {
+    impl super::Signer<MockPubKey> for MockSigner {
+        fn sign(
+            &self,
+            message: &[u8],
+        ) -> <MockPubKey as super::PubKey>::Signature {
             MockSignature(short_hash(message), self.0)
         }
     }
