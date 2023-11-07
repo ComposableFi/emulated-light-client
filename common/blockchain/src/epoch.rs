@@ -7,7 +7,7 @@ use borsh::maybestd::io;
 ///
 /// An epoch is identified by hash of the block it was introduced in.  As such,
 /// epoch’s identifier is unknown until block which defines it in
-/// [`crate::crate::Block::next_blok`] field is created.
+/// [`crate::Block::next_epoch`] field is created.
 #[derive(Clone, Debug, PartialEq, Eq, borsh::BorshSerialize)]
 pub struct Epoch<PK> {
     /// Version of the structure.  Used to support forward-compatibility.  At

@@ -50,7 +50,7 @@ pub(super) fn get_entries<A: memory::Allocator<Value = super::Value>>(
     }
 }
 
-/// Result returned from [`Context::get_subtrie_root`] method.
+/// Result returned from [`get_subtrie_root`] method.
 enum GetSubtrieRootResult {
     /// Found a subtrie root node.
     ///
