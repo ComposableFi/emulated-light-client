@@ -92,6 +92,15 @@ fn verify_impl(
     pubkey: &[u8; PubKey::LENGTH],
     signature: &[u8; Signature::LENGTH],
 ) -> bool {
+    let check = |offsets: &SignatureOffsets| {
+        offsets.signature_instruction_index == u16::MAX &&
+            offsets.public_key_instruction_index == u16::MAX &&
+            offsets.message_instruction_index == u16::MAX &&
+            offsets.signature(data) == Some(&signature[..]) &&
+            offsets.public_key(data) == Some(&pubkey[..]) &&
+            offsets.message(data) == Some(message)
+    };
+
     // The instruction data is:
     //   count:   u8
     //   unused:  u8
@@ -102,14 +111,18 @@ fn verify_impl(
         .unwrap_or(&[])
         .chunks_exact(core::mem::size_of::<SignatureOffsets>())
         .take(usize::from(count))
-        .map(bytemuck::from_bytes::<SignatureOffsets>)
-        .any(|offsets| {
-            offsets.signature_instruction_index == u16::MAX &&
-                offsets.public_key_instruction_index == u16::MAX &&
-                offsets.message_instruction_index == u16::MAX &&
-                offsets.signature(data) == Some(&signature[..]) &&
-                offsets.public_key(data) == Some(&pubkey[..]) &&
-                offsets.message(data) == Some(message)
+        .any(|chunk| {
+            // Solana SDK uses bytemuck::try_from_bytes to cast instruction data
+            // directly into the offsets structure.  In practice vectors data is
+            // aligned to two bytes so this always works.  However, MIRI doesn’t
+            // like that.  I’m not ready to give up on bytemuck::from_bytes just
+            // yet so we’re using conditional compilation to make MIRI happy and
+            // avoid unaligned reads in production.
+            if cfg!(miri) {
+                check(&bytemuck::pod_read_unaligned(chunk))
+            } else {
+                check(bytemuck::from_bytes(chunk))
+            }
         })
 }
 
