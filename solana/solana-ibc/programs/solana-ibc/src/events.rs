@@ -13,7 +13,7 @@ use anchor_lang::solana_program;
     derive_more::From,
 )]
 pub enum Event {
-    IBCEvent(ibc::core::events::IbcEvent),
+    IbcEvent(ibc::core::events::IbcEvent),
 }
 
 impl Event {
