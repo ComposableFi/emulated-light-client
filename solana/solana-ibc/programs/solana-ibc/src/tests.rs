@@ -16,7 +16,7 @@ use ibc::core::ics03_connection::connection::Counterparty;
 use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
 use ibc::core::ics03_connection::version::Version;
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::ClientId;
+use ibc::core::ics24_host::identifier::{ClientId, PortId};
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
@@ -83,10 +83,10 @@ fn anchor_test_deliver() -> Result<()> {
     let packets = Pubkey::find_program_address(packet_seeds, &crate::ID).0;
 
     /*
-    *
-    * Create New Mock Client 
-    *
-    */
+     *
+     * Create New Mock Client
+     *
+     */
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
@@ -126,10 +126,13 @@ fn anchor_test_deliver() -> Result<()> {
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     /*
-    *
-    * Create New Mock Connection Open Init
-    *
-    */
+     *
+     * Create New Mock Connection Open Init
+     *
+     */
+
+    let client_id = ClientId::new(mock_client_state.client_type(), 0)
+    .unwrap();
 
     let counter_party_client_id =
         ClientId::new(mock_client_state.client_type(), 1).unwrap();
@@ -139,13 +142,12 @@ fn anchor_test_deliver() -> Result<()> {
 
     let message = make_message!(
         MsgConnectionOpenInit {
-            client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
-                .unwrap(),
+            client_id_on_a: client_id.clone(),
             version: Some(Version::default()),
             counterparty: Counterparty::new(
-                counter_party_client_id,
+                counter_party_client_id.clone(),
                 None,
-                commitment_prefix,
+                commitment_prefix.clone(),
             ),
             delay_period: Duration::from_secs(5),
             signer: ibc::Signer::from(authority.pubkey().to_string()),
@@ -172,6 +174,34 @@ fn anchor_test_deliver() -> Result<()> {
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
     println!("signature for connection open init: {sig}");
+
+    /*
+     *
+     * Setup mock connection and channel
+     *
+     */
+
+     let sig = program
+        .request()
+        .accounts(accounts::Deliver {
+            sender: authority.pubkey(),
+            storage: solana_ibc_storage,
+            trie,
+            system_program: system_program::ID,
+            packets,
+        })
+        .args(instruction::MockDeliver { port_id: PortId::transfer(), commitment_prefix, client_id, counterparty_client_id: counter_party_client_id })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+
+    println!("signature for setting up channel and connection with next seq: {sig}");
+    
+    // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
+    // Pass the instruction for transfer
 
     Ok(())
 }

@@ -5,7 +5,17 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use borsh::{BorshDeserialize, BorshSerialize};
-use ibc::core::ics24_host::identifier::PortId;
+use ibc::core::ics03_connection::connection::{
+    ConnectionEnd, Counterparty, State as ConnState,
+};
+use ibc::core::ics03_connection::version::Version;
+use ibc::core::ics04_channel::{channel::{
+    ChannelEnd, Counterparty as ChanCounterparty, Order, State as ChannelState,
+}, Version as ChanVersion};
+use ibc::core::ics24_host::identifier::{
+    ChannelId, ClientId, ConnectionId, PortId,
+};
+use ibc::core::{ExecutionContext, ics24_host::path::{ConnectionPath, ChannelEndPath, SeqSendPath, SeqRecvPath}, ics23_commitment::commitment::CommitmentPrefix};
 use ibc::core::router::{Module, ModuleId, Router};
 
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
@@ -31,9 +41,16 @@ mod trie_key;
 mod validation_context;
 // mod client_context;
 
+#[cfg(feature = "mocks")]
+const TEST: bool = true;
+#[cfg(not(feature = "mocks"))]
+const TEST: bool = false;
+
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+
+
     use super::*;
 
     pub fn deliver(
@@ -82,6 +99,69 @@ pub mod solana_ibc {
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
 
+        Ok(())
+    }
+
+    /// This method is called to set up connection, channel and store the next sequence. Will panic if called without `[mocks]` feature
+    pub fn mock_deliver(
+        ctx: Context<Deliver>,
+        port_id: PortId,
+        commitment_prefix: CommitmentPrefix,
+        client_id: ClientId,
+        counterparty_client_id: ClientId,
+    ) -> Result<()> {
+        if !TEST {
+            panic!();
+        }
+        let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
+        msg!("This is private: {private:?}");
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+        let accounts = ctx.remaining_accounts;
+
+        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
+            private,
+            provable,
+            packets,
+            accounts: accounts.to_vec(),
+        });
+
+        let connection_id = ConnectionId::new(0);
+        let delay_period = core::time::Duration::from_nanos(0);
+        let connection_counterparty = Counterparty::new(
+            counterparty_client_id,
+            Some(ConnectionId::new(1)),
+            commitment_prefix,
+        );
+        let connection_end = ConnectionEnd::new(
+            ConnState::Open,
+            client_id,
+            connection_counterparty,
+            vec![Version::default()],
+            delay_period,
+        ).unwrap();
+
+        let counterparty =
+            ChanCounterparty::new(port_id.clone(), Some(ChannelId::new(1)));
+        let channel_end = ChannelEnd::new(
+            ChannelState::Open,
+            Order::Unordered,
+            counterparty,
+            vec![connection_id.clone()],
+            ChanVersion::new(ibc::applications::transfer::VERSION.to_string()),
+        ).unwrap();
+        let channel_id = ChannelId::new(0);
+
+        store.store_connection(&ConnectionPath(connection_id), connection_end).unwrap();
+        store
+            .store_channel(&ChannelEndPath(port_id.clone(), channel_id.clone()), channel_end)
+            .unwrap();
+        store
+            .store_next_sequence_send(&SeqSendPath(port_id.clone(), channel_id.clone()), 1.into())
+            .unwrap();
+        store
+            .store_next_sequence_recv(&SeqRecvPath(port_id, channel_id), 1.into())
+            .unwrap();
         Ok(())
     }
 }

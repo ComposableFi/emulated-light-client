@@ -51,9 +51,7 @@ impl core::fmt::Display for AccountId {
 }
 
 impl From<&AccountId> for Pubkey {
-    fn from(value: &AccountId) -> Self {
-        value.0
-    }
+    fn from(value: &AccountId) -> Self { value.0 }
 }
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
