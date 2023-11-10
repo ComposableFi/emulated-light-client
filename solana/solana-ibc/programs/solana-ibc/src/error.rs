@@ -1,3 +1,5 @@
+use blockchain::manager;
+
 /// Error returned when handling a request.
 // Note: When changing variants in the enum, try to preserve indexes of each
 // variant.  The position is translated into error code returned by Anchor and
@@ -80,34 +82,34 @@ impl From<&Error> for u32 {
     fn from(err: &Error) -> u32 { err.code() }
 }
 
-impl From<BadGenesis> for Error {
-    fn from(_: BadGenesis) -> Self { Error::Internal("BadGenesis") }
+impl From<manager::BadGenesis> for Error {
+    fn from(_: manager::BadGenesis) -> Self { Self::Internal("BadGenesis") }
 }
 
-impl From<GenerateError> for Error {
-    fn from(err: GenerateError) -> Self {
+impl From<manager::GenerateError> for Error {
+    fn from(err: manager::GenerateError) -> Self {
         match err {
-            GenerateError::HasPendingBlock => Error::HasPendingBlock,
-            GenerateError::BlockTooYoung => Error::HeadBlockTooYoung,
-            GenerateError::UnchangedState => Error::UnchangedGuestState,
-            GenerateError::Inner(e) => Error::Internal(e.into()),
+            manager::GenerateError::HasPendingBlock => Self::HasPendingBlock,
+            manager::GenerateError::BlockTooYoung => Self::HeadBlockTooYoung,
+            manager::GenerateError::UnchangedState => Self::UnchangedGuestState,
+            manager::GenerateError::Inner(err) => Self::Internal(err.into()),
         }
     }
 }
 
-impl From<AddSignatureError> for Error {
-    fn from(err: AddSignatureError) -> Self {
+impl From<manager::AddSignatureError> for Error {
+    fn from(err: manager::AddSignatureError) -> Self {
         match err {
-            AddSignatureError::NoPendingBlock => Self::UnknownBlock,
-            AddSignatureError::BadSignature => Self::BadSignature,
-            AddSignatureError::BadValidator => Self::BadValidator,
+            manager::AddSignatureError::NoPendingBlock => Self::UnknownBlock,
+            manager::AddSignatureError::BadSignature => Self::BadSignature,
+            manager::AddSignatureError::BadValidator => Self::BadValidator,
         }
     }
 }
 
-impl From<UpdateCandidateError> for Error {
-    fn from(err: UpdateCandidateError) -> Self {
-        use UpdateCandidateError as Err;
+impl From<manager::UpdateCandidateError> for Error {
+    fn from(err: manager::UpdateCandidateError) -> Self {
+        use manager::UpdateCandidateError as Err;
         match err {
             Err::NotEnoughValidatorStake => Self::NotEnoughValidatorStake,
             Err::NotEnoughTotalStake => Self::NotEnoughTotalStake,

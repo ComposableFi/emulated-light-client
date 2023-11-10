@@ -3,7 +3,7 @@ use anchor_lang::solana_program;
 pub use blockchain::Config;
 
 use crate::error::Error;
-use crate::storage;
+use crate::{events, storage};
 
 type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
@@ -38,12 +38,21 @@ impl ChainData {
             genesis_epoch,
         )
         .map_err(|err| Error::Internal(err.into()))?;
-        let manager = Manager::new(config, genesis).map_err(Error::from)?;
+        let manager =
+            Manager::new(config, genesis.clone()).map_err(Error::from)?;
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
         let last_check_height = manager.head().1.host_height;
-        self.inner = Some(ChainInner { last_check_height, manager });
+        let inner =
+            self.inner.insert(ChainInner { last_check_height, manager });
+
+        let (finalised, head) = inner.manager.head();
+        assert!(finalised);
+        events::emit(events::Initialised {
+            genesis: events::NewBlock { hash: &head.calc_hash(), block: head },
+        })
+        .map_err(ProgramError::BorshIoError)?;
         Ok(())
     }
 
@@ -103,10 +112,26 @@ impl ChainData {
             };
         }
         inner.last_check_height = height;
-        inner
-            .manager
-            .generate_next(height, timestamp, trie.hash().clone(), false)
-            .or_else(|err| if force { Err(into_error(err)) } else { Ok(()) })
+        let res = inner.manager.generate_next(
+            height,
+            timestamp,
+            trie.hash().clone(),
+            false,
+        );
+        match res {
+            Ok(()) => {
+                let (finalised, head) = inner.manager.head();
+                assert!(!finalised);
+                events::emit(events::NewBlock {
+                    hash: &head.calc_hash(),
+                    block: head,
+                })
+                .map_err(ProgramError::BorshIoError)?;
+                Ok(())
+            }
+            Err(err) if force => Err(into_error(err)),
+            Err(_) => Ok(()),
+        }
     }
 
     /// Submits a signature for the pending block.
@@ -120,10 +145,26 @@ impl ChainData {
         signature: &Signature,
         verifier: &Verifier,
     ) -> Result<bool> {
-        self.get_mut()?
-            .manager
-            .add_signature(pubkey, signature, verifier)
-            .map_err(into_error)
+        let manager = &mut self.get_mut()?.manager;
+        let res = manager
+            .add_signature(pubkey.clone(), signature, verifier)
+            .map_err(into_error)?;
+
+        let mut hash = None;
+        if res.got_new_signature() {
+            let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
+            events::emit(events::BlockSigned {
+                block_hash: hash,
+                pubkey: &pubkey,
+            })
+            .map_err(ProgramError::BorshIoError)?;
+        }
+        if res.got_quorum() {
+            let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
+            events::emit(events::BlockFinalised { block_hash: hash })
+                .map_err(ProgramError::BorshIoError)?;
+        }
+        Ok(res.got_quorum())
     }
 
     /// Updates validator’s stake.
