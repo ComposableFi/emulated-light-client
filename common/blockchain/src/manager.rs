@@ -55,7 +55,9 @@ struct PendingBlock<PK> {
 pub struct BadGenesis;
 
 /// Error while generating a new block.
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::From, strum::IntoStaticStr,
+)]
 pub enum GenerateError {
     /// Last block hasn’t been signed by enough validators yet.
     HasPendingBlock,

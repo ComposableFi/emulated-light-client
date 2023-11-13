@@ -45,7 +45,7 @@ pub struct Block<PK> {
 }
 
 /// Error while generating new block.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr)]
 pub enum GenerateError {
     /// Host height went backwards.
     BadHostHeight,
