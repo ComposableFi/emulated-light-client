@@ -1,6 +1,7 @@
 use anchor_lang::prelude::{borsh, err};
-use anchor_lang::solana_program::account_info::AccountInfo;
-use anchor_lang::solana_program::{ed25519_program, sysvar};
+use anchor_lang::solana_program;
+use solana_program::account_info::AccountInfo;
+use solana_program::{ed25519_program, sysvar};
 
 /// An Ed25519 public key used by guest validators to sign guest blocks.
 #[derive(
@@ -12,11 +13,23 @@ use anchor_lang::solana_program::{ed25519_program, sysvar};
     Hash,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
+    derive_more::From,
+    derive_more::Into,
 )]
-pub struct PubKey([u8; Self::LENGTH]);
+pub struct PubKey([u8; 32]);
 
 impl PubKey {
     pub const LENGTH: usize = 32;
+}
+
+impl From<solana_program::pubkey::Pubkey> for PubKey {
+    fn from(pubkey: solana_program::pubkey::Pubkey) -> Self {
+        Self(pubkey.to_bytes())
+    }
+}
+
+impl From<PubKey> for solana_program::pubkey::Pubkey {
+    fn from(pubkey: PubKey) -> Self { Self::from(pubkey.0) }
 }
 
 impl blockchain::PubKey for PubKey {
@@ -33,8 +46,10 @@ impl blockchain::PubKey for PubKey {
     Hash,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
+    derive_more::From,
+    derive_more::Into,
 )]
-pub struct Signature([u8; Self::LENGTH]);
+pub struct Signature([u8; 64]);
 
 impl Signature {
     pub const LENGTH: usize = 64;
@@ -61,7 +76,6 @@ impl Verifier {
     /// Returns error if `ix_sysver` is not `AccountInfo` for the Instruction
     /// sysvar, there was no instruction prior to the current on or the previous
     /// instruction was not a call to the Ed25519 native program.
-    #[allow(dead_code)]
     pub fn new(ix_sysvar: &AccountInfo<'_>) -> anchor_lang::Result<Self> {
         let ix = sysvar::instructions::get_instruction_relative(-1, ix_sysvar)?;
         if ed25519_program::check_id(&ix.program_id) {

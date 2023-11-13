@@ -8,7 +8,9 @@ mod tests;
 ///
 /// Whenever epoch changes, candidates with most stake are included in
 /// validators set.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(
+    Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
+)]
 pub struct Candidates<PK> {
     /// Maximum number of validators in a validator set.
     max_validators: NonZeroU16,
@@ -29,7 +31,9 @@ pub struct Candidates<PK> {
 }
 
 /// A candidate to become a validator.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(
+    Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
+)]
 struct Candidate<PK> {
     /// Public key of the candidate.
     pubkey: PK,

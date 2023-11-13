@@ -1,24 +1,29 @@
+#![allow(clippy::enum_variant_names)]
 // anchor_lang::error::Error and anchor_lang::Result is ≥ 160 bytes and there’s
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
+
 extern crate alloc;
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
+use ibc::core::MsgEnvelope;
 
-const SOLANA_IBC_STORAGE_SEED: &[u8] = b"solana_ibc_storage";
-const TRIE_SEED: &[u8] = b"trie";
+const CHAIN_SEED: &[u8] = b"chain";
 const PACKET_SEED: &[u8] = b"packet";
+const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
+const TRIE_SEED: &[u8] = b"trie";
 
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
-use ibc::core::MsgEnvelope;
 
 use crate::storage::IBCPackets;
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
+mod chain;
 mod client_state;
 mod consensus_state;
 mod ed25519;
@@ -38,6 +43,74 @@ mod validation_context;
 pub mod solana_ibc {
     use super::*;
 
+    /// Initialises the guest blockchain with given configuration and genesis
+    /// epoch.
+    pub fn initialise(
+        ctx: Context<Chain>,
+        config: chain::Config,
+        genesis_epoch: chain::Epoch,
+    ) -> Result<()> {
+        let mut provable =
+            storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        ctx.accounts.chain.initialise(&mut provable, config, genesis_epoch)
+    }
+
+    /// Attempts to generate a new guest block.
+    ///
+    /// The request fails if there’s a pending guest block or conditions for
+    /// creating a new block haven’t been met.
+    ///
+    /// TODO(mina86): Per the guest blockchain paper, generating a guest block
+    /// should offer rewards to account making the generate block call.  This is
+    /// currently not implemented and will be added at a later time.
+    pub fn generate_block(ctx: Context<Chain>) -> Result<()> {
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        ctx.accounts.chain.generate_block(&provable)
+    }
+
+    /// Accepts pending block’s signature from the validator.
+    ///
+    /// Sender of the transaction is the validator of the guest blockchain.
+    /// Their Solana key is used as the key in the guest blockchain.
+    ///
+    /// `signature` is signature of the pending guest block made with private
+    /// key corresponding to the sender account’s public key.
+    ///
+    /// TODO(mina86): At the moment the call doesn’t provide rewards and doesn’t
+    /// allow to submit signatures for finalised guest blocks.  Those features
+    /// will be added at a later time.
+    pub fn sign_block(
+        ctx: Context<ChainWithVerifier>,
+        signature: [u8; ed25519::Signature::LENGTH],
+    ) -> Result<()> {
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        if ctx.accounts.chain.sign_block(
+            (*ctx.accounts.sender.key).into(),
+            &signature.into(),
+            &verifier,
+        )? {
+            ctx.accounts.chain.maybe_generate_block(&provable)?;
+        }
+        Ok(())
+    }
+
+    /// Changes stake of a guest validator.
+    ///
+    /// Sender’s stake will be set to the given amount.  Note that if sender is
+    /// a validator in current epoch, their stake in current epoch won’t change.
+    /// This also means that reducing stake takes effect only after the epoch
+    /// changes.
+    ///
+    /// TODO(mina86): At the moment we’re operating on pretend tokens and each
+    /// validator can set whatever stake they want.  This is purely for testing
+    /// and not intended for production use.
+    pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        ctx.accounts.chain.maybe_generate_block(&provable)?;
+        ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+    }
+
     pub fn deliver(
         ctx: Context<Deliver>,
         message: ibc::core::MsgEnvelope,
@@ -49,6 +122,11 @@ pub mod solana_ibc {
         msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+
+        // Before anything else, try generating a new guest block.  However, if
+        // that fails it’s not an error condition.  We do this at the beginning
+        // of any request.
+        ctx.accounts.chain.maybe_generate_block(&provable)?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
@@ -85,6 +163,49 @@ pub mod solana_ibc {
 }
 
 #[derive(Accounts)]
+pub struct Chain<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The guest blockchain data.
+    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// The account holding the trie which corresponds to guest blockchain’s
+    /// state root.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
+    trie: UncheckedAccount<'info>,
+
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ChainWithVerifier<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The guest blockchain data.
+    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// The account holding the trie which corresponds to guest blockchain’s
+    /// state root.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 1000)]
+    trie: UncheckedAccount<'info>,
+
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    ix_sysvar: AccountInfo<'info>,
+
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -103,6 +224,10 @@ pub struct Deliver<'info> {
     /// The account holding packets.
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
     packets: Account<'info, IBCPackets>,
+
+    /// The guest blockchain data.
+    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
+    chain: Account<'info, chain::ChainData>,
 
     system_program: Program<'info, System>,
 }
