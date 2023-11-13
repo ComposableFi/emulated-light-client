@@ -55,7 +55,7 @@ jobs:
           curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Run build-bpf
+      - name: Run build-sbf
         run: cargo build-sbf
 
   stable:
