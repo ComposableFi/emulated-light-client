@@ -6,7 +6,6 @@ use blockchain::manager;
 // keeping them consistent makes things easier.
 #[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
 #[strum_discriminants(repr(u32))]
-#[allow(clippy::enum_variant_names)]
 pub(crate) enum Error {
     /// Internal error which ‘should never happen’.
     Internal(&'static str),

@@ -1,6 +1,8 @@
+#![allow(clippy::enum_variant_names)]
 // anchor_lang::error::Error and anchor_lang::Result is ≥ 160 bytes and there’s
 // not much we can do about it.
 #![allow(clippy::result_large_err)]
+
 extern crate alloc;
 
 use anchor_lang::prelude::*;
