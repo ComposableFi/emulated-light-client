@@ -1,6 +1,5 @@
 use alloc::collections::BTreeMap;
 
-use anchor_lang::emit;
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
@@ -27,7 +26,6 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::{self, IbcStorage};
 use crate::trie_key::TrieKey;
-use crate::EmitIBCEvent;
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
@@ -382,22 +380,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
-        let mut store = self.borrow_mut();
-        let host_height =
-            ibc::Height::new(store.private.height.0, store.private.height.1)?;
-        let ibc_event = borsh::to_vec(&event).map_err(|err| {
-            ClientError::Other { description: err.to_string() }
-        })?;
-        let inner_host_height =
-            (host_height.revision_height(), host_height.revision_number());
-        store
-            .private
-            .ibc_events_history
-            .entry(inner_host_height)
-            .or_default()
-            .push(ibc_event.clone());
-        emit!(EmitIBCEvent { ibc_event });
-        Ok(())
+        crate::events::emit(event)
+            .map_err(|description| ClientError::Other { description }.into())
     }
 
     fn log_message(&mut self, message: String) -> Result {

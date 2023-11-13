@@ -1,8 +1,7 @@
-use blockchain::manager::{
-    AddSignatureError, BadGenesis, GenerateError, UpdateCandidateError,
-};
-
 /// Error returned when handling a request.
+// Note: When changing variants in the enum, try to preserve indexes of each
+// variant.  The position is translated into error code returned by Anchor and
+// keeping them consistent makes things easier.
 #[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
 #[strum_discriminants(repr(u32))]
 #[allow(clippy::enum_variant_names)]
@@ -66,8 +65,8 @@ impl Error {
 impl core::fmt::Display for Error {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::RouterError(err) => err.fmt(fmtr),
             Self::Internal(msg) => fmtr.write_str(msg.as_ref()),
+            Self::RouterError(err) => err.fmt(fmtr),
             err => fmtr.write_str(&err.name()),
         }
     }

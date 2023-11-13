@@ -13,7 +13,6 @@ pub(crate) type InnerClientId = String;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
-pub(crate) type InnerIbcEvent = Vec<u8>;
 pub(crate) type InnerClient = Vec<u8>; // Serialized
 pub(crate) type InnerConnectionEnd = Vec<u8>; // Serialized
 pub(crate) type InnerChannelEnd = Vec<u8>; // Serialized
@@ -120,9 +119,6 @@ pub(crate) struct PrivateStorage {
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
     pub next_sequence: BTreeMap<(InnerPortId, InnerChannelId), SequenceTriple>,
-
-    /// The history of IBC events.
-    pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
 }
 
 /// Provable storage, i.e. the trie, held in an account.

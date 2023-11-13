@@ -183,6 +183,9 @@ mod builder {
 
 #[cfg(target_os = "solana")]
 mod builder {
+    use alloc::vec::Vec;
+
+    #[derive(Default)]
     pub(super) struct Inner(Vec<u8>);
 
     impl Inner {
@@ -193,7 +196,7 @@ mod builder {
 
         #[inline]
         pub fn done(self) -> [u8; 32] {
-            solana_program::hash::hashv(&[bytes]).to_bytes()
+            solana_program::hash::hashv(&[&self.0]).to_bytes()
         }
     }
 }
