@@ -54,6 +54,7 @@ jobs:
           set -eux
           curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          cp solana/solana-ibc/keypair.json ~/.config/solana/id.json
 
       - name: Run build-bpf
         run: cargo build-sbf
