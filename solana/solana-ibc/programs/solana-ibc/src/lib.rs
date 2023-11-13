@@ -23,6 +23,7 @@ mod client_state;
 mod consensus_state;
 mod ed25519;
 mod error;
+mod events;
 mod execution_context;
 mod storage;
 #[cfg(test)]
@@ -41,11 +42,11 @@ pub mod solana_ibc {
         ctx: Context<Deliver>,
         message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        msg!("Called deliver method: {message}");
+        msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        msg!("This is private: {private:?}");
+        msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
 
@@ -104,11 +105,6 @@ pub struct Deliver<'info> {
     packets: Account<'info, IBCPackets>,
 
     system_program: Program<'info, System>,
-}
-
-#[event]
-pub struct EmitIBCEvent {
-    pub ibc_event: Vec<u8>,
 }
 
 impl Router for storage::IbcStorage<'_, '_> {
