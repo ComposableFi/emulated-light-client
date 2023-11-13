@@ -39,7 +39,7 @@ jobs:
           args: --all-features -- -D warnings
 
   solana-build: 
-    name: Cargo Build using bpf (solana env)
+    name: Build SBF
     runs-on: ubuntu-latest
     steps: 
       - uses: actions/checkout@v3
@@ -56,7 +56,7 @@ jobs:
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cp solana/solana-ibc/keypair.json ~/.config/solana/id.json
 
-      - name: Run build-bpf
+      - name: Run build-sbf
         run: cargo build-sbf
 
   stable:
