@@ -52,6 +52,10 @@ jobs:
       - name: Install Solana CLI
         run: curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
         shell: bash
+
+      - name: Adding Solana CLI to the path
+        run: echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+        shell: bash
       
       - name: Run build-bpf
         run: cargo build-bpf
