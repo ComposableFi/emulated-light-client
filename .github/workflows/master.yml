@@ -50,7 +50,8 @@ jobs:
           components: rustfmt
 
       - name: Install Solana CLI
-        run: set -eux
+        run: | 
+          set -eux
           curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
