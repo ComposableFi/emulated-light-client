@@ -50,13 +50,10 @@ jobs:
           components: rustfmt
 
       - name: Install Solana CLI
-        run: curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
-        shell: bash
+        run: set -eux
+          curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Adding Solana CLI to the path
-        run: echo "/home/runner/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-        shell: bash
-      
       - name: Run build-bpf
         run: cargo build-bpf
 
