@@ -13,9 +13,6 @@ pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
     config: crate::Config,
 
-    /// Hash of the genesis block of the blockchain.
-    genesis_hash: CryptoHash,
-
     /// Current latest block which has been signed by quorum of validators.
     block: crate::Block<PK>,
 
@@ -120,7 +117,6 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         let epoch_height = genesis.host_height;
         Ok(Self {
             config,
-            genesis_hash: genesis.calc_hash(),
             block: genesis,
             next_epoch,
             pending_block: None,
