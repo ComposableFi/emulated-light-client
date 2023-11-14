@@ -19,6 +19,7 @@ mocks = ["ibc/mocks", "ibc/std"]
 anchor-lang.workspace = true
 base64.workspace = true
 bytemuck.workspace = true
+derive_more.workspace = true
 ibc-proto.workspace = true
 ibc.workspace = true
 serde.workspace = true

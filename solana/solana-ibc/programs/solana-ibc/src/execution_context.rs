@@ -1,6 +1,5 @@
 use alloc::collections::BTreeMap;
 
-use anchor_lang::emit;
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
@@ -27,7 +26,6 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::{self, IbcStorage};
 use crate::trie_key::TrieKey;
-use crate::EmitIBCEvent;
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
@@ -41,7 +39,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         path: ClientStatePath,
         client_state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({path}, {client_state:?})");
+        msg!("store_client_state({}, {:?})", path, client_state);
         let mut store = self.borrow_mut();
         let serialized = store_serialised_proof(
             &mut store.provable,
@@ -194,7 +192,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &ConnectionPath,
         connection_end: ConnectionEnd,
     ) -> Result {
-        msg!("store_connection({path}, {connection_end:?})");
+        msg!("store_connection({}, {:?})", path, connection_end);
         let mut store = self.borrow_mut();
         let serialized = store_serialised_proof(
             &mut store.provable,
@@ -239,7 +237,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &CommitmentPath,
         commitment: PacketCommitment,
     ) -> Result {
-        msg!("store_packet_commitment({path}, {commitment:?})");
+        msg!("store_packet_commitment({}, {:?})", path, commitment);
         let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // PacketCommitment is always 32-byte long.
@@ -255,7 +253,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
-        msg!("delete_packet_commitment({path})");
+        msg!("delete_packet_commitment({})", path);
         let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         store.provable.del(&trie_key).unwrap();
@@ -273,7 +271,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &ReceiptPath,
         Receipt::Ok: Receipt,
     ) -> Result {
-        msg!("store_packet_receipt({path}, Ok)");
+        msg!("store_packet_receipt({}, Ok)", path);
         let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         store.provable.set_and_seal(&trie_key, &CryptoHash::DEFAULT).unwrap();
@@ -285,7 +283,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &AckPath,
         commitment: AcknowledgementCommitment,
     ) -> Result {
-        msg!("store_packet_acknowledgement({path}, {commitment:?})");
+        msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
         let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // AcknowledgementCommitment is always 32-byte long.
@@ -301,7 +299,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
-        msg!("delete_packet_acknowledgement({path})");
+        msg!("delete_packet_acknowledgement({})", path);
         let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         store.provable.del(&trie_key).unwrap();
@@ -319,7 +317,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &ChannelEndPath,
         channel_end: ChannelEnd,
     ) -> Result {
-        msg!("store_channel({path}, {channel_end:?})");
+        msg!("store_channel({}, {:?})", path, channel_end);
         let mut store = self.borrow_mut();
         let serialized = store_serialised_proof(
             &mut store.provable,
@@ -337,7 +335,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &SeqSendPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_send: path: {path}, seq: {seq}");
+        msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
         self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Send,
@@ -350,7 +348,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &SeqRecvPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
+        msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
         self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Recv,
@@ -363,7 +361,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &SeqAckPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
+        msg!("store_next_sequence_ack: path: {}, seq: {}", path, seq);
         self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Ack,
@@ -382,22 +380,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
-        let mut store = self.borrow_mut();
-        let host_height =
-            ibc::Height::new(store.private.height.0, store.private.height.1)?;
-        let ibc_event = borsh::to_vec(&event).map_err(|err| {
-            ClientError::Other { description: err.to_string() }
-        })?;
-        let inner_host_height =
-            (host_height.revision_height(), host_height.revision_number());
-        store
-            .private
-            .ibc_events_history
-            .entry(inner_host_height)
-            .or_default()
-            .push(ibc_event.clone());
-        emit!(EmitIBCEvent { ibc_event });
-        Ok(())
+        crate::events::emit(event)
+            .map_err(|description| ClientError::Other { description }.into())
     }
 
     fn log_message(&mut self, message: String) -> Result {

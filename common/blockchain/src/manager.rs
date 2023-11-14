@@ -8,6 +8,7 @@ use lib::hash::CryptoHash;
 
 pub use crate::candidates::UpdateCandidateError;
 
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
     config: crate::Config,
@@ -35,6 +36,7 @@ pub struct ChainManager<PK> {
 /// Pending block waiting for signatures.
 ///
 /// Once quorum of validators sign the block it’s promoted to the current block.
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: crate::Block<PK>,
@@ -55,7 +57,9 @@ struct PendingBlock<PK> {
 pub struct BadGenesis;
 
 /// Error while generating a new block.
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::From, strum::IntoStaticStr,
+)]
 pub enum GenerateError {
     /// Last block hasn’t been signed by enough validators yet.
     HasPendingBlock,
@@ -78,6 +82,24 @@ pub enum AddSignatureError {
     /// The validator is not known.
     BadValidator,
 }
+
+/// Result of adding a signature to the pending block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AddSignatureEffect {
+    /// New signature has been accepted but quorum hasn’t been reached yet.
+    NoQuorumYet,
+    /// New signature has been accepted and quorum for the pending block has
+    /// been reached.
+    GotQuorum,
+    /// The signature has already been accepted previously.
+    Duplicate,
+}
+
+impl AddSignatureEffect {
+    pub fn got_new_signature(self) -> bool { self != Self::Duplicate }
+    pub fn got_quorum(self) -> bool { self == Self::GotQuorum }
+}
+
 
 impl<PK: crate::PubKey> ChainManager<PK> {
     pub fn new(
@@ -114,13 +136,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     /// Generates a new block and sets it as pending.
     ///
-    /// Returns an error if there’s already a pending block.  Previous pending
+    /// Returns an error if there’s already a pending block (previous pending
     /// block must first be signed by quorum of validators before next block is
-    /// generated.
-    ///
-    /// Otherwise, returns whether the new block has been generated.  Doesn’t
-    /// generate a block if the `state_root` is the same as the one in current
-    /// head of the blockchain and `force` is not set.
+    /// generated) or conditions for creating a new block haven’t been met
+    /// (current block needs to be old enough, state needs to change etc.).
     pub fn generate_next(
         &mut self,
         host_height: crate::HostHeight,
@@ -192,15 +211,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     }
 
     /// Adds a signature to pending block.
-    ///
-    /// Returns `true` if quorum has been reached and the pending block has
-    /// graduated to the current block.
     pub fn add_signature(
         &mut self,
         pubkey: PK,
         signature: &PK::Signature,
         verifier: &impl crate::Verifier<PK>,
-    ) -> Result<bool, AddSignatureError> {
+    ) -> Result<AddSignatureEffect, AddSignatureError> {
         let pending = self
             .pending_block
             .as_mut()
@@ -216,12 +232,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         }
 
         if !pending.signers.insert(pubkey) {
-            return Ok(false);
+            return Ok(AddSignatureEffect::Duplicate);
         }
 
         pending.signing_stake += validator_stake;
         if pending.signing_stake < self.next_epoch.quorum_stake().get() {
-            return Ok(false);
+            return Ok(AddSignatureEffect::NoQuorumYet);
         }
 
         self.block = self.pending_block.take().unwrap().next_block;
@@ -229,7 +245,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             self.next_epoch = epoch.clone();
             self.epoch_height = self.block.host_height;
         }
-        Ok(true)
+        Ok(AddSignatureEffect::GotQuorum)
     }
 
     /// Updates validator candidate’s stake.
@@ -303,7 +319,7 @@ fn test_generate() {
     fn sign_head(
         mgr: &mut ChainManager<MockPubKey>,
         validator: &crate::validators::Validator<MockPubKey>,
-    ) -> Result<bool, AddSignatureError> {
+    ) -> Result<AddSignatureEffect, AddSignatureError> {
         let signature = mgr.head().1.sign(&validator.pubkey().make_signer());
         mgr.add_signature(validator.pubkey().clone(), &signature, &())
     }
@@ -314,12 +330,12 @@ fn test_generate() {
         mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
     );
 
-    assert_eq!(Ok(false), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
         mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
     );
-    assert_eq!(Ok(false), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::Duplicate), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
         mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
@@ -343,11 +359,11 @@ fn test_generate() {
     );
 
 
-    assert_eq!(Ok(true), sign_head(&mut mgr, &bob));
+    assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
     mgr.generate_next(10.into(), 3, CryptoHash::test(2), false).unwrap();
 
-    assert_eq!(Ok(false), sign_head(&mut mgr, &ali));
-    assert_eq!(Ok(true), sign_head(&mut mgr, &bob));
+    assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     // State hasn’t changed, no need for new block.  However, changing epoch can
     // trigger new block.
@@ -357,8 +373,8 @@ fn test_generate() {
     );
     mgr.update_candidate(*eve.pubkey(), 1).unwrap();
     mgr.generate_next(15.into(), 4, CryptoHash::test(2), false).unwrap();
-    assert_eq!(Ok(false), sign_head(&mut mgr, &ali));
-    assert_eq!(Ok(true), sign_head(&mut mgr, &bob));
+    assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     // Epoch has minimum length.  Even if the head of candidates changes but not
     // enough host blockchain passed, the epoch won’t be changed.
@@ -368,8 +384,8 @@ fn test_generate() {
         mgr.generate_next(20.into(), 5, CryptoHash::test(2), false)
     );
     mgr.generate_next(30.into(), 5, CryptoHash::test(2), false).unwrap();
-    assert_eq!(Ok(false), sign_head(&mut mgr, &ali));
-    assert_eq!(Ok(true), sign_head(&mut mgr, &bob));
+    assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     // Lastly, adding candidates past the head (i.e. in a way which wouldn’t
     // affect the epoch) doesn’t change the state.

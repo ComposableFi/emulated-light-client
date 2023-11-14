@@ -2,6 +2,7 @@ use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
 #[cfg(feature = "borsh")]
 use borsh::maybestd::io;
+use bytemuck::TransparentWrapper;
 
 /// A cryptographic hash.
 #[derive(
@@ -13,6 +14,7 @@ use borsh::maybestd::io;
     derive_more::AsMut,
     derive_more::From,
     derive_more::Into,
+    bytemuck::TransparentWrapper,
 )]
 #[cfg_attr(
     feature = "borsh",
@@ -120,21 +122,14 @@ impl From<&'_ CryptoHash> for [u8; CryptoHash::LENGTH] {
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for &'a CryptoHash {
     #[inline]
     fn from(hash: &'a [u8; CryptoHash::LENGTH]) -> Self {
-        let hash =
-            (hash as *const [u8; CryptoHash::LENGTH]).cast::<CryptoHash>();
-        // SAFETY: CryptoHash is repr(transparent) over [u8; CryptoHash::LENGTH]
-        // thus transmuting is safe.
-        unsafe { &*hash }
+        CryptoHash::wrap_ref(hash)
     }
 }
 
 impl<'a> From<&'a mut [u8; CryptoHash::LENGTH]> for &'a mut CryptoHash {
     #[inline]
     fn from(hash: &'a mut [u8; CryptoHash::LENGTH]) -> Self {
-        let hash = (hash as *mut [u8; CryptoHash::LENGTH]).cast::<CryptoHash>();
-        // SAFETY: CryptoHash is repr(transparent) over [u8; CryptoHash::LENGTH]
-        // thus transmuting is safe.
-        unsafe { &mut *hash }
+        CryptoHash::wrap_mut(hash)
     }
 }
 
@@ -183,6 +178,9 @@ mod builder {
 
 #[cfg(target_os = "solana")]
 mod builder {
+    use alloc::vec::Vec;
+
+    #[derive(Default)]
     pub(super) struct Inner(Vec<u8>);
 
     impl Inner {
@@ -193,7 +191,7 @@ mod builder {
 
         #[inline]
         pub fn done(self) -> [u8; 32] {
-            solana_program::hash::hashv(&[bytes]).to_bytes()
+            solana_program::hash::hashv(&[&self.0]).to_bytes()
         }
     }
 }
