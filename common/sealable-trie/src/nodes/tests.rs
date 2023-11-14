@@ -23,7 +23,7 @@ const TWO: CryptoHash = CryptoHash([2; 32]);
 /// first and last objects aren’t equal.  Returns the raw node.
 #[track_caller]
 pub(super) fn raw_from_node(node: &Node) -> RawNode {
-    let raw = node.encode().unwrap_or_else(|err| panic!("{err:?}: {node:?}"));
+    let raw = node.encode();
     assert_eq!(
         Ok(*node),
         raw.decode(),
@@ -48,10 +48,6 @@ fn check_node_encoding(node: Node, want: [u8; RawNode::SIZE], want_hash: &str) {
 
     let want_hash = b64decode(want_hash);
     assert_eq!(want_hash, node.hash(), "Unexpected hash of {node:?}");
-    if let Node::Extension { key, child } = node {
-        let got = super::hash_extension_slow_path(key, &child);
-        assert_eq!(want_hash, got, "Unexpected slow path hash of {node:?}");
-    }
 }
 
 /// Decodes base64-encoded CryptoHash; panics on error.
@@ -173,7 +169,7 @@ fn test_branch_encoding() {
 fn test_extension_encoding() {
     // Extension pointing at a node
     check_node_encoding(Node::Extension {
-        key: bits::Slice::new(&[0xFF; 34], 5, 25).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], 5, 25).unwrap(),
         child: Reference::node(Some(DEAD), &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
@@ -184,7 +180,7 @@ fn test_extension_encoding() {
 
     // Extension pointing at a sealed node
     check_node_encoding(Node::Extension {
-        key: bits::Slice::new(&[0xFF; 34], 5, 25).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], 5, 25).unwrap(),
         child: Reference::node(None, &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
@@ -195,7 +191,7 @@ fn test_extension_encoding() {
 
     // Extension pointing at a value
     check_node_encoding(Node::Extension {
-        key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], 4, 248).unwrap(),
         child: Reference::value(false, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
@@ -207,7 +203,7 @@ fn test_extension_encoding() {
     ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
 
     check_node_encoding(Node::Extension {
-        key: bits::Slice::new(&[0xFF; 34], 4, 248).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], 4, 248).unwrap(),
         child: Reference::value(true, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
@@ -217,38 +213,6 @@ fn test_extension_encoding() {
         /* ptr:  */ 0x60, 0, 0, 0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
-}
-
-#[test]
-fn test_extension_hash_bad_key() {
-    let empty_key = bits::Slice::new(&[], 0, 0).unwrap();
-    let long_key = bits::Slice::new(&[0; 53], 2, 420).unwrap();
-    for (child, sealed, if_empty, if_long) in [
-        (
-            Reference::node(Some(DEAD), &ONE),
-            Reference::node(None, &ONE),
-            b64decode("NXOo9QBg+AbJSM/zh4Rikg8R5otOByKUJfiWhKUiZ5Y="),
-            b64decode("Q/Er5mIa2gsawPOfF+Q/2XO5l29WZyknw/kyI53tGXo="),
-        ),
-        (
-            Reference::value(false, &ONE),
-            Reference::value(true, &ONE),
-            b64decode("LtVLGf1mBecG3z2Lcq1IXOGo/zQpGxWbXN977zUZMpI="),
-            b64decode("BMi90/Oois7h3CPNz6y8BB/9agz2mkAePLFQt2hdluM="),
-        ),
-    ] {
-        assert_eq!(if_empty, Node::Extension { key: empty_key, child }.hash());
-        assert_eq!(if_long, Node::Extension { key: long_key, child }.hash());
-
-        assert_eq!(
-            if_empty,
-            Node::Extension { key: empty_key, child: sealed }.hash()
-        );
-        assert_eq!(
-            if_long,
-            Node::Extension { key: long_key, child: sealed }.hash()
-        );
-    }
 }
 
 #[test]

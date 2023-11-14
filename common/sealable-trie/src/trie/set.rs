@@ -2,8 +2,8 @@ use lib::hash::CryptoHash;
 use memory::Ptr;
 
 use super::{Error, Result};
-use crate::bits;
-use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::bits::{self, ExtKey};
+use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
 /// Context for [`Trie::set`] operation.
 pub(super) struct Context<'a, A: memory::Allocator<Value = super::Value>> {
@@ -104,38 +104,40 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     fn handle_extension(
         &mut self,
         nref: (Ptr, &CryptoHash),
-        mut key: bits::Slice<'_>,
+        ext_key: bits::ExtKey<'_>,
         child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
         // If key is empty, insert a new Value node with this node as a child.
         //
-        //      P               P
-        //      ↓               ↓
-        //  Ext(key, ⫯)   →   Val(val, ⫯)
-        //           ↓                 ↓
-        //           C             Ext(key, ⫯)
-        //                                  ↓
-        //                                  C
+        //   P                     P
+        //   ↓                     ↓
+        //  Ext(ext_key, ⫯)   →   Val(val, ⫯)
+        //               ↓                 ↓
+        //               C                Ext(ext_key, ⫯)
+        //                                             ↓
+        //                                             C
         if self.key.is_empty() {
             return self.alloc_value_node(self.value_hash, nref.0, nref.1);
         }
 
-        let prefix = self.key.forward_common_prefix(&mut key);
-        let mut suffix = key;
+        let (prefix, suffix) = self.key.forward_common_prefix(ext_key);
 
-        // The entire extension key matched.  Handle the child reference and
-        // update the node.
-        //
-        //      P               P
-        //      ↓               ↓
-        //  Ext(key, ⫯)   →   Ext(key, ⫯)
-        //           ↓                 ↓
-        //           C                 C′
-        if suffix.is_empty() {
+        let suffix = if let Some(suffix) = suffix {
+            suffix
+        } else {
+            // The entire extension key matched.  Handle the child reference and
+            // update the node.
+            //
+            //   P                 P
+            //   ↓                 ↓
+            //  Ext(key, ⫯)   →   Ext(key, ⫯)
+            //           ↓                 ↓
+            //           C                 C′
+            debug_assert_eq!(Some(ext_key), prefix);
             let owned_ref = self.handle_reference(child)?;
-            let node = RawNode::extension(prefix, owned_ref.to_ref()).unwrap();
+            let node = RawNode::extension(ext_key, owned_ref.to_ref());
             return self.set_node(nref.0, node);
-        }
+        };
 
         let our = if let Some(bit) = self.key.pop_front() {
             usize::from(bit)
@@ -155,11 +157,15 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             let (ptr, hash) = self.alloc_extension_node(suffix, child)?;
             let (ptr, hash) =
                 self.alloc_value_node(self.value_hash, ptr, &hash)?;
+            // We know prefix is non-empty since we’ve checked key.is_empty() at
+            // the beginning of function and now key is empty thus prefix equals
+            // what key was at the beginning of the function.
+            let prefix = prefix.unwrap();
             let child = Reference::node(Some(ptr), &hash);
-            let node = RawNode::extension(prefix, child).unwrap();
-            return self.set_node(nref.0, node);
+            return self.set_node(nref.0, RawNode::extension(prefix, child));
         };
 
+        let mut suffix = bits::Slice::from(suffix);
         let theirs = usize::from(suffix.pop_front().unwrap());
         assert_ne!(our, theirs);
 
@@ -182,24 +188,26 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         // that’s the case, corresponding Extension node is not created.
         let our_ref = self.insert_value()?;
         let their_hash: CryptoHash;
-        let their_ref = match RawNode::extension(suffix, child) {
-            Ok(node) => {
-                let (ptr, hash) = self.alloc_node(node)?;
+        let their_ref = match bits::ExtKey::try_from(suffix) {
+            Ok(suffix) => {
+                let (ptr, hash) = self.alloc_extension_node(suffix, child)?;
                 their_hash = hash;
                 Reference::node(Some(ptr), &their_hash)
             }
-            Err(nodes::EncodeError::EmptyExtensionKey) => child,
-            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
+            Err(bits::ext_key::Error::Empty) => child,
+            Err(bits::ext_key::Error::TooLong) => unreachable!(),
         };
         let mut children = [their_ref; 2];
         children[our] = our_ref.to_ref();
         let node = RawNode::branch(children[0], children[1]);
         let (ptr, hash) = self.set_node(nref.0, node)?;
 
-        match RawNode::extension(prefix, Reference::node(Some(ptr), &hash)) {
-            Ok(node) => self.alloc_node(node),
-            Err(nodes::EncodeError::EmptyExtensionKey) => Ok((ptr, hash)),
-            Err(nodes::EncodeError::ExtensionKeyTooLong) => unreachable!(),
+        match prefix {
+            Some(prefix) => {
+                let child = Reference::node(Some(ptr), &hash);
+                self.alloc_extension_node(prefix, child)
+            }
+            None => Ok((ptr, hash)),
         }
     }
 
@@ -240,12 +248,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 // Value node with the old hash if our key isn’t empty.
                 match self.insert_value()? {
                     rf @ OwnedRef::Value(_) => Ok(rf),
-                    OwnedRef::Node(p, h) => {
-                        let child = NodeRef::new(Some(p), &h);
-                        let value = ValueRef::new((), value.hash);
-                        let node = RawNode::value(value, child);
-                        self.alloc_node(node).map(|(p, h)| OwnedRef::Node(p, h))
-                    }
+                    OwnedRef::Node(p, h) => self
+                        .alloc_value_node(value.hash, p, &h)
+                        .map(|(p, h)| OwnedRef::Node(p, h)),
                 }
             }
         }
@@ -266,7 +271,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 None => Reference::value(false, &hash),
                 Some(_) => Reference::node(ptr, &hash),
             };
-            let (p, h) = self.alloc_extension_node(chunk, child)?;
+            let (p, h) = self.alloc_node(RawNode::extension(chunk, child))?;
             ptr = Some(p);
             hash = h;
         }
@@ -288,10 +293,10 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// **Panics** if `key` is empty or too long.
     fn alloc_extension_node(
         &mut self,
-        key: bits::Slice<'_>,
+        key: ExtKey<'_>,
         child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
-        self.alloc_node(RawNode::extension(key, child).unwrap())
+        self.alloc_node(RawNode::extension(key, child))
     }
 
     /// A convenience method which allocates a new Value node and sets it to

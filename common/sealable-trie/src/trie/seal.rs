@@ -71,18 +71,16 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
 
     fn seal_extension(
         &mut self,
-        ext_key: bits::Slice,
+        ext_key: bits::ExtKey,
         child: Reference,
     ) -> Result<SealResult> {
-        if !self.key.strip_prefix(ext_key) {
-            return Err(Error::NotFound);
-        }
-        Ok(if let Some(child) = self.seal_child(child)? {
-            let node = RawNode::extension(ext_key, child).unwrap();
-            SealResult::Replace(node)
+        if !self.key.strip_prefix(ext_key.into()) {
+            Err(Error::NotFound)
+        } else if let Some(child) = self.seal_child(child)? {
+            Ok(SealResult::Replace(RawNode::extension(ext_key, child)))
         } else {
-            SealResult::Done
-        })
+            Ok(SealResult::Done)
+        }
     }
 
     fn seal_value(
