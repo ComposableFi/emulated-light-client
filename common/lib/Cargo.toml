@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 base64.workspace = true
 borsh = { workspace = true, optional = true }
-bytemuck.workspace = true
+bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 
 stdx.workspace = true
