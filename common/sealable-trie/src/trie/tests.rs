@@ -7,127 +7,172 @@ use memory::test_utils::TestAllocator;
 use rand::Rng;
 
 #[track_caller]
-fn do_test_inserts<'a>(
+fn make_trie_impl<'a>(
     keys: impl IntoIterator<Item = &'a [u8]>,
-    want_root: &str,
-    want_nodes: usize,
-    verbose: bool,
+    mut set: impl FnMut(&mut TestTrie, &'a [u8]),
+    want: Option<(&str, usize)>,
 ) -> TestTrie {
     let keys = keys.into_iter();
     let count = keys.size_hint().1.unwrap_or(1000).saturating_mul(4);
     let mut trie = TestTrie::new(count);
     for key in keys {
-        trie.set(key, verbose)
+        set(&mut trie, key)
     }
-    if !want_root.is_empty() {
+    if let Some((want_root, want_nodes)) = want {
         let want_root = CryptoHash::from_base64(want_root).unwrap();
-        assert_eq!(&want_root, trie.hash());
-    }
-    if want_nodes != usize::MAX {
-        assert_eq!(want_nodes, trie.nodes_count());
+        assert_eq!((&want_root, want_nodes), (trie.hash(), trie.nodes_count()));
     }
     trie
 }
 
+/// Constructs a trie with given keys.
+#[track_caller]
+fn make_trie_from_keys<'a>(
+    keys: impl IntoIterator<Item = &'a [u8]>,
+    want: Option<(&str, usize)>,
+    verbose: bool,
+) -> TestTrie {
+    let set = |trie: &mut TestTrie, key| trie.set(key, verbose);
+    make_trie_impl(keys, set, want)
+}
+
+/// Constructs a trie with given keys whose all keys are sealed.
+///
+/// Uses `set_and_seal` to seal keys when adding them to the trie.  This makes
+/// them sealed.
+#[track_caller]
+fn make_sealed_trie_from_keys<'a>(
+    keys: impl IntoIterator<Item = &'a [u8]>,
+    want: Option<(&str, usize)>,
+    verbose: bool,
+) -> TestTrie {
+    let set = |trie: &mut TestTrie, key| trie.set_and_seal(key, verbose);
+    make_trie_impl(keys, set, want)
+}
+
+/// Tests creating a trie where the very first bit of the two keys differs.
 #[test]
 fn test_msb_difference() {
-    do_test_inserts(
+    make_trie_from_keys(
         [&[0][..], &[0x80][..]],
-        "Stmrss0PVu2RSGiHibdgHlBNxN/XPsqJsIlWoAAdI5g=",
-        3,
+        Some(("Stmrss0PVu2RSGiHibdgHlBNxN/XPsqJsIlWoAAdI5g=", 3)),
         true,
     );
 }
 
-#[test]
-fn test_sequence() {
-    do_test_inserts(
-        b"0123456789:;<=>?".iter().map(core::slice::from_ref),
-        "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=",
-        16,
-        true,
-    );
-}
-
+/// Tests inserting an Extension node whose key spans two bytes.
 #[test]
 fn test_2byte_extension() {
-    do_test_inserts(
+    make_trie_from_keys(
         [&[123, 40][..], &[134, 233][..]],
-        "KuGB/DlpPNpq95GPa47hyiWwWLqBvwStKohETSTCTWQ=",
-        3,
+        Some(("KuGB/DlpPNpq95GPa47hyiWwWLqBvwStKohETSTCTWQ=", 3)),
         true,
     );
 }
 
+/// Tests setting value on a key and on a prefix of the key.
 #[test]
 fn test_prefix() {
     let key = b"xy";
-    do_test_inserts(
+    make_trie_from_keys(
         [&key[..], &key[..1]],
-        "gVrQ18qbqdhGPIIXSvlVD5dSyTy1OvduWpPsl4viANw=",
-        3,
+        Some(("gVrQ18qbqdhGPIIXSvlVD5dSyTy1OvduWpPsl4viANw=", 3)),
         true,
     );
-    do_test_inserts(
+    make_trie_from_keys(
         [&key[..1], &key[..]],
-        "8LpINasPAwifquBydtqD7RFSgBZidoc2XmtNkThh23U=",
-        3,
+        Some(("8LpINasPAwifquBydtqD7RFSgBZidoc2XmtNkThh23U=", 3)),
         true,
     );
 }
 
+/// Creates a trie with sequential keys.  Returns `(trie, keys)` pair.
+///
+/// If `small` is true constructs a small trie with just four sequential keys.
+/// Otherwise constructs a larger trie with 16 sequential keys.  The small trie
+/// is intended for Miri tests which run prohibitively long on full versions of
+/// tests.
+///
+/// If `sealed` is true, rather than inserting the keys into the trie,
+/// `set_and_seal` them.
+fn make_trie(small: bool, sealed: bool) -> (TestTrie, &'static [u8]) {
+    const KEYS: &[u8; 16] = b"0123456789:;<=>?";
+    let (keys, hash, count, sealed_count) = if small {
+        (6, "Ag69KY5nI5NtAAXRy1ZIy4kUxcDgVyJZ6XkdX1dEinw=", 7, 3)
+    } else {
+        (16, "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=", 16, 1)
+    };
+    let trie = if sealed {
+        make_sealed_trie_from_keys(
+            KEYS[..keys].iter().map(core::slice::from_ref),
+            Some((hash, sealed_count)),
+            true,
+        )
+    } else {
+        make_trie_from_keys(
+            KEYS[..keys].iter().map(core::slice::from_ref),
+            Some((hash, count)),
+            true,
+        )
+    };
+    (trie, &KEYS[..keys])
+}
+
+/// Tests sealing all keys of a trie.
+#[cfg(not(miri))]
 #[test]
 fn test_seal() {
-    const HASH: &str = "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=";
-    let mut trie = do_test_inserts(
-        b"0123456789:;<=>?".iter().map(core::slice::from_ref),
-        HASH,
-        16,
-        true,
-    );
-
-    for b in b'0'..=b'?' {
-        trie.seal(&[b], true);
+    let (mut trie, keys) = make_trie(false, false);
+    let hash = trie.hash().clone();
+    for b in keys {
+        trie.seal(core::slice::from_ref(b), true);
     }
-    // Sealing doesn’t affect the hash.
-    let hash = CryptoHash::from_base64(HASH).unwrap();
-    assert_eq!(&hash, trie.hash());
-    assert_eq!(1, trie.nodes_count());
+    assert_eq!((&hash, 1), (trie.hash(), trie.nodes_count()));
 }
 
+/// Tests sealing all keys of a small trie.
 #[test]
-fn test_set_and_seal() {
-    const HASH: &str = "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=";
-    let mut trie = TestTrie::new(100);
-    for b in b'0'..=b'?' {
-        trie.set_and_seal(&[b], true);
+fn test_seal_small() {
+    let (mut trie, keys) = make_trie(true, false);
+    let hash = trie.hash().clone();
+    for b in keys {
+        trie.seal(core::slice::from_ref(b), true);
     }
-    // Sealing doesn’t affect the hash.
-    let hash = CryptoHash::from_base64(HASH).unwrap();
-    assert_eq!(&hash, trie.hash());
-    assert_eq!(1, trie.nodes_count());
+    assert_eq!((&hash, 3), (trie.hash(), trie.nodes_count()));
 }
 
-
+/// Tests using `set_and_seal` to create a trie with all keys sealed.
+#[cfg(not(miri))]
 #[test]
-fn test_del_simple() {
-    let mut trie = do_test_inserts(
-        b"0123456789:;<=>?".iter().map(core::slice::from_ref),
-        "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=",
-        16,
-        true,
-    );
+fn test_set_and_seal() { make_trie(false, true); }
 
-    for b in b'0'..=b';' {
-        trie.del(&[b], true);
+/// Tests using `set_and_seal` to create a small trie with all keys sealed.
+#[test]
+fn test_set_and_seal_small() { make_trie(true, true); }
+
+fn do_test_del((mut trie, keys): (TestTrie, &[u8]), want_mid_count: usize) {
+    let (left, right) = keys.split_at(keys.len() / 2);
+    for b in left {
+        trie.del(core::slice::from_ref(b), true);
     }
-    assert_eq!(4, trie.nodes_count());
-    for b in b'<'..=b'?' {
-        trie.del(&[b], true);
+    assert_eq!(want_mid_count, trie.nodes_count());
+    for b in right {
+        trie.del(core::slice::from_ref(b), true);
     }
     assert!(trie.is_empty());
 }
 
+/// Tests deleting all keys of a trie.
+#[cfg(not(miri))]
+#[test]
+fn test_del() { do_test_del(make_trie(false, false), 8); }
+
+/// Tests deleting all keys of a small trie.
+#[test]
+fn test_del_small() { do_test_del(make_trie(true, false), 5); }
+
+/// Tests whether deleting a node in between two Extension nodes causes the two
+/// Extension nodes to be rebalanced.
 #[test]
 fn test_del_extension_0() {
     // Construct a trie with following nodes:
@@ -145,25 +190,25 @@ fn test_del_extension_0() {
              00000000 00000000 0000"
         )[..],
     ];
-    let mut trie = do_test_inserts(
+    let mut trie = make_trie_from_keys(
         keys,
-        "k/+TqL56p1FI5Y7prnZ488jE6QsP1HjbxMNrLvnDEHw=",
-        5,
+        Some(("k/+TqL56p1FI5Y7prnZ488jE6QsP1HjbxMNrLvnDEHw=", 5)),
         true,
     );
     trie.del(keys[1], true);
     assert_eq!(2, trie.nodes_count());
 }
 
+/// Tests whether deleting a node in between two Extension nodes causes the two
+/// Extension nodes to be merged.
 #[test]
 fn test_del_extension_1() {
     // Construct a trie with `Extension → Value → Extension` chain and delete
     // the Value.  The Extensions should be merged into one.
     let keys = [&hex!("00")[..], &hex!("00 FF")[..]];
-    let mut trie = do_test_inserts(
+    let mut trie = make_trie_from_keys(
         keys,
-        "nmNwDIXQlBwdFRUKHk+1A6mki0W6O3EP5/LIzexY1lc=",
-        3,
+        Some(("nmNwDIXQlBwdFRUKHk+1A6mki0W6O3EP5/LIzexY1lc=", 3)),
         true,
     );
     trie.del(keys[0], true);
@@ -195,10 +240,9 @@ fn stress_test() {
 
     // Insert count/2 random keys.
     let mut rand_keys = RandKeys { buf: &mut [0; 35], rng: rand::thread_rng() };
-    let mut trie = do_test_inserts(
+    let mut trie = make_trie_from_keys(
         (&mut rand_keys).take((count / 2).max(1)),
-        "",
-        usize::MAX,
+        None,
         false,
     );
 
