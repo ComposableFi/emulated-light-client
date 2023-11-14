@@ -1,3 +1,4 @@
+use bytemuck::TransparentWrapper;
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
@@ -107,7 +108,9 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 // ```
 //
 // The actual pointer value is therefore 30-bit long.
-#[derive(Clone, Copy, PartialEq, derive_more::Deref)]
+#[derive(
+    Clone, Copy, PartialEq, derive_more::Deref, bytemuck::TransparentWrapper,
+)]
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; RawNode::SIZE]);
 
@@ -494,8 +497,7 @@ impl<'a> ValueRef<'a, bool> {
 
 impl<'a> From<&'a [u8; RawNode::SIZE]> for &'a RawNode {
     fn from(bytes: &'a [u8; RawNode::SIZE]) -> &'a RawNode {
-        // SAFETY: RawNode is repr(transparent).
-        unsafe { &*bytes.as_ptr().cast() }
+        RawNode::wrap_ref(bytes)
     }
 }
 
