@@ -13,6 +13,7 @@ use crate::nodes::MAX_EXTENSION_KEY_SIZE;
 /// Slice’s offset needs to be taken into account.  For example, with bit offset
 /// of four, the key may have at most 268 bits.
 #[derive(Clone, Copy, PartialEq, derive_more::Into)]
+#[allow(clippy::len_without_is_empty)]
 pub struct ExtKey<'a>(pub(super) Slice<'a>);
 
 /// Possible errors when creating an `ExtKey` from a bit slice.

@@ -167,7 +167,7 @@ impl NonMembership {
                 // We’re converting non-membership proof into proof that at
                 // shortened key the given Extension node exists.
                 let suffix = key.pop_back_slice(*left)?;
-                let ext_key = ExtKey::decode(&key_buf, 0)?;
+                let ext_key = ExtKey::decode(key_buf, 0)?;
                 if suffix.starts_with(ext_key.into()) {
                     // If key in the Extension node is a prefix of the
                     // remaining suffix of the lookup key, the proof is
