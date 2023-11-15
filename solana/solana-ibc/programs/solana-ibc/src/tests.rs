@@ -1,5 +1,5 @@
-use std::borrow::BorrowMut;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -10,21 +10,32 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::solana_sdk::transaction::Transaction;
+use anchor_lang::ToAccountMetas;
+use anchor_lang::solana_program::instruction::AccountMeta;
+use spl_associated_token_account::instruction::create_associated_token_account;
 use anchor_client::{Client, Cluster};
-use anchor_lang::solana_program::system_instruction;
-use anchor_spl::associated_token::get_associated_token_address;
-use anchor_spl::token::Mint;
+use anchor_lang::prelude::borsh;
+use anchor_spl::associated_token::{get_associated_token_address, self};
 use anyhow::Result;
+use ibc::applications::transfer::packet::PacketData;
+use ibc::applications::transfer::{Amount, BaseCoin, BaseDenom, Coin};
 use ibc::core::ics02_client::client_state::ClientStateCommon;
 use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
 use ibc::core::ics03_connection::connection::Counterparty;
 use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
 use ibc::core::ics03_connection::version::Version;
-use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
+use ibc::core::ics04_channel::msgs::MsgRecvPacket;
+use ibc::core::ics04_channel::packet::Packet;
+use ibc::core::ics04_channel::timeout::TimeoutHeight;
+use ibc::core::ics23_commitment::commitment::{
+    CommitmentPrefix, CommitmentProofBytes,
+};
 use ibc::core::ics24_host::identifier::{ChannelId, ClientId, PortId};
+use ibc::core::timestamp::Timestamp;
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
+use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 
 use crate::storage::PrivateStorage;
@@ -61,6 +72,56 @@ macro_rules! make_message {
         $( let message = $variant(message); )*
         message
     }}
+}
+
+pub struct DeliverWithRemainingAccounts {
+    sender: Pubkey,
+    storage: Pubkey,
+    trie: Pubkey,
+    packets: Pubkey,
+    system_program: Pubkey,
+    remaining_accounts: Vec<Pubkey>    
+}
+
+impl ToAccountMetas for DeliverWithRemainingAccounts {
+    fn to_account_metas(&self, is_signer: Option<bool>) -> Vec<anchor_lang::prelude::AccountMeta> {
+        let mut accounts = Vec::new();
+        accounts.push(AccountMeta{
+            pubkey: self.sender,
+            is_signer: true,
+            is_writable: true,
+        });
+        accounts.push(AccountMeta{
+            pubkey: self.storage,
+            is_signer: false,
+            is_writable: true,
+        });
+        accounts.push(AccountMeta{
+            pubkey: self.trie,
+            is_signer: false,
+            is_writable: true,
+        });
+        accounts.push(AccountMeta{
+            pubkey: self.packets,
+            is_signer: false,
+            is_writable: true,
+        });
+        accounts.push(AccountMeta{
+            pubkey: self.system_program,
+            is_signer: false,
+            is_writable: false,
+        });
+
+        self.remaining_accounts.iter().for_each(|&account| {
+            accounts.push(AccountMeta{
+                pubkey: account,
+                is_signer: false,
+                is_writable: false,
+            })
+        });
+
+        accounts
+    }
 }
 
 #[test]
@@ -221,7 +282,7 @@ fn anchor_test_deliver() -> Result<()> {
         })
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
-            _channel_id: channel_id,
+            _channel_id: channel_id.clone(),
             _base_denom: DENOM.to_string(),
             commitment_prefix,
             client_id,
@@ -241,9 +302,107 @@ fn anchor_test_deliver() -> Result<()> {
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
     println!("This is the mint information {:?}", mint_info);
+    // Retrieve and validate state
+    let solana_ibc_storage_account: PrivateStorage =
+        program.account(solana_ibc_storage).unwrap();
+
+    println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
+
+    // Create a new receier with a token account
+    let receiver = Keypair::new();
+    let ix = Transaction::new_signed_with_payer(
+        &[create_associated_token_account(&authority.pubkey(), &receiver.pubkey(), &token_mint_key, &anchor_spl::token::ID)],
+        Some(&authority.pubkey()),
+        &[&*authority],
+        sol_rpc_client.get_latest_blockhash().unwrap() 
+    );
+    let tx = sol_rpc_client.send_transaction_with_config(&ix, RpcSendTransactionConfig {
+        skip_preflight: true,
+        ..RpcSendTransactionConfig::default()
+    }).unwrap();
+    let receiver_token_address =
+        get_associated_token_address(&receiver.pubkey(), &token_mint_key);
+
+    println!("this is token account creation signature {}", tx);
+
+    let base_denom: BaseDenom = BaseDenom::from_str(DENOM).unwrap();
+    let token: BaseCoin =
+        Coin { denom: base_denom, amount: Amount::from(1000000) };
+
+    let packet_data = PacketData {
+        token: token.into(),
+        sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
+        receiver: ibc::Signer::from(receiver.try_pubkey().unwrap().to_string()), // Should be a token account
+        memo: String::from("My first tx").into(),
+    };
+    
+    let serialized_data = borsh::to_vec(&packet_data).unwrap();
+
+    let packet = Packet {
+        seq_on_a: 1.into(),
+        port_id_on_a: port_id.clone(),
+        chan_id_on_a: channel_id,
+        port_id_on_b: port_id,
+        chan_id_on_b: ChannelId::new(1),
+        data: serialized_data.clone(),
+        timeout_height_on_b: TimeoutHeight::Never,
+        timeout_timestamp_on_b: Timestamp::none(),
+    };
+
+    let message = make_message!(
+        MsgRecvPacket {
+            packet,
+            proof_commitment_on_a: CommitmentProofBytes::try_from(serialized_data)
+                .unwrap(),
+            proof_height_on_a: Height::new(0, 1).unwrap(),
+            signer: ibc::Signer::from(authority.pubkey().to_string())
+        },
+        ibc::core::ics04_channel::msgs::PacketMsg::Recv,
+        ibc::core::MsgEnvelope::Packet,
+    );
+
+    /*
+        The remaining accounts consists of the following accounts
+        - sender token account
+        - receiver token account
+        - token mint
+        - escrow account ( token account )
+        - mint authority
+        - token program
+    */
+
+    let remaining_accounts = vec![
+        sender_token_address,
+        receiver_token_address,
+        token_mint_key,
+        escrow_account_key,
+        mint_authority_key,
+        anchor_spl::token::ID,
+    ];
+
+    let sig = program
+        .request()
+        .accounts(DeliverWithRemainingAccounts {
+            sender: authority.pubkey(),
+            storage: solana_ibc_storage,
+            trie,
+            system_program: system_program::ID,
+            packets,
+            remaining_accounts
+        })
+        .args(instruction::Deliver { message })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
+
+    println!("signature for transfer packet: {sig}"); 
+
 
 
     Ok(())

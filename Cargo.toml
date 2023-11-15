@@ -41,6 +41,7 @@ solana-client = "1.16.14"
 solana-program = "1.16.14"
 solana-sdk = "1.16.14"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
+spl-associated-token-account = "2.2.0"
 primitive-types = "0.12.2"
 
 lib = { path = "common/lib" }

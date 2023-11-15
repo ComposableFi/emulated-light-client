@@ -73,6 +73,8 @@ pub mod solana_ibc {
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
         let accounts = ctx.remaining_accounts;
 
+        msg!("These are remaining accounts {:?}", accounts);
+
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
@@ -203,6 +205,7 @@ pub mod solana_ibc {
             outer.as_slice(), //signer PDA
         );
         anchor_spl::token::mint_to(cpi_ctx, 10000000)?;
+
         Ok(())
     }
 }
@@ -251,8 +254,8 @@ pub struct MockDeliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
     packets: Box<Account<'info, IBCPackets>>,
 
-    /// The below accounts are being created for testing purposes only. 
-    /// In real, we would run conditionally create an escrow account when the channel is created. 
+    /// The below accounts are being created for testing purposes only.
+    /// In real, we would run conditionally create an escrow account when the channel is created.
     /// And we could have another method that can create a mint given the denom.
     #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED], bump, space = 100)]
     /// CHECK:
