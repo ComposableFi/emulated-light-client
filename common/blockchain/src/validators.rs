@@ -59,6 +59,8 @@ impl<PK> Validator<PK> {
 
 #[cfg(test)]
 pub(crate) mod test_utils {
+    use bytemuck::TransparentWrapper;
+
     /// A mock implementation of a PubKey.  Offers no security; intended for
     /// tests only.
     #[derive(
@@ -96,7 +98,7 @@ pub(crate) mod test_utils {
         borsh::BorshSerialize,
         borsh::BorshDeserialize,
     )]
-    pub struct MockSignature(pub u32, pub MockPubKey);
+    pub struct MockSignature(pub (u32, u64, u32), pub MockPubKey);
 
     impl core::fmt::Debug for MockPubKey {
         #[inline]
@@ -115,7 +117,11 @@ pub(crate) mod test_utils {
     impl core::fmt::Debug for MockSignature {
         #[inline]
         fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-            write!(fmt, "Sig({:x} by {:?})", self.0, self.1)
+            write!(
+                fmt,
+                "Sig((genesis={}, height={}, block={}) signed by {:?})",
+                self.0 .0, self.0 .1, self.0 .2, self.1
+            )
         }
     }
 
@@ -130,7 +136,7 @@ pub(crate) mod test_utils {
             pubkey: &MockPubKey,
             signature: &<MockPubKey as super::PubKey>::Signature,
         ) -> bool {
-            signature.0 == short_hash(message) && &signature.1 == pubkey
+            signature.0 == short_fp(message) && &signature.1 == pubkey
         }
     }
 
@@ -139,14 +145,21 @@ pub(crate) mod test_utils {
             &self,
             message: &[u8],
         ) -> <MockPubKey as super::PubKey>::Signature {
-            MockSignature(short_hash(message), self.0)
+            MockSignature(short_fp(message), self.0)
         }
     }
 
-    fn short_hash(message: &[u8]) -> u32 {
-        let hash = <&[u8; 32]>::try_from(message).unwrap();
-        let (hash, _) = stdx::split_array_ref::<4, 28, 32>(&hash);
-        u32::from_be_bytes(*hash)
+    fn short_fp(message: &[u8]) -> (u32, u64, u32) {
+        fn h32(hash: &lib::hash::CryptoHash) -> u32 {
+            let (bytes, _) =
+                stdx::split_array_ref::<4, 28, 32>(hash.as_array());
+            u32::from_be_bytes(*bytes)
+        }
+
+        let fp = <&[u8; 72]>::try_from(message).unwrap();
+        let fp = crate::block::Fingerprint::wrap_ref(fp);
+        let (genesis, height, hash) = fp.parse();
+        (h32(genesis), u64::from(height), h32(hash))
     }
 }
 

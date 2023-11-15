@@ -13,6 +13,9 @@ pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
     config: crate::Config,
 
+    /// Hash of the chain’s genesis block.
+    genesis: CryptoHash,
+
     /// Current latest block which has been signed by quorum of validators.
     block: crate::Block<PK>,
 
@@ -40,14 +43,17 @@ pub struct ChainManager<PK> {
 struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: crate::Block<PK>,
-    /// Hash of the block.
+
+    /// Fingerprint of the block.
     ///
-    /// This is what validators are signing.  It equals `next_block.calc_hash()`
-    /// and we’re keeping it as a field to avoid having to hash the block each
-    /// time.
-    hash: CryptoHash,
+    /// This is what validators are signing.  It equals `Fingerprint(&genesis,
+    /// &next_block)` and we’re keeping it as a field to avoid having to hash
+    /// the block each time.
+    fingerprint: crate::block::Fingerprint,
+
     /// Validators who so far submitted valid signatures for the block.
     signers: Set<PK>,
+
     /// Sum of stake of validators who have signed the block.
     signing_stake: u128,
 }
@@ -117,6 +123,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         let epoch_height = genesis.host_height;
         Ok(Self {
             config,
+            genesis: genesis.calc_hash(),
             block: genesis,
             next_epoch,
             pending_block: None,
@@ -169,8 +176,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             state_root,
             next_epoch,
         )?;
+        let fingerprint =
+            crate::block::Fingerprint::new(&self.genesis, &next_block);
         self.pending_block = Some(PendingBlock {
-            hash: next_block.calc_hash(),
+            fingerprint,
             next_block,
             signers: Set::new(),
             signing_stake: 0,
@@ -227,7 +236,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             .ok_or(AddSignatureError::BadValidator)?
             .stake()
             .get();
-        if !verifier.verify(pending.hash.as_slice(), &pubkey, signature) {
+        if !pending.fingerprint.verify(&pubkey, signature, verifier) {
             return Err(AddSignatureError::BadSignature);
         }
 
@@ -320,7 +329,9 @@ fn test_generate() {
         mgr: &mut ChainManager<MockPubKey>,
         validator: &crate::validators::Validator<MockPubKey>,
     ) -> Result<AddSignatureEffect, AddSignatureError> {
-        let signature = mgr.head().1.sign(&validator.pubkey().make_signer());
+        let signature =
+            crate::block::Fingerprint::new(&mgr.genesis, mgr.head().1)
+                .sign(&validator.pubkey().make_signer());
         mgr.add_signature(validator.pubkey().clone(), &signature, &())
     }
 
@@ -343,7 +354,8 @@ fn test_generate() {
 
     // Signatures are verified
     let pubkey = MockPubKey(42);
-    let signature = mgr.head().1.sign(&pubkey.make_signer());
+    let signature = crate::block::Fingerprint::new(&mgr.genesis, mgr.head().1)
+        .sign(&pubkey.make_signer());
     assert_eq!(
         Err(AddSignatureError::BadValidator),
         mgr.add_signature(pubkey, &signature, &())
