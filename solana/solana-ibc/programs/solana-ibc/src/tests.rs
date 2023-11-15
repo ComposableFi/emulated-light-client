@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
@@ -8,7 +9,11 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::system_instruction;
+use anchor_spl::associated_token::get_associated_token_address;
+use anchor_spl::token::Mint;
 use anyhow::Result;
 use ibc::core::ics02_client::client_state::ClientStateCommon;
 use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
@@ -16,7 +21,7 @@ use ibc::core::ics03_connection::connection::Counterparty;
 use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
 use ibc::core::ics03_connection::version::Version;
 use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::{ClientId, PortId};
+use ibc::core::ics24_host::identifier::{ChannelId, ClientId, PortId};
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
@@ -24,10 +29,12 @@ use ibc_proto::google::protobuf::Any;
 
 use crate::storage::PrivateStorage;
 use crate::{
-    accounts, instruction, ID, PACKET_SEED, SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+    accounts, instruction, ID, MINT_ESCROW_SEED, PACKET_SEED,
+    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
 };
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
+const DENOM: &str = "transfer/channel-1/PICA";
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -131,8 +138,7 @@ fn anchor_test_deliver() -> Result<()> {
      *
      */
 
-    let client_id = ClientId::new(mock_client_state.client_type(), 0)
-    .unwrap();
+    let client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
 
     let counter_party_client_id =
         ClientId::new(mock_client_state.client_type(), 1).unwrap();
@@ -176,21 +182,51 @@ fn anchor_test_deliver() -> Result<()> {
     println!("signature for connection open init: {sig}");
 
     /*
-     *
-     * Setup mock connection and channel
-     *
-     */
+    *
+    * Setup mock connection and channel
+       Steps before we proceed
+       - Create PDAs for the above keys,
+       - Create the token mint
+       - Get token account for receiver and sender
+    *
+    */
 
-     let sig = program
+    let port_id = PortId::transfer();
+    let channel_id = ChannelId::new(0);
+
+    let seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
+    let (escrow_account_key, _bump) =
+        Pubkey::find_program_address(&seeds, &crate::ID);
+    let (token_mint_key, _bump) =
+        Pubkey::find_program_address(&[DENOM.as_ref()], &crate::ID);
+    let (mint_authority_key, _bump) =
+        Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+    let sender_token_address =
+        get_associated_token_address(&authority.pubkey(), &token_mint_key);
+
+    let sig = program
         .request()
-        .accounts(accounts::Deliver {
+        .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
+            sender_token_account: sender_token_address,
             storage: solana_ibc_storage,
             trie,
+            mint_authority: mint_authority_key,
+            escrow_account: escrow_account_key,
+            token_mint: token_mint_key,
             system_program: system_program::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            token_program: anchor_spl::token::ID,
             packets,
         })
-        .args(instruction::MockDeliver { port_id: PortId::transfer(), commitment_prefix, client_id, counterparty_client_id: counter_party_client_id })
+        .args(instruction::MockDeliver {
+            port_id: port_id.clone(),
+            _channel_id: channel_id,
+            _base_denom: DENOM.to_string(),
+            commitment_prefix,
+            client_id,
+            counterparty_client_id: counter_party_client_id,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -198,10 +234,17 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
 
-    println!("signature for setting up channel and connection with next seq: {sig}");
-    
+    println!(
+        "signature for setting up channel and connection with next seq: {sig}"
+    );
+
+    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+
+    println!("This is the mint information {:?}", mint_info);
+
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
+
 
     Ok(())
 }
