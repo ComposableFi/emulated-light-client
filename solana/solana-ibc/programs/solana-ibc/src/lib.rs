@@ -200,6 +200,7 @@ pub struct ChainWithVerifier<'info> {
     trie: UncheckedAccount<'info>,
 
     #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK:
     ix_sysvar: AccountInfo<'info>,
 
     system_program: Program<'info, System>,
