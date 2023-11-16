@@ -19,4 +19,4 @@ pub use config::Config;
 pub use epoch::Epoch;
 pub use height::{BlockDelta, BlockHeight, HostDelta, HostHeight};
 pub use manager::ChainManager;
-pub use validators::{PubKey, Signer, Validator};
+pub use validators::{PubKey, Signer, Validator, Verifier};

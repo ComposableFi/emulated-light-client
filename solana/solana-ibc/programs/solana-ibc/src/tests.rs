@@ -14,7 +14,7 @@ use anchor_client::{Client, Cluster};
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
-use anchor_spl::associated_token::{self, get_associated_token_address};
+use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::applications::transfer::packet::PacketData;
 use ibc::applications::transfer::{Amount, BaseCoin, BaseDenom, Coin};
@@ -40,8 +40,7 @@ use spl_associated_token_account::instruction::create_associated_token_account;
 
 use crate::storage::PrivateStorage;
 use crate::{
-    accounts, instruction, ID, MINT_ESCROW_SEED, PACKET_SEED,
-    SOLANA_IBC_STORAGE_SEED, TRIE_SEED,
+    accounts, instruction, MINT_ESCROW_SEED,
 };
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
@@ -79,6 +78,7 @@ pub struct DeliverWithRemainingAccounts {
     storage: Pubkey,
     trie: Pubkey,
     packets: Pubkey,
+    chain: Pubkey,
     system_program: Pubkey,
     remaining_accounts: Vec<Pubkey>,
 }
@@ -86,7 +86,7 @@ pub struct DeliverWithRemainingAccounts {
 impl ToAccountMetas for DeliverWithRemainingAccounts {
     fn to_account_metas(
         &self,
-        is_signer: Option<bool>,
+        _is_signer: Option<bool>,
     ) -> Vec<anchor_lang::prelude::AccountMeta> {
         let mut accounts = Vec::new();
         accounts.push(AccountMeta {
@@ -110,10 +110,16 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
             is_writable: true,
         });
         accounts.push(AccountMeta {
+            pubkey: self.chain,
+            is_signer: false,
+            is_writable: true,
+        });
+        accounts.push(AccountMeta {
             pubkey: self.system_program,
             is_signer: false,
             is_writable: false,
         });
+        
 
         self.remaining_accounts.iter().for_each(|&account| {
             accounts.push(AccountMeta {
@@ -139,19 +145,23 @@ fn anchor_test_deliver() -> Result<()> {
         authority.clone(),
         CommitmentConfig::processed(),
     );
-    let program = client.program(ID).unwrap();
+    let program = client.program(crate::ID).unwrap();
 
     let sol_rpc_client = program.rpc();
     let _airdrop_signature =
         airdrop(&sol_rpc_client, authority.pubkey(), lamports);
 
     // Build, sign, and send program instruction
-    let seeds = &[SOLANA_IBC_STORAGE_SEED];
-    let solana_ibc_storage = Pubkey::find_program_address(seeds, &crate::ID).0;
-    let trie_seeds = &[TRIE_SEED];
-    let trie = Pubkey::find_program_address(trie_seeds, &crate::ID).0;
-    let packet_seeds = &[PACKET_SEED];
-    let packets = Pubkey::find_program_address(packet_seeds, &crate::ID).0;
+    let storage = Pubkey::find_program_address(
+        &[crate::SOLANA_IBC_STORAGE_SEED],
+        &crate::ID,
+    )
+    .0;
+    let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
+    let packets =
+        Pubkey::find_program_address(&[crate::PACKET_SEED], &crate::ID).0;
+    let chain =
+        Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
     /*
      *
@@ -175,10 +185,11 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
-            storage: solana_ibc_storage,
+            storage,
             trie,
-            system_program: system_program::ID,
             packets,
+            chain,
+            system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -192,7 +203,7 @@ fn anchor_test_deliver() -> Result<()> {
 
     // Retrieve and validate state
     let solana_ibc_storage_account: PrivateStorage =
-        program.account(solana_ibc_storage).unwrap();
+        program.account(storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
@@ -230,10 +241,11 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
-            storage: solana_ibc_storage,
+            storage,
             trie,
-            system_program: system_program::ID,
             packets,
+            chain: chain.clone(),
+            system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -273,7 +285,7 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
             sender_token_account: sender_token_address,
-            storage: solana_ibc_storage,
+            storage,
             trie,
             mint_authority: mint_authority_key,
             escrow_account: escrow_account_key,
@@ -307,7 +319,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("This is the mint information {:?}", mint_info);
     // Retrieve and validate state
     let solana_ibc_storage_account: PrivateStorage =
-        program.account(solana_ibc_storage).unwrap();
+        program.account(storage).unwrap();
 
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
@@ -399,10 +411,11 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(DeliverWithRemainingAccounts {
             sender: authority.pubkey(),
-            storage: solana_ibc_storage,
+            storage,
             trie,
             system_program: system_program::ID,
             packets,
+            chain,
             remaining_accounts,
         })
         .args(instruction::Deliver { message })

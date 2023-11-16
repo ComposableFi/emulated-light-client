@@ -8,6 +8,9 @@ on:
     branches:
       - master
 
+env:
+  SOLANA_VERSION: v1.16.3
+
 jobs:
   misc:
     name: Miscellaneous checks
@@ -34,6 +37,27 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -D warnings
+
+  solana-build: 
+    name: Build SBF
+    runs-on: ubuntu-latest
+    steps: 
+      - uses: actions/checkout@v3
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt
+
+      - name: Install Solana CLI
+        run: | 
+          set -eux
+          curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          cp solana/solana-ibc/keypair.json ~/.config/solana/id.json
+
+      - name: Run build-sbf
+        run: cargo build-sbf
 
   stable:
     name: Rust tests
@@ -67,4 +91,4 @@ jobs:
           components: miri
 
       - name: Run tests with Miri
-        run: cargo miri test -- --skip ::stress_test --skip ::anchor
+        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor

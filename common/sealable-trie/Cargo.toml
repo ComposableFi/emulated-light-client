@@ -5,8 +5,10 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+ascii.workspace = true
 base64.workspace = true
 borsh = { workspace = true, optional = true }
+bytemuck.workspace = true
 derive_more.workspace = true
 sha2.workspace = true
 strum.workspace = true

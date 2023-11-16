@@ -1,4 +1,5 @@
-use anchor_lang::emit;
+use alloc::collections::BTreeMap;
+
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use ibc::core::events::IbcEvent;
@@ -23,9 +24,8 @@ use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::storage::{IbcStorage, IbcStorageInner};
+use crate::storage::{self, IbcStorage, IbcStorageInner};
 use crate::trie_key::TrieKey;
-use crate::EmitIBCEvent;
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
@@ -39,16 +39,14 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         path: ClientStatePath,
         client_state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({path}, {client_state:?})");
-        let key = path.0.to_string();
-        let serialized = borsh::to_vec(&client_state).map_err(|err| {
-            ClientError::Other { description: err.to_string() }
-        })?;
-        let hash = lib::hash::CryptoHash::digest(&serialized);
-        msg!("This is serialized client state {hash}");
-
+        msg!("store_client_state({}, {:?})", path, client_state);
         let mut store = self.borrow_mut();
-        store.provable.set(&TrieKey::from(&path), &hash).unwrap();
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(&path),
+            &client_state,
+        )?;
+        let key = path.0.to_string();
         store.private.clients.insert(key.clone(), serialized);
         store.private.client_id_set.push(key);
         Ok(())
@@ -191,30 +189,17 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
 
     fn store_connection(
         &mut self,
-        connection_path: &ConnectionPath,
+        path: &ConnectionPath,
         connection_end: ConnectionEnd,
     ) -> Result {
-        msg!(
-            "store_connection: path: {}, connection_end: {:?}",
-            connection_path,
-            connection_end
-        );
-
+        msg!("store_connection({}, {:?})", path, connection_end);
         let mut store = self.borrow_mut();
-        let serialized_connection_end =
-            serde_json::to_string(&connection_end).unwrap();
-        let connection_trie_key = TrieKey::from(connection_path);
-        let trie = &mut store.provable;
-        trie.set(
-            &connection_trie_key,
-            &CryptoHash::digest(serialized_connection_end.as_bytes()),
-        )
-        .unwrap();
-
-        store
-            .private
-            .connections
-            .insert(connection_path.0.to_string(), serialized_connection_end);
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(path),
+            &connection_end,
+        )?;
+        store.private.connections.insert(path.0.to_string(), serialized);
         Ok(())
     }
 
@@ -252,18 +237,32 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &CommitmentPath,
         commitment: PacketCommitment,
     ) -> Result {
-        msg!("store_packet_commitment({path}, {commitment:?})");
+        msg!("store_packet_commitment({}, {:?})", path, commitment);
+        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // PacketCommitment is always 32-byte long.
         let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        self.borrow_mut().provable.set(&trie_key, commitment).unwrap();
+        store.provable.set(&trie_key, commitment).unwrap();
+        record_packet_sequence(
+            &mut store.private.packet_commitment_sequence_sets,
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
         Ok(())
     }
 
     fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
-        msg!("delete_packet_commitment({path})");
+        msg!("delete_packet_commitment({})", path);
+        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        self.borrow_mut().provable.del(&trie_key).unwrap();
+        store.provable.del(&trie_key).unwrap();
+        delete_packet_sequence(
+            &mut store.private.packet_commitment_sequence_sets,
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
         Ok(())
     }
 
@@ -272,12 +271,10 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &ReceiptPath,
         Receipt::Ok: Receipt,
     ) -> Result {
-        msg!("store_packet_receipt({path}, Ok)");
+        msg!("store_packet_receipt({}, Ok)", path);
+        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        self.borrow_mut()
-            .provable
-            .set_and_seal(&trie_key, &CryptoHash::DEFAULT)
-            .unwrap();
+        store.provable.set_and_seal(&trie_key, &CryptoHash::DEFAULT).unwrap();
         Ok(())
     }
 
@@ -286,50 +283,50 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &AckPath,
         commitment: AcknowledgementCommitment,
     ) -> Result {
-        msg!("store_packet_acknowledgement({path}, {commitment:?})");
+        msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
+        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // AcknowledgementCommitment is always 32-byte long.
         let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        self.borrow_mut().provable.set(&trie_key, commitment).unwrap();
+        store.provable.set(&trie_key, commitment).unwrap();
+        record_packet_sequence(
+            &mut store.private.packet_acknowledgement_sequence_sets,
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
         Ok(())
     }
 
     fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
-        msg!("delete_packet_acknowledgement({path})");
+        msg!("delete_packet_acknowledgement({})", path);
+        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        self.borrow_mut().provable.del(&trie_key).unwrap();
+        store.provable.del(&trie_key).unwrap();
+        delete_packet_sequence(
+            &mut store.private.packet_acknowledgement_sequence_sets,
+            &path.port_id,
+            &path.channel_id,
+            path.sequence,
+        );
         Ok(())
     }
 
     fn store_channel(
         &mut self,
-        channel_end_path: &ChannelEndPath,
+        path: &ChannelEndPath,
         channel_end: ChannelEnd,
     ) -> Result {
-        msg!(
-            "store_channel: path: {}, channel_end: {:?}",
-            channel_end_path,
-            channel_end
-        );
+        msg!("store_channel({}, {:?})", path, channel_end);
         let mut store = self.borrow_mut();
-        store.private.port_channel_id_set.push((
-            channel_end_path.0.to_string(),
-            channel_end_path.1.to_string(),
-        ));
-
-        let serialized_channel_end = borsh::to_vec(&channel_end).unwrap();
-        let channel_end_trie_key = TrieKey::from(channel_end_path);
-        let trie = &mut &mut store.provable;
-        trie.set(
-            &channel_end_trie_key,
-            &CryptoHash::digest(&serialized_channel_end),
-        )
-        .unwrap();
-
-        store.private.channel_ends.insert(
-            (channel_end_path.0.to_string(), channel_end_path.1.to_string()),
-            serde_json::to_string(&channel_end).unwrap(),
-        );
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(path),
+            &channel_end,
+        )?;
+        let key = (path.0.to_string(), path.1.to_string());
+        store.private.channel_ends.insert(key.clone(), serialized);
+        store.private.port_channel_id_set.push(key);
         Ok(())
     }
 
@@ -338,9 +335,8 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &SeqSendPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_send: path: {path}, seq: {seq}");
-        let mut store = self.borrow_mut();
-        store.store_next_sequence(
+        msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
+        self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Send,
             seq,
@@ -352,9 +348,8 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &SeqRecvPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_recv: path: {path}, seq: {seq}");
-        let store: &mut IbcStorageInner<'_, '_, '_> = &mut self.borrow_mut();
-        store.store_next_sequence(
+        msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
+        self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Recv,
             seq,
@@ -366,9 +361,8 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &SeqAckPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_ack: path: {path}, seq: {seq}");
-        let store: &mut IbcStorageInner<'_, '_, '_> = &mut self.borrow_mut();
-        store.store_next_sequence(
+        msg!("store_next_sequence_ack: path: {}, seq: {}", path, seq);
+        self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Ack,
             seq,
@@ -386,20 +380,8 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
-        let mut store = self.borrow_mut();
-        let host_height =
-            ibc::Height::new(store.private.height.0, store.private.height.1)?;
-        let ibc_event = borsh::to_vec(&event).unwrap();
-        let inner_host_height =
-            (host_height.revision_height(), host_height.revision_number());
-        store
-            .private
-            .ibc_events_history
-            .entry(inner_host_height)
-            .or_default()
-            .push(ibc_event.clone());
-        emit!(EmitIBCEvent { ibc_event });
-        Ok(())
+        crate::events::emit(event)
+            .map_err(|description| ClientError::Other { description }.into())
     }
 
     fn log_message(&mut self, message: String) -> Result {
@@ -427,5 +409,66 @@ impl IbcStorageInner<'_, '_, '_> {
         trie.set(&trie_key, &triple.to_hash()).unwrap();
 
         Ok(())
+    }
+}
+
+/// Serialises value and stores its hash in trie under given key.  Returns the
+/// serialised value.
+fn store_serialised_proof(
+    trie: &mut crate::storage::AccountTrie<'_, '_>,
+    key: &TrieKey,
+    value: &impl borsh::BorshSerialize,
+) -> Result<Vec<u8>> {
+    fn store_impl(
+        trie: &mut crate::storage::AccountTrie<'_, '_>,
+        key: &TrieKey,
+        value: borsh::maybestd::io::Result<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
+        value
+            .map_err(|err| err.to_string())
+            .and_then(|value| {
+                let hash = lib::hash::CryptoHash::digest(&value);
+                trie.set(key, &hash)
+                    .map(|()| value)
+                    .map_err(|err| err.to_string())
+            })
+            .map_err(|description| ClientError::Other { description })
+            .map_err(ContextError::ClientError)
+    }
+    store_impl(trie, key, borsh::to_vec(value))
+}
+
+type SequencesMap =
+    BTreeMap<(storage::InnerPortId, storage::InnerChannelId), Vec<Sequence>>;
+
+/// Adds sequence to given per-channel set.
+fn record_packet_sequence(
+    map: &mut SequencesMap,
+    port_id: &ibc::core::ics24_host::identifier::PortId,
+    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
+    sequence: Sequence,
+) {
+    let key = (port_id.to_string(), channel_id.to_string());
+    map.entry(key).or_default().push(sequence);
+}
+
+/// Removes sequence from given per-channel set.
+fn delete_packet_sequence(
+    map: &mut SequencesMap,
+    port_id: &ibc::core::ics24_host::identifier::PortId,
+    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
+    sequence: Sequence,
+) {
+    use alloc::collections::btree_map::Entry;
+
+    let key = (port_id.to_string(), channel_id.to_string());
+    if let Entry::Occupied(mut entry) = map.entry(key) {
+        let set = entry.get_mut();
+        if let Some(pos) = set.iter().position(|s| *s == sequence) {
+            set.swap_remove(pos);
+            if set.is_empty() {
+                entry.remove();
+            }
+        }
     }
 }

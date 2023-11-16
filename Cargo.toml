@@ -26,8 +26,10 @@ codegen-units = 1
 anchor-lang = {version = "0.28.0", features = ["init-if-needed"]}
 anchor-spl = "0.28.0"
 uint = "0.9.5"
+ascii = "1.1.0"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
+bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
 ibc = { version = "0.47.0", default-features = false, features = ["serde", "borsh"] }
@@ -44,6 +46,7 @@ strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 spl-associated-token-account = "2.2.0"
 primitive-types = "0.12.2"
 
+blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }

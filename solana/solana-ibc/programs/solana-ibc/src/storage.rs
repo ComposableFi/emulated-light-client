@@ -13,10 +13,9 @@ pub(crate) type InnerClientId = String;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
-pub(crate) type InnerIbcEvent = Vec<u8>;
 pub(crate) type InnerClient = Vec<u8>; // Serialized
-pub(crate) type InnerConnectionEnd = String; // Serialized
-pub(crate) type InnerChannelEnd = String; // Serialized
+pub(crate) type InnerConnectionEnd = Vec<u8>; // Serialized
+pub(crate) type InnerChannelEnd = Vec<u8>; // Serialized
 pub(crate) type InnerConsensusState = String; // Serialized
 
 /// A triple of send, receive and acknowledge sequences.
@@ -107,15 +106,19 @@ pub(crate) struct PrivateStorage {
     pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
 
+    /// The sequence numbers of the packet commitments.
+    pub packet_commitment_sequence_sets:
+        BTreeMap<(InnerPortId, InnerChannelId), Vec<Sequence>>,
+    /// The sequence numbers of the packet acknowledgements.
+    pub packet_acknowledgement_sequence_sets:
+        BTreeMap<(InnerPortId, InnerChannelId), Vec<Sequence>>,
+
     /// Next send, receive and ack sequence for given (port, channel).
     ///
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
     pub next_sequence: BTreeMap<(InnerPortId, InnerChannelId), SequenceTriple>,
-
-    /// The history of IBC events.
-    pub ibc_events_history: BTreeMap<InnerHeight, Vec<InnerIbcEvent>>,
 }
 
 /// Provable storage, i.e. the trie, held in an account.

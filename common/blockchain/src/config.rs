@@ -4,7 +4,7 @@ use core::num::{NonZeroU128, NonZeroU16};
 ///
 /// Those are not encoded within a blockchain and only matter when generating
 /// a new block.
-// TODO(mina86): Do those configuration options make sense?
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct Config {
     /// Minimum number of validators allowed in an epoch.
     ///

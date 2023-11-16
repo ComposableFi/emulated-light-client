@@ -44,8 +44,29 @@ pub struct Block<PK> {
     pub next_epoch: Option<crate::Epoch<PK>>,
 }
 
+/// Block’s fingerprint which is used when signing.
+///
+/// The fingerprint is what validators sign when attesting the validity of the
+/// block.  It consists of a) chain’s genesis block hash, b) block height and c)
+/// block hash.
+///
+/// Inclusion of the genesis hash means that signatures for blocks with the
+/// same height but on different chains won’t be confused as malicious.
+///
+/// Inclusion of block height and hash mean that
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    bytemuck::TransparentWrapper,
+)]
+#[repr(transparent)]
+pub struct Fingerprint([u8; 72]);
+
 /// Error while generating new block.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, strum::IntoStaticStr)]
 pub enum GenerateError {
     /// Host height went backwards.
     BadHostHeight,
@@ -65,21 +86,6 @@ impl<PK: crate::PubKey> Block<PK> {
         let mut builder = CryptoHash::builder();
         borsh::to_writer(&mut builder, self).unwrap();
         builder.build()
-    }
-
-
-    /// Signs the block.
-    pub fn sign<S>(&self, signer: &S) -> PK::Signature
-    where
-        S: crate::validators::Signer<Signature = PK::Signature>,
-    {
-        signer.sign(self.calc_hash().as_slice())
-    }
-
-    /// Verifies signature for the block.
-    #[inline]
-    pub fn verify(&self, pk: &PK, signature: &PK::Signature) -> bool {
-        pk.verify(self.calc_hash().as_slice(), signature)
     }
 
     /// Constructs next block.
@@ -145,10 +151,77 @@ impl<PK: crate::PubKey> Block<PK> {
     }
 }
 
+impl Default for Fingerprint {
+    fn default() -> Self { Self([0; 72]) }
+}
+
+impl Fingerprint {
+    /// Calculates the fingerprint of the given block.
+    pub fn new<PK: crate::PubKey>(
+        genesis_hash: &CryptoHash,
+        block: &Block<PK>,
+    ) -> Self {
+        Self::from_hash(genesis_hash, block.block_height, &block.calc_hash())
+    }
+
+    /// Constructs the fingerprint of a block at given height and with given
+    /// hash.
+    pub fn from_hash(
+        genesis_hash: &CryptoHash,
+        block_height: crate::BlockHeight,
+        block_hash: &CryptoHash,
+    ) -> Self {
+        let mut fp = Self::default();
+        let (genesis, rest) = stdx::split_array_mut::<32, 40, 72>(&mut fp.0);
+        let (height, hash) = stdx::split_array_mut::<8, 32, 40>(rest);
+        *genesis = genesis_hash.into();
+        *height = u64::from(block_height).to_le_bytes();
+        *hash = block_hash.into();
+        fp
+    }
+
+    /// Parses the fingerprint extracting genesis hash, block height and block
+    /// hash from it.
+    pub fn parse(&self) -> (&CryptoHash, crate::BlockHeight, &CryptoHash) {
+        let (genesis, rest) = stdx::split_array_ref::<32, 40, 72>(&self.0);
+        let (height, hash) = stdx::split_array_ref::<8, 32, 40>(rest);
+        let height = u64::from_le_bytes(*height);
+        (genesis.into(), height.into(), hash.into())
+    }
+
+    /// Returns the fingerprint as bytes slice.
+    fn as_slice(&self) -> &[u8] { &self.0[..] }
+
+    /// Signs the fingerprint
+    #[inline]
+    pub fn sign<PK: crate::PubKey>(
+        &self,
+        signer: &impl crate::Signer<PK>,
+    ) -> PK::Signature {
+        signer.sign(self.as_slice())
+    }
+
+    /// Verifies the signature.
+    #[inline]
+    pub fn verify<PK: crate::PubKey>(
+        &self,
+        pubkey: &PK,
+        signature: &PK::Signature,
+        verifier: &impl crate::Verifier<PK>,
+    ) -> bool {
+        verifier.verify(self.as_slice(), pubkey, signature)
+    }
+}
+
+impl core::fmt::Debug for Fingerprint {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let (genesis, height, hash) = self.parse();
+        write!(fmtr, "FP(genesis={genesis}, height={height}, block={hash})")
+    }
+}
+
 #[test]
 fn test_block_generation() {
-    use crate::validators::{MockPubKey, MockSignature, MockSigner};
-
     // Generate a genesis block and test it’s behaviour.
     let genesis_hash = "Zq3s+b7x6R8tKV1iQtByAWqlDMXVVD9tSDOlmuLH7wI=";
     let genesis_hash = CryptoHash::from_base64(genesis_hash).unwrap();
@@ -174,19 +247,6 @@ fn test_block_generation() {
 
     assert_eq!(genesis_hash, genesis.calc_hash());
     assert_ne!(genesis_hash, block.calc_hash());
-
-    let pk = MockPubKey(77);
-    let signer = MockSigner(pk);
-    let signature = genesis.sign(&signer);
-    assert_eq!(MockSignature(1722674425, pk), signature);
-    assert!(genesis.verify(&pk, &signature));
-    assert!(!genesis.verify(&MockPubKey(88), &signature));
-    assert!(!genesis.verify(&pk, &MockSignature(0, pk)));
-
-    let mut block = genesis.clone();
-    block.host_timestamp += 1;
-    assert_ne!(genesis_hash, block.calc_hash());
-    assert!(!block.verify(&pk, &signature));
 
     // Try creating invalid next block.
     assert_eq!(
@@ -252,4 +312,37 @@ fn test_block_generation() {
         .unwrap();
     assert_eq!(hash, block.prev_block_hash);
     assert_eq!(hash, block.epoch_id);
+}
+
+#[test]
+fn test_signatures() {
+    use crate::validators::{MockPubKey, MockSignature, MockSigner};
+
+    let genesis = CryptoHash::test(1);
+    let height = 2.into();
+    let hash = CryptoHash::test(3);
+
+    let fingerprint = Fingerprint::from_hash(&genesis, height, &hash);
+
+    assert_eq!((&genesis, height, &hash), fingerprint.parse());
+
+    let pk = MockPubKey(42);
+    let signer = MockSigner(pk);
+
+    let signature = fingerprint.sign(&signer);
+    assert_eq!(MockSignature((1, 2, 3), pk), signature);
+    assert!(fingerprint.verify(&pk, &signature, &()));
+    assert!(!fingerprint.verify(&MockPubKey(88), &signature, &()));
+    assert!(!fingerprint.verify(&pk, &MockSignature((0, 0, 0), pk), &()));
+
+    let fingerprint =
+        Fingerprint::from_hash(&CryptoHash::test(66), height, &hash);
+    assert!(!fingerprint.verify(&pk, &signature, &()));
+
+    let fingerprint = Fingerprint::from_hash(&genesis, 66.into(), &hash);
+    assert!(!fingerprint.verify(&pk, &signature, &()));
+
+    let fingerprint =
+        Fingerprint::from_hash(&genesis, height, &CryptoHash::test(66));
+    assert!(!fingerprint.verify(&pk, &signature, &()));
 }
