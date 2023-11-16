@@ -149,8 +149,6 @@ pub mod solana_ibc {
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
         let accounts = ctx.remaining_accounts;
 
-        msg!("These are remaining accounts {:?}", accounts);
-
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
@@ -415,7 +413,7 @@ pub struct MockDeliver<'info> {
     sender: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],bump, space = 10000)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump, realloc = 10000, realloc::payer = sender, realloc::zero = false)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
