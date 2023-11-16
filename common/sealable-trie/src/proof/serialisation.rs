@@ -295,14 +295,14 @@ fn test_item_borsh() {
     #[track_caller]
     fn test(want_item: Item, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_item).unwrap();
-        let got_item = Item::deserialize_reader(&mut want_bytes.clone())
-            .map_err(|err| err.to_string());
+        let got_item =
+            Item::try_from_slice(want_bytes).map_err(|err| err.to_string());
         assert_eq!(
             (Ok(&want_item), want_bytes),
             (got_item.as_ref(), got_bytes.as_slice()),
         );
 
-        let got = ItemOrActual::deserialize_reader(&mut want_bytes.clone())
+        let got = ItemOrActual::try_from_slice(want_bytes)
             .map_err(|err| err.to_string());
         assert_eq!(Ok(ItemOrActual::Item(want_item)), got);
     }
@@ -334,15 +334,15 @@ fn test_actual_borsh() {
     #[track_caller]
     fn test(want_actual: Actual, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_actual).unwrap();
-        let got_actual = Actual::deserialize_reader(&mut want_bytes.clone())
-            .map_err(|err| err.to_string());
+        let got_actual =
+            Actual::try_from_slice(want_bytes).map_err(|err| err.to_string());
 
         assert_eq!(
             (Ok(&want_actual), want_bytes),
             (got_actual.as_ref(), got_bytes.as_slice()),
         );
 
-        let got = ItemOrActual::deserialize_reader(&mut want_bytes.clone())
+        let got = ItemOrActual::try_from_slice(want_bytes)
             .map_err(|err| err.to_string());
 
         assert_eq!(Ok(ItemOrActual::Actual(want_actual)), got);
@@ -401,9 +401,9 @@ fn test_actual_borsh() {
         length: u16,
         is_value: bool,
     ) -> Actual {
-        let key = crate::bits::Slice::new(bytes, offset, length).unwrap();
+        let key = crate::bits::ExtKey::new(bytes, offset, length).unwrap();
         let mut buf = [0; 36];
-        let len = key.encode_into(&mut buf, 0).unwrap();
+        let len = key.encode_into(&mut buf, 0);
         let key = buf[..len].to_vec().into_boxed_slice();
         let child = OwnedRef::test(is_value, 1);
         Actual::Extension(left, key, child)
@@ -456,8 +456,8 @@ fn test_proof_borsh() {
     #[track_caller]
     fn test(want_proof: Proof, want_bytes: &[u8]) {
         let got_bytes = borsh::to_vec(&want_proof).unwrap();
-        let got_proof = Proof::deserialize_reader(&mut want_bytes.clone())
-            .map_err(|err| err.to_string());
+        let got_proof =
+            Proof::try_from_slice(want_bytes).map_err(|err| err.to_string());
         assert_eq!(
             (Ok(&want_proof), want_bytes),
             (got_proof.as_ref(), got_bytes.as_slice()),
