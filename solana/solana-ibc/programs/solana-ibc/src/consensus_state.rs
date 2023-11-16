@@ -17,7 +17,15 @@ use serde::{Deserialize, Serialize};
 const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ConsensusState";
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, derive_more::From, derive_more::TryInto)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::TryInto,
+)]
 #[serde(tag = "type")]
 pub enum AnyConsensusState {
     Tendermint(TmConsensusState),
