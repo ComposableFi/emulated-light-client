@@ -54,27 +54,24 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn store_consensus_state(
         &mut self,
-        consensus_state_path: ClientConsensusStatePath,
+        path: ClientConsensusStatePath,
         consensus_state: Self::AnyConsensusState,
     ) -> Result {
         msg!(
             "store_consensus_state - path: {}, consensus_state: {:?}",
-            consensus_state_path,
+            path,
             consensus_state
         );
         let mut store = self.borrow_mut();
         let serialized = store_serialised_proof(
             &mut store.provable,
-            &TrieKey::from(&consensus_state_path),
+            &TrieKey::from(&path),
             &consensus_state,
         )?;
-        let key = (
-            consensus_state_path.client_id.to_string(),
-            (consensus_state_path.epoch, consensus_state_path.height),
-        );
+        let height = Height::new(path.epoch, path.height)?;
+        let key = (path.client_id.to_string(), height);
         store.private.consensus_states.insert(key, serialized);
-        store.private.height =
-            (consensus_state_path.epoch, consensus_state_path.height);
+        store.private.height = height;
         Ok(())
     }
 
@@ -83,7 +80,8 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         path: ClientConsensusStatePath,
     ) -> Result<(), ContextError> {
         msg!("delete_consensus_state({})", path);
-        let key = (path.client_id.to_string(), (path.epoch, path.height));
+        let height = Height::new(path.epoch, path.height)?;
+        let key = (path.client_id.to_string(), height);
         let mut store = self.borrow_mut();
         store.private.consensus_states.remove(&key);
         store.provable.del(&TrieKey::from(&path)).unwrap();
@@ -100,12 +98,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             .private
             .client_processed_heights
             .get_mut(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times.remove(&(
-                    height.revision_number(),
-                    height.revision_height(),
-                ))
-            });
+            .and_then(|processed_times| processed_times.remove(&height));
         Ok(())
     }
 
@@ -118,12 +111,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             .private
             .client_processed_times
             .get_mut(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times.remove(&(
-                    height.revision_number(),
-                    height.revision_height(),
-                ))
-            });
+            .and_then(|processed_times| processed_times.remove(&height));
         Ok(())
     }
 
@@ -139,10 +127,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             .client_processed_times
             .entry(client_id.to_string())
             .or_default()
-            .insert(
-                (height.revision_number(), height.revision_height()),
-                timestamp.nanoseconds(),
-            );
+            .insert(height, timestamp.nanoseconds());
         Ok(())
     }
 
@@ -158,10 +143,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             .client_processed_heights
             .entry(client_id.to_string())
             .or_default()
-            .insert(
-                (height.revision_number(), height.revision_height()),
-                (host_height.revision_number(), host_height.revision_height()),
-            );
+            .insert(height, host_height);
         Ok(())
     }
 }
