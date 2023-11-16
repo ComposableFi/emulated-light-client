@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program;
 pub use blockchain::Config;
 
 use crate::error::Error;
@@ -29,11 +28,11 @@ impl ChainData {
         config: Config,
         genesis_epoch: Epoch,
     ) -> Result {
-        let (height, timestamp) = host_head()?;
+        let host_head = crate::host::Head::get()?;
         let genesis = Block::generate_genesis(
             1.into(),
-            height,
-            timestamp,
+            host_head.height,
+            host_head.timestamp,
             trie.hash().clone(),
             genesis_epoch,
         )
@@ -67,7 +66,7 @@ impl ChainData {
     /// block opportunistically at the beginning of handling any smart contract
     /// request.
     pub fn generate_block(&mut self, trie: &storage::AccountTrie) -> Result {
-        self.generate_block_impl(trie, true)
+        self.generate_block_impl(trie, None, true)
     }
 
     /// Generates a new guest block if possible.
@@ -80,8 +79,9 @@ impl ChainData {
     pub fn maybe_generate_block(
         &mut self,
         trie: &storage::AccountTrie,
+        host_head: Option<crate::host::Head>,
     ) -> Result {
-        self.generate_block_impl(trie, false)
+        self.generate_block_impl(trie, host_head, false)
     }
 
     /// Attempts generating a new guest block.
@@ -93,10 +93,11 @@ impl ChainData {
     fn generate_block_impl(
         &mut self,
         trie: &storage::AccountTrie,
+        host_head: Option<crate::host::Head>,
         force: bool,
     ) -> Result {
+        let host_head = host_head.map_or_else(crate::host::Head::get, Ok)?;
         let inner = self.get_mut()?;
-        let (height, timestamp) = host_head()?;
 
         // We attempt generating guest blocks only once per host block.  This has
         // two reasons:
@@ -104,17 +105,17 @@ impl ChainData {
         // 2. We don’t want a situation where some IBC packets are created during
         //    a Solana block but only some of them end up in a guest block generated
         //    during that block.
-        if inner.last_check_height == height {
+        if inner.last_check_height == host_head.height {
             return if force {
                 Err(Error::GenerationAlreadyAttempted.into())
             } else {
                 Ok(())
             };
         }
-        inner.last_check_height = height;
+        inner.last_check_height = host_head.height;
         let res = inner.manager.generate_next(
-            height,
-            timestamp,
+            host_head.height,
+            host_head.timestamp,
             trie.hash().clone(),
             false,
         );
@@ -194,10 +195,4 @@ struct ChainInner {
 
     /// The guest blockchain manager handling generation of new guest blocks.
     manager: Manager,
-}
-
-/// Returns Solana block height and timestamp.
-fn host_head() -> Result<(blockchain::HostHeight, u64)> {
-    let clock = solana_program::clock::Clock::get()?;
-    Ok((clock.slot.into(), clock.unix_timestamp.try_into().unwrap()))
 }
