@@ -10,12 +10,11 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::solana_sdk::transaction::Transaction;
-use anchor_lang::ToAccountMetas;
-use anchor_lang::solana_program::instruction::AccountMeta;
-use spl_associated_token_account::instruction::create_associated_token_account;
 use anchor_client::{Client, Cluster};
 use anchor_lang::prelude::borsh;
-use anchor_spl::associated_token::{get_associated_token_address, self};
+use anchor_lang::solana_program::instruction::AccountMeta;
+use anchor_lang::ToAccountMetas;
+use anchor_spl::associated_token::{self, get_associated_token_address};
 use anyhow::Result;
 use ibc::applications::transfer::packet::PacketData;
 use ibc::applications::transfer::{Amount, BaseCoin, BaseDenom, Coin};
@@ -37,6 +36,7 @@ use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
 use ibc::Height;
 use ibc_proto::google::protobuf::Any;
+use spl_associated_token_account::instruction::create_associated_token_account;
 
 use crate::storage::PrivateStorage;
 use crate::{
@@ -80,40 +80,43 @@ pub struct DeliverWithRemainingAccounts {
     trie: Pubkey,
     packets: Pubkey,
     system_program: Pubkey,
-    remaining_accounts: Vec<Pubkey>    
+    remaining_accounts: Vec<Pubkey>,
 }
 
 impl ToAccountMetas for DeliverWithRemainingAccounts {
-    fn to_account_metas(&self, is_signer: Option<bool>) -> Vec<anchor_lang::prelude::AccountMeta> {
+    fn to_account_metas(
+        &self,
+        is_signer: Option<bool>,
+    ) -> Vec<anchor_lang::prelude::AccountMeta> {
         let mut accounts = Vec::new();
-        accounts.push(AccountMeta{
+        accounts.push(AccountMeta {
             pubkey: self.sender,
             is_signer: true,
             is_writable: true,
         });
-        accounts.push(AccountMeta{
+        accounts.push(AccountMeta {
             pubkey: self.storage,
             is_signer: false,
             is_writable: true,
         });
-        accounts.push(AccountMeta{
+        accounts.push(AccountMeta {
             pubkey: self.trie,
             is_signer: false,
             is_writable: true,
         });
-        accounts.push(AccountMeta{
+        accounts.push(AccountMeta {
             pubkey: self.packets,
             is_signer: false,
             is_writable: true,
         });
-        accounts.push(AccountMeta{
+        accounts.push(AccountMeta {
             pubkey: self.system_program,
             is_signer: false,
             is_writable: false,
         });
 
         self.remaining_accounts.iter().for_each(|&account| {
-            accounts.push(AccountMeta{
+            accounts.push(AccountMeta {
                 pubkey: account,
                 is_signer: false,
                 is_writable: false,
@@ -314,15 +317,22 @@ fn anchor_test_deliver() -> Result<()> {
     // Create a new receier with a token account
     let receiver = Keypair::new();
     let ix = Transaction::new_signed_with_payer(
-        &[create_associated_token_account(&authority.pubkey(), &receiver.pubkey(), &token_mint_key, &anchor_spl::token::ID)],
+        &[create_associated_token_account(
+            &authority.pubkey(),
+            &receiver.pubkey(),
+            &token_mint_key,
+            &anchor_spl::token::ID,
+        )],
         Some(&authority.pubkey()),
         &[&*authority],
-        sol_rpc_client.get_latest_blockhash().unwrap() 
+        sol_rpc_client.get_latest_blockhash().unwrap(),
     );
-    let tx = sol_rpc_client.send_transaction_with_config(&ix, RpcSendTransactionConfig {
-        skip_preflight: true,
-        ..RpcSendTransactionConfig::default()
-    }).unwrap();
+    let tx = sol_rpc_client
+        .send_transaction_with_config(&ix, RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })
+        .unwrap();
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
@@ -338,7 +348,7 @@ fn anchor_test_deliver() -> Result<()> {
         receiver: ibc::Signer::from(receiver.try_pubkey().unwrap().to_string()), // Should be a token account
         memo: String::from("My first tx").into(),
     };
-    
+
     let serialized_data = borsh::to_vec(&packet_data).unwrap();
 
     let packet = Packet {
@@ -355,8 +365,10 @@ fn anchor_test_deliver() -> Result<()> {
     let message = make_message!(
         MsgRecvPacket {
             packet,
-            proof_commitment_on_a: CommitmentProofBytes::try_from(serialized_data)
-                .unwrap(),
+            proof_commitment_on_a: CommitmentProofBytes::try_from(
+                serialized_data
+            )
+            .unwrap(),
             proof_height_on_a: Height::new(0, 1).unwrap(),
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
@@ -391,7 +403,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
             packets,
-            remaining_accounts
+            remaining_accounts,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -401,7 +413,7 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
-    println!("signature for transfer packet: {sig}"); 
+    println!("signature for transfer packet: {sig}");
 
 
 

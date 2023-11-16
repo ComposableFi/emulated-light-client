@@ -137,16 +137,25 @@ pub mod solana_ibc {
             accounts: accounts.to_vec(),
         });
 
-        let connection_id = ConnectionId::new(0);
+        let connection_id_on_a = ConnectionId::new(0);
+        let connection_id_on_b = ConnectionId::new(1);
         let delay_period = core::time::Duration::from_nanos(0);
         let connection_counterparty = Counterparty::new(
-            counterparty_client_id,
-            Some(ConnectionId::new(1)),
+            counterparty_client_id.clone(),
+            Some(connection_id_on_b.clone()),
             commitment_prefix,
         );
-        let connection_end = ConnectionEnd::new(
+        let connection_end_on_a = ConnectionEnd::new(
             ConnState::Open,
             client_id,
+            connection_counterparty.clone(),
+            vec![Version::default()],
+            delay_period,
+        )
+        .unwrap();
+        let connection_end_on_b = ConnectionEnd::new(
+            ConnState::Open,
+            counterparty_client_id,
             connection_counterparty,
             vec![Version::default()],
             delay_period,
@@ -154,35 +163,74 @@ pub mod solana_ibc {
         .unwrap();
 
         let counterparty =
-            ChanCounterparty::new(port_id.clone(), Some(ChannelId::new(1)));
-        let channel_end = ChannelEnd::new(
+            ChanCounterparty::new(port_id.clone(), Some(ChannelId::new(0)));
+        let channel_end_on_a = ChannelEnd::new(
             ChannelState::Open,
             Order::Unordered,
-            counterparty,
-            vec![connection_id.clone()],
+            counterparty.clone(),
+            vec![connection_id_on_a.clone()],
             ChanVersion::new(ibc::applications::transfer::VERSION.to_string()),
         )
         .unwrap();
-        let channel_id = ChannelId::new(0);
+        let channel_end_on_b = ChannelEnd::new(
+            ChannelState::Open,
+            Order::Unordered,
+            counterparty,
+            vec![connection_id_on_b.clone()],
+            ChanVersion::new(ibc::applications::transfer::VERSION.to_string()),
+        )
+        .unwrap();
+        let channel_id_on_a = ChannelId::new(0);
+        let channel_id_on_b = ChannelId::new(1);
 
+        // For Client on Chain A
         store
-            .store_connection(&ConnectionPath(connection_id), connection_end)
+            .store_connection(
+                &ConnectionPath(connection_id_on_a),
+                connection_end_on_a,
+            )
             .unwrap();
         store
             .store_channel(
-                &ChannelEndPath(port_id.clone(), channel_id.clone()),
-                channel_end,
+                &ChannelEndPath(port_id.clone(), channel_id_on_a.clone()),
+                channel_end_on_a,
             )
             .unwrap();
         store
             .store_next_sequence_send(
-                &SeqSendPath(port_id.clone(), channel_id.clone()),
+                &SeqSendPath(port_id.clone(), channel_id_on_a.clone()),
                 1.into(),
             )
             .unwrap();
         store
             .store_next_sequence_recv(
-                &SeqRecvPath(port_id, channel_id),
+                &SeqRecvPath(port_id.clone(), channel_id_on_a),
+                1.into(),
+            )
+            .unwrap();
+
+        // For Client on chain b
+        store
+            .store_connection(
+                &ConnectionPath(connection_id_on_b),
+                connection_end_on_b,
+            )
+            .unwrap();
+        store
+            .store_channel(
+                &ChannelEndPath(port_id.clone(), channel_id_on_b.clone()),
+                channel_end_on_b,
+            )
+            .unwrap();
+        store
+            .store_next_sequence_send(
+                &SeqSendPath(port_id.clone(), channel_id_on_b.clone()),
+                1.into(),
+            )
+            .unwrap();
+        store
+            .store_next_sequence_recv(
+                &SeqRecvPath(port_id, channel_id_on_b),
                 1.into(),
             )
             .unwrap();
