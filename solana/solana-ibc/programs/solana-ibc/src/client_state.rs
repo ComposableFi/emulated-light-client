@@ -27,7 +27,7 @@ use ibc_proto::protobuf::Protobuf;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, derive_more::From)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
     #[cfg(any(test, feature = "mocks"))]
@@ -353,15 +353,6 @@ impl ClientStateCommon for AnyClientState {
     }
 }
 
-impl From<TmClientState> for AnyClientState {
-    fn from(value: TmClientState) -> Self { AnyClientState::Tendermint(value) }
-}
-
-#[cfg(any(test, feature = "mocks"))]
-impl From<MockClientState> for AnyClientState {
-    fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
-}
-
 impl ClientStateExecution<IbcStorage<'_, '_>> for AnyClientState {
     fn initialise(
         &self,
@@ -451,7 +442,7 @@ impl ClientStateExecution<IbcStorage<'_, '_>> for AnyClientState {
 }
 
 impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
-    type ConversionError = ClientError;
+    type ConversionError = &'static str;
 
     type AnyConsensusState = AnyConsensusState;
 
@@ -489,7 +480,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
 
 #[cfg(any(test, feature = "mocks"))]
 impl MockClientContext for IbcStorage<'_, '_> {
-    type ConversionError = ClientError;
+    type ConversionError = &'static str;
     type AnyConsensusState = AnyConsensusState;
 
     fn consensus_state(
