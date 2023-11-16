@@ -198,7 +198,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                 }
 
                 Node::Extension { key: ext_key, child } => {
-                    if key.strip_prefix(ext_key) {
+                    if key.strip_prefix(ext_key.into()) {
                         proof!(proof push proof::Item::extension(ext_key.len()).unwrap());
                         child
                     } else {

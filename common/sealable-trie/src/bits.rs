@@ -1,10 +1,11 @@
 use alloc::vec::Vec;
 use core::fmt;
 
+pub mod ext_key;
+
+pub use ext_key::{Chunks, ExtKey};
 #[cfg(test)]
 use pretty_assertions::assert_eq;
-
-use crate::nodes;
 
 /// Representation of a slice of bits.
 ///
@@ -26,8 +27,8 @@ pub struct Slice<'a> {
     ///
     /// Value of bits outside of the range defined by `offset` and `length` is
     /// unspecified and shouldn’t be read.
-    // Invariant: `ptr` points at `offset + length` valid bits.  In other words,
-    // at `(offset + length + 7) / 8` valid bytes.
+    // Invariant: if `length` is non-zero, `ptr` points at `offset + length`
+    // valid bits; in other words, at `(offset + length + 7) / 8` valid bytes.
     pub(crate) ptr: *const u8,
 
     phantom: core::marker::PhantomData<&'a [u8]>,
@@ -50,18 +51,6 @@ pub struct Owned {
     bytes: Vec<u8>,
 }
 
-/// An iterator over chunks of a slice where each chunk (except for the last
-/// one) occupies exactly 34 bytes.
-#[derive(Clone, Copy)]
-pub struct Chunks<'a>(Slice<'a>);
-
-/// Possible error when encoding slice
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EncodeError {
-    EmptySlice,
-    SliceTooLong,
-}
-
 impl<'a> Slice<'a> {
     /// Constructs a new bit slice.
     ///
@@ -77,11 +66,16 @@ impl<'a> Slice<'a> {
     #[inline]
     pub fn new(bytes: &'a [u8], offset: u8, length: u16) -> Option<Self> {
         if offset >= 8 {
-            return None;
+            false
+        } else if length == 0 {
+            true
+        } else {
+            u32::from(length) + u32::from(offset) <=
+                u32::try_from(bytes.len())
+                    .unwrap_or(u32::MAX)
+                    .saturating_mul(8)
         }
-        let has_bits =
-            u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_mul(8);
-        (u32::from(length) + u32::from(offset) <= has_bits).then_some(Self {
+        .then_some(Self {
             offset,
             length,
             ptr: bytes.as_ptr(),
@@ -100,6 +94,27 @@ impl<'a> Slice<'a> {
             length: u16::try_from(bytes.len().checked_mul(8)?).ok()?,
             ptr: bytes.as_ptr(),
             phantom: Default::default(),
+        })
+    }
+
+    /// Constructs a new bit slice verifying bits outside of the slice are zero.
+    ///
+    /// This is like [`Self::new`] but in addition to all the checks that
+    /// constructor does, this one also checks that bits outside of the slice
+    /// are all cleared.
+    pub fn new_check_zeros(
+        bytes: &'a [u8],
+        offset: u8,
+        length: u16,
+    ) -> Option<Self> {
+        Self::new(bytes, offset, length).filter(|slice| {
+            let (front, back) = Slice::masks(offset, length);
+            let used = slice.bytes();
+            let first = used.first().copied().unwrap_or_default();
+            let last = used.last().copied().unwrap_or_default();
+            (first & !front) == 0 &&
+                (last & !back) == 0 &&
+                bytes[used.len()..].iter().all(|&b| b == 0)
         })
     }
 
@@ -227,7 +242,7 @@ impl<'a> Slice<'a> {
     /// may be shorter than 272 bits (i.e. 34 * 8) however it will span full 34
     /// bytes.
     #[inline]
-    pub fn chunks(&self) -> Chunks<'a> { Chunks(*self) }
+    pub fn chunks(&self) -> Chunks<'a> { Chunks::new(*self) }
 
     /// Splits slice into two at given index.
     ///
@@ -330,7 +345,7 @@ impl<'a> Slice<'a> {
     ///
     /// ## Example
     ///
-    /// ```
+    /// ```ignore
     /// # use sealable_trie::bits;
     ///
     /// let mut left = bits::Slice::new(&[0xFF], 0, 8).unwrap();
@@ -347,8 +362,11 @@ impl<'a> Slice<'a> {
     /// assert_eq!(bits::Slice::new(&[0xFF], 6, 2).unwrap(), left);
     /// assert_eq!(bits::Slice::new(&[0xFF], 6, 0).unwrap(), right);
     /// ```
-    pub fn forward_common_prefix(&mut self, other: &mut Slice<'_>) -> Self {
-        let length = (|| {
+    pub fn forward_common_prefix<'b>(
+        &mut self,
+        other: ExtKey<'b>,
+    ) -> (Option<ExtKey<'a>>, Option<ExtKey<'b>>) {
+        let length = (|other: Slice| {
             let offset = self.offset;
             if offset != other.offset {
                 return 0;
@@ -376,23 +394,14 @@ impl<'a> Slice<'a> {
             .min(length);
 
             total_bits_matched.saturating_sub(u32::from(offset)) as u16
-        })();
+        })(Slice::from(other));
         if length == 0 {
-            Self { length: 0, ..*self }
-        } else {
-            other.pop_front_slice(length).unwrap();
-            self.pop_front_slice(length).unwrap()
+            return (None, Some(other));
         }
-    }
-
-    /// Checks that all bits outside of the specified range are set to zero.
-    fn check_bytes(bytes: &[u8], offset: u8, length: u16) -> bool {
-        let (front, back) = Self::masks(offset, length);
-        let bytes_len = (usize::from(offset) + usize::from(length) + 7) / 8;
-        bytes_len <= bytes.len() &&
-            (bytes[0] & !front) == 0 &&
-            (bytes[bytes_len - 1] & !back) == 0 &&
-            bytes[bytes_len..].iter().all(|&b| b == 0)
+        let mut suffix = Slice::from(other);
+        suffix.pop_front_slice(length).unwrap();
+        let prefix = self.pop_front_slice(length).unwrap();
+        (ExtKey::try_from(prefix).ok(), ExtKey::try_from(suffix).ok())
     }
 
     /// Returns total number of underlying bits, i.e. bits in the slice plus the
@@ -412,96 +421,6 @@ impl<'a> Slice<'a> {
         // SAFETY: `ptr` is guaranteed to be valid pointer point at `offset +
         // length` valid bits.
         unsafe { core::slice::from_raw_parts(self.ptr, len) }
-    }
-
-    /// Encodes key into raw binary representation.
-    ///
-    /// Fills entire 36-byte buffer.  The first the first two bytes encode
-    /// length and offset (`(length << 3) | offset` specifically leaving the
-    /// four most significant bits zero) and the rest being bytes holding the
-    /// bits.  Bits which are not part of the slice are set to zero.
-    ///
-    /// The first byte written will be xored with `tag`.
-    ///
-    /// Returns the length of relevant portion of the buffer.  For example, if
-    /// slice’s length is say 20 bits with zero offset returns five (two bytes
-    /// for the encoded length and three bytes for the 20 bits).
-    ///
-    /// Returns `None` if the slice is empty or too long and won’t fit in the
-    /// destination buffer.
-    pub(crate) fn encode_into(
-        &self,
-        dest: &mut [u8; 36],
-        tag: u8,
-    ) -> Result<usize, EncodeError> {
-        let bytes = self.bytes();
-        if bytes.is_empty() {
-            return Err(EncodeError::EmptySlice);
-        } else if bytes.len() > dest.len() - 2 {
-            return Err(EncodeError::SliceTooLong);
-        }
-        let (num, tail) =
-            stdx::split_array_mut::<2, { nodes::MAX_EXTENSION_KEY_SIZE }, 36>(
-                dest,
-            );
-        tail.fill(0);
-        *num = self.encode_num(tag);
-        let (key, _) = tail.split_at_mut(bytes.len());
-        let (front, back) = Self::masks(self.offset, self.length);
-        key.copy_from_slice(bytes);
-        key[0] &= front;
-        key[bytes.len() - 1] &= back;
-        Ok(2 + bytes.len())
-    }
-
-    /// Encodes key into raw binary representation and sends it to the consumer.
-    ///
-    /// This is like [`Self::encode_into`] except that it doesn’t check the
-    /// length of the key.
-    pub(crate) fn write_into(&self, mut consumer: impl FnMut(&[u8]), tag: u8) {
-        let (front, back) = Self::masks(self.offset, self.length);
-        let [high, low] = self.encode_num(tag);
-        match self.bytes() {
-            [] => consumer(&[high, low]),
-            [byte] => consumer(&[high, low, byte & front & back]),
-            [first, last] => consumer(&[high, low, first & front, last & back]),
-            [first, middle @ .., last] => {
-                consumer(&[high, low, first & front]);
-                consumer(middle);
-                consumer(&[last & back]);
-            }
-        }
-    }
-
-    /// Decodes key from a raw binary representation.
-    ///
-    /// The first byte read will be xored with `tag`.
-    ///
-    /// This is the inverse of [`Self::encode_into`].
-    pub(crate) fn decode(src: &'a [u8], tag: u8) -> Option<Self> {
-        let (&[high, low], bytes) = stdx::split_at(src)?;
-        let tag = u16::from_be_bytes([high ^ tag, low]);
-        let (offset, length) = ((tag % 8) as u8, tag / 8);
-        (length > 0 && Self::check_bytes(bytes, offset, length)).then_some(
-            Self {
-                offset,
-                length,
-                ptr: bytes.as_ptr(),
-                phantom: Default::default(),
-            },
-        )
-    }
-
-    /// Encodes offset and length as a two-byte number.
-    ///
-    /// The encoding is `llll_llll llll_looo`, i.e. 13-bit length in the most
-    /// significant bits and 3-bit offset in the least significant bits.  The
-    /// first byte is then further xored with the `tag` argument.
-    ///
-    /// This method doesn’t check whether the length and offset are within range.
-    fn encode_num(&self, tag: u8) -> [u8; 2] {
-        let num = (self.length << 3) | u16::from(self.offset);
-        (num ^ (u16::from(tag) << 8)).to_be_bytes()
     }
 
     /// Helper method which returns masks for leading and trailing byte.
@@ -526,6 +445,10 @@ impl From<Slice<'_>> for Owned {
             length: slice.length,
         }
     }
+}
+
+impl From<ExtKey<'_>> for Owned {
+    fn from(key: ExtKey<'_>) -> Self { Self::from(Slice::from(key)) }
 }
 
 impl Owned {
@@ -756,12 +679,6 @@ impl fmt::Debug for Owned {
     }
 }
 
-impl fmt::Debug for Chunks<'_> {
-    fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
-        debug_fmt("Chunks", &self.0, fmtr)
-    }
-}
-
 /// Internal function for debug formatting objects objects.
 fn debug_fmt(
     name: &str,
@@ -775,211 +692,41 @@ fn debug_fmt(
         .finish()
 }
 
-impl<'a> core::iter::Iterator for Chunks<'a> {
-    type Item = Slice<'a>;
-
-    #[inline]
-    fn next(&mut self) -> Option<Slice<'a>> {
-        const MAX_LENGTH: u16 = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
-        let length = (MAX_LENGTH - u16::from(self.0.offset)).min(self.0.length);
-        if length == 0 {
-            None
-        } else {
-            self.0.pop_front_slice(length)
-        }
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.len();
-        (len, Some(len))
-    }
-}
-
-impl<'a> core::iter::ExactSizeIterator for Chunks<'a> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.0.bytes().chunks(nodes::MAX_EXTENSION_KEY_SIZE).len()
-    }
-}
-
-impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
-    fn next_back(&mut self) -> Option<Slice<'a>> {
-        let mut chunks = self.0.bytes().chunks(nodes::MAX_EXTENSION_KEY_SIZE);
-        let bytes = chunks.next_back()?;
-
-        if chunks.next().is_none() {
-            let empty = Slice {
-                offset: 0,
-                length: 0,
-                ptr: self.0.ptr,
-                phantom: Default::default(),
-            };
-            return Some(core::mem::replace(&mut self.0, empty));
-        }
-
-        // `1 << 20` is an arbitrary number which is divisible by 8 and greater
-        // than underlying_bits_length.
-        let tail = ((1 << 20) - self.0.underlying_bits_length()) % 8;
-        let length = (bytes.len() * 8 - tail) as u16;
-        self.0.length -= length;
-
-        Some(Slice {
-            offset: 0,
-            length,
-            ptr: bytes.as_ptr(),
-            phantom: Default::default(),
-        })
-    }
-}
-
 #[test]
-fn test_encode() {
+fn test_new_check_zeros() {
     #[track_caller]
-    fn test(want_encoded: &[u8], offset: u8, length: u16, bytes: &[u8]) {
-        let slice = Slice::new(bytes, offset, length).unwrap();
-
-        if length > 0 && want_encoded.len() <= 36 {
-            let mut buf = [0; 36];
-            let len = slice
-                .encode_into(&mut buf, 0)
-                .unwrap_or_else(|err| panic!("{err:?}: {slice}"));
-            assert_eq!(
-                want_encoded,
-                &buf[..len],
-                "Unexpected encoded representation of {slice}"
-            );
-        }
-
-        let mut buf = alloc::vec::Vec::with_capacity(want_encoded.len());
-        slice.write_into(|bytes| buf.extend_from_slice(bytes), 0);
-        assert_eq!(
-            want_encoded,
-            buf.as_slice(),
-            "Unexpected written representation of {slice}"
-        );
-
-        if length > 0 {
-            let round_trip = Slice::decode(want_encoded, 0)
-                .unwrap_or_else(|| panic!("Failed decoding {want_encoded:?}"));
-            assert_eq!(slice, round_trip);
+    fn test(ok: bool, bytes: &[u8], offset: u8, length: u16) {
+        assert_eq!(ok, Slice::new_check_zeros(bytes, offset, length).is_some());
+        // Appending non-zero bytes makes it invalid.
+        let mut bytes = [bytes, &[1][..]].concat();
+        assert!(Slice::new_check_zeros(&bytes, offset, length).is_none());
+        if ok {
+            // Appending zero bytes is always fine.
+            *bytes.last_mut().unwrap() = 0;
+            assert!(Slice::new_check_zeros(&bytes, offset, length).is_some());
         }
     }
 
-    test(&[0, 0], 0, 0, &[0xFF]);
-    test(&[0, 4], 4, 0, &[0xFF]);
-    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0x80]);
-    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0xFF]);
-    test(&[0, 1 * 8 + 4, 0x08], 4, 1, &[0xFF]);
-    test(&[0, 9 * 8 + 0, 0xFF, 0x80], 0, 9, &[0xFF, 0xFF]);
-    test(&[0, 9 * 8 + 4, 0x0F, 0xF8], 4, 9, &[0xFF, 0xFF]);
-    test(&[0, 17 * 8 + 0, 0xFF, 0xFF, 0x80], 0, 17, &[0xFF, 0xFF, 0xFF]);
-    test(&[0, 17 * 8 + 4, 0x0F, 0xFF, 0xF8], 4, 17, &[0xFF, 0xFF, 0xFF]);
-
-    let mut want = [0xFF; 1026];
-    want[0] = (8191u16 >> 5) as u8;
-    want[1] = (8191u16 << 3) as u8;
-    want[1025] = 0xFE;
-    test(&want[..], 0, 8191, &[0xFF; 1024][..]);
-
-    want[1] += 1;
-    want[2] = 0x7F;
-    want[1025] = 0xFF;
-    test(&want[..], 1, 8191, &[0xFF; 1024][..]);
-}
-
-#[test]
-fn test_decode() {
-    #[track_caller]
-    fn ok(num: u16, bytes: &[u8], want_offset: u8, want_length: u16) {
-        let bytes = [&num.to_be_bytes()[..], bytes].concat();
-        let got = Slice::decode(&bytes, 0).unwrap_or_else(|| {
-            panic!("Expected to get a Slice from {bytes:x?}")
-        });
-        assert_eq!((want_offset, want_length), (got.offset, got.length));
-    }
-
-    // Correct values, all bits zero.
-    ok(34 * 64, &[0; 34], 0, 34 * 8);
-    ok(33 * 64 + 7, &[0; 34], 7, 264);
-    ok(2 * 64, &[0, 0], 0, 16);
-
-    // Empty
-    assert_eq!(None, Slice::decode(&[], 0));
-    assert_eq!(None, Slice::decode(&[0], 0));
-    assert_eq!(None, Slice::decode(&[0, 0], 0));
-
-    #[track_caller]
-    fn test(length: u16, offset: u8, bad: &[u8], good: &[u8]) {
-        let num = length * 8 + u16::from(offset);
-        let bad = [&num.to_be_bytes()[..], bad].concat();
-        assert_eq!(None, Slice::decode(&bad, 0));
-
-        let good = [&num.to_be_bytes()[..], good].concat();
-        let got = Slice::decode(&good, 0).unwrap_or_else(|| {
-            panic!("Expected to get a Slice from {good:x?}")
-        });
-        assert_eq!(
-            (offset, length),
-            (got.offset, got.length),
-            "Invalid offset and length decoding {good:x?}"
-        );
-
-        let good = [&good[..], &[0, 0]].concat();
-        let got = Slice::decode(&good, 0).unwrap_or_else(|| {
-            panic!("Expected to get a Slice from {good:x?}")
-        });
-        assert_eq!(
-            (offset, length),
-            (got.offset, got.length),
-            "Invalid offset and length decoding {good:x?}"
-        );
-    }
-
-    // Bytes buffer doesn’t match the length.
-    test(8, 0, &[], &[0]);
-    test(8, 7, &[0], &[0, 0]);
-    test(16, 1, &[0, 0], &[0, 0, 0]);
-
-    // Bits which should be zero aren’t.
-    // Leading bits are skipped:
-    test(16 - 1, 1, &[0x80, 0], &[0x7F, 0xFF]);
-    test(16 - 2, 2, &[0x40, 0], &[0x3F, 0xFF]);
-    test(16 - 3, 3, &[0x20, 0], &[0x1F, 0xFF]);
-    test(16 - 4, 4, &[0x10, 0], &[0x0F, 0xFF]);
-    test(16 - 5, 5, &[0x08, 0], &[0x07, 0xFF]);
-    test(16 - 6, 6, &[0x04, 0], &[0x03, 0xFF]);
-    test(16 - 7, 7, &[0x02, 0], &[0x01, 0xFF]);
-
-    // Tailing bits are skipped:
-    test(16 - 1, 0, &[0, 0x01], &[0xFF, 0xFE]);
-    test(16 - 2, 0, &[0, 0x02], &[0xFF, 0xFC]);
-    test(16 - 3, 0, &[0, 0x04], &[0xFF, 0xF8]);
-    test(16 - 4, 0, &[0, 0x08], &[0xFF, 0xF0]);
-    test(16 - 5, 0, &[0, 0x10], &[0xFF, 0xE0]);
-    test(16 - 6, 0, &[0, 0x20], &[0xFF, 0xC0]);
-    test(16 - 7, 0, &[0, 0x40], &[0xFF, 0x80]);
-
-    // Some leading and some tailing bits are skipped of the same byte:
-    test(1, 1, &[!0x40], &[0x40]);
-    test(1, 2, &[!0x20], &[0x20]);
-    test(1, 3, &[!0x10], &[0x10]);
-    test(1, 4, &[!0x08], &[0x08]);
-    test(1, 5, &[!0x04], &[0x04]);
-    test(1, 6, &[!0x02], &[0x02]);
+    test(true, &[], 0, 0);
+    test(true, &[], 4, 0);
+    test(false, &[8], 0, 1);
+    test(true, &[8], 4, 1);
+    test(false, &[16], 4, 1);
+    test(true, &[16], 3, 1);
+    test(false, &[24], 3, 1);
 }
 
 #[test]
 fn test_common_prefix() {
-    let mut lhs = Slice::new(&[0x86, 0xE9], 1, 15).unwrap();
-    let mut rhs = Slice::new(&[0x06, 0xE9], 1, 15).unwrap();
-    let got = lhs.forward_common_prefix(&mut rhs);
+    let mut slice = Slice::new(&[0x86, 0xE9], 1, 15).unwrap();
+    let key = ExtKey::new(&[0x06, 0xE9], 1, 15).unwrap();
+    let (prefix, suffix) = slice.forward_common_prefix(key);
     let want = (
-        Slice::new(&[0x06, 0xE9], 1, 15).unwrap(),
-        Slice::new(&[], 0, 0).unwrap(),
+        Some(ExtKey::new(&[0x06, 0xE9], 1, 15).unwrap()),
+        None,
         Slice::new(&[], 0, 0).unwrap(),
     );
-    assert_eq!(want, (got, lhs, rhs));
+    assert_eq!(want, (prefix, suffix, slice));
 }
 
 #[test]
@@ -1005,50 +752,6 @@ fn test_eq() {
     assert_eq!(Slice::new(&[0xFF], 0, 8), Slice::new(&[0xFF], 0, 8));
     assert_eq!(Slice::new(&[0xFF], 0, 4), Slice::new(&[0xF0], 0, 4));
     assert_eq!(Slice::new(&[0xFF], 4, 4), Slice::new(&[0x0F], 4, 4));
-}
-
-#[test]
-fn test_chunks() {
-    let data = (0..=255).collect::<alloc::vec::Vec<u8>>();
-    let data = data.as_slice();
-
-    let slice = |off: u8, len: u16| Slice::new(data, off, len).unwrap();
-
-    // Single chunk
-    for offset in 0..8 {
-        for length in 1..(34 * 8 - u16::from(offset)) {
-            let want = Slice::new(data, offset, length);
-
-            let mut chunks = slice(offset, length).chunks();
-            assert_eq!(want, chunks.next());
-            assert_eq!(None, chunks.next());
-
-            let mut chunks = slice(offset, length).chunks();
-            assert_eq!(want, chunks.next_back());
-            assert_eq!(None, chunks.next());
-        }
-    }
-
-    // Two chunks
-    for offset in 0..8 {
-        let want_first = Slice::new(data, offset, 34 * 8 - u16::from(offset));
-        let want_second = Slice::new(&data[34..], 0, 10 + u16::from(offset));
-
-        let mut chunks = slice(offset, 34 * 8 + 10).chunks();
-        assert_eq!(want_first, chunks.next());
-        assert_eq!(want_second, chunks.next());
-        assert_eq!(None, chunks.next());
-
-        let mut chunks = slice(offset, 34 * 8 + 10).chunks();
-        assert_eq!(want_second, chunks.next_back());
-        assert_eq!(want_first, chunks.next_back());
-        assert_eq!(None, chunks.next());
-
-        let mut chunks = slice(offset, 34 * 8 + 10).chunks();
-        assert_eq!(want_second, chunks.next_back());
-        assert_eq!(want_first, chunks.next());
-        assert_eq!(None, chunks.next());
-    }
 }
 
 #[test]

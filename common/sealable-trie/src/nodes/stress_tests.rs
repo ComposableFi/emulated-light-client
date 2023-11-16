@@ -21,7 +21,7 @@ fn stress_test_raw_encoding_round_trip() {
         gen_random_raw_node(&mut rng, &mut raw.0);
         let node = raw.decode().unwrap();
         // Test RawNode→Node→RawNode round trip conversion.
-        assert_eq!(Ok(raw), node.encode(), "node: {node:?}");
+        assert_eq!(raw, node.encode(), "node: {node:?}");
     }
 }
 
@@ -62,10 +62,9 @@ fn gen_random_raw_node(
         // Clear unused bits in the key.  The easiest way to do it is by using
         // bits::Slice.
         let mut tmp = [0; 36];
-        bits::Slice::new(&bytes[2..36], offset, length)
+        bits::ExtKey::new(&bytes[2..36], offset, length)
             .unwrap()
-            .encode_into(&mut tmp, 0)
-            .unwrap();
+            .encode_into(&mut tmp, 0);
         bytes[0..36].copy_from_slice(&tmp);
 
         make_ref_canonical(&mut bytes[36..]);
@@ -121,7 +120,7 @@ fn gen_random_node<'a>(
             let offset = rng.gen::<u8>() % 8;
             let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
             let length = rng.gen_range(1..=max_length - u16::from(offset));
-            let key = bits::Slice::new(&key[..], offset, length).unwrap();
+            let key = bits::ExtKey::new(&key[..], offset, length).unwrap();
             Node::extension(key, rand_ref(rng, &right))
         }
         2 => {
