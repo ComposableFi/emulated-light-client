@@ -65,7 +65,9 @@ const TEST: bool = false;
 pub mod solana_ibc {
 
     use anchor_spl::token::MintTo;
-    use ibc::{core::{ics02_client::ClientExecutionContext, timestamp::Timestamp}, Height};
+    use ibc::core::ics02_client::ClientExecutionContext;
+    use ibc::core::timestamp::Timestamp;
+    use ibc::Height;
 
     use super::*;
 
@@ -222,8 +224,19 @@ pub mod solana_ibc {
         // Store update time since its not called during mocks
         let clock = Clock::get().unwrap();
         let current_timestamp = clock.unix_timestamp as u64;
-        let _ = store.store_update_time(client_id.clone(), Height::new(private_storage.height.0, private_storage.height.1).unwrap(), Timestamp::from_nanoseconds(current_timestamp).unwrap());
-        let _ = store.store_update_height(client_id.clone(), Height::new(private_storage.height.0, private_storage.height.1).unwrap(), Height::new(private_storage.height.0, private_storage.height.1).unwrap());
+        let _ = store.store_update_time(
+            client_id.clone(),
+            Height::new(private_storage.height.0, private_storage.height.1)
+                .unwrap(),
+            Timestamp::from_nanoseconds(current_timestamp).unwrap(),
+        );
+        let _ = store.store_update_height(
+            client_id.clone(),
+            Height::new(private_storage.height.0, private_storage.height.1)
+                .unwrap(),
+            Height::new(private_storage.height.0, private_storage.height.1)
+                .unwrap(),
+        );
 
         let connection_id_on_a = ConnectionId::new(0);
         let connection_id_on_b = ConnectionId::new(1);
@@ -413,7 +426,6 @@ pub struct Deliver<'info> {
     // /// The guest blockchain data.
     // #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
     // chain: Box<Account<'info, chain::ChainData>>,
-
     system_program: Program<'info, System>,
 }
 

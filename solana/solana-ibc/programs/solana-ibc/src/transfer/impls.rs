@@ -108,20 +108,21 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         amt: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         msg!(
-            "Minting coins for account {}, trace path {}, base denom {}",
+            "Minting coins for account {:?}, trace path {}, base denom {}",
             account,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
+        msg!("This should appear before");
         let receiver_id = Pubkey::from(account);
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
         let amount_in_u64 = check_amount_overflow(amount)?;
 
-        let (token_mint_key, bump) =
+        let (token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (mint_authority_key, _bump) =
+        let (mint_authority_key, mint_authority_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -131,8 +132,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let mint_authority =
             get_account_info_from_key(accounts, mint_authority_key)?;
 
-        let bump_vector = bump.to_le_bytes();
-        let inner = vec![base_denom.as_ref(), bump_vector.as_ref()];
+        let bump_vector = mint_authority_bump.to_le_bytes();
+        let inner = vec![MINT_ESCROW_SEED.as_ref(), bump_vector.as_ref()];
         let outer = vec![inner.as_slice()];
 
         // Below is the actual instruction that we are going to send to the Token program.

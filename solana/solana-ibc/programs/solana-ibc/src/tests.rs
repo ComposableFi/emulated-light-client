@@ -11,7 +11,6 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
-use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
@@ -43,6 +42,7 @@ use crate::{accounts, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const DENOM: &str = "transfer/channel-1/PICA";
+const BASE_DENOM: &str = "PICA";
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -120,14 +120,26 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
         ];
 
 
-        let remaining = self
-            .remaining_accounts
-            .iter()
-            .map(|&account| AccountMeta {
-                pubkey: account,
-                is_signer: false,
-                is_writable: false,
-            });
+        let mut x = 0;
+        let remaining =
+            self.remaining_accounts.iter().map(|&account| {
+                x += 1;
+                if x > 6 {
+                    AccountMeta {
+                        pubkey: account,
+                        is_signer: false,
+                        is_writable: false,
+                    }
+                } else {
+                    AccountMeta {
+                        pubkey: account,
+                        is_signer: false,
+                        is_writable: true,
+                    }
+                }
+                
+        });
+        
         accounts.into_iter().chain(remaining).collect::<Vec<_>>()
     }
 }
@@ -273,7 +285,7 @@ fn anchor_test_deliver() -> Result<()> {
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[DENOM.as_ref()], &crate::ID);
+        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
     let sender_token_address =
@@ -297,7 +309,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
             _channel_id: channel_id.clone(),
-            _base_denom: DENOM.to_string(),
+            _base_denom: BASE_DENOM.to_string(),
             commitment_prefix,
             client_id,
             counterparty_client_id: counter_party_client_id,
@@ -320,7 +332,7 @@ fn anchor_test_deliver() -> Result<()> {
     let solana_ibc_storage_account: PrivateStorage =
         program.account(storage).unwrap();
 
-    println!("This is solana storage account {:?}", solana_ibc_storage_account);
+    // println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
@@ -356,11 +368,11 @@ fn anchor_test_deliver() -> Result<()> {
     let packet_data = PacketData {
         token: token.into(),
         sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
-        receiver: ibc::Signer::from(receiver.try_pubkey().unwrap().to_string()), // Should be a token account
+        receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
         memo: String::from("My first tx").into(),
     };
 
-    let serialized_data = borsh::to_vec(&packet_data).unwrap();
+    let serialized_data = serde_json::to_vec(&packet_data).unwrap();
 
     let packet = Packet {
         seq_on_a: 1.into(),
@@ -405,6 +417,8 @@ fn anchor_test_deliver() -> Result<()> {
         mint_authority_key,
         anchor_spl::token::ID,
     ];
+
+    println!("These are remaining accounts {:?}", remaining_accounts);
 
     let sig = program
         .request()
