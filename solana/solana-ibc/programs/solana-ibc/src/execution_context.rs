@@ -133,7 +133,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         height: Height,
         timestamp: Timestamp,
     ) -> Result<(), ContextError> {
-        msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
+        // msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
         self.borrow_mut()
             .private
             .client_processed_times
@@ -152,7 +152,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         height: Height,
         host_height: Height,
     ) -> Result<(), ContextError> {
-        msg!("store_update_height({}, {}, {})", client_id, height, host_height);
+        // msg!("store_update_height({}, {}, {})", client_id, height, host_height);
         self.borrow_mut()
             .private
             .client_processed_heights
@@ -326,7 +326,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &SeqSendPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
+        msg!("store_next_sequence_send");
         self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Send,
@@ -339,7 +339,7 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         path: &SeqRecvPath,
         seq: Sequence,
     ) -> Result {
-        msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
+        msg!("store_next_sequence_recv");
         self.borrow_mut().store_next_sequence(
             path.into(),
             crate::storage::SequenceTripleIdx::Recv,

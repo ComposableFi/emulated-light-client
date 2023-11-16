@@ -143,14 +143,11 @@ pub mod solana_ibc {
         ctx: Context<Deliver>,
         message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        let x = 5;
-        let y = 6;
-        msg!("This is test {x} {}", y);
-        msg!("Called deliver method: {:?}", message);
+        // msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        msg!("This is private: {:?}", private);
+        // msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
         let accounts = ctx.remaining_accounts;
@@ -187,7 +184,7 @@ pub mod solana_ibc {
         // which means try_into_inner will succeed.
         let inner = store.try_into_inner().unwrap();
 
-        msg!("This is final structure {:?}", inner.private);
+        // msg!("This is final structure {:?}", inner.private);
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
 
@@ -209,7 +206,7 @@ pub mod solana_ibc {
         }
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         let private_storage = private.clone();
-        msg!("This is private: {private:?}");
+        // msg!("This is private: {private:?}");
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
         let accounts = ctx.remaining_accounts;
@@ -435,9 +432,12 @@ pub struct MockDeliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    /// CHECK:
+    receiver: AccountInfo<'info>,
+
     /// The account holding private IBC storage.
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump, realloc = 10000, realloc::payer = sender, realloc::zero = false)]
-    storage: Account<'info, storage::PrivateStorage>,
+    storage: Box<Account<'info, storage::PrivateStorage>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
@@ -457,11 +457,13 @@ pub struct MockDeliver<'info> {
     /// CHECK:
     mint_authority: UncheckedAccount<'info>,
     #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes().as_ref()], bump, mint::decimals = 6, mint::authority = mint_authority)]
-    token_mint: Account<'info, Mint>,
+    token_mint: Box<Account<'info, Mint>>,
     #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()], bump, token::mint = token_mint, token::authority = sender)]
     escrow_account: Box<Account<'info, TokenAccount>>,
     #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
     sender_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = receiver)]
+    receiver_token_account: Box<Account<'info, TokenAccount>>,
 
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,

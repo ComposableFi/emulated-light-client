@@ -124,19 +124,19 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
         let remaining =
             self.remaining_accounts.iter().map(|&account| {
                 x += 1;
-                if x > 6 {
-                    AccountMeta {
-                        pubkey: account,
-                        is_signer: false,
-                        is_writable: false,
-                    }
-                } else {
+                // if x == 2  {
+                //     AccountMeta {
+                //         pubkey: account,
+                //         is_signer: false,
+                //         is_writable: ,
+                //     }
+                // } else {
                     AccountMeta {
                         pubkey: account,
                         is_signer: false,
                         is_writable: true,
                     }
-                }
+                // }
                 
         });
         
@@ -281,6 +281,8 @@ fn anchor_test_deliver() -> Result<()> {
     let port_id = PortId::transfer();
     let channel_id = ChannelId::new(0);
 
+    let receiver = Keypair::new();
+
     let seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
@@ -290,12 +292,17 @@ fn anchor_test_deliver() -> Result<()> {
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
     let sender_token_address =
         get_associated_token_address(&authority.pubkey(), &token_mint_key);
+    let receiver_token_address =
+        get_associated_token_address(&receiver.pubkey(), &token_mint_key);
+     
 
     let sig = program
         .request()
         .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
             sender_token_account: sender_token_address,
+            receiver: receiver.pubkey(),
+            receiver_token_account: receiver_token_address,
             storage,
             trie,
             mint_authority: mint_authority_key,
@@ -338,7 +345,7 @@ fn anchor_test_deliver() -> Result<()> {
     // Pass the instruction for transfer
 
     // Create a new receier with a token account
-    let receiver = Keypair::new();
+    
     let ix = Transaction::new_signed_with_payer(
         &[create_associated_token_account(
             &authority.pubkey(),
@@ -356,8 +363,7 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })
         .unwrap();
-    let receiver_token_address =
-        get_associated_token_address(&receiver.pubkey(), &token_mint_key);
+    
 
     println!("this is token account creation signature {}", tx);
 
@@ -441,6 +447,9 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("signature for transfer packet: {sig}");
 
+    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+
+    println!("This is the mint information {:?}", mint_info);
 
 
     Ok(())
