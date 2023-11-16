@@ -200,6 +200,7 @@ pub struct ChainWithVerifier<'info> {
     trie: UncheckedAccount<'info>,
 
     #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK:
     ix_sysvar: AccountInfo<'info>,
 
     system_program: Program<'info, System>,
@@ -227,7 +228,7 @@ pub struct Deliver<'info> {
 
     /// The guest blockchain data.
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
-    chain: Account<'info, chain::ChainData>,
+    chain: Box<Account<'info, chain::ChainData>>,
 
     system_program: Program<'info, System>,
 }

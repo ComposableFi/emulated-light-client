@@ -60,7 +60,8 @@ impl AnyClientStateTag {
 
 impl AnyClientState {
     /// Protobuf type URL for Tendermint client state used in Any message.
-    const TENDERMINT_TYPE: &'static str = ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
+    const TENDERMINT_TYPE: &'static str =
+        ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str =
@@ -505,21 +506,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        use core::ops::Bound;
-        let height = (height.revision_number(), height.revision_height());
-        let min = (client_id.to_string(), height);
-        self.borrow()
-            .private
-            .consensus_states
-            .range((Bound::Excluded(min), Bound::Unbounded))
-            .next()
-            .map(|(_, encoded)| serde_json::from_str(encoded))
-            .transpose()
-            .map_err(|err| {
-                ContextError::ClientError(ClientError::ClientSpecific {
-                    description: err.to_string(),
-                })
-            })
+        self.get_consensus_state(client_id, height, Direction::Next)
     }
 
     fn prev_consensus_state(
@@ -527,18 +514,39 @@ impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
+        self.get_consensus_state(client_id, height, Direction::Prev)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum Direction {
+    Next,
+    Prev,
+}
+
+impl IbcStorage<'_, '_> {
+    fn get_consensus_state(
+        &self,
+        client_id: &ClientId,
+        height: &Height,
+        dir: Direction,
+    ) -> Result<Option<AnyConsensusState>, ContextError> {
         let height = (height.revision_number(), height.revision_height());
-        self.borrow()
-            .private
-            .consensus_states
-            .range(..(client_id.to_string(), height))
-            .next_back()
-            .map(|(_, encoded)| serde_json::from_str(encoded))
+        let pivot = core::ops::Bound::Excluded((client_id.to_string(), height));
+        let range = if dir == Direction::Next {
+            (pivot, core::ops::Bound::Unbounded)
+        } else {
+            (core::ops::Bound::Unbounded, pivot)
+        };
+
+        let store = self.borrow();
+        let mut range = store.private.consensus_states.range(range);
+        if dir == Direction::Next { range.next() } else { range.next_back() }
+            .map(|(_, data)| borsh::BorshDeserialize::try_from_slice(data))
             .transpose()
-            .map_err(|err| {
-                ContextError::ClientError(ClientError::ClientSpecific {
-                    description: err.to_string(),
-                })
+            .map_err(|err| err.to_string())
+            .map_err(|description| {
+                ContextError::from(ClientError::ClientSpecific { description })
             })
     }
 }
