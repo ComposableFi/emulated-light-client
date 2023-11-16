@@ -17,7 +17,15 @@ use serde::{Deserialize, Serialize};
 const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
     "/ibc.lightclients.tendermint.v1.ConsensusState";
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::TryInto,
+)]
 #[serde(tag = "type")]
 pub enum AnyConsensusState {
     Tendermint(TmConsensusState),
@@ -70,19 +78,6 @@ impl From<AnyConsensusState> for Any {
     }
 }
 
-impl From<TmConsensusState> for AnyConsensusState {
-    fn from(value: TmConsensusState) -> Self {
-        AnyConsensusState::Tendermint(value)
-    }
-}
-
-#[cfg(any(test, feature = "mocks"))]
-impl From<MockConsensusState> for AnyConsensusState {
-    fn from(value: MockConsensusState) -> Self {
-        AnyConsensusState::Mock(value)
-    }
-}
-
 impl ConsensusState for AnyConsensusState {
     fn root(&self) -> &CommitmentRoot {
         match self {
@@ -109,50 +104,6 @@ impl ConsensusState for AnyConsensusState {
             AnyConsensusState::Mock(value) => {
                 ibc::core::ics02_client::consensus_state::ConsensusState::encode_vec(value)
             }
-        }
-    }
-}
-
-impl TryInto<ibc::clients::ics07_tendermint::consensus_state::ConsensusState>
-    for AnyConsensusState
-{
-    type Error = ClientError;
-
-    fn try_into(
-        self,
-    ) -> Result<
-        ibc::clients::ics07_tendermint::consensus_state::ConsensusState,
-        Self::Error,
-    > {
-        match self {
-            AnyConsensusState::Tendermint(value) => Ok(value),
-            #[cfg(any(test, feature = "mocks"))]
-            AnyConsensusState::Mock(_) => Err(ClientError::Other {
-                description: "Cannot convert mock consensus state to \
-                              tendermint"
-                    .to_string(),
-            }),
-        }
-    }
-}
-
-#[cfg(any(test, feature = "mocks"))]
-impl TryInto<ibc::mock::consensus_state::MockConsensusState>
-    for AnyConsensusState
-{
-    type Error = ClientError;
-
-    fn try_into(
-        self,
-    ) -> Result<ibc::mock::consensus_state::MockConsensusState, Self::Error>
-    {
-        match self {
-            AnyConsensusState::Mock(value) => Ok(value),
-            AnyConsensusState::Tendermint(_) => Err(ClientError::Other {
-                description: "Cannot convert tendermint consensus state to \
-                              mock"
-                    .to_string(),
-            }),
         }
     }
 }
