@@ -16,7 +16,7 @@ pub(crate) type InnerChannelId = String;
 pub(crate) type InnerClient = Vec<u8>; // Serialized
 pub(crate) type InnerConnectionEnd = Vec<u8>; // Serialized
 pub(crate) type InnerChannelEnd = Vec<u8>; // Serialized
-pub(crate) type InnerConsensusState = String; // Serialized
+pub(crate) type InnerConsensusState = Vec<u8>; // Serialized
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
