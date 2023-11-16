@@ -59,27 +59,30 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         client_cons_state_path: &ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
-        let consensus_state_key = &(
+        let key = &(
             client_cons_state_path.client_id.to_string(),
             (client_cons_state_path.epoch, client_cons_state_path.height),
         );
-        let store = self.borrow();
-        match store.private.consensus_states.get(consensus_state_key) {
-            Some(data) => {
-                let result: Self::AnyConsensusState =
-                    serde_json::from_str(data).unwrap();
-                Ok(result)
-            }
-            None => Err(ContextError::ClientError(
-                ClientError::ConsensusStateNotFound {
-                    client_id: client_cons_state_path.client_id.clone(),
-                    height: ibc::Height::new(
-                        client_cons_state_path.epoch,
-                        client_cons_state_path.height,
-                    )?,
-                },
-            )),
+        let state = self
+            .borrow()
+            .private
+            .consensus_states
+            .get(key)
+            .map(|data| borsh::BorshDeserialize::try_from_slice(data));
+        match state {
+            Some(Ok(value)) => Ok(value),
+            Some(Err(err)) => Err(ClientError::ClientSpecific {
+                description: err.to_string(),
+            }),
+            None => Err(ClientError::ConsensusStateNotFound {
+                client_id: client_cons_state_path.client_id.clone(),
+                height: ibc::Height::new(
+                    client_cons_state_path.epoch,
+                    client_cons_state_path.height,
+                )?,
+            }),
         }
+        .map_err(ibc::core::ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {

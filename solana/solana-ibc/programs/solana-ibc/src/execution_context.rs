@@ -62,28 +62,19 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
             consensus_state_path,
             consensus_state
         );
-        let consensus_state_key = (
+        let mut store = self.borrow_mut();
+        let serialized = store_serialised_proof(
+            &mut store.provable,
+            &TrieKey::from(&consensus_state_path),
+            &consensus_state,
+        )?;
+        let key = (
             consensus_state_path.client_id.to_string(),
             (consensus_state_path.epoch, consensus_state_path.height),
         );
-        let mut store = self.borrow_mut();
-        let serialized_consensus_state =
-            serde_json::to_string(&consensus_state).unwrap();
-
-        let consensus_state_trie_key = TrieKey::from(&consensus_state_path);
-        let trie = &mut store.provable;
-        trie.set(
-            &consensus_state_trie_key,
-            &CryptoHash::digest(serialized_consensus_state.as_bytes()),
-        )
-        .unwrap();
-
-        store
-            .private
-            .consensus_states
-            .insert(consensus_state_key, serialized_consensus_state);
-        store.private.height.0 = consensus_state_path.epoch;
-        store.private.height.1 = consensus_state_path.height;
+        store.private.consensus_states.insert(key, serialized);
+        store.private.height =
+            (consensus_state_path.epoch, consensus_state_path.height);
         Ok(())
     }
 

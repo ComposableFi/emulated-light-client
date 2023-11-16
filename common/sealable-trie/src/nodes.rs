@@ -2,8 +2,7 @@ use bytemuck::TransparentWrapper;
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
-use crate::bits;
-use crate::bits::Slice;
+use crate::bits::ExtKey;
 
 #[cfg(test)]
 mod stress_tests;
@@ -51,7 +50,7 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
     },
     Extension {
         /// Key of the extension.
-        key: Slice<'a>,
+        key: ExtKey<'a>,
         /// Child node or value pointed by the extension.
         child: Reference<'a, P, S>,
     },
@@ -141,15 +140,6 @@ pub struct ValueRef<'a, S = bool> {
     pub is_sealed: S,
 }
 
-/// Possible error when encoding raw node.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum EncodeError {
-    /// Extension node’s key was empty.
-    EmptyExtensionKey,
-    /// Extension node’s key was too long.
-    ExtensionKeyTooLong,
-}
-
 // =============================================================================
 // Implementations
 
@@ -168,7 +158,7 @@ impl<'a, P, S> Node<'a, P, S> {
     /// a node which cannot be encoded either in raw or proof format.  For an
     /// Extension node to be able to be encoded, the key’s underlying bytes
     /// slice must not exceed [`MAX_EXTENSION_KEY_SIZE`] bytes.
-    pub fn extension(key: Slice<'a>, child: Reference<'a, P, S>) -> Self {
+    pub fn extension(key: ExtKey<'a>, child: Reference<'a, P, S>) -> Self {
         Self::Extension { key, child }
     }
 
@@ -216,15 +206,9 @@ impl<'a, P, S> Node<'a, P, S> {
                 // tag = 0b100v_0000 where v indicates whether the child is
                 // a value reference.
                 let tag = 0x80 | (u8::from(child.is_value()) << 4);
-                if let Ok(len) = key.encode_into(key_buf, tag) {
-                    buf[len..len + 32].copy_from_slice(child.hash().as_slice());
-                    len + 32
-                } else {
-                    // We support Extension nodes with invalid keys so this
-                    // method is infallible.  It’s easier to handle it than have
-                    // callers deal with errors.
-                    return hash_extension_slow_path(*key, child);
-                }
+                let len = key.encode_into(key_buf, tag);
+                buf[len..len + 32].copy_from_slice(child.hash().as_slice());
+                len + 32
             }
         };
         CryptoHash::digest(&buf[..len])
@@ -248,35 +232,15 @@ impl<'a> Node<'a> {
     ///
     /// Returns an error if this node is an Extension with a key of invalid
     /// length (either empty or too long).
-    pub fn encode(&self) -> Result<RawNode, EncodeError> {
+    pub fn encode(&self) -> RawNode {
         match self {
             Node::Branch { children: [left, right] } => {
-                Ok(RawNode::branch(*left, *right))
+                RawNode::branch(*left, *right)
             }
             Node::Extension { key, child } => RawNode::extension(*key, *child),
-            Node::Value { value, child } => Ok(RawNode::value(*value, *child)),
+            Node::Value { value, child } => RawNode::value(*value, *child),
         }
     }
-}
-
-/// Hashes an Extension node with oversized key.
-///
-/// Normally, this is never called since we should calculate hashes of nodes
-/// whose keys fit in the [`MAX_EXTENSION_KEY_SIZE`] limit.  However, to
-/// avoid having to handle errors we use this slow path to calculate hashes
-/// for nodes with longer keys.
-#[cold]
-fn hash_extension_slow_path<P, S>(
-    key: bits::Slice,
-    child: &Reference<P, S>,
-) -> CryptoHash {
-    let mut builder = CryptoHash::builder();
-    // tag = 0b100v_0000 where v indicates whether the child is a value
-    // reference.
-    let tag = 0x80 | (u8::from(child.is_value()) << 4);
-    key.write_into(|bytes| builder.update(bytes), tag);
-    builder.update(child.hash().as_slice());
-    builder.build()
 }
 
 impl RawNode {
@@ -297,15 +261,12 @@ impl RawNode {
     /// Fails and returns `None` if the key is empty or its underlying bytes
     /// slice is too long.  The slice must not exceed [`MAX_EXTENSION_KEY_SIZE`]
     /// to be valid.
-    pub fn extension(
-        key: Slice,
-        child: Reference,
-    ) -> Result<Self, EncodeError> {
+    pub fn extension(key: ExtKey, child: Reference) -> Self {
         let mut res = Self([0; RawNode::SIZE]);
         let (lft, rht) = res.halfs_mut();
-        key.encode_into(lft, 0x80)?;
+        key.encode_into(lft, 0x80);
         *rht = child.encode();
-        Ok(res)
+        res
     }
 
     /// Constructs a Value node with given value hash and child.
@@ -333,7 +294,7 @@ impl RawNode {
             Node::Branch { children: [Reference::from_raw(left)?, right] }
         } else if tag == 2 {
             // Extension
-            let key = Slice::decode(left, 0x80)
+            let key = ExtKey::decode(left, 0x80)
                 .ok_or(DecodeError::BadExtensionKey)?;
             Node::Extension { key, child: right }
         } else {
@@ -498,15 +459,6 @@ impl<'a> ValueRef<'a, bool> {
 impl<'a> From<&'a [u8; RawNode::SIZE]> for &'a RawNode {
     fn from(bytes: &'a [u8; RawNode::SIZE]) -> &'a RawNode {
         RawNode::wrap_ref(bytes)
-    }
-}
-
-impl From<bits::EncodeError> for EncodeError {
-    fn from(err: bits::EncodeError) -> Self {
-        match err {
-            bits::EncodeError::EmptySlice => Self::EmptyExtensionKey,
-            bits::EncodeError::SliceTooLong => Self::ExtensionKeyTooLong,
-        }
     }
 }
 

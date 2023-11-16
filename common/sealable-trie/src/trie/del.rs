@@ -113,7 +113,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let child = children[1 - side];
         Ok(self
             .maybe_pop_extension(child, &|key| {
-                bits::Owned::unshift(side == 0, key).unwrap()
+                bits::Owned::unshift(side == 0, key.into()).unwrap()
             })?
             .unwrap_or_else(|| {
                 Action::Ext(
@@ -127,18 +127,20 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     fn handle_extension(
         &mut self,
         ptr: Ptr,
-        key: bits::Slice,
+        key: bits::ExtKey,
         child: Reference,
     ) -> Result<Action> {
-        if !self.key.strip_prefix(key) {
+        if !self.key.strip_prefix(key.into()) {
             return Err(Error::NotFound);
         }
         self.del_node(ptr);
         Ok(match self.handle_reference(child, true)? {
             Action::Drop => Action::Drop,
-            Action::Ref(child) => Action::Ext(key.into(), child),
+            Action::Ref(child) => {
+                Action::Ext(bits::Slice::from(key).into(), child)
+            }
             Action::Ext(suffix, child) => {
-                let key = bits::Owned::concat(key, suffix).unwrap();
+                let key = bits::Owned::concat(key.into(), suffix).unwrap();
                 Action::Ext(key, child)
             }
         })
@@ -202,7 +204,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     fn maybe_pop_extension(
         &mut self,
         child: Reference,
-        make_key: &dyn Fn(bits::Slice) -> bits::Owned,
+        make_key: &dyn Fn(bits::ExtKey) -> bits::Owned,
     ) -> Result<Option<Action>> {
         if let Reference::Node(NodeRef { ptr: Some(ptr), hash }) = child {
             let node = RawNode(*self.wlog.allocator().get(ptr));
@@ -243,7 +245,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         };
 
         for chunk in key.as_slice().chunks().rev() {
-            let node = RawNode::extension(chunk, child.to_ref()).unwrap();
+            let node = RawNode::extension(chunk, child.to_ref());
             let ptr = self.wlog.alloc(node.0)?;
             child = OwnedRef::Node(Some(ptr), node.decode()?.hash());
         }

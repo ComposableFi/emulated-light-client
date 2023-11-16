@@ -65,6 +65,7 @@ const TEST: bool = false;
 pub mod solana_ibc {
 
     use anchor_spl::token::MintTo;
+    use ibc::{core::{ics02_client::ClientExecutionContext, timestamp::Timestamp}, Height};
 
     use super::*;
 
@@ -140,6 +141,9 @@ pub mod solana_ibc {
         ctx: Context<Deliver>,
         message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
+        let x = 5;
+        let y = 6;
+        msg!("This is test {x} {}", y);
         msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
 
@@ -202,6 +206,7 @@ pub mod solana_ibc {
             panic!();
         }
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
+        let private_storage = private.clone();
         msg!("This is private: {private:?}");
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
@@ -213,6 +218,12 @@ pub mod solana_ibc {
             packets,
             accounts: accounts.to_vec(),
         });
+
+        // Store update time since its not called during mocks
+        let clock = Clock::get().unwrap();
+        let current_timestamp = clock.unix_timestamp as u64;
+        let _ = store.store_update_time(client_id.clone(), Height::new(private_storage.height.0, private_storage.height.1).unwrap(), Timestamp::from_nanoseconds(current_timestamp).unwrap());
+        let _ = store.store_update_height(client_id.clone(), Height::new(private_storage.height.0, private_storage.height.1).unwrap(), Height::new(private_storage.height.0, private_storage.height.1).unwrap());
 
         let connection_id_on_a = ConnectionId::new(0);
         let connection_id_on_b = ConnectionId::new(1);

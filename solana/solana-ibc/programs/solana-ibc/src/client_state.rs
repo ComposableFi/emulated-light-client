@@ -27,7 +27,7 @@ use ibc_proto::protobuf::Protobuf;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, derive_more::From)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
     #[cfg(any(test, feature = "mocks"))]
@@ -60,7 +60,8 @@ impl AnyClientStateTag {
 
 impl AnyClientState {
     /// Protobuf type URL for Tendermint client state used in Any message.
-    const TENDERMINT_TYPE: &'static str = ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
+    const TENDERMINT_TYPE: &'static str =
+        ibc::clients::ics07_tendermint::client_state::TENDERMINT_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str =
@@ -353,15 +354,6 @@ impl ClientStateCommon for AnyClientState {
     }
 }
 
-impl From<TmClientState> for AnyClientState {
-    fn from(value: TmClientState) -> Self { AnyClientState::Tendermint(value) }
-}
-
-#[cfg(any(test, feature = "mocks"))]
-impl From<MockClientState> for AnyClientState {
-    fn from(value: MockClientState) -> Self { AnyClientState::Mock(value) }
-}
-
 impl ClientStateExecution<IbcStorage<'_, '_, '_>> for AnyClientState {
     fn initialise(
         &self,
@@ -451,7 +443,7 @@ impl ClientStateExecution<IbcStorage<'_, '_, '_>> for AnyClientState {
 }
 
 impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_, '_> {
-    type ConversionError = ClientError;
+    type ConversionError = &'static str;
 
     type AnyConsensusState = AnyConsensusState;
 
@@ -489,7 +481,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_, '_> {
 
 #[cfg(any(test, feature = "mocks"))]
 impl MockClientContext for IbcStorage<'_, '_, '_> {
-    type ConversionError = ClientError;
+    type ConversionError = &'static str;
     type AnyConsensusState = AnyConsensusState;
 
     fn consensus_state(
@@ -516,21 +508,7 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
-        use core::ops::Bound;
-        let height = (height.revision_number(), height.revision_height());
-        let min = (client_id.to_string(), height);
-        self.borrow()
-            .private
-            .consensus_states
-            .range((Bound::Excluded(min), Bound::Unbounded))
-            .next()
-            .map(|(_, encoded)| serde_json::from_str(encoded))
-            .transpose()
-            .map_err(|err| {
-                ContextError::ClientError(ClientError::ClientSpecific {
-                    description: err.to_string(),
-                })
-            })
+        self.get_consensus_state(client_id, height, Direction::Next)
     }
 
     fn prev_consensus_state(
@@ -538,18 +516,39 @@ impl ibc::clients::ics07_tendermint::ValidationContext
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Option<Self::AnyConsensusState>, ContextError> {
+        self.get_consensus_state(client_id, height, Direction::Prev)
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum Direction {
+    Next,
+    Prev,
+}
+
+impl IbcStorage<'_, '_, '_> {
+    fn get_consensus_state(
+        &self,
+        client_id: &ClientId,
+        height: &Height,
+        dir: Direction,
+    ) -> Result<Option<AnyConsensusState>, ContextError> {
         let height = (height.revision_number(), height.revision_height());
-        self.borrow()
-            .private
-            .consensus_states
-            .range(..(client_id.to_string(), height))
-            .next_back()
-            .map(|(_, encoded)| serde_json::from_str(encoded))
+        let pivot = core::ops::Bound::Excluded((client_id.to_string(), height));
+        let range = if dir == Direction::Next {
+            (pivot, core::ops::Bound::Unbounded)
+        } else {
+            (core::ops::Bound::Unbounded, pivot)
+        };
+
+        let store = self.borrow();
+        let mut range = store.private.consensus_states.range(range);
+        if dir == Direction::Next { range.next() } else { range.next_back() }
+            .map(|(_, data)| borsh::BorshDeserialize::try_from_slice(data))
             .transpose()
-            .map_err(|err| {
-                ContextError::ClientError(ClientError::ClientSpecific {
-                    description: err.to_string(),
-                })
+            .map_err(|err| err.to_string())
+            .map_err(|description| {
+                ContextError::from(ClientError::ClientSpecific { description })
             })
     }
 }
