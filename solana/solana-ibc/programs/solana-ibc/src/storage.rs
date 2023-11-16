@@ -82,7 +82,6 @@ pub struct IBCPackets(pub Vec<PacketMsg>);
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
-    pub height: InnerHeight,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
