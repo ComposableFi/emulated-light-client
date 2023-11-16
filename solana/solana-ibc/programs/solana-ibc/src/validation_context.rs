@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::{borsh, Clock, Pubkey, SolanaSysvar};
+use anchor_lang::solana_program::msg;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -39,6 +40,7 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
+        msg!("This is client id {:?}", client_id);
         deserialise(
             self.borrow().private.clients.get(client_id.as_str()),
             || ClientError::ClientStateNotFound {

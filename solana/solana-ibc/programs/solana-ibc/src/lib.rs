@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -25,10 +26,7 @@ use ibc::core::ics24_host::path::{
     ChannelEndPath, ConnectionPath, SeqRecvPath, SeqSendPath,
 };
 use ibc::core::router::{Module, ModuleId, Router};
-use ibc::core::ExecutionContext;
-
-use anchor_lang::solana_program;
-use ibc::core::MsgEnvelope;
+use ibc::core::{ExecutionContext, MsgEnvelope};
 
 const CHAIN_SEED: &[u8] = b"chain";
 const PACKET_SEED: &[u8] = b"packet";
@@ -228,7 +226,7 @@ pub mod solana_ibc {
         );
         let connection_end_on_a = ConnectionEnd::new(
             ConnState::Open,
-            client_id,
+            client_id.clone(),
             connection_counterparty.clone(),
             vec![Version::default()],
             delay_period,
@@ -236,7 +234,7 @@ pub mod solana_ibc {
         .unwrap();
         let connection_end_on_b = ConnectionEnd::new(
             ConnState::Open,
-            counterparty_client_id,
+            client_id,
             connection_counterparty,
             vec![Version::default()],
             delay_period,
@@ -403,9 +401,9 @@ pub struct Deliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
     packets: Account<'info, IBCPackets>,
 
-    /// The guest blockchain data.
-    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
-    chain: Box<Account<'info, chain::ChainData>>,
+    // /// The guest blockchain data.
+    // #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
+    // chain: Box<Account<'info, chain::ChainData>>,
 
     system_program: Program<'info, System>,
 }
@@ -447,37 +445,6 @@ pub struct MockDeliver<'info> {
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
-}
-
-/// Error returned when handling a request.
-#[derive(Clone, strum::AsRefStr, strum::EnumDiscriminants)]
-#[strum_discriminants(repr(u32))]
-pub enum Error<'a> {
-    RouterError(&'a ibc::core::RouterError),
-}
-
-impl Error<'_> {
-    pub fn name(&self) -> String { self.as_ref().into() }
-}
-
-impl core::fmt::Display for Error<'_> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RouterError(err) => write!(fmtr, "{err}"),
-        }
-    }
-}
-
-impl From<Error<'_>> for u32 {
-    fn from(err: Error<'_>) -> u32 {
-        let code = ErrorDiscriminants::from(err) as u32;
-        anchor_lang::error::ERROR_CODE_OFFSET + code
-    }
-}
-
-#[event]
-pub struct EmitIBCEvent {
-    pub ibc_event: Vec<u8>,
 }
 
 impl Router for storage::IbcStorage<'_, '_, '_> {

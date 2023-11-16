@@ -39,9 +39,7 @@ use ibc_proto::google::protobuf::Any;
 use spl_associated_token_account::instruction::create_associated_token_account;
 
 use crate::storage::PrivateStorage;
-use crate::{
-    accounts, instruction, MINT_ESCROW_SEED,
-};
+use crate::{accounts, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const DENOM: &str = "transfer/channel-1/PICA";
@@ -78,7 +76,7 @@ pub struct DeliverWithRemainingAccounts {
     storage: Pubkey,
     trie: Pubkey,
     packets: Pubkey,
-    chain: Pubkey,
+    // chain: Pubkey,
     system_program: Pubkey,
     remaining_accounts: Vec<Pubkey>,
 }
@@ -88,48 +86,49 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
         &self,
         _is_signer: Option<bool>,
     ) -> Vec<anchor_lang::prelude::AccountMeta> {
-        let mut accounts = Vec::new();
-        accounts.push(AccountMeta {
-            pubkey: self.sender,
-            is_signer: true,
-            is_writable: true,
-        });
-        accounts.push(AccountMeta {
-            pubkey: self.storage,
-            is_signer: false,
-            is_writable: true,
-        });
-        accounts.push(AccountMeta {
-            pubkey: self.trie,
-            is_signer: false,
-            is_writable: true,
-        });
-        accounts.push(AccountMeta {
-            pubkey: self.packets,
-            is_signer: false,
-            is_writable: true,
-        });
-        accounts.push(AccountMeta {
-            pubkey: self.chain,
-            is_signer: false,
-            is_writable: true,
-        });
-        accounts.push(AccountMeta {
-            pubkey: self.system_program,
-            is_signer: false,
-            is_writable: false,
-        });
-        
+        let accounts = [
+            AccountMeta {
+                pubkey: self.sender,
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: self.storage,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: self.trie,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: self.packets,
+                is_signer: false,
+                is_writable: true,
+            },
+            // AccountMeta {
+            //     pubkey: self.chain,
+            //     is_signer: false,
+            //     is_writable: true,
+            // },
+            AccountMeta {
+                pubkey: self.system_program,
+                is_signer: false,
+                is_writable: false,
+            },
+        ];
 
-        self.remaining_accounts.iter().for_each(|&account| {
-            accounts.push(AccountMeta {
+
+        let remaining = self
+            .remaining_accounts
+            .iter()
+            .map(|&account| AccountMeta {
                 pubkey: account,
                 is_signer: false,
                 is_writable: false,
-            })
-        });
-
-        accounts
+            });
+        accounts.into_iter().chain(remaining).collect::<Vec<_>>()
     }
 }
 
@@ -188,7 +187,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             packets,
-            chain,
+            // chain,
             system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
@@ -244,7 +243,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             packets,
-            chain: chain.clone(),
+            // chain: chain.clone(),
             system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
@@ -415,7 +414,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
             packets,
-            chain,
+            // chain,
             remaining_accounts,
         })
         .args(instruction::Deliver { message })
