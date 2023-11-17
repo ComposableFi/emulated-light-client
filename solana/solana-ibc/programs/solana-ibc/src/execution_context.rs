@@ -73,8 +73,6 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
             (consensus_state_path.epoch, consensus_state_path.height),
         );
         store.private.consensus_states.insert(key, serialized);
-        store.private.height =
-            (consensus_state_path.epoch, consensus_state_path.height);
         Ok(())
     }
 

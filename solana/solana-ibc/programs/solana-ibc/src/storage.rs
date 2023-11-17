@@ -6,6 +6,8 @@ use anchor_lang::prelude::*;
 use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 
+type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
+
 pub(crate) type InnerHeight = (u64, u64);
 pub(crate) type HostHeight = InnerHeight;
 pub(crate) type SolanaTimestamp = u64;
@@ -80,7 +82,6 @@ pub struct IBCPackets(pub Vec<PacketMsg>);
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
-    pub height: InnerHeight,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
@@ -157,6 +158,7 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
     pub packets: &'a mut IBCPackets,
+    pub host_head: crate::host::Head,
 }
 
 /// A reference-counted reference to the IBC storage.
@@ -197,7 +199,7 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     ///
     /// # Panics
     ///
-    /// Panics if the value is currently mutably borrowed.
+    /// Panics if the value is currently borrowed.
     pub fn borrow_mut<'c>(
         &'c self,
     ) -> core::cell::RefMut<'c, IbcStorageInner<'a, 'b>> {
