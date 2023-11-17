@@ -25,7 +25,7 @@ use lib::hash::CryptoHash;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::trie_key::TrieKey;
-use crate::storage::{self, IbcStorage};
+use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ContextError> = core::result::Result<T, E>;
 
@@ -93,10 +93,11 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
+        let idx = ids::ConnectionIdx::try_from(conn_id)?;
         self.borrow()
             .private
             .connections
-            .get(conn_id.as_str())
+            .get(usize::from(idx))
             .ok_or_else(|| ConnectionError::ConnectionNotFound {
                 connection_id: conn_id.clone(),
             })?
@@ -122,8 +123,9 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn connection_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.connection_counter)
+        u64::try_from(self.borrow().private.connections.len()).map_err(|err| {
+            ConnectionError::Other { description: err.to_string() }.into()
+        })
     }
 
     fn channel_end(

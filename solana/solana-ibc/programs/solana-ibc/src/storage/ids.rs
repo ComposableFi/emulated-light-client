@@ -1,9 +1,7 @@
-/// Prefix of IBC connection ids.
-///
-/// Note: We’re not using ConnectionId::prefix() because it returns the prefix
-/// without trailing `-` which we want included to simplify stripping of the
-/// prefix.
-pub(super) const CONNECTION_ID_PREFIX: &str = "connection-";
+use super::ibc;
+
+type Result<T, E = ibc::ClientError> = core::result::Result<T, E>;
+
 
 /// Prefix of IBC channel ids.
 ///
@@ -11,6 +9,7 @@ pub(super) const CONNECTION_ID_PREFIX: &str = "connection-";
 /// without trailing `-` which we want included to simplify stripping of the
 /// prefix.
 pub(super) const CHANNEL_ID_PREFIX: &str = "channel-";
+
 
 /// An index used as unique identifier for a client.
 ///
@@ -50,4 +49,62 @@ impl PartialEq<usize> for ClientIdx {
     fn eq(&self, rhs: &usize) -> bool {
         u32::try_from(*rhs).ok().filter(|rhs| self.0 == *rhs).is_some()
     }
+}
+
+
+/// An internal connection identifier.
+///
+/// The identifier is build from IBC identifiers which are of the form
+/// `connection-<number>`.  Rather than treating the identifier as a string,
+/// we’re parsing the number out and keep only that.
+#[derive(Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
+pub struct ConnectionIdx(u32);
+
+impl ConnectionIdx {
+    /// Prefix of IBC connection ids.
+    ///
+    /// Note: We’re not using ConnectionId::prefix() because it returns the
+    /// prefix without trailing `-` which we want included to simplify stripping
+    /// of the prefix.
+    const IBC_PREFIX: &'static str = "connection-";
+}
+
+impl From<ConnectionIdx> for usize {
+    #[inline]
+    fn from(index: ConnectionIdx) -> usize { index.0 as usize }
+}
+
+impl TryFrom<ibc::ConnectionId> for ConnectionIdx {
+    type Error = ibc::ConnectionError;
+
+    fn try_from(id: ibc::ConnectionId) -> Result<Self, Self::Error> {
+        match parse_sans_prefix(Self::IBC_PREFIX, id.as_str()) {
+            Some(num) => Ok(Self(num)),
+            None => Err(ibc::ConnectionError::ConnectionNotFound {
+                connection_id: id,
+            }),
+        }
+    }
+}
+
+impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
+    type Error = ibc::ConnectionError;
+
+    fn try_from(id: &ibc::ConnectionId) -> Result<Self, Self::Error> {
+        match parse_sans_prefix(Self::IBC_PREFIX, id.as_str()) {
+            Some(num) => Ok(Self(num)),
+            None => Err(ibc::ConnectionError::ConnectionNotFound {
+                connection_id: id.clone(),
+            }),
+        }
+    }
+}
+
+
+/// Strips `prefix` from `data` and parses it to get `u32`.  Panics if data
+/// doesn’t start with the prefix or parsing fails.
+fn parse_sans_prefix(prefix: &'static str, data: &str) -> Option<u32> {
+    data.strip_prefix(prefix)
+        .and_then(|index| index.parse().ok())
+        .filter(|index| usize::try_from(*index).is_ok())
 }

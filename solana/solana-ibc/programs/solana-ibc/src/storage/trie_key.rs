@@ -1,11 +1,11 @@
 use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::core::ics24_host::path::{
-    AckPath, ChannelEndPath, CommitmentPath, ConnectionPath, ReceiptPath,
-    SeqAckPath, SeqRecvPath, SeqSendPath,
+    AckPath, ChannelEndPath, CommitmentPath, ReceiptPath, SeqAckPath,
+    SeqRecvPath, SeqSendPath,
 };
 
-use crate::storage::ids::{ClientIdx, CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
+use crate::storage::ids;
 
 /// A key used for indexing entries in the provable storage.
 ///
@@ -60,14 +60,22 @@ macro_rules! new_key_impl {
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
     /// counter.
-    pub fn for_client_state(client: ClientIdx) -> Self {
+    pub fn for_client_state(client: ids::ClientIdx) -> Self {
         new_key_impl!(Tag::ClientState, client)
     }
 
     /// Constructs a new key for a consensus state path for client with given
     /// counter and specified height.
-    pub fn for_consensus_state(client: ClientIdx, height: ibc::Height) -> Self {
+    pub fn for_consensus_state(
+        client: ids::ClientIdx,
+        height: ibc::Height,
+    ) -> Self {
         new_key_impl!(Tag::ConsensusState, client, height)
+    }
+
+    /// Constructs a new key for a connection end path.
+    pub fn for_connection(connection: ids::ConnectionIdx) -> Self {
+        new_key_impl!(Tag::Connection, connection)
     }
 
     /// Constructs a new key for a `(port_id, channel_id)` path.
@@ -97,12 +105,6 @@ impl TrieKey {
 impl core::ops::Deref for TrieKey {
     type Target = [u8];
     fn deref(&self) -> &[u8] { self.0.as_slice() }
-}
-
-impl From<&ConnectionPath> for TrieKey {
-    fn from(path: &ConnectionPath) -> Self {
-        new_key_impl!(Tag::Connection, path.0)
-    }
 }
 
 impl From<&ChannelEndPath> for TrieKey {
@@ -197,17 +199,17 @@ trait AsComponent {
     fn append_into(&self, dest: &mut Vec<u8>);
 }
 
-impl AsComponent for ClientIdx {
+impl AsComponent for ids::ClientIdx {
     fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
         u32::from(*self).append_into(dest)
     }
 }
 
-impl AsComponent for ibc::core::ics24_host::identifier::ConnectionId {
+impl AsComponent for ids::ConnectionIdx {
     fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        parse_sans_prefix(CONNECTION_ID_PREFIX, self.as_str()).append_into(dest)
+        u32::from(*self).append_into(dest)
     }
 }
 
@@ -223,7 +225,8 @@ impl AsComponent for ibc::core::ics24_host::identifier::PortId {
 impl AsComponent for ibc::core::ics24_host::identifier::ChannelId {
     fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        parse_sans_prefix(CHANNEL_ID_PREFIX, self.as_str()).append_into(dest)
+        parse_sans_prefix(ids::CHANNEL_ID_PREFIX, self.as_str())
+            .append_into(dest)
     }
 }
 

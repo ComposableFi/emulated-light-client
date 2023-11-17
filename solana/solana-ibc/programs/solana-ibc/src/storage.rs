@@ -14,6 +14,7 @@ use crate::consensus_state::AnyConsensusState;
 mod ibc {
     pub use ibc::core::ics02_client::error::ClientError;
     pub use ibc::core::ics03_connection::connection::ConnectionEnd;
+    pub use ibc::core::ics03_connection::error::ConnectionError;
     pub use ibc::core::ics04_channel::channel::ChannelEnd;
     pub use ibc::core::ics04_channel::msgs::PacketMsg;
     pub use ibc::core::ics04_channel::packet::Sequence;
@@ -25,7 +26,6 @@ pub(crate) mod ids;
 pub(crate) mod trie_key;
 
 pub(crate) type SolanaTimestamp = u64;
-pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
 
@@ -118,9 +118,8 @@ pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 pub(crate) struct PrivateStorage {
     clients: Vec<ClientStore>,
 
-    pub connection_counter: u64,
-    pub connections:
-        BTreeMap<InnerConnectionId, Serialised<ibc::ConnectionEnd>>,
+    pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
+
     pub channel_ends:
         BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u64,
