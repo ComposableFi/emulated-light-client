@@ -81,7 +81,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
-        Ok(self.borrow().private.height)
+        self.borrow().host_head.ibc_height().map_err(Into::into)
     }
 
     fn host_timestamp(&self) -> Result<Timestamp> {
