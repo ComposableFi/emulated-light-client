@@ -48,7 +48,6 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         )?;
         let key = path.0.to_string();
         store.private.clients.insert(key.clone(), serialized);
-        store.private.client_id_set.push(key);
         Ok(())
     }
 
@@ -71,7 +70,6 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         let height = Height::new(path.epoch, path.height)?;
         let key = (path.client_id.to_string(), height);
         store.private.consensus_states.insert(key, serialized);
-        store.private.height = height;
         Ok(())
     }
 
@@ -299,7 +297,6 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         )?;
         let key = (path.0.to_string(), path.1.to_string());
         store.private.channel_ends.insert(key.clone(), serialized);
-        store.private.port_channel_id_set.push(key);
         Ok(())
     }
 
