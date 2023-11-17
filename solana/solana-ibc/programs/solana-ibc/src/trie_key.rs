@@ -1,15 +1,15 @@
 use ibc::core::ics04_channel::packet::Sequence;
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use ibc::core::ics24_host::path::{
-    AckPath, ChannelEndPath, ClientConsensusStatePath, ClientStatePath,
-    CommitmentPath, ConnectionPath, ReceiptPath, SeqAckPath, SeqRecvPath,
-    SeqSendPath,
+    AckPath, ChannelEndPath, CommitmentPath, ConnectionPath, ReceiptPath,
+    SeqAckPath, SeqRecvPath, SeqSendPath,
 };
 
 // Note: We’re not using ChannelId::prefix() and ConnectionId::prefix() because
 // those return the prefix without trailing `-` and we want constants which also
 // include that hyphen.
 use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
+use crate::storage::ClientIndex;
 
 /// A key used for indexing entries in the provable storage.
 ///
@@ -19,8 +19,8 @@ use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
 ///
 /// ```ignore
 /// enum TrieKey {
-///     ClientState      { client_id: String },
-///     ConsensusState   { client_id: String, epoch: u64, height: u64 },
+///     ClientState      { client_id: u32 },
+///     ConsensusState   { client_id: u32, epoch: u64, height: u64 },
 ///     Connection       { connection_id: u32 },
 ///     ChannelEnd       { port_id: String, channel_id: u32 },
 ///     NextSequenceSend { port_id: String, channel_id: u32 },
@@ -62,6 +62,22 @@ macro_rules! new_key_impl {
 }
 
 impl TrieKey {
+    /// Constructs a new key for a client state path for client with given
+    /// counter.
+    pub fn for_client_state(counter: ClientIndex) -> Self {
+        new_key_impl!(Tag::ClientState, u32::from(counter))
+    }
+
+    /// Constructs a new key for a consensus state path for client with given
+    /// counter and specified height.
+    pub fn for_consensus_state(
+        counter: ClientIndex,
+        epoch: u64,
+        height: u64,
+    ) -> Self {
+        new_key_impl!(Tag::ConsensusState, u32::from(counter), epoch, height)
+    }
+
     /// Constructs a new key for a `(port_id, channel_id)` path.
     ///
     /// Panics if `channel_id` is invalid.
@@ -89,23 +105,6 @@ impl TrieKey {
 impl core::ops::Deref for TrieKey {
     type Target = [u8];
     fn deref(&self) -> &[u8] { self.0.as_slice() }
-}
-
-impl From<&ClientStatePath> for TrieKey {
-    fn from(path: &ClientStatePath) -> Self {
-        new_key_impl!(Tag::ClientState, path.0)
-    }
-}
-
-impl From<&ClientConsensusStatePath> for TrieKey {
-    fn from(path: &ClientConsensusStatePath) -> Self {
-        new_key_impl!(
-            Tag::ConsensusState,
-            path.client_id,
-            path.epoch,
-            path.height
-        )
-    }
 }
 
 impl From<&ConnectionPath> for TrieKey {
@@ -204,15 +203,6 @@ trait AsComponent {
 
     /// Appends the component into a vector.
     fn append_into(&self, dest: &mut Vec<u8>);
-}
-
-// TODO(#35): Investigate weather we can impose restrictions on client
-// identifiers, e.g. `client-<num>`.
-impl AsComponent for ibc::core::ics24_host::identifier::ClientId {
-    fn key_len(&self) -> usize { self.as_str().key_len() }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        self.as_str().append_into(dest)
-    }
 }
 
 impl AsComponent for ibc::core::ics24_host::identifier::ConnectionId {

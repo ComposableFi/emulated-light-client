@@ -49,6 +49,15 @@ impl CryptoHash {
         builder.build()
     }
 
+    /// Returns hash of a Borsh-serialised object.
+    #[inline]
+    #[cfg(feature = "borsh")]
+    pub fn borsh(obj: &impl borsh::BorshSerialize) -> io::Result<Self> {
+        let mut builder = Self::builder();
+        obj.serialize(&mut builder)?;
+        Ok(builder.build())
+    }
+
     /// Decodes a base64 string representation of the hash.
     pub fn from_base64(base64: &str) -> Option<Self> {
         // base64 API is kind of garbage.  In certain situations the output
@@ -233,9 +242,7 @@ impl io::Write for Builder {
 }
 
 #[test]
-fn test_new_hash() {
-    assert_eq!(CryptoHash::from([0; 32]), CryptoHash::default());
-
+fn test_empty_digest() {
     // https://www.di-mgt.com.au/sha_testvectors.html
     let want = CryptoHash::from([
         0xe3, 0xb0, 0xc4, 0x42, 0x98, 0xfc, 0x1c, 0x14, 0x9a, 0xfb, 0xf4, 0xc8,
@@ -250,14 +257,21 @@ fn test_new_hash() {
         builder.build()
     };
     assert_eq!(want, got);
-    assert_eq!(want, CryptoHash::builder().build());
 
+    #[cfg(feature = "borsh")]
+    assert_eq!(want, CryptoHash::borsh(&()).unwrap());
+}
+
+#[test]
+fn test_abc_digest() {
+    // https://www.di-mgt.com.au/sha_testvectors.html
     let want = CryptoHash::from([
         0xba, 0x78, 0x16, 0xbf, 0x8f, 0x01, 0xcf, 0xea, 0x41, 0x41, 0x40, 0xde,
         0x5d, 0xae, 0x22, 0x23, 0xb0, 0x03, 0x61, 0xa3, 0x96, 0x17, 0x7a, 0x9c,
         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad,
     ]);
     assert_eq!(want, CryptoHash::digest(b"abc"));
+
     let got = {
         let mut builder = CryptoHash::builder();
         builder.update(b"a");
@@ -265,4 +279,9 @@ fn test_new_hash() {
         builder.build()
     };
     assert_eq!(want, got);
+
+    #[cfg(feature = "borsh")]
+    assert_eq!(want, CryptoHash::borsh(b"abc").unwrap());
+    #[cfg(feature = "borsh")]
+    assert_eq!(want, CryptoHash::borsh(&(b'a', 25442u16)).unwrap());
 }

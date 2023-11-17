@@ -39,13 +39,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
-        deserialise(
-            self.borrow().private.clients.get(client_id.as_str()),
-            || ClientError::ClientStateNotFound {
-                client_id: client_id.clone(),
-            },
-            |description| ClientError::Other { description },
-        )
+        Ok(self.borrow().private.client(client_id)?.1.client_state.clone())
     }
 
     fn decode_client_state(
@@ -57,32 +51,23 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn consensus_state(
         &self,
-        client_cons_state_path: &ClientConsensusStatePath,
+        path: &ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
-        let key = &(
-            client_cons_state_path.client_id.to_string(),
-            (client_cons_state_path.epoch, client_cons_state_path.height),
-        );
-        let state = self
-            .borrow()
+        self.borrow()
             .private
+            .client(&path.client_id)?
+            .1
             .consensus_states
-            .get(key)
-            .map(|data| borsh::BorshDeserialize::try_from_slice(data));
-        match state {
-            Some(Ok(value)) => Ok(value),
-            Some(Err(err)) => Err(ClientError::ClientSpecific {
-                description: err.to_string(),
-            }),
-            None => Err(ClientError::ConsensusStateNotFound {
-                client_id: client_cons_state_path.client_id.clone(),
-                height: ibc::Height::new(
-                    client_cons_state_path.epoch,
-                    client_cons_state_path.height,
-                )?,
-            }),
-        }
-        .map_err(ibc::core::ContextError::from)
+            .get(&(path.epoch, path.height))
+            .cloned()
+            .ok_or_else(|| match ibc::Height::new(path.epoch, path.height) {
+                Ok(height) => ClientError::ConsensusStateNotFound {
+                    client_id: path.client_id.clone(),
+                    height,
+                },
+                Err(err) => err,
+            })
+            .map_err(ibc::core::ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
@@ -109,8 +94,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn client_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.client_counter)
+        Ok(self.borrow().private.client_counter())
     }
 
     fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
@@ -295,12 +279,10 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         store
             .private
-            .client_processed_times
-            .get(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
+            .client(client_id)?
+            .1
+            .processed_times
+            .get(height)
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
@@ -318,18 +300,13 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Height> {
-        let store = self.borrow();
-        store
+        self.borrow()
             .private
-            .client_processed_heights
-            .get(client_id.as_str())
-            .and_then(|processed_heights| {
-                processed_heights
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
-            .map(|client_height| {
-                Height::new(client_height.0, client_height.1).unwrap()
-            })
+            .client(client_id)?
+            .1
+            .processed_heights
+            .get(height)
+            .copied()
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
                     description: format!(

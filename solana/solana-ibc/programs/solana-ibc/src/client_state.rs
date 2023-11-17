@@ -458,14 +458,13 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Vec<Height>, ContextError> {
-        // TODO(mina86): use BTreeMap::range here so that we don’t iterate over
-        // the entire map.
         self.borrow()
             .private
+            .client(client_id)?
+            .1
             .consensus_states
             .keys()
-            .filter(|(client, _)| client == client_id.as_str())
-            .map(|(_, height)| ibc::Height::new(height.0, height.1))
+            .map(|height| ibc::Height::new(height.0, height.1))
             .collect::<Result<Vec<_>, _>>()
             .map_err(ContextError::from)
     }
@@ -532,7 +531,7 @@ impl IbcStorage<'_, '_> {
         dir: Direction,
     ) -> Result<Option<AnyConsensusState>, ContextError> {
         let height = (height.revision_number(), height.revision_height());
-        let pivot = core::ops::Bound::Excluded((client_id.to_string(), height));
+        let pivot = core::ops::Bound::Excluded(height);
         let range = if dir == Direction::Next {
             (pivot, core::ops::Bound::Unbounded)
         } else {
@@ -540,13 +539,13 @@ impl IbcStorage<'_, '_> {
         };
 
         let store = self.borrow();
-        let mut range = store.private.consensus_states.range(range);
-        if dir == Direction::Next { range.next() } else { range.next_back() }
-            .map(|(_, data)| borsh::BorshDeserialize::try_from_slice(data))
-            .transpose()
-            .map_err(|err| err.to_string())
-            .map_err(|description| {
-                ContextError::from(ClientError::ClientSpecific { description })
-            })
+        let mut range =
+            store.private.client(client_id)?.1.consensus_states.range(range);
+        Ok(if dir == Direction::Next {
+            range.next()
+        } else {
+            range.next_back()
+        }
+        .map(|(_, data)| data.clone()))
     }
 }

@@ -37,44 +37,30 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     fn store_client_state(
         &mut self,
         path: ClientStatePath,
-        client_state: Self::AnyClientState,
+        state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({}, {:?})", path, client_state);
+        msg!("store_client_state({}, {:?})", path, state);
+        let hash = CryptoHash::borsh(&state).map_err(error)?;
         let mut store = self.borrow_mut();
-        let serialized = store_serialised_proof(
-            &mut store.provable,
-            &TrieKey::from(&path),
-            &client_state,
-        )?;
-        let key = path.0.to_string();
-        store.private.clients.insert(key.clone(), serialized);
-        store.private.client_id_set.push(key);
-        Ok(())
+        let (client_idx, _) = store.private.set_client(path.0, state)?;
+        let key = TrieKey::for_client_state(client_idx);
+        store.provable.set(&key, &hash).map_err(error)
     }
 
     fn store_consensus_state(
         &mut self,
-        consensus_state_path: ClientConsensusStatePath,
-        consensus_state: Self::AnyConsensusState,
+        path: ClientConsensusStatePath,
+        state: Self::AnyConsensusState,
     ) -> Result {
-        msg!(
-            "store_consensus_state - path: {}, consensus_state: {:?}",
-            consensus_state_path,
-            consensus_state
-        );
+        msg!("store_consensus_state({}, {:?})", path, state);
+        let hash = CryptoHash::borsh(&state).map_err(error)?;
         let mut store = self.borrow_mut();
-        let serialized = store_serialised_proof(
-            &mut store.provable,
-            &TrieKey::from(&consensus_state_path),
-            &consensus_state,
-        )?;
-        let key = (
-            consensus_state_path.client_id.to_string(),
-            (consensus_state_path.epoch, consensus_state_path.height),
-        );
-        store.private.consensus_states.insert(key, serialized);
-        store.private.height =
-            (consensus_state_path.epoch, consensus_state_path.height);
+        let (client_idx, client) = store.private.client_mut(&path.client_id)?;
+        client.consensus_states.insert((path.epoch, path.height), state);
+        let key =
+            TrieKey::for_consensus_state(client_idx, path.epoch, path.height);
+        store.provable.set(&key, &hash).map_err(error)?;
+        store.private.height = (path.epoch, path.height);
         Ok(())
     }
 
@@ -83,10 +69,12 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         path: ClientConsensusStatePath,
     ) -> Result<(), ContextError> {
         msg!("delete_consensus_state({})", path);
-        let key = (path.client_id.to_string(), (path.epoch, path.height));
         let mut store = self.borrow_mut();
-        store.private.consensus_states.remove(&key);
-        store.provable.del(&TrieKey::from(&path)).unwrap();
+        let (client_idx, client) = store.private.client_mut(&path.client_id)?;
+        client.consensus_states.remove(&(path.epoch, path.height));
+        let key =
+            TrieKey::for_consensus_state(client_idx, path.epoch, path.height);
+        store.provable.del(&key).map_err(error)?;
         Ok(())
     }
 
@@ -98,14 +86,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     ) -> Result<(), ContextError> {
         self.borrow_mut()
             .private
-            .client_processed_heights
-            .get_mut(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times.remove(&(
-                    height.revision_number(),
-                    height.revision_height(),
-                ))
-            });
+            .client_mut(&client_id)?
+            .1
+            .processed_heights
+            .remove(&height);
         Ok(())
     }
 
@@ -116,14 +100,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     ) -> Result<(), ContextError> {
         self.borrow_mut()
             .private
-            .client_processed_times
-            .get_mut(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times.remove(&(
-                    height.revision_number(),
-                    height.revision_height(),
-                ))
-            });
+            .client_mut(&client_id)?
+            .1
+            .processed_times
+            .remove(&height);
         Ok(())
     }
 
@@ -136,13 +116,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
         self.borrow_mut()
             .private
-            .client_processed_times
-            .entry(client_id.to_string())
-            .or_default()
-            .insert(
-                (height.revision_number(), height.revision_height()),
-                timestamp.nanoseconds(),
-            );
+            .client_mut(&client_id)?
+            .1
+            .processed_times
+            .insert(height, timestamp.nanoseconds());
         Ok(())
     }
 
@@ -155,28 +132,16 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         msg!("store_update_height({}, {}, {})", client_id, height, host_height);
         self.borrow_mut()
             .private
-            .client_processed_heights
-            .entry(client_id.to_string())
-            .or_default()
-            .insert(
-                (height.revision_number(), height.revision_height()),
-                (host_height.revision_number(), host_height.revision_height()),
-            );
+            .client_mut(&client_id)?
+            .1
+            .processed_heights
+            .insert(height, host_height);
         Ok(())
     }
 }
 
 impl ExecutionContext for IbcStorage<'_, '_> {
-    fn increase_client_counter(&mut self) -> Result {
-        let mut store = self.borrow_mut();
-        store.private.client_counter =
-            store.private.client_counter.checked_add(1).unwrap();
-        msg!(
-            "client_counter has increased to: {}",
-            store.private.client_counter
-        );
-        Ok(())
-    }
+    fn increase_client_counter(&mut self) -> Result { Ok(()) }
 
     fn store_connection(
         &mut self,
@@ -196,19 +161,12 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_connection_to_client(
         &mut self,
-        client_connection_path: &ClientConnectionPath,
+        path: &ClientConnectionPath,
         conn_id: ConnectionId,
     ) -> Result {
-        msg!(
-            "store_connection_to_client: path: {}, connection_id: {:?}",
-            client_connection_path,
-            conn_id
-        );
-        let mut store = self.borrow_mut();
-        store
-            .private
-            .client_to_connection
-            .insert(client_connection_path.0.to_string(), conn_id.to_string());
+        msg!("store_connection_to_client({}, {:?})", path, conn_id);
+        self.borrow_mut().private.client_mut(&path.0)?.1.connection_id =
+            Some(conn_id);
         Ok(())
     }
 
@@ -371,8 +329,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
-        crate::events::emit(event)
-            .map_err(|description| ClientError::Other { description }.into())
+        crate::events::emit(event).map_err(error)
     }
 
     fn log_message(&mut self, message: String) -> Result {
@@ -423,8 +380,7 @@ fn store_serialised_proof(
                     .map(|()| value)
                     .map_err(|err| err.to_string())
             })
-            .map_err(|description| ClientError::Other { description })
-            .map_err(ContextError::ClientError)
+            .map_err(error)
     }
     store_impl(trie, key, borsh::to_vec(value))
 }
@@ -462,4 +418,8 @@ fn delete_packet_sequence(
             }
         }
     }
+}
+
+fn error(description: impl ToString) -> ContextError {
+    ClientError::Other { description: description.to_string() }.into()
 }
