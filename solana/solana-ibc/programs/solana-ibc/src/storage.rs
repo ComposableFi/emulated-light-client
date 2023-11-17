@@ -82,10 +82,7 @@ pub struct IBCPackets(pub Vec<PacketMsg>);
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
-    pub height: Height,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
-    /// The client ids of the clients.
-    pub client_id_set: Vec<InnerClientId>,
     pub client_counter: u64,
     pub client_processed_times:
         BTreeMap<InnerClientId, BTreeMap<Height, SolanaTimestamp>>,
@@ -93,19 +90,11 @@ pub(crate) struct PrivateStorage {
         BTreeMap<InnerClientId, BTreeMap<Height, HostHeight>>,
     pub consensus_states:
         BTreeMap<(InnerClientId, Height), InnerConsensusState>,
-    /// This collection contains the heights corresponding to all consensus states of
-    /// all clients stored in the contract.
-    pub client_consensus_state_height_sets:
-        BTreeMap<InnerClientId, Vec<Height>>,
-    /// The connection ids of the connections.
-    pub connection_id_set: Vec<InnerConnectionId>,
     pub connection_counter: u64,
     pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
     pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
     // Contains the client id corresponding to the connectionId
     pub client_to_connection: BTreeMap<InnerClientId, InnerConnectionId>,
-    /// The port and channel id tuples of the channels.
-    pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
     pub channel_counter: u64,
 
     /// The sequence numbers of the packet commitments.
