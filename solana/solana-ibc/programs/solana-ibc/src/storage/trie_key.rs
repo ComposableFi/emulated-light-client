@@ -5,11 +5,7 @@ use ibc::core::ics24_host::path::{
     SeqAckPath, SeqRecvPath, SeqSendPath,
 };
 
-// Note: We’re not using ChannelId::prefix() and ConnectionId::prefix() because
-// those return the prefix without trailing `-` and we want constants which also
-// include that hyphen.
-use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
-use crate::storage::ClientIdx;
+use crate::storage::ids::{ClientIdx, CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
 
 /// A key used for indexing entries in the provable storage.
 ///
