@@ -128,7 +128,7 @@ pub mod solana_ibc {
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
