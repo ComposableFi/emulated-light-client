@@ -1,4 +1,5 @@
-use std::{result::Result, str};
+use std::result::Result;
+use std::str;
 
 use anchor_lang::prelude::*;
 use ibc::applications::transfer::packet::PacketData;
