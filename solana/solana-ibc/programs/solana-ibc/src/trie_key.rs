@@ -72,10 +72,14 @@ impl TrieKey {
     /// counter and specified height.
     pub fn for_consensus_state(
         counter: ClientIndex,
-        epoch: u64,
-        height: u64,
+        height: ibc::Height,
     ) -> Self {
-        new_key_impl!(Tag::ConsensusState, u32::from(counter), epoch, height)
+        new_key_impl!(
+            Tag::ConsensusState,
+            u32::from(counter),
+            height.revision_number(),
+            height.revision_height()
+        )
     }
 
     /// Constructs a new key for a `(port_id, channel_id)` path.

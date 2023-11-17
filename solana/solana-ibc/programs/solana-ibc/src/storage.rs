@@ -5,7 +5,7 @@ use core::cell::RefCell;
 use anchor_lang::prelude::*;
 use lib::hash::CryptoHash;
 
-type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
+type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 mod ibc {
     pub(super) use ibc::core::ics02_client::error::ClientError;
@@ -17,7 +17,6 @@ mod ibc {
     pub(super) use ibc::Height;
 }
 
-pub(crate) type InnerHeight = (u64, u64);
 pub(crate) type SolanaTimestamp = u64;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
@@ -127,7 +126,7 @@ pub(crate) struct ClientStore {
 
     pub client_state: crate::client_state::AnyClientState,
     pub consensus_states:
-        BTreeMap<InnerHeight, crate::consensus_state::AnyConsensusState>,
+        BTreeMap<ibc::Height, crate::consensus_state::AnyConsensusState>,
 
     pub processed_times: BTreeMap<ibc::Height, SolanaTimestamp>,
     pub processed_heights: BTreeMap<ibc::Height, ibc::Height>,
@@ -158,8 +157,6 @@ pub struct IBCPackets(pub Vec<ibc::PacketMsg>);
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
-    pub height: InnerHeight,
-
     clients: Vec<ClientStore>,
 
     /// The connection ids of the connections.
@@ -304,6 +301,7 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
     pub packets: &'a mut IBCPackets,
+    pub host_head: crate::host::Head,
 }
 
 /// A reference-counted reference to the IBC storage.
@@ -344,7 +342,7 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     ///
     /// # Panics
     ///
-    /// Panics if the value is currently mutably borrowed.
+    /// Panics if the value is currently borrowed.
     pub fn borrow_mut<'c>(
         &'c self,
     ) -> core::cell::RefMut<'c, IbcStorageInner<'a, 'b>> {

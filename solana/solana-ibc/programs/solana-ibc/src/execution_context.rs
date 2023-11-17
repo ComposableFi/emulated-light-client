@@ -53,14 +53,13 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         state: Self::AnyConsensusState,
     ) -> Result {
         msg!("store_consensus_state({}, {:?})", path, state);
+        let height = Height::new(path.epoch, path.height)?;
         let hash = CryptoHash::borsh(&state).map_err(error)?;
         let mut store = self.borrow_mut();
         let (client_idx, client) = store.private.client_mut(&path.client_id)?;
-        client.consensus_states.insert((path.epoch, path.height), state);
-        let key =
-            TrieKey::for_consensus_state(client_idx, path.epoch, path.height);
+        client.consensus_states.insert(height, state);
+        let key = TrieKey::for_consensus_state(client_idx, height);
         store.provable.set(&key, &hash).map_err(error)?;
-        store.private.height = (path.epoch, path.height);
         Ok(())
     }
 
@@ -69,11 +68,11 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         path: ClientConsensusStatePath,
     ) -> Result<(), ContextError> {
         msg!("delete_consensus_state({})", path);
+        let height = Height::new(path.epoch, path.height)?;
         let mut store = self.borrow_mut();
         let (client_idx, client) = store.private.client_mut(&path.client_id)?;
-        client.consensus_states.remove(&(path.epoch, path.height));
-        let key =
-            TrieKey::for_consensus_state(client_idx, path.epoch, path.height);
+        client.consensus_states.remove(&height);
+        let key = TrieKey::for_consensus_state(client_idx, height);
         store.provable.del(&key).map_err(error)?;
         Ok(())
     }
