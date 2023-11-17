@@ -45,7 +45,7 @@ impl From<solana_program::clock::Clock> for Head {
 
 /// Error possible when fetching Solana’s clock.
 ///
-/// This is just a simple wrapper which offers trivial conversion no Solana and
+/// This is just a simple wrapper which offers trivial conversion on Solana and
 /// IBC error types so that question mark operator works in all contexts.
 #[derive(derive_more::From, derive_more::Into)]
 pub struct Error(solana_program::program_error::ProgramError);
