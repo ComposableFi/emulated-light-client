@@ -225,16 +225,12 @@ pub mod solana_ibc {
         });
 
         // Store update time since its not called during mocks
-        let _ = store.store_update_time(
-            client_id.clone(),
-            host_height,
-            host_timestamp,
-        );
-        let _ = store.store_update_height(
-            client_id.clone(),
-            host_height,
-            host_height,
-        );
+        store
+            .store_update_time(client_id.clone(), host_height, host_timestamp)
+            .unwrap();
+        store
+            .store_update_height(client_id.clone(), host_height, host_height)
+            .unwrap();
 
         let connection_id_on_a = ConnectionId::new(0);
         let connection_id_on_b = ConnectionId::new(1);
