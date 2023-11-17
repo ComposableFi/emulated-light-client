@@ -458,16 +458,17 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Vec<Height>, ContextError> {
-        // TODO(mina86): use BTreeMap::range here so that we don’t iterate over
-        // the entire map.
-        self.borrow()
+        let low = (client_id.to_string(), Height::min(0));
+        let high =
+            (client_id.to_string(), Height::new(u64::MAX, u64::MAX).unwrap());
+        let heights = self
+            .borrow()
             .private
             .consensus_states
-            .keys()
-            .filter(|(client, _)| client == client_id.as_str())
-            .map(|(_, height)| ibc::Height::new(height.0, height.1))
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(ContextError::from)
+            .range(low..=high)
+            .map(|((_client, height), _value)| *height)
+            .collect();
+        Ok(heights)
     }
 
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
@@ -531,12 +532,13 @@ impl IbcStorage<'_, '_> {
         height: &Height,
         dir: Direction,
     ) -> Result<Option<AnyConsensusState>, ContextError> {
-        let height = (height.revision_number(), height.revision_height());
-        let pivot = core::ops::Bound::Excluded((client_id.to_string(), height));
+        use core::ops::Bound;
+
+        let pivot = Bound::Excluded((client_id.to_string(), *height));
         let range = if dir == Direction::Next {
-            (pivot, core::ops::Bound::Unbounded)
+            (pivot, Bound::Unbounded)
         } else {
-            (core::ops::Bound::Unbounded, pivot)
+            (Bound::Unbounded, pivot)
         };
 
         let store = self.borrow();

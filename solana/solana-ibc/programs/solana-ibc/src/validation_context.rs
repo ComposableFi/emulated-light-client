@@ -57,12 +57,10 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn consensus_state(
         &self,
-        client_cons_state_path: &ClientConsensusStatePath,
+        path: &ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
-        let key = &(
-            client_cons_state_path.client_id.to_string(),
-            (client_cons_state_path.epoch, client_cons_state_path.height),
-        );
+        let height = Height::new(path.epoch, path.height)?;
+        let key = &(path.client_id.to_string(), height);
         let state = self
             .borrow()
             .private
@@ -75,11 +73,8 @@ impl ValidationContext for IbcStorage<'_, '_> {
                 description: err.to_string(),
             }),
             None => Err(ClientError::ConsensusStateNotFound {
-                client_id: client_cons_state_path.client_id.clone(),
-                height: ibc::Height::new(
-                    client_cons_state_path.epoch,
-                    client_cons_state_path.height,
-                )?,
+                client_id: path.client_id.clone(),
+                height,
             }),
         }
         .map_err(ContextError::from)
@@ -293,10 +288,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
             .private
             .client_processed_times
             .get(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
+            .and_then(|processed_times| processed_times.get(height))
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
@@ -319,13 +311,8 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
             .private
             .client_processed_heights
             .get(client_id.as_str())
-            .and_then(|processed_heights| {
-                processed_heights
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
-            .map(|client_height| {
-                Height::new(client_height.0, client_height.1).unwrap()
-            })
+            .and_then(|processed_heights| processed_heights.get(height))
+            .copied()
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
                     description: format!(
