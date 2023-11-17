@@ -19,8 +19,6 @@ const TRIE_SEED: &[u8] = b"trie";
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
 
-use crate::storage::IBCPackets;
-
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
 mod chain;
@@ -122,7 +120,7 @@ pub mod solana_ibc {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+        let packets = &mut ctx.accounts.packets;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
@@ -227,7 +225,7 @@ pub struct Deliver<'info> {
 
     /// The account holding packets.
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
-    packets: Account<'info, IBCPackets>,
+    packets: Account<'info, storage::IbcPackets>,
 
     /// The guest blockchain data.
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
