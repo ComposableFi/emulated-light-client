@@ -121,25 +121,19 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
 
 
         let mut x = 0;
-        let remaining =
-            self.remaining_accounts.iter().map(|&account| {
-                x += 1;
-                // if x == 2  {
-                //     AccountMeta {
-                //         pubkey: account,
-                //         is_signer: false,
-                //         is_writable: ,
-                //     }
-                // } else {
-                    AccountMeta {
-                        pubkey: account,
-                        is_signer: false,
-                        is_writable: true,
-                    }
-                // }
-                
+        let remaining = self.remaining_accounts.iter().map(|&account| {
+            x += 1;
+            // if x == 2  {
+            //     AccountMeta {
+            //         pubkey: account,
+            //         is_signer: false,
+            //         is_writable: ,
+            //     }
+            // } else {
+            AccountMeta { pubkey: account, is_signer: false, is_writable: true }
+            // }
         });
-        
+
         accounts.into_iter().chain(remaining).collect::<Vec<_>>()
     }
 }
@@ -294,7 +288,7 @@ fn anchor_test_deliver() -> Result<()> {
         get_associated_token_address(&authority.pubkey(), &token_mint_key);
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
-     
+
 
     let sig = program
         .request()
@@ -345,7 +339,7 @@ fn anchor_test_deliver() -> Result<()> {
     // Pass the instruction for transfer
 
     // Create a new receier with a token account
-    
+
     let ix = Transaction::new_signed_with_payer(
         &[create_associated_token_account(
             &authority.pubkey(),
@@ -363,7 +357,7 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })
         .unwrap();
-    
+
 
     println!("this is token account creation signature {}", tx);
 

@@ -9,7 +9,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use ibc::core::ics03_connection::connection::{
     ConnectionEnd, Counterparty, State as ConnState,
 };
@@ -48,6 +48,7 @@ mod ed25519;
 mod error;
 mod events;
 mod execution_context;
+mod host;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -63,11 +64,8 @@ const TEST: bool = false;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
     use anchor_spl::token::MintTo;
     use ibc::core::ics02_client::ClientExecutionContext;
-    use ibc::core::timestamp::Timestamp;
-    use ibc::Height;
 
     use super::*;
 
@@ -118,7 +116,7 @@ pub mod solana_ibc {
             &signature.into(),
             &verifier,
         )? {
-            ctx.accounts.chain.maybe_generate_block(&provable)?;
+            ctx.accounts.chain.maybe_generate_block(&provable, None)?;
         }
         Ok(())
     }
@@ -135,7 +133,7 @@ pub mod solana_ibc {
     /// and not intended for production use.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        ctx.accounts.chain.maybe_generate_block(&provable)?;
+        ctx.accounts.chain.maybe_generate_block(&provable, None)?;
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
@@ -150,18 +148,19 @@ pub mod solana_ibc {
         // msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
-        let accounts = ctx.remaining_accounts;
+        let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        // ctx.accounts.chain.maybe_generate_block(&provable)?;
+        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
             packets,
-            accounts: accounts.to_vec(),
+            accounts: ctx.remaining_accounts.to_vec(),
+            host_head,
         });
 
         {
@@ -205,34 +204,36 @@ pub mod solana_ibc {
             panic!();
         }
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        let private_storage = private.clone();
         // msg!("This is private: {private:?}");
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
         let accounts = ctx.remaining_accounts;
+
+        let host_head = host::Head::get()?;
+        let (host_timestamp, host_height) = host_head
+            .ibc_timestamp()
+            .and_then(|ts| host_head.ibc_height().map(|h| (ts, h)))
+            .map_err(error::Error::from)
+            .map_err(|err| error!((&err)))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
             packets,
             accounts: accounts.to_vec(),
+            host_head,
         });
 
         // Store update time since its not called during mocks
-        let clock = Clock::get().unwrap();
-        let current_timestamp = clock.unix_timestamp as u64;
         let _ = store.store_update_time(
             client_id.clone(),
-            Height::new(private_storage.height.0, private_storage.height.1)
-                .unwrap(),
-            Timestamp::from_nanoseconds(current_timestamp).unwrap(),
+            host_height,
+            host_timestamp,
         );
         let _ = store.store_update_height(
             client_id.clone(),
-            Height::new(private_storage.height.0, private_storage.height.1)
-                .unwrap(),
-            Height::new(private_storage.height.0, private_storage.height.1)
-                .unwrap(),
+            host_height,
+            host_height,
         );
 
         let connection_id_on_a = ConnectionId::new(0);

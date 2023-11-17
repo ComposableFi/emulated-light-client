@@ -3,11 +3,13 @@ use alloc::rc::Rc;
 use core::cell::RefCell;
 
 use anchor_lang::prelude::*;
+use ibc::core::ics02_client::height::Height;
 use ibc::core::ics04_channel::msgs::PacketMsg;
 use ibc::core::ics04_channel::packet::Sequence;
 
-pub(crate) type InnerHeight = (u64, u64);
-pub(crate) type HostHeight = InnerHeight;
+pub(crate) type HostHeight = Height;
+type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
+
 pub(crate) type SolanaTimestamp = u64;
 pub(crate) type InnerClientId = String;
 pub(crate) type InnerConnectionId = String;
@@ -80,21 +82,21 @@ pub struct IBCPackets(pub Vec<PacketMsg>);
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 pub(crate) struct PrivateStorage {
-    pub height: InnerHeight,
+    pub height: Height,
     pub clients: BTreeMap<InnerClientId, InnerClient>,
     /// The client ids of the clients.
     pub client_id_set: Vec<InnerClientId>,
     pub client_counter: u64,
     pub client_processed_times:
-        BTreeMap<InnerClientId, BTreeMap<InnerHeight, SolanaTimestamp>>,
+        BTreeMap<InnerClientId, BTreeMap<Height, SolanaTimestamp>>,
     pub client_processed_heights:
-        BTreeMap<InnerClientId, BTreeMap<InnerHeight, HostHeight>>,
+        BTreeMap<InnerClientId, BTreeMap<Height, HostHeight>>,
     pub consensus_states:
-        BTreeMap<(InnerClientId, InnerHeight), InnerConsensusState>,
+        BTreeMap<(InnerClientId, Height), InnerConsensusState>,
     /// This collection contains the heights corresponding to all consensus states of
     /// all clients stored in the contract.
     pub client_consensus_state_height_sets:
-        BTreeMap<InnerClientId, Vec<InnerHeight>>,
+        BTreeMap<InnerClientId, Vec<Height>>,
     /// The connection ids of the connections.
     pub connection_id_set: Vec<InnerConnectionId>,
     pub connection_counter: u64,
@@ -158,6 +160,7 @@ pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
     pub provable: AccountTrie<'a, 'b>,
     pub packets: &'a mut IBCPackets,
     pub accounts: Vec<AccountInfo<'c>>,
+    pub host_head: crate::host::Head,
 }
 
 /// A reference-counted reference to the IBC storage.
@@ -200,7 +203,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     ///
     /// # Panics
     ///
-    /// Panics if the value is currently mutably borrowed.
+    /// Panics if the value is currently borrowed.
     pub fn borrow_mut<'d>(
         &'d self,
     ) -> core::cell::RefMut<'d, IbcStorageInner<'a, 'b, 'c>> {

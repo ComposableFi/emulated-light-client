@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::{borsh, Clock, Pubkey, SolanaSysvar};
+use anchor_lang::prelude::{borsh, Pubkey};
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -27,7 +27,7 @@ use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 use crate::trie_key::TrieKey;
 
-type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
+type Result<T = (), E = ContextError> = core::result::Result<T, E>;
 
 impl ValidationContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
@@ -57,12 +57,10 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
 
     fn consensus_state(
         &self,
-        client_cons_state_path: &ClientConsensusStatePath,
+        path: &ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
-        let key = &(
-            client_cons_state_path.client_id.to_string(),
-            (client_cons_state_path.epoch, client_cons_state_path.height),
-        );
+        let height = Height::new(path.epoch, path.height)?;
+        let key = &(path.client_id.to_string(), height);
         let state = self
             .borrow()
             .private
@@ -75,26 +73,19 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
                 description: err.to_string(),
             }),
             None => Err(ClientError::ConsensusStateNotFound {
-                client_id: client_cons_state_path.client_id.clone(),
-                height: ibc::Height::new(
-                    client_cons_state_path.epoch,
-                    client_cons_state_path.height,
-                )?,
+                client_id: path.client_id.clone(),
+                height,
             }),
         }
-        .map_err(ibc::core::ContextError::from)
+        .map_err(ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
-        let store = self.borrow();
-        ibc::Height::new(store.private.height.0, store.private.height.1)
-            .map_err(ContextError::ClientError)
+        self.borrow().host_head.ibc_height().map_err(Into::into)
     }
 
     fn host_timestamp(&self) -> Result<Timestamp> {
-        let clock = Clock::get().unwrap();
-        let current_timestamp = clock.unix_timestamp as u64;
-        Ok(Timestamp::from_nanoseconds(current_timestamp).unwrap())
+        self.borrow().host_head.ibc_timestamp().map_err(Into::into)
     }
 
     fn host_consensus_state(
@@ -299,10 +290,7 @@ impl ibc::core::ics02_client::ClientValidationContext
             .private
             .client_processed_times
             .get(client_id.as_str())
-            .and_then(|processed_times| {
-                processed_times
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
+            .and_then(|processed_times| processed_times.get(height))
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
@@ -325,13 +313,8 @@ impl ibc::core::ics02_client::ClientValidationContext
             .private
             .client_processed_heights
             .get(client_id.as_str())
-            .and_then(|processed_heights| {
-                processed_heights
-                    .get(&(height.revision_number(), height.revision_height()))
-            })
-            .map(|client_height| {
-                Height::new(client_height.0, client_height.1).unwrap()
-            })
+            .and_then(|processed_heights| processed_heights.get(height))
+            .copied()
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
                     description: format!(
