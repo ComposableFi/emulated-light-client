@@ -30,6 +30,7 @@ mod ed25519;
 mod error;
 mod events;
 mod execution_context;
+mod host;
 mod storage;
 #[cfg(test)]
 mod tests;
@@ -90,7 +91,7 @@ pub mod solana_ibc {
             &signature.into(),
             &verifier,
         )? {
-            ctx.accounts.chain.maybe_generate_block(&provable)?;
+            ctx.accounts.chain.maybe_generate_block(&provable, None)?;
         }
         Ok(())
     }
@@ -107,7 +108,7 @@ pub mod solana_ibc {
     /// and not intended for production use.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        ctx.accounts.chain.maybe_generate_block(&provable)?;
+        ctx.accounts.chain.maybe_generate_block(&provable, None)?;
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
@@ -122,16 +123,18 @@ pub mod solana_ibc {
         msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+        let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        ctx.accounts.chain.maybe_generate_block(&provable)?;
+        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
             packets,
+            host_head,
         });
 
         {

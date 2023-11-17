@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::{borsh, Clock, Pubkey, SolanaSysvar};
+use anchor_lang::prelude::{borsh, Pubkey};
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -27,7 +27,7 @@ use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 use crate::trie_key::TrieKey;
 
-type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
+type Result<T = (), E = ContextError> = core::result::Result<T, E>;
 
 impl ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
@@ -77,7 +77,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
                 height,
             }),
         }
-        .map_err(ibc::core::ContextError::from)
+        .map_err(ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
@@ -85,9 +85,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_timestamp(&self) -> Result<Timestamp> {
-        let clock = Clock::get().unwrap();
-        let current_timestamp = clock.unix_timestamp as u64;
-        Ok(Timestamp::from_nanoseconds(current_timestamp).unwrap())
+        self.borrow().host_head.ibc_timestamp().map_err(Into::into)
     }
 
     fn host_consensus_state(
