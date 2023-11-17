@@ -85,19 +85,19 @@ impl SequenceTriple {
 ///
 /// To avoid confusing identifiers with the same counter but different client
 /// type (which may be crafted by an attacker), we always check that client type
-/// matches one we know.  Because of this check, to get `ClientIndex`
+/// matches one we know.  Because of this check, to get `ClientIdx`
 /// [`PrivateStorage::client`] needs to be used.
 ///
 /// The index is guaranteed to fit `u32` and `usize`.
 #[derive(Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
-pub struct ClientIndex(u32);
+pub struct ClientIdx(u32);
 
-impl From<ClientIndex> for usize {
+impl From<ClientIdx> for usize {
     #[inline]
-    fn from(index: ClientIndex) -> usize { index.0 as usize }
+    fn from(index: ClientIdx) -> usize { index.0 as usize }
 }
 
-impl core::str::FromStr for ClientIndex {
+impl core::str::FromStr for ClientIdx {
     type Err = core::num::ParseIntError;
 
     #[inline]
@@ -110,7 +110,7 @@ impl core::str::FromStr for ClientIndex {
     }
 }
 
-impl PartialEq<usize> for ClientIndex {
+impl PartialEq<usize> for ClientIdx {
     #[inline]
     fn eq(&self, rhs: &usize) -> bool {
         u32::try_from(*rhs).ok().filter(|rhs| self.0 == *rhs).is_some()
@@ -197,7 +197,7 @@ impl PrivateStorage {
     pub fn client(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<(ClientIndex, &ClientStore), ibc::ClientError> {
+    ) -> Result<(ClientIdx, &ClientStore), ibc::ClientError> {
         self.client_index(client_id)
             .and_then(|idx| {
                 self.clients
@@ -218,7 +218,7 @@ impl PrivateStorage {
     pub fn client_mut(
         &mut self,
         client_id: &ibc::ClientId,
-    ) -> Result<(ClientIndex, &mut ClientStore), ibc::ClientError> {
+    ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
         self.client_index(client_id)
             .and_then(|idx| {
                 self.clients
@@ -240,7 +240,7 @@ impl PrivateStorage {
         &mut self,
         client_id: ibc::ClientId,
         client_state: crate::client_state::AnyClientState,
-    ) -> Result<(ClientIndex, &mut ClientStore), ibc::ClientError> {
+    ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
         if let Some(index) = self.client_index(&client_id) {
             if index == self.clients.len() {
                 let store = ClientStore::new(client_id, client_state);
@@ -257,7 +257,7 @@ impl PrivateStorage {
         Err(ibc::ClientError::ClientStateNotFound { client_id })
     }
 
-    fn client_index(&self, client_id: &ibc::ClientId) -> Option<ClientIndex> {
+    fn client_index(&self, client_id: &ibc::ClientId) -> Option<ClientIdx> {
         client_id
             .as_str()
             .rsplit_once('-')

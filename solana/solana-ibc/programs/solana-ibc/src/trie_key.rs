@@ -9,7 +9,7 @@ use ibc::core::ics24_host::path::{
 // those return the prefix without trailing `-` and we want constants which also
 // include that hyphen.
 use super::{CHANNEL_ID_PREFIX, CONNECTION_ID_PREFIX};
-use crate::storage::ClientIndex;
+use crate::storage::ClientIdx;
 
 /// A key used for indexing entries in the provable storage.
 ///
@@ -64,22 +64,14 @@ macro_rules! new_key_impl {
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
     /// counter.
-    pub fn for_client_state(counter: ClientIndex) -> Self {
-        new_key_impl!(Tag::ClientState, u32::from(counter))
+    pub fn for_client_state(client: ClientIdx) -> Self {
+        new_key_impl!(Tag::ClientState, client)
     }
 
     /// Constructs a new key for a consensus state path for client with given
     /// counter and specified height.
-    pub fn for_consensus_state(
-        counter: ClientIndex,
-        height: ibc::Height,
-    ) -> Self {
-        new_key_impl!(
-            Tag::ConsensusState,
-            u32::from(counter),
-            height.revision_number(),
-            height.revision_height()
-        )
+    pub fn for_consensus_state(client: ClientIdx, height: ibc::Height) -> Self {
+        new_key_impl!(Tag::ConsensusState, client, height)
     }
 
     /// Constructs a new key for a `(port_id, channel_id)` path.
@@ -209,6 +201,13 @@ trait AsComponent {
     fn append_into(&self, dest: &mut Vec<u8>);
 }
 
+impl AsComponent for ClientIdx {
+    fn key_len(&self) -> usize { 0_u32.key_len() }
+    fn append_into(&self, dest: &mut Vec<u8>) {
+        u32::from(*self).append_into(dest)
+    }
+}
+
 impl AsComponent for ibc::core::ics24_host::identifier::ConnectionId {
     fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
@@ -229,6 +228,14 @@ impl AsComponent for ibc::core::ics24_host::identifier::ChannelId {
     fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
         parse_sans_prefix(CHANNEL_ID_PREFIX, self.as_str()).append_into(dest)
+    }
+}
+
+impl AsComponent for ibc::Height {
+    fn key_len(&self) -> usize { 2 * 0_u64.key_len() }
+    fn append_into(&self, dest: &mut Vec<u8>) {
+        self.revision_number().append_into(dest);
+        self.revision_height().append_into(dest);
     }
 }
 
