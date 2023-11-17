@@ -1,4 +1,4 @@
-use std::result::Result;
+use std::{result::Result, str};
 
 use anchor_lang::prelude::*;
 use ibc::applications::transfer::packet::PacketData;
@@ -120,8 +120,7 @@ impl Module for IbcStorage<'_, '_> {
     ) -> (ModuleExtras, Acknowledgement) {
         msg!(
             "Received packet: {:?}",
-            String::from_utf8(packet.data.to_vec())
-                .expect("Invalid packet data")
+            str::from_utf8(packet.data.as_ref()).expect("Invalid packet data")
         );
         let ft_packet_data =
             serde_json::from_slice::<FtPacketData>(&packet.data)
@@ -142,7 +141,7 @@ impl Module for IbcStorage<'_, '_> {
                 self,
                 &maybe_ft_packet,
             );
-        let ack_status = String::from_utf8(ack.as_bytes().to_vec())
+        let ack_status = str::from_utf8(ack.as_bytes())
             .expect("Invalid acknowledgement string");
         msg!("Packet acknowledgement: {}", ack_status);
         (extras, ack)
