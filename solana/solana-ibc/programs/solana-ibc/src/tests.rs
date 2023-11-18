@@ -9,7 +9,6 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
-use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
@@ -34,7 +33,6 @@ use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
 use ibc_proto::google::protobuf::Any;
-use spl_associated_token_account::instruction::create_associated_token_account;
 
 use crate::storage::PrivateStorage;
 use crate::{accounts, instruction, MINT_ESCROW_SEED};
@@ -301,7 +299,7 @@ fn anchor_test_deliver() -> Result<()> {
             channel_id: channel_id.clone(),
             base_denom: BASE_DENOM.to_string(),
             commitment_prefix,
-            client_id,
+            client_id: client_id.clone(),
             counterparty_client_id: counter_party_client_id,
         })
         .payer(authority.clone())
@@ -319,36 +317,13 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("This is the mint information {:?}", mint_info);
     // Retrieve and validate state
-    let solana_ibc_storage_account: PrivateStorage =
-        program.account(storage).unwrap();
+    // let solana_ibc_storage_account: PrivateStorage =
+    //     program.account(storage).unwrap();
 
     // println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
-
-    // Create a new receier with a token account
-
-    let ix = Transaction::new_signed_with_payer(
-        &[create_associated_token_account(
-            &authority.pubkey(),
-            &receiver.pubkey(),
-            &token_mint_key,
-            &anchor_spl::token::ID,
-        )],
-        Some(&authority.pubkey()),
-        &[&*authority],
-        sol_rpc_client.get_latest_blockhash().unwrap(),
-    );
-    let tx = sol_rpc_client
-        .send_transaction_with_config(&ix, RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })
-        .unwrap();
-
-
-    println!("this is token account creation signature {}", tx);
 
     let base_denom: BaseDenom = BaseDenom::from_str(DENOM).unwrap();
     let token: BaseCoin =
@@ -374,6 +349,9 @@ fn anchor_test_deliver() -> Result<()> {
         timeout_timestamp_on_b: Timestamp::none(),
     };
 
+
+    let proof_height_on_a = mock_client_state.header.height;
+
     let message = make_message!(
         MsgRecvPacket {
             packet,
@@ -381,7 +359,7 @@ fn anchor_test_deliver() -> Result<()> {
                 serialized_data
             )
             .unwrap(),
-            proof_height_on_a: solana_ibc_storage_account.height,
+            proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
         ibc::core::ics04_channel::msgs::PacketMsg::Recv,

@@ -41,6 +41,7 @@ use ibc::{
     core::{ics02_client::ClientExecutionContext, ValidationContext},
     mock::client_state::MockClientState,
 };
+use storage::IbcPackets;
 
 const CHAIN_SEED: &[u8] = b"chain";
 const PACKET_SEED: &[u8] = b"packet";
@@ -50,8 +51,6 @@ const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 const CONNECTION_ID_PREFIX: &str = "connection-";
 const CHANNEL_ID_PREFIX: &str = "channel-";
-
-use crate::storage::IBCPackets;
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
@@ -155,13 +154,13 @@ pub mod solana_ibc {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         // msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+        let packets = &mut ctx.accounts.packets;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
@@ -216,7 +215,7 @@ pub mod solana_ibc {
             // msg!("This is private: {private:?}");
             let provable =
                 storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-            let packets: &mut IBCPackets = &mut ctx.accounts.packets;
+            let packets: &mut IbcPackets = &mut ctx.accounts.packets;
             let accounts = ctx.remaining_accounts;
 
             let host_head = host::Head::get()?;
@@ -447,7 +446,7 @@ pub struct Deliver<'info> {
 
     /// The account holding packets.
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
-    packets: Account<'info, IBCPackets>,
+    packets: Account<'info, storage::IbcPackets>,
 
     // /// The guest blockchain data.
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
@@ -477,7 +476,7 @@ pub struct MockDeliver<'info> {
 
     /// The account holding packets.
     #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
-    packets: Box<Account<'info, IBCPackets>>,
+    packets: Box<Account<'info, IbcPackets>>,
 
     /// The below accounts are being created for testing purposes only.
     /// In real, we would run conditionally create an escrow account when the channel is created.

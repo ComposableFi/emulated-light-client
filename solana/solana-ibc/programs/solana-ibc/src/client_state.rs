@@ -27,7 +27,7 @@ use ibc_proto::protobuf::Protobuf;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 
-#[derive(Clone, Debug, PartialEq, derive_more::From)]
+#[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
     #[cfg(any(test, feature = "mocks"))]
@@ -546,11 +546,8 @@ impl IbcStorage<'_, '_, '_> {
         let store = self.borrow();
         let mut range = store.private.consensus_states.range(range);
         if dir == Direction::Next { range.next() } else { range.next_back() }
-            .map(|(_, data)| borsh::BorshDeserialize::try_from_slice(data))
+            .map(|(_, data)| data.get())
             .transpose()
-            .map_err(|err| err.to_string())
-            .map_err(|description| {
-                ContextError::from(ClientError::ClientSpecific { description })
-            })
+            .map_err(|err| err.into())
     }
 }
