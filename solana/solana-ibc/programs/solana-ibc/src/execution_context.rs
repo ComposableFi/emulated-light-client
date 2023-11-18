@@ -24,8 +24,8 @@ use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
+use crate::storage::trie_key::TrieKey;
 use crate::storage::{self, IbcStorage};
-use crate::trie_key::TrieKey;
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
@@ -339,7 +339,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 impl storage::IbcStorageInner<'_, '_> {
     fn store_next_sequence(
         &mut self,
-        path: crate::trie_key::SequencePath<'_>,
+        path: storage::trie_key::SequencePath<'_>,
         index: storage::SequenceTripleIdx,
         seq: Sequence,
     ) -> Result {

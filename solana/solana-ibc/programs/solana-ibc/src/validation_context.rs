@@ -24,8 +24,8 @@ use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::storage::IbcStorage;
-use crate::trie_key::TrieKey;
+use crate::storage::trie_key::TrieKey;
+use crate::storage::{self, IbcStorage};
 
 type Result<T = (), E = ContextError> = core::result::Result<T, E>;
 
@@ -145,42 +145,33 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
-        self.get_next_sequence(
-            path.into(),
-            crate::storage::SequenceTripleIdx::Send,
-        )
-        .map_err(|(port_id, channel_id)| {
-            ContextError::PacketError(PacketError::MissingNextSendSeq {
-                port_id,
-                channel_id,
+        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Send)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextSendSeq {
+                    port_id,
+                    channel_id,
+                })
             })
-        })
     }
 
     fn get_next_sequence_recv(&self, path: &SeqRecvPath) -> Result<Sequence> {
-        self.get_next_sequence(
-            path.into(),
-            crate::storage::SequenceTripleIdx::Recv,
-        )
-        .map_err(|(port_id, channel_id)| {
-            ContextError::PacketError(PacketError::MissingNextRecvSeq {
-                port_id,
-                channel_id,
+        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Recv)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextRecvSeq {
+                    port_id,
+                    channel_id,
+                })
             })
-        })
     }
 
     fn get_next_sequence_ack(&self, path: &SeqAckPath) -> Result<Sequence> {
-        self.get_next_sequence(
-            path.into(),
-            crate::storage::SequenceTripleIdx::Ack,
-        )
-        .map_err(|(port_id, channel_id)| {
-            ContextError::PacketError(PacketError::MissingNextAckSeq {
-                port_id,
-                channel_id,
+        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Ack)
+            .map_err(|(port_id, channel_id)| {
+                ContextError::PacketError(PacketError::MissingNextAckSeq {
+                    port_id,
+                    channel_id,
+                })
             })
-        })
     }
 
     fn get_packet_commitment(
@@ -321,8 +312,8 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
 impl IbcStorage<'_, '_> {
     fn get_next_sequence(
         &self,
-        path: crate::trie_key::SequencePath<'_>,
-        index: crate::storage::SequenceTripleIdx,
+        path: crate::storage::trie_key::SequencePath<'_>,
+        index: storage::SequenceTripleIdx,
     ) -> core::result::Result<
         Sequence,
         (

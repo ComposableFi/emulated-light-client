@@ -16,9 +16,6 @@ const PACKET_SEED: &[u8] = b"packet";
 const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 const TRIE_SEED: &[u8] = b"trie";
 
-const CONNECTION_ID_PREFIX: &str = "connection-";
-const CHANNEL_ID_PREFIX: &str = "channel-";
-
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
 mod chain;
@@ -33,7 +30,6 @@ mod storage;
 #[cfg(test)]
 mod tests;
 mod transfer;
-mod trie_key;
 mod validation_context;
 // mod client_context;
 
