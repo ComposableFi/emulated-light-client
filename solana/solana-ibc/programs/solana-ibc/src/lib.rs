@@ -484,9 +484,9 @@ pub struct MockDeliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED], bump, space = 100)]
     /// CHECK:
     mint_authority: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes().as_ref()], bump, mint::decimals = 6, mint::authority = mint_authority)]
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()], bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
-    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()], bump, token::mint = token_mint, token::authority = sender)]
+    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id.as_bytes()], bump, token::mint = token_mint, token::authority = sender)]
     escrow_account: Box<Account<'info, TokenAccount>>,
     #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
     sender_token_account: Box<Account<'info, TokenAccount>>,

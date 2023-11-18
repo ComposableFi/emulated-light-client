@@ -22,7 +22,7 @@ impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(Pubkey::from_str(&value.as_ref()).map(Self)?)
+        Pubkey::from_str(value.as_ref()).map(Self)
     }
 }
 
@@ -99,7 +99,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap())
+        anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
+        Ok(())
     }
 
     fn mint_coins_execute(
@@ -133,7 +134,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             get_account_info_from_key(accounts, mint_authority_key)?;
 
         let bump_vector = mint_authority_bump.to_le_bytes();
-        let inner = vec![MINT_ESCROW_SEED.as_ref(), bump_vector.as_ref()];
+        let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
         let outer = vec![inner.as_slice()];
 
         // Below is the actual instruction that we are going to send to the Token program.
@@ -148,7 +149,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::mint_to(cpi_ctx, amount_in_u64).unwrap())
+        anchor_spl::token::mint_to(cpi_ctx, amount_in_u64).unwrap();
+        Ok(())
     }
 
     fn burn_coins_execute(
@@ -194,7 +196,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             outer.as_slice(), //signer PDA
         );
 
-        Ok(anchor_spl::token::burn(cpi_ctx, amount_in_u64).unwrap())
+        anchor_spl::token::burn(cpi_ctx, amount_in_u64).unwrap();
+        Ok(())
     }
 }
 
@@ -211,7 +214,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
         let seeds =
-            [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
+            [port_id.as_bytes(), channel_id.as_bytes()];
         let (escrow_account_key, _bump) =
             Pubkey::find_program_address(&seeds, &crate::ID);
         Ok(AccountId(escrow_account_key))
