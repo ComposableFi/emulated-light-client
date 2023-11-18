@@ -200,32 +200,13 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         commitment: PacketCommitment,
     ) -> Result {
         msg!("store_packet_commitment({}, {:?})", path, commitment);
-        let mut store = self.borrow_mut();
-        let trie_key = TrieKey::from(path);
-        // PacketCommitment is always 32-byte long.
-        let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        store.provable.set(&trie_key, commitment).unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_commitment_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        // Note: PacketCommitment is always 32-byte long.
+        self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
     }
 
     fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
         msg!("delete_packet_commitment({})", path);
-        let mut store = self.borrow_mut();
-        let trie_key = TrieKey::from(path);
-        store.provable.del(&trie_key).unwrap();
-        delete_packet_sequence(
-            &mut store.private.packet_commitment_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.delete_commitment(TrieKey::try_from(path)?)
     }
 
     fn store_packet_receipt(
@@ -234,10 +215,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         Receipt::Ok: Receipt,
     ) -> Result {
         msg!("store_packet_receipt({}, Ok)", path);
-        let mut store = self.borrow_mut();
-        let trie_key = TrieKey::from(path);
-        store.provable.set_and_seal(&trie_key, &CryptoHash::DEFAULT).unwrap();
-        Ok(())
+        self.store_commitment(TrieKey::try_from(path)?, &[0; 32][..])
     }
 
     fn store_packet_acknowledgement(
@@ -246,32 +224,13 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         commitment: AcknowledgementCommitment,
     ) -> Result {
         msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
-        let mut store = self.borrow_mut();
-        let trie_key = TrieKey::from(path);
-        // AcknowledgementCommitment is always 32-byte long.
-        let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        store.provable.set(&trie_key, commitment).unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_acknowledgement_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        // Note: AcknowledgementCommitment is always 32-byte long.
+        self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
     }
 
     fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
         msg!("delete_packet_acknowledgement({})", path);
-        let mut store = self.borrow_mut();
-        let trie_key = TrieKey::from(path);
-        store.provable.del(&trie_key).unwrap();
-        delete_packet_sequence(
-            &mut store.private.packet_acknowledgement_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.delete_commitment(TrieKey::try_from(path)?)
     }
 
     fn store_channel(
@@ -280,10 +239,12 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         channel_end: ChannelEnd,
     ) -> Result {
         msg!("store_channel({}, {:?})", path, channel_end);
+        let port_channel = ids::PortChannelPK::try_from(&path.0, &path.1)?;
+        let trie_key = TrieKey::for_channel_end(&port_channel);
         self.borrow_mut().store_serialised_proof(
             |private| &mut private.channel_ends,
-            (path.0.to_string(), path.1.to_string()),
-            &TrieKey::from(path),
+            port_channel,
+            &trie_key,
             &channel_end,
         )
     }
@@ -294,7 +255,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
-        self.borrow_mut().store_next_sequence(
+        self.store_next_sequence(
             path.into(),
             storage::SequenceTripleIdx::Send,
             seq,
@@ -307,7 +268,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
-        self.borrow_mut().store_next_sequence(
+        self.store_next_sequence(
             path.into(),
             storage::SequenceTripleIdx::Recv,
             seq,
@@ -320,7 +281,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         seq: Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {}, seq: {}", path, seq);
-        self.borrow_mut().store_next_sequence(
+        self.store_next_sequence(
             path.into(),
             storage::SequenceTripleIdx::Ack,
             seq,
@@ -349,25 +310,36 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl storage::IbcStorageInner<'_, '_> {
+impl storage::IbcStorage<'_, '_> {
+    fn store_commitment(&mut self, key: TrieKey, commitment: &[u8]) -> Result {
+        // Caller promises that commitment is always 32 bytes.
+        let commitment = <&CryptoHash>::try_from(commitment).unwrap();
+        self.borrow_mut().provable.set(&key, commitment).map_err(error)
+    }
+
+    fn delete_commitment(&mut self, key: TrieKey) -> Result {
+        self.borrow_mut().provable.del(&key).map(|_| ()).map_err(error)
+    }
+
     fn store_next_sequence(
         &mut self,
         path: storage::trie_key::SequencePath<'_>,
         index: storage::SequenceTripleIdx,
         seq: Sequence,
     ) -> Result {
-        let trie = &mut self.provable;
-        let next_seq = &mut self.private.next_sequence;
-        let map_key = (path.port_id.to_string(), path.channel_id.to_string());
-        let triple = next_seq.entry(map_key).or_default();
-        triple.set(index, seq);
-
-        let trie_key = TrieKey::from(path);
-        trie.set(&trie_key, &triple.to_hash()).unwrap();
-
-        Ok(())
+        let key = ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        let trie_key = TrieKey::for_next_sequence(&key);
+        let mut store = self.borrow_mut();
+        let hash = {
+            let triple = store.private.next_sequence.entry(key).or_default();
+            triple.set(index, seq);
+            triple.to_hash()
+        };
+        store.provable.set(&trie_key, &hash).map_err(error)
     }
+}
 
+impl storage::IbcStorageInner<'_, '_> {
     /// Serialises `value` and stores it in private storage along with its
     /// commitment in provable storage.
     ///
@@ -388,41 +360,6 @@ impl storage::IbcStorageInner<'_, '_> {
         self.provable.set(trie_key, &serialised.digest()).map_err(error)?;
         get_map(self.private).insert(key, serialised);
         Ok(())
-    }
-}
-
-type SequencesMap =
-    BTreeMap<(storage::InnerPortId, storage::InnerChannelId), Vec<Sequence>>;
-
-/// Adds sequence to given per-channel set.
-fn record_packet_sequence(
-    map: &mut SequencesMap,
-    port_id: &ibc::core::ics24_host::identifier::PortId,
-    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
-    sequence: Sequence,
-) {
-    let key = (port_id.to_string(), channel_id.to_string());
-    map.entry(key).or_default().push(sequence);
-}
-
-/// Removes sequence from given per-channel set.
-fn delete_packet_sequence(
-    map: &mut SequencesMap,
-    port_id: &ibc::core::ics24_host::identifier::PortId,
-    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
-    sequence: Sequence,
-) {
-    use alloc::collections::btree_map::Entry;
-
-    let key = (port_id.to_string(), channel_id.to_string());
-    if let Entry::Occupied(mut entry) = map.entry(key) {
-        let set = entry.get_mut();
-        if let Some(pos) = set.iter().position(|s| *s == sequence) {
-            set.swap_remove(pos);
-            if set.is_empty() {
-                entry.remove();
-            }
-        }
     }
 }
 

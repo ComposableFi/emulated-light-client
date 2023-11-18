@@ -1,11 +1,9 @@
-use ibc::core::ics04_channel::packet::Sequence;
-use ibc::core::ics24_host::identifier::{ChannelId, PortId};
-use ibc::core::ics24_host::path::{
-    AckPath, ChannelEndPath, CommitmentPath, ReceiptPath, SeqAckPath,
-    SeqRecvPath, SeqSendPath,
+use ibc::path::{
+    AckPath, CommitmentPath, ReceiptPath, SeqAckPath, SeqRecvPath, SeqSendPath,
 };
 
-use crate::storage::ids;
+use crate::storage::{ibc, ids};
+
 
 /// A key used for indexing entries in the provable storage.
 ///
@@ -38,8 +36,8 @@ pub struct TrieKey(Vec<u8>);
 
 /// A path for next send, receive and ack sequence paths.
 pub struct SequencePath<'a> {
-    pub port_id: &'a PortId,
-    pub channel_id: &'a ChannelId,
+    pub port_id: &'a ibc::PortId,
+    pub channel_id: &'a ibc::ChannelId,
 }
 
 /// Constructs a new [`TrieKey`] by concatenating key components.
@@ -85,39 +83,39 @@ impl TrieKey {
         new_key_impl!(Tag::Connection, connection)
     }
 
+    /// Constructs a new key for a channel end path.
+    pub fn for_channel_end(port_channel: &ids::PortChannelPK) -> Self {
+        Self::for_channel_path(Tag::ChannelEnd, port_channel)
+    }
+
+    pub fn for_next_sequence(port_channel: &ids::PortChannelPK) -> Self {
+        Self::for_channel_path(Tag::NextSequence, port_channel)
+    }
+
     /// Constructs a new key for a `(port_id, channel_id)` path.
     ///
     /// Panics if `channel_id` is invalid.
-    fn from_channel_path(
-        tag: Tag,
-        port_id: &PortId,
-        channel_id: &ChannelId,
-    ) -> Self {
-        new_key_impl!(tag, port_id, channel_id)
+    fn for_channel_path(tag: Tag, port_channel: &ids::PortChannelPK) -> Self {
+        new_key_impl!(tag, port_channel)
     }
 
     /// Constructs a new key for a `(port_id, channel_id, sequence)` path.
     ///
     /// Panics if `channel_id` is invalid.
-    fn from_sequence_path(
+    fn try_for_sequence_path(
         tag: Tag,
-        port_id: &PortId,
-        channel_id: &ChannelId,
-        sequence: Sequence,
-    ) -> Self {
-        new_key_impl!(tag, port_id, channel_id, sequence)
+        port_id: &ibc::PortId,
+        channel_id: &ibc::ChannelId,
+        sequence: ibc::Sequence,
+    ) -> Result<Self, ibc::ChannelError> {
+        let port_channel = ids::PortChannelPK::try_from(port_id, channel_id)?;
+        Ok(new_key_impl!(tag, port_channel, sequence))
     }
 }
 
 impl core::ops::Deref for TrieKey {
     type Target = [u8];
     fn deref(&self) -> &[u8] { self.0.as_slice() }
-}
-
-impl From<&ChannelEndPath> for TrieKey {
-    fn from(path: &ChannelEndPath) -> Self {
-        Self::from_channel_path(Tag::ChannelEnd, &path.0, &path.1)
-    }
 }
 
 impl<'a> From<&'a SeqSendPath> for SequencePath<'a> {
@@ -138,19 +136,19 @@ impl<'a> From<&'a SeqAckPath> for SequencePath<'a> {
     }
 }
 
-impl From<SequencePath<'_>> for TrieKey {
-    fn from(path: SequencePath<'_>) -> Self {
-        Self::from_channel_path(
-            Tag::NextSequence,
-            path.port_id,
-            path.channel_id,
-        )
+impl TryFrom<SequencePath<'_>> for TrieKey {
+    type Error = ibc::ChannelError;
+    fn try_from(path: SequencePath<'_>) -> Result<Self, Self::Error> {
+        let port_channel =
+            ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        Ok(Self::for_channel_path(Tag::NextSequence, &port_channel))
     }
 }
 
-impl From<&CommitmentPath> for TrieKey {
-    fn from(path: &CommitmentPath) -> Self {
-        Self::from_sequence_path(
+impl TryFrom<&CommitmentPath> for TrieKey {
+    type Error = ibc::ChannelError;
+    fn try_from(path: &CommitmentPath) -> Result<Self, Self::Error> {
+        Self::try_for_sequence_path(
             Tag::Commitment,
             &path.port_id,
             &path.channel_id,
@@ -159,9 +157,10 @@ impl From<&CommitmentPath> for TrieKey {
     }
 }
 
-impl From<&ReceiptPath> for TrieKey {
-    fn from(path: &ReceiptPath) -> Self {
-        Self::from_sequence_path(
+impl TryFrom<&ReceiptPath> for TrieKey {
+    type Error = ibc::ChannelError;
+    fn try_from(path: &ReceiptPath) -> Result<Self, Self::Error> {
+        Self::try_for_sequence_path(
             Tag::Receipt,
             &path.port_id,
             &path.channel_id,
@@ -170,9 +169,10 @@ impl From<&ReceiptPath> for TrieKey {
     }
 }
 
-impl From<&AckPath> for TrieKey {
-    fn from(path: &AckPath) -> Self {
-        Self::from_sequence_path(
+impl TryFrom<&AckPath> for TrieKey {
+    type Error = ibc::ChannelError;
+    fn try_from(path: &AckPath) -> Result<Self, Self::Error> {
+        Self::try_for_sequence_path(
             Tag::Ack,
             &path.port_id,
             &path.channel_id,
@@ -206,34 +206,36 @@ trait AsComponent {
     fn append_into(&self, dest: &mut Vec<u8>);
 }
 
-impl AsComponent for ids::ClientIdx {
-    fn key_len(&self) -> usize { 0_u32.key_len() }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        u32::from(*self).append_into(dest)
-    }
+/// Implements [`AsComponent`] for types which are `Copy` and `Into<T>` for type
+/// `T` which implements `AsComponent`.
+macro_rules! cast_component {
+    ($component:ty as $ty:ty) => {
+        impl AsComponent for $component {
+            fn key_len(&self) -> usize { <$ty>::from(*self).key_len() }
+            fn append_into(&self, dest: &mut Vec<u8>) {
+                <$ty>::from(*self).append_into(dest)
+            }
+        }
+    };
 }
 
-impl AsComponent for ids::ConnectionIdx {
-    fn key_len(&self) -> usize { 0_u32.key_len() }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        u32::from(*self).append_into(dest)
-    }
-}
+cast_component!(ids::ClientIdx as u32);
+cast_component!(ids::ConnectionIdx as u32);
+cast_component!(ibc::Sequence as u64);
 
-// TODO(#35): Investigate weather we can impose restrictions on port
-// identifiers, e.g. `port-<num>`.
-impl AsComponent for ibc::core::ics24_host::identifier::PortId {
-    fn key_len(&self) -> usize { self.as_str().key_len() }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        self.as_str().append_into(dest)
+// TODO(#35): Investigate more compact ways of representing port identifier or
+// enforcing restrictions on it
+impl AsComponent for ids::PortChannelPK {
+    fn key_len(&self) -> usize {
+        let port_id_len = self.port_id.as_bytes().len();
+        assert!(port_id_len <= usize::from(u8::MAX));
+        1 + port_id_len + u32::from(self.channel_idx).key_len()
     }
-}
-
-impl AsComponent for ibc::core::ics24_host::identifier::ChannelId {
-    fn key_len(&self) -> usize { 0_u32.key_len() }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        parse_sans_prefix(ids::CHANNEL_ID_PREFIX, self.as_str())
-            .append_into(dest)
+        let port_id = self.port_id.as_bytes();
+        dest.push(port_id.len() as u8);
+        dest.extend(port_id);
+        u32::from(self.channel_idx).append_into(dest);
     }
 }
 
@@ -242,29 +244,6 @@ impl AsComponent for ibc::Height {
     fn append_into(&self, dest: &mut Vec<u8>) {
         self.revision_number().append_into(dest);
         self.revision_height().append_into(dest);
-    }
-}
-
-impl AsComponent for ibc::core::ics04_channel::packet::Sequence {
-    fn key_len(&self) -> usize { 0_u64.key_len() }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        u64::from(*self).append_into(dest)
-    }
-}
-
-impl AsComponent for str {
-    fn key_len(&self) -> usize {
-        assert!(self.len() <= usize::from(u8::MAX));
-        1 + self.len()
-    }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        // TODO(#35): Perhaps it would be worth to compress the value.  For
-        // identifiers longer than 32 bytes we could hash them to limit the
-        // length of the encoding to 33 bytes.  And since we can assume the
-        // string is ASCII for shorter values we could pack each 8 bytes into 7
-        // bytes (though this is probably not really worth it).
-        dest.push(self.len() as u8);
-        dest.extend(self.as_bytes());
     }
 }
 
@@ -280,12 +259,4 @@ impl AsComponent for u64 {
     fn append_into(&self, dest: &mut Vec<u8>) {
         dest.extend(&self.to_be_bytes()[..]);
     }
-}
-
-/// Strips `prefix` from `data` and parses it to get `u32`.  Panics if data
-/// doesn’t start with the prefix or parsing fails.
-fn parse_sans_prefix(prefix: &'static str, data: &str) -> u32 {
-    data.strip_prefix(prefix)
-        .and_then(|id| id.parse().ok())
-        .unwrap_or_else(|| panic!("invalid identifier: {data}"))
 }
