@@ -184,6 +184,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     ///
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
+    #[allow(dead_code)]
     pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b, 'c>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }

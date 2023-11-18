@@ -161,7 +161,7 @@ pub mod solana_ibc {
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
@@ -189,7 +189,7 @@ pub mod solana_ibc {
 
         // `store` is the only reference to inner storage making refcount == 1
         // which means try_into_inner will succeed.
-        let inner = store.try_into_inner().unwrap();
+        // let inner = store.try_into_inner().unwrap();
 
         // msg!("This is final structure {:?}", inner.private);
 
@@ -450,8 +450,8 @@ pub struct Deliver<'info> {
     packets: Account<'info, IBCPackets>,
 
     // /// The guest blockchain data.
-    // #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
-    // chain: Box<Account<'info, chain::ChainData>>,
+    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10000)]
+    chain: Box<Account<'info, chain::ChainData>>,
     system_program: Program<'info, System>,
 }
 

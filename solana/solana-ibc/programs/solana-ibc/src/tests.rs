@@ -75,7 +75,7 @@ pub struct DeliverWithRemainingAccounts {
     storage: Pubkey,
     trie: Pubkey,
     packets: Pubkey,
-    // chain: Pubkey,
+    chain: Pubkey,
     system_program: Pubkey,
     remaining_accounts: Vec<Pubkey>,
 }
@@ -106,11 +106,11 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
                 is_signer: false,
                 is_writable: true,
             },
-            // AccountMeta {
-            //     pubkey: self.chain,
-            //     is_signer: false,
-            //     is_writable: true,
-            // },
+            AccountMeta {
+                pubkey: self.chain,
+                is_signer: false,
+                is_writable: true,
+            },
             AccountMeta {
                 pubkey: self.system_program,
                 is_signer: false,
@@ -182,7 +182,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             packets,
-            // chain,
+            chain,
             system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
@@ -238,7 +238,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             packets,
-            // chain: chain.clone(),
+            chain: chain.clone(),
             system_program: system_program::ID,
         })
         .args(instruction::Deliver { message })
@@ -420,7 +420,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             system_program: system_program::ID,
             packets,
-            // chain,
+            chain,
             remaining_accounts,
         })
         .args(instruction::Deliver { message })
