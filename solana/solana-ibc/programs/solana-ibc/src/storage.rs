@@ -219,10 +219,11 @@ impl PrivateStorage {
         client_id: &ibc::ClientId,
         create: bool,
     ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
-        self.client_mut_impl(client_id, create)
-            .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
+        self.client_mut_impl(client_id, create).ok_or_else(|| {
+            ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
-            })
+            }
+        })
     }
 
     fn client_mut_impl(
@@ -239,8 +240,8 @@ impl PrivateStorage {
             Ordering::Equal if create => {
                 self.clients.push(ClientStore::new(client_id.clone()));
                 self.clients.last_mut().map(|client| (idx, client))
-            },
-            _ => None
+            }
+            _ => None,
         }
     }
 
