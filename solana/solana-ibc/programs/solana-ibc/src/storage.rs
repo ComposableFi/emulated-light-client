@@ -21,6 +21,9 @@ mod ibc {
     pub use ibc::Height;
 }
 
+pub(crate) mod ids;
+pub(crate) mod trie_key;
+
 pub(crate) type SolanaTimestamp = u64;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
@@ -78,47 +81,6 @@ impl SequenceTriple {
         hash
     }
 }
-
-/// An index used as unique identifier for a client.
-///
-/// IBC client id uses `<client-type>-<counter>` format.  This index is
-/// constructed from a client id by stripping the client type.  Since counter is
-/// unique within an IBC module, the index is enough to identify a known client.
-///
-/// To avoid confusing identifiers with the same counter but different client
-/// type (which may be crafted by an attacker), we always check that client type
-/// matches one we know.  Because of this check, to get `ClientIdx`
-/// [`PrivateStorage::client`] needs to be used.
-///
-/// The index is guaranteed to fit `u32` and `usize`.
-#[derive(Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
-pub struct ClientIdx(u32);
-
-impl From<ClientIdx> for usize {
-    #[inline]
-    fn from(index: ClientIdx) -> usize { index.0 as usize }
-}
-
-impl core::str::FromStr for ClientIdx {
-    type Err = core::num::ParseIntError;
-
-    #[inline]
-    fn from_str(value: &str) -> Result<Self, Self::Err> {
-        if core::mem::size_of::<usize>() < 4 {
-            usize::from_str(value).map(|index| Self(index as u32))
-        } else {
-            u32::from_str(value).map(Self)
-        }
-    }
-}
-
-impl PartialEq<usize> for ClientIdx {
-    #[inline]
-    fn eq(&self, rhs: &usize) -> bool {
-        u32::try_from(*rhs).ok().filter(|rhs| self.0 == *rhs).is_some()
-    }
-}
-
 
 /// Per-client private storage.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
@@ -192,7 +154,7 @@ impl PrivateStorage {
     pub fn client(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<(ClientIdx, &ClientStore), ibc::ClientError> {
+    ) -> Result<(ids::ClientIdx, &ClientStore), ibc::ClientError> {
         self.client_index(client_id)
             .and_then(|idx| {
                 self.clients
@@ -218,7 +180,7 @@ impl PrivateStorage {
         &mut self,
         client_id: &ibc::ClientId,
         create: bool,
-    ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
+    ) -> Result<(ids::ClientIdx, &mut ClientStore), ibc::ClientError> {
         self.client_mut_impl(client_id, create).ok_or_else(|| {
             ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
@@ -230,7 +192,7 @@ impl PrivateStorage {
         &mut self,
         client_id: &ibc::ClientId,
         create: bool,
-    ) -> Option<(ClientIdx, &mut ClientStore)> {
+    ) -> Option<(ids::ClientIdx, &mut ClientStore)> {
         use core::cmp::Ordering;
 
         let idx = self.client_index(client_id)?;
@@ -245,7 +207,10 @@ impl PrivateStorage {
         }
     }
 
-    fn client_index(&self, client_id: &ibc::ClientId) -> Option<ClientIdx> {
+    fn client_index(
+        &self,
+        client_id: &ibc::ClientId,
+    ) -> Option<ids::ClientIdx> {
         client_id
             .as_str()
             .rsplit_once('-')
