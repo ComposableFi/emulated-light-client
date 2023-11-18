@@ -202,20 +202,6 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     pub fn borrow_mut<'c>(&'c self) -> RefMut<'c, IbcStorageInner<'a, 'b>> {
         self.0.borrow_mut()
     }
-
-    /// Mutably borrows private and provable storage.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the value is currently borrowed.
-    pub fn split_borrow_mut<'s>(
-        &'s self,
-    ) -> (RefMut<'s, &'a mut PrivateStorage>, RefMut<'s, AccountTrie<'a, 'b>>)
-    {
-        RefMut::map_split(self.borrow_mut(), |this| {
-            (&mut this.private, &mut this.provable)
-        })
-    }
 }
 
 

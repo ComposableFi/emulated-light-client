@@ -40,11 +40,9 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         state: Self::AnyClientState,
     ) -> Result {
         msg!("store_client_state({}, {:?})", path, state);
-        let (mut private, mut provable) = self.split_borrow_mut();
-        store_serialised_proof(
-            &mut private.clients,
+        self.borrow_mut().store_serialised_proof(
+            |private| &mut private.clients,
             path.0.to_string(),
-            &mut provable,
             &TrieKey::from(&path),
             &state,
         )
@@ -57,11 +55,9 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     ) -> Result {
         msg!("store_consensus_state({}, {:?})", path, state);
         let height = Height::new(path.epoch, path.height)?;
-        let (mut private, mut provable) = self.split_borrow_mut();
-        store_serialised_proof(
-            &mut private.consensus_states,
+        self.borrow_mut().store_serialised_proof(
+            |private| &mut private.consensus_states,
             (path.client_id.to_string(), height),
-            &mut provable,
             &TrieKey::from(&path),
             &state,
         )
@@ -158,11 +154,9 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         connection_end: ConnectionEnd,
     ) -> Result {
         msg!("store_connection({}, {:?})", path, connection_end);
-        let (mut private, mut provable) = self.split_borrow_mut();
-        store_serialised_proof(
-            &mut private.connections,
+        self.borrow_mut().store_serialised_proof(
+            |private| &mut private.connections,
             path.0.to_string(),
-            &mut provable,
             &TrieKey::from(path),
             &connection_end,
         )
@@ -283,11 +277,9 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         channel_end: ChannelEnd,
     ) -> Result {
         msg!("store_channel({}, {:?})", path, channel_end);
-        let (mut private, mut provable) = self.split_borrow_mut();
-        store_serialised_proof(
-            &mut private.channel_ends,
+        self.borrow_mut().store_serialised_proof(
+            |private| &mut private.channel_ends,
             (path.0.to_string(), path.1.to_string()),
-            &mut provable,
             &TrieKey::from(path),
             &channel_end,
         )
@@ -373,22 +365,30 @@ impl storage::IbcStorageInner<'_, '_> {
 
         Ok(())
     }
-}
 
-/// Serialises value and stores its hash in trie under given key.  Returns the
-/// serialised value.
-fn store_serialised_proof<K: Ord, V: borsh::BorshSerialize>(
-    private: &mut BTreeMap<K, storage::Serialised<V>>,
-    private_key: K,
-    trie: &mut storage::AccountTrie<'_, '_>,
-    trie_key: &TrieKey,
-    value: &V,
-) -> Result {
-    let serialised = storage::Serialised::new(value)?;
-    trie.set(trie_key, &serialised.digest())
-        .map_err(|err| ClientError::Other { description: err.to_string() })?;
-    private.insert(private_key, serialised);
-    Ok(())
+    /// Serialises `value` and stores it in private storage along with its
+    /// commitment in provable storage.
+    ///
+    /// Serialises `value` and a) stores hash of the serialised object (i.e. its
+    /// commitment) in the provable storage under key `trie_key` and b) stores
+    /// the serialised object itself in map returned my `get_map` under the key
+    /// `key`.
+    fn store_serialised_proof<K: Ord, V: borsh::BorshSerialize>(
+        &mut self,
+        get_map: impl FnOnce(
+            &mut storage::PrivateStorage,
+        ) -> &mut BTreeMap<K, storage::Serialised<V>>,
+        key: K,
+        trie_key: &TrieKey,
+        value: &V,
+    ) -> Result {
+        let serialised = storage::Serialised::new(value)?;
+        self.provable
+            .set(trie_key, &serialised.digest())
+            .map_err(|e| ClientError::Other { description: e.to_string() })?;
+        get_map(&mut self.private).insert(key, serialised);
+        Ok(())
+    }
 }
 
 type SequencesMap =
