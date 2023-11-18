@@ -386,7 +386,7 @@ impl storage::IbcStorageInner<'_, '_> {
         self.provable
             .set(trie_key, &serialised.digest())
             .map_err(|e| ClientError::Other { description: e.to_string() })?;
-        get_map(&mut self.private).insert(key, serialised);
+        get_map(self.private).insert(key, serialised);
         Ok(())
     }
 }
