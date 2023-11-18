@@ -544,11 +544,8 @@ impl IbcStorage<'_, '_> {
         let store = self.borrow();
         let mut range = store.private.consensus_states.range(range);
         if dir == Direction::Next { range.next() } else { range.next_back() }
-            .map(|(_, data)| borsh::BorshDeserialize::try_from_slice(data))
+            .map(|(_, data)| data.get())
             .transpose()
-            .map_err(|err| err.to_string())
-            .map_err(|description| {
-                ContextError::from(ClientError::ClientSpecific { description })
-            })
+            .map_err(|err| err.into())
     }
 }

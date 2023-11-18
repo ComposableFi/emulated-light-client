@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::{borsh, Pubkey};
+use anchor_lang::prelude::Pubkey;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -39,13 +39,15 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
-        deserialise(
-            self.borrow().private.clients.get(client_id.as_str()),
-            || ClientError::ClientStateNotFound {
+        self.borrow()
+            .private
+            .clients
+            .get(client_id.as_str())
+            .ok_or_else(|| ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
-            },
-            |description| ClientError::Other { description },
-        )
+            })?
+            .get()
+            .map_err(Into::into)
     }
 
     fn decode_client_state(
@@ -60,24 +62,16 @@ impl ValidationContext for IbcStorage<'_, '_> {
         path: &ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
         let height = Height::new(path.epoch, path.height)?;
-        let key = &(path.client_id.to_string(), height);
-        let state = self
-            .borrow()
+        self.borrow()
             .private
             .consensus_states
-            .get(key)
-            .map(|data| borsh::BorshDeserialize::try_from_slice(data));
-        match state {
-            Some(Ok(value)) => Ok(value),
-            Some(Err(err)) => Err(ClientError::ClientSpecific {
-                description: err.to_string(),
-            }),
-            None => Err(ClientError::ConsensusStateNotFound {
+            .get(&(path.client_id.to_string(), height))
+            .ok_or_else(|| ClientError::ConsensusStateNotFound {
                 client_id: path.client_id.clone(),
                 height,
-            }),
-        }
-        .map_err(ContextError::from)
+            })?
+            .get()
+            .map_err(Into::into)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
@@ -105,13 +99,15 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
-        deserialise(
-            self.borrow().private.connections.get(conn_id.as_str()),
-            || ConnectionError::ConnectionNotFound {
+        self.borrow()
+            .private
+            .connections
+            .get(conn_id.as_str())
+            .ok_or_else(|| ConnectionError::ConnectionNotFound {
                 connection_id: conn_id.clone(),
-            },
-            |description| ConnectionError::Other { description },
-        )
+            })?
+            .get()
+            .map_err(Into::into)
     }
 
     fn validate_self_client(
@@ -142,14 +138,16 @@ impl ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ChannelEnd> {
         let key =
             (channel_end_path.0.to_string(), channel_end_path.1.to_string());
-        deserialise(
-            self.borrow().private.channel_ends.get(&key),
-            || ChannelError::ChannelNotFound {
+        self.borrow()
+            .private
+            .channel_ends
+            .get(&key)
+            .ok_or_else(|| ChannelError::ChannelNotFound {
                 port_id: channel_end_path.0.clone(),
                 channel_id: channel_end_path.1.clone(),
-            },
-            |description| ChannelError::Other { description },
-        )
+            })?
+            .get()
+            .map_err(Into::into)
     }
 
     fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
@@ -357,17 +355,4 @@ fn calculate_block_delay(
     let delay = delay_period_time.as_secs_f64() /
         max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
-}
-
-fn deserialise<V: borsh::BorshDeserialize, E: Into<ContextError>>(
-    serialised: Option<&Vec<u8>>,
-    not_found: impl FnOnce() -> E,
-    borsh_err: impl FnOnce(String) -> E,
-) -> Result<V> {
-    match serialised.map(|data| V::try_from_slice(data)) {
-        Some(Ok(value)) => Ok(value),
-        Some(Err(err)) => Err(borsh_err(err.to_string())),
-        None => Err(not_found()),
-    }
-    .map_err(|err| err.into())
 }
