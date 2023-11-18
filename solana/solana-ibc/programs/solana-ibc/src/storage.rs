@@ -233,7 +233,7 @@ impl PrivateStorage {
     ) -> Option<(ClientIdx, &mut ClientStore)> {
         use core::cmp::Ordering;
 
-        let idx = self.client_index(&client_id)?;
+        let idx = self.client_index(client_id)?;
         let pos = usize::from(idx);
         match pos.cmp(&self.clients.len()) {
             Ordering::Less => Some((idx, &mut self.clients[pos])),
