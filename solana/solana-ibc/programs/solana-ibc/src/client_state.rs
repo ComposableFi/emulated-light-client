@@ -542,11 +542,9 @@ impl IbcStorage<'_, '_> {
         let store = self.borrow();
         let (_index, client) = store.private.client(client_id)?;
         let mut range = client.consensus_states.range(range);
-        Ok(if dir == Direction::Next {
-            range.next()
-        } else {
-            range.next_back()
-        }
-        .map(|(_, data)| data.clone()))
+        if dir == Direction::Next { range.next() } else { range.next_back() }
+            .map(|(_, data)| data.get())
+            .transpose()
+            .map_err(|err| err.into())
     }
 }

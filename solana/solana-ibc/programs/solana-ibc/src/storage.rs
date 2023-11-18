@@ -1,28 +1,30 @@
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
-use core::cell::RefCell;
+use core::cell::{RefCell, RefMut};
 
 use anchor_lang::prelude::*;
+use borsh::maybestd::io;
 use lib::hash::CryptoHash;
 
 type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
+use crate::client_state::AnyClientState;
+use crate::consensus_state::AnyConsensusState;
+
 mod ibc {
-    pub(super) use ibc::core::ics02_client::error::ClientError;
-    pub(super) use ibc::core::ics04_channel::msgs::PacketMsg;
-    pub(super) use ibc::core::ics04_channel::packet::Sequence;
-    pub(super) use ibc::core::ics24_host::identifier::{
-        ClientId, ConnectionId,
-    };
-    pub(super) use ibc::Height;
+    pub use ibc::core::ics02_client::error::ClientError;
+    pub use ibc::core::ics03_connection::connection::ConnectionEnd;
+    pub use ibc::core::ics04_channel::channel::ChannelEnd;
+    pub use ibc::core::ics04_channel::msgs::PacketMsg;
+    pub use ibc::core::ics04_channel::packet::Sequence;
+    pub use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
+    pub use ibc::Height;
 }
 
 pub(crate) type SolanaTimestamp = u64;
 pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
-pub(crate) type InnerConnectionEnd = Vec<u8>; // Serialized
-pub(crate) type InnerChannelEnd = Vec<u8>; // Serialized
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -124,23 +126,18 @@ pub(crate) struct ClientStore {
     pub client_id: ibc::ClientId,
     pub connection_id: Option<ibc::ConnectionId>,
 
-    pub client_state: crate::client_state::AnyClientState,
-    pub consensus_states:
-        BTreeMap<ibc::Height, crate::consensus_state::AnyConsensusState>,
-
+    pub client_state: Serialised<AnyClientState>,
+    pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
     pub processed_times: BTreeMap<ibc::Height, SolanaTimestamp>,
     pub processed_heights: BTreeMap<ibc::Height, ibc::Height>,
 }
 
 impl ClientStore {
-    fn new(
-        client_id: ibc::ClientId,
-        client_state: crate::client_state::AnyClientState,
-    ) -> Self {
+    fn new(client_id: ibc::ClientId) -> Self {
         Self {
             client_id,
             connection_id: Default::default(),
-            client_state,
+            client_state: Serialised::empty(),
             consensus_states: Default::default(),
             processed_times: Default::default(),
             processed_heights: Default::default(),
@@ -150,7 +147,7 @@ impl ClientStore {
 
 #[account]
 #[derive(Debug)]
-pub struct IBCPackets(pub Vec<ibc::PacketMsg>);
+pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 
 #[account]
 #[derive(Debug)]
@@ -159,13 +156,11 @@ pub struct IBCPackets(pub Vec<ibc::PacketMsg>);
 pub(crate) struct PrivateStorage {
     clients: Vec<ClientStore>,
 
-    /// The connection ids of the connections.
-    pub connection_id_set: Vec<InnerConnectionId>,
     pub connection_counter: u64,
-    pub connections: BTreeMap<InnerConnectionId, InnerConnectionEnd>,
-    pub channel_ends: BTreeMap<(InnerPortId, InnerChannelId), InnerChannelEnd>,
-    /// The port and channel id tuples of the channels.
-    pub port_channel_id_set: Vec<(InnerPortId, InnerChannelId)>,
+    pub connections:
+        BTreeMap<InnerConnectionId, Serialised<ibc::ConnectionEnd>>,
+    pub channel_ends:
+        BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u64,
 
     /// The sequence numbers of the packet commitments.
@@ -215,46 +210,38 @@ impl PrivateStorage {
     /// Client ids use `<client-type>-<counter>` format where <counter> is
     /// sequential.  We take advantage of that by extracting the <counter> and
     /// using it as index in client states.
+    ///
+    /// If `create` argument is true, creates a new client if the index equals
+    /// current count of clients (that is if the index is the next available
+    /// index).
     pub fn client_mut(
         &mut self,
         client_id: &ibc::ClientId,
+        create: bool,
     ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
-        self.client_index(client_id)
-            .and_then(|idx| {
-                self.clients
-                    .get_mut(usize::from(idx))
-                    .filter(|state| state.client_id == *client_id)
-                    .map(|state| (idx, state))
-            })
+        self.client_mut_impl(client_id, create)
             .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
             })
     }
 
-    /// Sets client’s status potentially inserting a new client.
-    ///
-    /// If client’s index is exactly one past the last existing client, inserts
-    /// a new client.  Otherwise, expects the client id to correspond to an
-    /// existing client.
-    pub fn set_client(
+    fn client_mut_impl(
         &mut self,
-        client_id: ibc::ClientId,
-        client_state: crate::client_state::AnyClientState,
-    ) -> Result<(ClientIdx, &mut ClientStore), ibc::ClientError> {
-        if let Some(index) = self.client_index(&client_id) {
-            if index == self.clients.len() {
-                let store = ClientStore::new(client_id, client_state);
-                self.clients.push(store);
-                return Ok((index, self.clients.last_mut().unwrap()));
-            }
-            if let Some(store) = self.clients.get_mut(usize::from(index)) {
-                if store.client_id == client_id {
-                    store.client_state = client_state;
-                    return Ok((index, store));
-                }
-            }
+        client_id: &ibc::ClientId,
+        create: bool,
+    ) -> Option<(ClientIdx, &mut ClientStore)> {
+        use core::cmp::Ordering;
+
+        let idx = self.client_index(&client_id)?;
+        let pos = usize::from(idx);
+        match pos.cmp(&self.clients.len()) {
+            Ordering::Less => Some((idx, &mut self.clients[pos])),
+            Ordering::Equal if create => {
+                self.clients.push(ClientStore::new(client_id.clone()));
+                self.clients.last_mut().map(|client| (idx, client))
+            },
+            _ => None
         }
-        Err(ibc::ClientError::ClientStateNotFound { client_id })
     }
 
     fn client_index(&self, client_id: &ibc::ClientId) -> Option<ClientIdx> {
@@ -267,7 +254,7 @@ impl PrivateStorage {
 
 /// Provable storage, i.e. the trie, held in an account.
 pub type AccountTrie<'a, 'b> =
-    solana_trie::AccountTrie<core::cell::RefMut<'a, &'b mut [u8]>>;
+    solana_trie::AccountTrie<RefMut<'a, &'b mut [u8]>>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
@@ -300,7 +287,7 @@ pub fn get_provable_from<'a, 'info>(
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub packets: &'a mut IBCPackets,
+    pub packets: &'a mut IbcPackets,
     pub host_head: crate::host::Head,
 }
 
@@ -343,9 +330,69 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    pub fn borrow_mut<'c>(
-        &'c self,
-    ) -> core::cell::RefMut<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow_mut<'c>(&'c self) -> RefMut<'c, IbcStorageInner<'a, 'b>> {
         self.0.borrow_mut()
+    }
+}
+
+
+/// A wrapper type for a Borsh-serialised object.
+///
+/// It is kept as a slice of bytes and only deserialised on demand.  This way
+/// the value doesn’t need to be serialised/deserialised each time the account
+/// data is loaded.
+///
+/// Note that while Borsh allows dynamic arrays of up to over 4 billion
+/// elements, to further save space this object is serialised with 2-byte length
+/// prefix which means that the serialised representation of the held object
+/// must less than 64 KiB.  Solana’s heap is only half that so this limit isn’t
+/// an issue.
+#[derive(Clone, Default, Debug)]
+pub(crate) struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
+
+impl<T> Serialised<T> {
+    pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
+
+    pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
+
+    fn make_err(err: io::Error) -> ibc::ClientError {
+        ibc::ClientError::ClientSpecific { description: err.to_string() }
+    }
+}
+
+impl<T: borsh::BorshSerialize> Serialised<T> {
+    pub fn new(value: &T) -> Result<Self, ibc::ClientError> {
+        borsh::to_vec(value)
+            .map(|data| Self(data, core::marker::PhantomData))
+            .map_err(Self::make_err)
+    }
+
+    pub fn set(&mut self, value: &T) -> Result<&mut Self, ibc::ClientError> {
+        *self = Self::new(value)?;
+        Ok(self)
+    }
+}
+
+impl<T: borsh::BorshDeserialize> Serialised<T> {
+    pub fn get(&self) -> Result<T, ibc::ClientError> {
+        T::try_from_slice(self.0.as_slice()).map_err(Self::make_err)
+    }
+}
+
+impl<T> borsh::BorshSerialize for Serialised<T> {
+    fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
+        u16::try_from(self.0.len())
+            .map_err(|_| io::ErrorKind::InvalidData.into())
+            .and_then(|len| len.serialize(wr))?;
+        wr.write_all(self.0.as_slice())
+    }
+}
+
+impl<T> borsh::BorshDeserialize for Serialised<T> {
+    fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
+        let len = u16::deserialize_reader(rd)?.into();
+        let mut data = vec![0; len];
+        rd.read_exact(data.as_mut_slice())?;
+        Ok(Self(data, core::marker::PhantomData))
     }
 }
