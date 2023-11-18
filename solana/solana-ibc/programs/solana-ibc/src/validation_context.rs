@@ -39,15 +39,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
-        self.borrow()
-            .private
-            .clients
-            .get(client_id.as_str())
-            .ok_or_else(|| ClientError::ClientStateNotFound {
-                client_id: client_id.clone(),
-            })?
-            .get()
-            .map_err(Into::into)
+        Ok(self.borrow().private.client(client_id)?.1.client_state.get()?)
     }
 
     fn decode_client_state(
@@ -64,14 +56,17 @@ impl ValidationContext for IbcStorage<'_, '_> {
         let height = Height::new(path.epoch, path.height)?;
         self.borrow()
             .private
+            .client(&path.client_id)?
+            .1
             .consensus_states
-            .get(&(path.client_id.to_string(), height))
+            .get(&height)
+            .cloned()
             .ok_or_else(|| ClientError::ConsensusStateNotFound {
                 client_id: path.client_id.clone(),
                 height,
-            })?
-            .get()
-            .map_err(Into::into)
+            })
+            .and_then(|data| data.get())
+            .map_err(ibc::core::ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
@@ -94,8 +89,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn client_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.client_counter)
+        Ok(self.borrow().private.client_counter())
     }
 
     fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
@@ -284,9 +278,10 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         store
             .private
-            .client_processed_times
-            .get(client_id.as_str())
-            .and_then(|processed_times| processed_times.get(height))
+            .client(client_id)?
+            .1
+            .processed_times
+            .get(height)
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
@@ -304,12 +299,12 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Height> {
-        let store = self.borrow();
-        store
+        self.borrow()
             .private
-            .client_processed_heights
-            .get(client_id.as_str())
-            .and_then(|processed_heights| processed_heights.get(height))
+            .client(client_id)?
+            .1
+            .processed_heights
+            .get(height)
             .copied()
             .ok_or_else(|| {
                 ContextError::ClientError(ClientError::Other {
