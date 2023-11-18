@@ -122,12 +122,14 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         timestamp: Timestamp,
     ) -> Result<(), ContextError> {
         // msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
-        self.borrow_mut()
+        let mut store = self.borrow_mut();
+        store
             .private
             .client_processed_times
             .entry(client_id.to_string())
             .or_default()
             .insert(height, timestamp.nanoseconds());
+        store.private.height = height;
         Ok(())
     }
 
@@ -138,12 +140,14 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         host_height: Height,
     ) -> Result<(), ContextError> {
         // msg!("store_update_height({}, {}, {})", client_id, height, host_height);
-        self.borrow_mut()
+        let mut store = self.borrow_mut();
+        store
             .private
             .client_processed_heights
             .entry(client_id.to_string())
             .or_default()
             .insert(height, host_height);
+        store.private.height = height;
         Ok(())
     }
 }

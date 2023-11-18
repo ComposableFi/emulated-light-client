@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::{borsh, Pubkey};
+use anchor_lang::solana_program::msg;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -285,6 +286,7 @@ impl ibc::core::ics02_client::ClientValidationContext
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Timestamp> {
+        msg!("This is the client id {}", client_id);
         let store = self.borrow();
         store
             .private

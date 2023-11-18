@@ -33,7 +33,6 @@ use ibc::core::timestamp::Timestamp;
 use ibc::mock::client_state::MockClientState;
 use ibc::mock::consensus_state::MockConsensusState;
 use ibc::mock::header::MockHeader;
-use ibc::Height;
 use ibc_proto::google::protobuf::Any;
 use spl_associated_token_account::instruction::create_associated_token_account;
 
@@ -120,18 +119,8 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
         ];
 
 
-        let mut x = 0;
         let remaining = self.remaining_accounts.iter().map(|&account| {
-            x += 1;
-            // if x == 2  {
-            //     AccountMeta {
-            //         pubkey: account,
-            //         is_signer: false,
-            //         is_writable: ,
-            //     }
-            // } else {
             AccountMeta { pubkey: account, is_signer: false, is_writable: true }
-            // }
         });
 
         accounts.into_iter().chain(remaining).collect::<Vec<_>>()
@@ -309,8 +298,8 @@ fn anchor_test_deliver() -> Result<()> {
         })
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
-            _channel_id: channel_id.clone(),
-            _base_denom: BASE_DENOM.to_string(),
+            channel_id: channel_id.clone(),
+            base_denom: BASE_DENOM.to_string(),
             commitment_prefix,
             client_id,
             counterparty_client_id: counter_party_client_id,
@@ -392,12 +381,15 @@ fn anchor_test_deliver() -> Result<()> {
                 serialized_data
             )
             .unwrap(),
-            proof_height_on_a: Height::new(0, 1).unwrap(),
+            proof_height_on_a: solana_ibc_storage_account.height,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
         ibc::core::ics04_channel::msgs::PacketMsg::Recv,
         ibc::core::MsgEnvelope::Packet,
     );
+
+    println!("This is trie {:?}", trie);
+    println!("This is storage {:?}", storage);
 
     /*
         The remaining accounts consists of the following accounts
@@ -444,7 +436,6 @@ fn anchor_test_deliver() -> Result<()> {
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
     println!("This is the mint information {:?}", mint_info);
-
 
     Ok(())
 }
