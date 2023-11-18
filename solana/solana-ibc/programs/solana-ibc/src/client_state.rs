@@ -27,7 +27,7 @@ use ibc_proto::protobuf::Protobuf;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::IbcStorage;
 
-#[derive(Clone, Debug, PartialEq, derive_more::From)]
+#[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyClientState {
     Tendermint(TmClientState),
     #[cfg(any(test, feature = "mocks"))]
