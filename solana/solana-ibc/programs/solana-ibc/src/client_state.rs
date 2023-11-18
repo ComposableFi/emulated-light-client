@@ -458,17 +458,15 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Vec<Height>, ContextError> {
-        let low = (client_id.to_string(), Height::min(0));
-        let high =
-            (client_id.to_string(), Height::new(u64::MAX, u64::MAX).unwrap());
-        let heights = self
+        Ok(self
             .borrow()
             .private
+            .client(client_id)?
+            .1
             .consensus_states
-            .range(low..=high)
-            .map(|((_client, height), _value)| *height)
-            .collect();
-        Ok(heights)
+            .keys()
+            .copied()
+            .collect())
     }
 
     fn host_timestamp(&self) -> Result<Timestamp, ContextError> {
@@ -536,7 +534,7 @@ impl IbcStorage<'_, '_, '_> {
     ) -> Result<Option<AnyConsensusState>, ContextError> {
         use core::ops::Bound;
 
-        let pivot = Bound::Excluded((client_id.to_string(), *height));
+        let pivot = Bound::Excluded(*height);
         let range = if dir == Direction::Next {
             (pivot, Bound::Unbounded)
         } else {
@@ -544,7 +542,8 @@ impl IbcStorage<'_, '_, '_> {
         };
 
         let store = self.borrow();
-        let mut range = store.private.consensus_states.range(range);
+        let (_index, client) = store.private.client(client_id)?;
+        let mut range = client.consensus_states.range(range);
         if dir == Direction::Next { range.next() } else { range.next_back() }
             .map(|(_, data)| data.get())
             .transpose()
