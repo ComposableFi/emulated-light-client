@@ -213,8 +213,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let seeds =
-            [port_id.as_bytes(), channel_id.as_bytes()];
+        let seeds = [port_id.as_bytes(), channel_id.as_bytes()];
         let (escrow_account_key, _bump) =
             Pubkey::find_program_address(&seeds, &crate::ID);
         Ok(AccountId(escrow_account_key))
