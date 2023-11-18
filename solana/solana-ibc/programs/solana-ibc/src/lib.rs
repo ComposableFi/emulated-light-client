@@ -33,9 +33,9 @@ use ibc::core::ics24_host::path::{
     ChannelEndPath, ConnectionPath, SeqRecvPath, SeqSendPath,
 };
 use ibc::core::router::{Module, ModuleId, Router};
-use ibc::core::MsgEnvelope;
 #[cfg(feature = "mocks")]
 use ibc::core::ExecutionContext;
+use ibc::core::MsgEnvelope;
 #[cfg(feature = "mocks")]
 use ibc::{
     core::{ics02_client::ClientExecutionContext, ValidationContext},
