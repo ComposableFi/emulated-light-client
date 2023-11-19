@@ -140,8 +140,8 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 Action::Ext(bits::Slice::from(key).into(), child)
             }
             Action::Ext(suffix, child) => {
-                let key = bits::Owned::concat(key.into(), suffix).unwrap();
-                Action::Ext(key, child)
+                let key = bits::Owned::concat(key.into(), suffix.as_slice());
+                Action::Ext(key.unwrap(), child)
             }
         })
     }
