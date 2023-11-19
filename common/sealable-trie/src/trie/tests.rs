@@ -13,7 +13,7 @@ fn make_trie_impl<'a>(
     want: Option<(&str, usize)>,
 ) -> TestTrie {
     let keys = keys.into_iter();
-    let count = keys.size_hint().1.unwrap_or(1000).saturating_mul(4);
+    let count = keys.size_hint().1.unwrap_or(1000).saturating_mul(4).max(100);
     let mut trie = TestTrie::new(count);
     for key in keys {
         set(&mut trie, key)
