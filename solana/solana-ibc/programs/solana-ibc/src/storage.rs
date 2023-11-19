@@ -107,6 +107,34 @@ impl ClientStore {
     }
 }
 
+/// A shared reference to a [`ClientStore`] together with its index.
+pub(crate) struct ClientRef<'a> {
+    #[allow(dead_code)]
+    pub index: ids::ClientIdx,
+    pub store: &'a ClientStore,
+}
+
+impl<'a> core::ops::Deref for ClientRef<'a> {
+    type Target = ClientStore;
+    fn deref(&self) -> &ClientStore { self.store }
+}
+
+/// An exclusive reference to a [`ClientStore`] together with its index.
+pub(crate) struct ClientMut<'a> {
+    pub index: ids::ClientIdx,
+    pub store: &'a mut ClientStore,
+}
+
+impl<'a> core::ops::Deref for ClientMut<'a> {
+    type Target = ClientStore;
+    fn deref(&self) -> &ClientStore { self.store }
+}
+
+impl<'a> core::ops::DerefMut for ClientMut<'a> {
+    fn deref_mut(&mut self) -> &mut ClientStore { self.store }
+}
+
+
 #[account]
 #[derive(Debug)]
 pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
@@ -160,13 +188,13 @@ impl PrivateStorage {
     pub fn client(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<(ids::ClientIdx, &ClientStore), ibc::ClientError> {
+    ) -> Result<ClientRef<'_>, ibc::ClientError> {
         self.client_index(client_id)
-            .and_then(|idx| {
+            .and_then(|index| {
                 self.clients
-                    .get(usize::from(idx))
-                    .filter(|state| state.client_id == *client_id)
-                    .map(|state| (idx, state))
+                    .get(usize::from(index))
+                    .filter(|store| store.client_id == *client_id)
+                    .map(|store| ClientRef { index, store })
             })
             .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
@@ -186,31 +214,28 @@ impl PrivateStorage {
         &mut self,
         client_id: &ibc::ClientId,
         create: bool,
-    ) -> Result<(ids::ClientIdx, &mut ClientStore), ibc::ClientError> {
-        self.client_mut_impl(client_id, create).ok_or_else(|| {
-            ibc::ClientError::ClientStateNotFound {
-                client_id: client_id.clone(),
-            }
-        })
-    }
-
-    fn client_mut_impl(
-        &mut self,
-        client_id: &ibc::ClientId,
-        create: bool,
-    ) -> Option<(ids::ClientIdx, &mut ClientStore)> {
+    ) -> Result<ClientMut<'_>, ibc::ClientError> {
         use core::cmp::Ordering;
 
-        let idx = self.client_index(client_id)?;
-        let pos = usize::from(idx);
-        match pos.cmp(&self.clients.len()) {
-            Ordering::Less => Some((idx, &mut self.clients[pos])),
-            Ordering::Equal if create => {
-                self.clients.push(ClientStore::new(client_id.clone()));
-                self.clients.last_mut().map(|client| (idx, client))
-            }
-            _ => None,
-        }
+        self.client_index(client_id)
+            .and_then(|index| {
+                let pos = usize::from(index);
+                match pos.cmp(&self.clients.len()) {
+                    Ordering::Less => self
+                        .clients
+                        .get_mut(pos)
+                        .filter(|store| store.client_id == *client_id),
+                    Ordering::Equal if create => {
+                        self.clients.push(ClientStore::new(client_id.clone()));
+                        self.clients.last_mut()
+                    }
+                    _ => None,
+                }
+                .map(|store| ClientMut { index, store })
+            })
+            .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
+                client_id: client_id.clone(),
+            })
     }
 
     fn client_index(

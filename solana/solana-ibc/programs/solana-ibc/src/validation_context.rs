@@ -39,7 +39,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ClientId,
     ) -> Result<Self::AnyClientState> {
-        Ok(self.borrow().private.client(client_id)?.1.client_state.get()?)
+        Ok(self.borrow().private.client(client_id)?.client_state.get()?)
     }
 
     fn decode_client_state(
@@ -57,7 +57,6 @@ impl ValidationContext for IbcStorage<'_, '_> {
         self.borrow()
             .private
             .client(&path.client_id)?
-            .1
             .consensus_states
             .get(&height)
             .cloned()
@@ -272,7 +271,6 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         store
             .private
             .client(client_id)?
-            .1
             .processed_times
             .get(height)
             .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
@@ -295,7 +293,6 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
         self.borrow()
             .private
             .client(client_id)?
-            .1
             .processed_heights
             .get(height)
             .copied()
