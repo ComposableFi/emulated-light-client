@@ -462,7 +462,6 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_, '_> {
             .borrow()
             .private
             .client(client_id)?
-            .1
             .consensus_states
             .keys()
             .copied()
@@ -542,7 +541,7 @@ impl IbcStorage<'_, '_, '_> {
         };
 
         let store = self.borrow();
-        let (_index, client) = store.private.client(client_id)?;
+        let client = store.private.client(client_id)?;
         let mut range = client.consensus_states.range(range);
         if dir == Direction::Next { range.next() } else { range.next_back() }
             .map(|(_, data)| data.get())
