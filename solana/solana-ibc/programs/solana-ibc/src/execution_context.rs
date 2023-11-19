@@ -112,8 +112,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         timestamp: Timestamp,
     ) -> Result<(), ContextError> {
         // msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
-        let mut store = self.borrow_mut();
-        store
+        self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
             .processed_times
@@ -128,8 +127,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
         host_height: Height,
     ) -> Result<(), ContextError> {
         // msg!("store_update_height({}, {}, {})", client_id, height, host_height);
-        let mut store = self.borrow_mut();
-        store
+        self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
             .processed_heights
@@ -139,7 +137,8 @@ impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
 }
 
 impl ExecutionContext for IbcStorage<'_, '_, '_> {
-    /// The clients are stored in the vector so we can easily find how many clients were created. So thats why this method doesnt do anything.
+    /// The clients are stored in the vector so we can easily find how many
+    /// clients were created. So thats why this method doesnt do anything.
     fn increase_client_counter(&mut self) -> Result { Ok(()) }
 
     fn store_connection(

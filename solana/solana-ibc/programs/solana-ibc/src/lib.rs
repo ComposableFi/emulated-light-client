@@ -68,8 +68,6 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis

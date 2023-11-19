@@ -314,9 +314,9 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// # Panics
     ///
     /// Panics if the value is currently mutably borrowed.
-    pub fn borrow<'d>(
-        &'d self,
-    ) -> core::cell::Ref<'d, IbcStorageInner<'a, 'b, 'c>> {
+    pub fn borrow<'s>(
+        &'s self,
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow()
     }
 
@@ -325,9 +325,9 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    pub fn borrow_mut<'d>(
-        &'d self,
-    ) -> core::cell::RefMut<'d, IbcStorageInner<'a, 'b, 'c>> {
+    pub fn borrow_mut<'s>(
+        &'s self,
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow_mut()
     }
 }
