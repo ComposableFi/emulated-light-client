@@ -113,11 +113,18 @@ pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 
 #[account]
 #[derive(Debug)]
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
+/// The private IBC storage, i.e. data which doesn’t require proofs.
 pub(crate) struct PrivateStorage {
+    /// Per-client information.
+    ///
+    /// Entry at index `N` corresponds to the client with IBC identifier
+    /// `client-<N>`.
     clients: Vec<ClientStore>,
 
+    /// Information about the counterparty on given connection.
+    ///
+    /// Entry at index `N` corresponds to the connection with IBC identifier
+    /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
     pub channel_ends:
