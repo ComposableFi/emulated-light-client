@@ -1,3 +1,5 @@
+use anchor_lang::prelude::borsh;
+
 use super::ibc;
 
 type Result<T, E = ibc::ClientError> = core::result::Result<T, E>;
@@ -57,7 +59,17 @@ impl PartialEq<usize> for ClientIdx {
 /// The identifier is build from IBC identifiers which are of the form
 /// `connection-<number>`.  Rather than treating the identifier as a string,
 /// we’re parsing the number out and keep only that.
-#[derive(Clone, Copy, PartialEq, Eq, derive_more::From, derive_more::Into)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    derive_more::From,
+    derive_more::Into,
+)]
 pub struct ConnectionIdx(u32);
 
 impl ConnectionIdx {

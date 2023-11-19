@@ -187,6 +187,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         conn_id: ConnectionId,
     ) -> Result {
         msg!("store_connection_to_client({}, {:?})", path, conn_id);
+        let conn_id = ids::ConnectionIdx::try_from(&conn_id)?;
         self.borrow_mut().private.client_mut(&path.0, false)?.1.connection_id =
             Some(conn_id);
         Ok(())

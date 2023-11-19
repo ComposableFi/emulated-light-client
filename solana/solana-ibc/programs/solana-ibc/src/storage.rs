@@ -86,7 +86,7 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub(crate) struct ClientStore {
     pub client_id: ibc::ClientId,
-    pub connection_id: Option<ibc::ConnectionId>,
+    pub connection_id: Option<ids::ConnectionIdx>,
 
     pub client_state: Serialised<AnyClientState>,
     pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
