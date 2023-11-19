@@ -117,6 +117,20 @@ impl From<manager::UpdateCandidateError> for Error {
     }
 }
 
+impl From<ibc::core::ContextError> for Error {
+    #[inline]
+    fn from(err: ibc::core::ContextError) -> Self {
+        Self::RouterError(err.into())
+    }
+}
+
+impl From<ibc::core::ics02_client::error::ClientError> for Error {
+    #[inline]
+    fn from(err: ibc::core::ics02_client::error::ClientError) -> Self {
+        ibc::core::ContextError::from(err).into()
+    }
+}
+
 impl From<Error> for anchor_lang::error::AnchorError {
     fn from(err: Error) -> Self {
         Self {
