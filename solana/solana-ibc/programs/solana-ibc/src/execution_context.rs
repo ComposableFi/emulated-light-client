@@ -6,6 +6,7 @@ use ibc::core::events::IbcEvent;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics02_client::ClientExecutionContext;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
+use ibc::core::ics03_connection::error::ConnectionError;
 use ibc::core::ics04_channel::channel::ChannelEnd;
 use ibc::core::ics04_channel::commitment::{
     AcknowledgementCommitment, PacketCommitment,
@@ -25,7 +26,7 @@ use lib::hash::CryptoHash;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::storage::trie_key::TrieKey;
-use crate::storage::{self, IbcStorage};
+use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
@@ -144,13 +145,34 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         path: &ConnectionPath,
         connection_end: ConnectionEnd,
     ) -> Result {
+        use core::cmp::Ordering;
+
         msg!("store_connection({}, {:?})", path, connection_end);
-        self.borrow_mut().store_serialised_proof(
-            |private| &mut private.connections,
-            path.0.to_string(),
-            &TrieKey::from(path),
-            &connection_end,
-        )
+        let connection = ids::ConnectionIdx::try_from(&path.0)?;
+        let serialised = storage::Serialised::new(&connection_end)?;
+        let hash = serialised.digest();
+
+        let mut store = self.borrow_mut();
+
+        let connections = &mut store.private.connections;
+        let index = usize::from(connection);
+        match index.cmp(&connections.len()) {
+            Ordering::Less => connections[index] = serialised,
+            Ordering::Equal => connections.push(serialised),
+            Ordering::Greater => {
+                return Err(ConnectionError::ConnectionNotFound {
+                    connection_id: path.0.clone(),
+                }
+                .into())
+            }
+        }
+
+        store
+            .provable
+            .set(&TrieKey::for_connection(connection), &hash)
+            .map_err(error)?;
+
+        Ok(())
     }
 
     fn store_connection_to_client(
@@ -159,21 +181,13 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         conn_id: ConnectionId,
     ) -> Result {
         msg!("store_connection_to_client({}, {:?})", path, conn_id);
+        let conn_id = ids::ConnectionIdx::try_from(&conn_id)?;
         self.borrow_mut().private.client_mut(&path.0, false)?.connection_id =
             Some(conn_id);
         Ok(())
     }
 
-    fn increase_connection_counter(&mut self) -> Result {
-        let mut store = self.borrow_mut();
-        store.private.connection_counter =
-            store.private.connection_counter.checked_add(1).unwrap();
-        msg!(
-            "connection_counter has increased to: {}",
-            store.private.connection_counter
-        );
-        Ok(())
-    }
+    fn increase_connection_counter(&mut self) -> Result { Ok(()) }
 
     fn store_packet_commitment(
         &mut self,

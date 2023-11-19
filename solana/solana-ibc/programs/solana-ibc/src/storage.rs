@@ -14,6 +14,7 @@ use crate::consensus_state::AnyConsensusState;
 mod ibc {
     pub use ibc::core::ics02_client::error::ClientError;
     pub use ibc::core::ics03_connection::connection::ConnectionEnd;
+    pub use ibc::core::ics03_connection::error::ConnectionError;
     pub use ibc::core::ics04_channel::channel::ChannelEnd;
     pub use ibc::core::ics04_channel::msgs::PacketMsg;
     pub use ibc::core::ics04_channel::packet::Sequence;
@@ -25,7 +26,6 @@ pub(crate) mod ids;
 pub(crate) mod trie_key;
 
 pub(crate) type SolanaTimestamp = u64;
-pub(crate) type InnerConnectionId = String;
 pub(crate) type InnerPortId = String;
 pub(crate) type InnerChannelId = String;
 
@@ -86,7 +86,7 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub(crate) struct ClientStore {
     pub client_id: ibc::ClientId,
-    pub connection_id: Option<ibc::ConnectionId>,
+    pub connection_id: Option<ids::ConnectionIdx>,
 
     pub client_state: Serialised<AnyClientState>,
     pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
@@ -141,14 +141,20 @@ pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 
 #[account]
 #[derive(Debug)]
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
+/// The private IBC storage, i.e. data which doesn’t require proofs.
 pub(crate) struct PrivateStorage {
+    /// Per-client information.
+    ///
+    /// Entry at index `N` corresponds to the client with IBC identifier
+    /// `client-<N>`.
     clients: Vec<ClientStore>,
 
-    pub connection_counter: u64,
-    pub connections:
-        BTreeMap<InnerConnectionId, Serialised<ibc::ConnectionEnd>>,
+    /// Information about the counterparty on given connection.
+    ///
+    /// Entry at index `N` corresponds to the connection with IBC identifier
+    /// `connection-<N>`.
+    pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
+
     pub channel_ends:
         BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u64,
