@@ -125,13 +125,6 @@ pub(crate) struct PrivateStorage {
         BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u64,
 
-    /// The sequence numbers of the packet commitments.
-    pub packet_commitment_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<ibc::Sequence>>,
-    /// The sequence numbers of the packet acknowledgements.
-    pub packet_acknowledgement_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<ibc::Sequence>>,
-
     /// Next send, receive and ack sequence for given (port, channel).
     ///
     /// We’re storing all three sequences in a single object to reduce amount of

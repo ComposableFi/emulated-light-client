@@ -187,32 +187,16 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         commitment: PacketCommitment,
     ) -> Result {
         msg!("store_packet_commitment({}, {:?})", path, commitment);
-        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // PacketCommitment is always 32-byte long.
         let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        store.provable.set(&trie_key, commitment).unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_commitment_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.borrow_mut().provable.set(&trie_key, commitment).map_err(error)
     }
 
     fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
         msg!("delete_packet_commitment({})", path);
-        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        store.provable.del(&trie_key).unwrap();
-        delete_packet_sequence(
-            &mut store.private.packet_commitment_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.borrow_mut().provable.del(&trie_key).map(|_| ()).map_err(error)
     }
 
     fn store_packet_receipt(
@@ -221,10 +205,9 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         Receipt::Ok: Receipt,
     ) -> Result {
         msg!("store_packet_receipt({}, Ok)", path);
-        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        store.provable.set_and_seal(&trie_key, &CryptoHash::DEFAULT).unwrap();
-        Ok(())
+        let commitment = &CryptoHash::DEFAULT;
+        self.borrow_mut().provable.set(&trie_key, commitment).map_err(error)
     }
 
     fn store_packet_acknowledgement(
@@ -233,32 +216,16 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         commitment: AcknowledgementCommitment,
     ) -> Result {
         msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
-        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
         // AcknowledgementCommitment is always 32-byte long.
         let commitment = <&CryptoHash>::try_from(commitment.as_ref()).unwrap();
-        store.provable.set(&trie_key, commitment).unwrap();
-        record_packet_sequence(
-            &mut store.private.packet_acknowledgement_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.borrow_mut().provable.set(&trie_key, commitment).map_err(error)
     }
 
     fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
         msg!("delete_packet_acknowledgement({})", path);
-        let mut store = self.borrow_mut();
         let trie_key = TrieKey::from(path);
-        store.provable.del(&trie_key).unwrap();
-        delete_packet_sequence(
-            &mut store.private.packet_acknowledgement_sequence_sets,
-            &path.port_id,
-            &path.channel_id,
-            path.sequence,
-        );
-        Ok(())
+        self.borrow_mut().provable.del(&trie_key).map(|_| ()).map_err(error)
     }
 
     fn store_channel(
@@ -375,41 +342,6 @@ impl storage::IbcStorageInner<'_, '_> {
         self.provable.set(trie_key, &serialised.digest()).map_err(error)?;
         get_map(self.private).insert(key, serialised);
         Ok(())
-    }
-}
-
-type SequencesMap =
-    BTreeMap<(storage::InnerPortId, storage::InnerChannelId), Vec<Sequence>>;
-
-/// Adds sequence to given per-channel set.
-fn record_packet_sequence(
-    map: &mut SequencesMap,
-    port_id: &ibc::core::ics24_host::identifier::PortId,
-    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
-    sequence: Sequence,
-) {
-    let key = (port_id.to_string(), channel_id.to_string());
-    map.entry(key).or_default().push(sequence);
-}
-
-/// Removes sequence from given per-channel set.
-fn delete_packet_sequence(
-    map: &mut SequencesMap,
-    port_id: &ibc::core::ics24_host::identifier::PortId,
-    channel_id: &ibc::core::ics24_host::identifier::ChannelId,
-    sequence: Sequence,
-) {
-    use alloc::collections::btree_map::Entry;
-
-    let key = (port_id.to_string(), channel_id.to_string());
-    if let Entry::Occupied(mut entry) = map.entry(key) {
-        let set = entry.get_mut();
-        if let Some(pos) = set.iter().position(|s| *s == sequence) {
-            set.swap_remove(pos);
-            if set.is_empty() {
-                entry.remove();
-            }
-        }
     }
 }
 
