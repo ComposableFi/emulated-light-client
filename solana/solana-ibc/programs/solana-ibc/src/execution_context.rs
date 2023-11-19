@@ -329,7 +329,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn log_message(&mut self, message: String) -> Result {
-        msg!("{}", message);
+        msg!(message.as_str());
         Ok(())
     }
 
