@@ -43,7 +43,12 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         msg!("store_client_state({}, {:?})", path, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
-        let hash = client.client_state.set(&state)?.digest();
+        let serialised = client.client_state.set(&state)?;
+        let hash = CryptoHash::digestv(&[
+            path.0.as_bytes(),
+            &[0],
+            serialised.as_bytes(),
+        ]);
         let key = TrieKey::for_client_state(client.index);
         store.provable.set(&key, &hash).map_err(error)
     }

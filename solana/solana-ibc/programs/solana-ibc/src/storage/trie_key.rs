@@ -60,12 +60,17 @@ macro_rules! new_key_impl {
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
     /// counter.
+    ///
+    /// The hash stored under the key is `hash(borsh(client_id.as_str()) ||
+    /// borsh(client_state))`.
     pub fn for_client_state(client: ids::ClientIdx) -> Self {
         new_key_impl!(Tag::ClientState, client)
     }
 
     /// Constructs a new key for a consensus state path for client with given
     /// counter and specified height.
+    ///
+    /// The hash stored under the key is `hash(borsh(consensus_state))`.
     pub fn for_consensus_state(
         client: ids::ClientIdx,
         height: ibc::Height,
@@ -74,6 +79,8 @@ impl TrieKey {
     }
 
     /// Constructs a new key for a connection end path.
+    ///
+    /// The hash stored under the key is `hash(borsh(connection_end))`.
     pub fn for_connection(connection: ids::ConnectionIdx) -> Self {
         new_key_impl!(Tag::Connection, connection)
     }
