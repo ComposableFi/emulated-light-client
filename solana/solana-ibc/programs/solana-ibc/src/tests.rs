@@ -7,6 +7,7 @@ use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
+use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
@@ -130,7 +131,7 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
 fn anchor_test_deliver() -> Result<()> {
     let authority = Rc::new(Keypair::new());
     println!("This is pubkey {}", authority.pubkey().to_string());
-    let lamports = 10_000_000_000;
+    let lamports = 2_000_000_000;
 
     let client = Client::new_with_options(
         Cluster::Localnet,
@@ -279,6 +280,9 @@ fn anchor_test_deliver() -> Result<()> {
 
     let sig = program
         .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
         .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
             sender_token_account: sender_token_address,
@@ -392,6 +396,9 @@ fn anchor_test_deliver() -> Result<()> {
 
     let sig = program
         .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
         .accounts(DeliverWithRemainingAccounts {
             sender: authority.pubkey(),
             storage,

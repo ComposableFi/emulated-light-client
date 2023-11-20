@@ -109,12 +109,11 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         amt: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         msg!(
-            "Minting coins for account {:?}, trace path {}, base denom {}",
+            "Minting coins for account {}, trace path {}, base denom {}",
             account,
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        msg!("This should appear before");
         let receiver_id = Pubkey::from(account);
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
