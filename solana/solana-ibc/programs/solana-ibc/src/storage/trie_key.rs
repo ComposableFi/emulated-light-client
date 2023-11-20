@@ -80,7 +80,7 @@ impl TrieKey {
 
     /// Constructs a new key for a connection end path.
     ///
-    /// The hsah stored under the key is `hash(borsh(connection_end))`.
+    /// The hash stored under the key is `hash(borsh(connection_end))`.
     pub fn for_connection(connection: ids::ConnectionIdx) -> Self {
         new_key_impl!(Tag::Connection, connection)
     }
