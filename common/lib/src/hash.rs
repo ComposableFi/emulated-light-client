@@ -45,7 +45,7 @@ impl CryptoHash {
     #[inline]
     pub fn digest(bytes: &[u8]) -> Self { Self::digestv(&[bytes]) }
 
-    /// Returns hash of consternation of given byte slices.
+    /// Returns hash of concatenation of given byte slices.
     ///
     /// This is morally equivalent to feeding all the slices into the builder
     /// one-by-one or concatenating them into a single buffer and hashing it in
