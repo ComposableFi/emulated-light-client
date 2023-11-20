@@ -43,10 +43,31 @@ impl CryptoHash {
 
     /// Returns hash of given bytes.
     #[inline]
-    pub fn digest(bytes: &[u8]) -> Self {
-        let mut builder = Self::builder();
-        builder.update(bytes);
-        builder.build()
+    pub fn digest(bytes: &[u8]) -> Self { Self::digestv(&[bytes]) }
+
+    /// Returns hash of consternation of given byte slices.
+    ///
+    /// This is morally equivalent to feeding all the slices into the builder
+    /// one-by-one or concatenating them into a single buffer and hashing it in
+    /// a single step.
+    ///
+    /// Depending on platform this call may be more efficient.  Most notably,
+    /// Solana offers a vectorised syscall for calculating a SHA-2 256 digest
+    /// and this method will pass the request directly to it.
+    #[inline]
+    pub fn digestv(slices: &[&[u8]]) -> Self {
+        #[cfg(target_os = "solana")]
+        {
+            Self(solana_program::hash::hashv(slices).to_bytes())
+        }
+        #[cfg(not(target_os = "solana"))]
+        {
+            let mut builder = Self::builder();
+            for bytes in slices {
+                builder.update(bytes);
+            }
+            builder.build()
+        }
     }
 
     /// Decodes a base64 string representation of the hash.

@@ -350,6 +350,8 @@ pub(crate) struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
 
+    pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
+
     pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
 
     fn make_err(err: io::Error) -> ibc::ClientError {
