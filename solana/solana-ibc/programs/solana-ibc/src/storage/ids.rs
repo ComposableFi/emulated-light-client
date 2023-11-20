@@ -160,7 +160,7 @@ pub trait MaybeOwned<T> {
 }
 
 impl<T: Clone> MaybeOwned<T> for &T {
-    fn as_ref(&self) -> &T { *self }
+    fn as_ref(&self) -> &T { self }
     fn into_owned(self) -> T { (*self).clone() }
 }
 

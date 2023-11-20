@@ -1,7 +1,6 @@
-use ibc::path::{
+use crate::storage::ibc::path::{
     AckPath, CommitmentPath, ReceiptPath, SeqAckPath, SeqRecvPath, SeqSendPath,
 };
-
 use crate::storage::{ibc, ids};
 
 
@@ -229,13 +228,13 @@ impl AsComponent for ids::PortChannelPK {
     fn key_len(&self) -> usize {
         let port_id_len = self.port_id.as_bytes().len();
         assert!(port_id_len <= usize::from(u8::MAX));
-        1 + port_id_len + u32::from(self.channel_idx).key_len()
+        1 + port_id_len + self.channel_idx.key_len()
     }
     fn append_into(&self, dest: &mut Vec<u8>) {
         let port_id = self.port_id.as_bytes();
         dest.push(port_id.len() as u8);
         dest.extend(port_id);
-        u32::from(self.channel_idx).append_into(dest);
+        self.channel_idx.append_into(dest);
     }
 }
 

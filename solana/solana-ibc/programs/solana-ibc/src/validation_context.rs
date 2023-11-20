@@ -324,7 +324,7 @@ impl IbcStorage<'_, '_> {
             this.borrow()
                 .private
                 .next_sequence
-                .get(&port_channel)
+                .get(port_channel)
                 .and_then(|triple| triple.get(index))
         }
 
