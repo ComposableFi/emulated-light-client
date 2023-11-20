@@ -1,4 +1,5 @@
 use anchor_lang::prelude::borsh;
+use base64::engine::{general_purpose, Engine};
 
 use super::ibc;
 
@@ -125,7 +126,7 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
     borsh::BorshDeserialize,
 )]
 pub struct PortChannelPK {
-    pub(super) port_id: ibc::PortId,
+    pub(super) port_key: PortKey,
     pub(super) channel_idx: u32,
 }
 
@@ -141,16 +142,20 @@ impl PortChannelPK {
         port_id: impl MaybeOwned<ibc::PortId>,
         channel_id: impl MaybeOwned<ibc::ChannelId>,
     ) -> Result<Self, ibc::ChannelError> {
-        let channel_str = channel_id.as_ref().as_str();
-        match parse_sans_prefix(Self::CHANNEL_IBC_PREFIX, channel_str) {
-            Some(channel_idx) => {
-                Ok(Self { port_id: port_id.into_owned(), channel_idx })
-            }
-            None => Err(ibc::ChannelError::ChannelNotFound {
-                port_id: port_id.into_owned(),
-                channel_id: channel_id.into_owned(),
-            }),
-        }
+        (|| {
+            let channel = channel_id.as_ref().as_str();
+            Some(Self {
+                port_key: PortKey::try_from(port_id.as_ref()).ok()?,
+                channel_idx: parse_sans_prefix(
+                    Self::CHANNEL_IBC_PREFIX,
+                    channel,
+                )?,
+            })
+        })()
+        .ok_or_else(|| ibc::ChannelError::ChannelNotFound {
+            port_id: port_id.into_owned(),
+            channel_id: channel_id.into_owned(),
+        })
     }
 }
 
@@ -167,6 +172,90 @@ impl<T: Clone> MaybeOwned<T> for &T {
 impl<T> MaybeOwned<T> for T {
     fn as_ref(&self) -> &T { self }
     fn into_owned(self) -> T { self }
+}
+
+
+/// An internal port identifier.
+///
+/// We’re restricting valid port identifiers to be at most 12 alphanumeric
+/// characters.
+///
+/// We pad the id with slash characters (which are invalid in IBC identifiers)
+/// and then parse them using base64 to get a 9-byte buffer which represents the
+/// identifier.
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    borsh::BorshSerialize,
+    // TODO(mina86): Verify value is valid when deserialising.  There are bit
+    // patterns which don’t correspond to valid port keys.
+    borsh::BorshDeserialize,
+)]
+pub struct PortKey([u8; 9]);
+
+impl PortKey {
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8; 9] { &self.0 }
+}
+
+impl TryFrom<&ibc::PortId> for PortKey {
+    type Error = ();
+
+    fn try_from(port_id: &ibc::PortId) -> Result<Self, Self::Error> {
+        let port_id = port_id.as_bytes();
+        // We allow alphanumeric characters only in the port id.  We need to
+        // filter out pluses and slashes since those are valid base64 characters
+        // and base64 decoder won’t error out on those.
+        //
+        // We technically shouldn’t need to check for slashes since IBC should
+        // guarantee that the identifier has no slash.  However, just to make
+        // sure also filter slashes out.
+        if port_id.iter().any(|byte| *byte == b'+' || *byte == b'/') {
+            return Err(());
+        }
+
+        // Pad the identifier with slashes.  Observe that slash is a valid
+        // base64 character so we can treat the entire 12-character long string
+        // as base64-encoded value.
+        let mut buf = [b'/'; 12];
+        buf.get_mut(..port_id.len()).ok_or(())?.copy_from_slice(port_id);
+
+        // Decode into 9-byte buffer.
+        let mut this = Self([0; 9]);
+        let len = general_purpose::STANDARD
+            .decode_slice_unchecked(&buf[..], &mut this.0[..])
+            .map_err(|_| ())?;
+        debug_assert_eq!(this.0.len(), len);
+
+        Ok(this)
+    }
+}
+
+impl core::fmt::Display for PortKey {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let mut buf = [0; 12];
+        let mut len = general_purpose::STANDARD
+            .encode_slice(self.as_bytes(), &mut buf[..])
+            .unwrap();
+        debug_assert_eq!(buf.len(), len);
+
+        while len > 0 && buf[len - 1] == b'/' {
+            len -= 1;
+        }
+
+        // SAFETY: base64 outputs ASCII characters.
+        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
+    }
+}
+
+impl core::fmt::Debug for PortKey {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, fmtr)
+    }
 }
 
 
