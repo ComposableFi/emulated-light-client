@@ -70,7 +70,7 @@ impl TrieKey {
     /// Constructs a new key for a consensus state path for client with given
     /// counter and specified height.
     ///
-    /// The hsah stored under the key is `hash(borsh(consensus_state))`.
+    /// The hash stored under the key is `hash(borsh(consensus_state))`.
     pub fn for_consensus_state(
         client: ids::ClientIdx,
         height: ibc::Height,
