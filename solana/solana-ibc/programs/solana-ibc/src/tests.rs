@@ -330,7 +330,7 @@ fn anchor_test_deliver() -> Result<()> {
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
-     /*
+    /*
      *
      * On Source chain
      *
@@ -385,9 +385,12 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("These are remaining accounts {:?}", remaining_accounts);
 
-   
-    let escrow_account_balance_before = sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_before = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+
+    let escrow_account_balance_before =
+        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    let receiver_account_balance_before = sol_rpc_client
+        .get_token_account_balance(&receiver_token_address)
+        .unwrap();
 
     let sig = program
         .request()
@@ -413,10 +416,25 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("signature for transfer packet on Source chain: {sig}");
 
-    let escrow_account_balance_after = sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_after = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
-    assert_eq!(((escrow_account_balance_before.ui_amount.unwrap() - escrow_account_balance_after.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
-    assert_eq!(((receiver_account_balance_after.ui_amount.unwrap() - receiver_account_balance_before.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
+    let escrow_account_balance_after =
+        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    let receiver_account_balance_after = sol_rpc_client
+        .get_token_account_balance(&receiver_token_address)
+        .unwrap();
+    assert_eq!(
+        ((escrow_account_balance_before.ui_amount.unwrap() -
+            escrow_account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
+        .round() as u64,
+        TRANSFER_AMOUNT
+    );
+    assert_eq!(
+        ((receiver_account_balance_after.ui_amount.unwrap() -
+            receiver_account_balance_before.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
+        .round() as u64,
+        TRANSFER_AMOUNT
+    );
 
     /*
      *
@@ -424,7 +442,9 @@ fn anchor_test_deliver() -> Result<()> {
      *
      */
 
-    let account_balance_before = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+    let account_balance_before = sol_rpc_client
+        .get_token_account_balance(&receiver_token_address)
+        .unwrap();
 
     let packet = construct_packet_from_denom(
         port_id.clone(),
@@ -475,8 +495,16 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("signature for transfer packet on destination chain: {sig}");
 
-    let account_balance_after = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
-    assert_eq!(((account_balance_after.ui_amount.unwrap() - account_balance_before.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
+    let account_balance_after = sol_rpc_client
+        .get_token_account_balance(&receiver_token_address)
+        .unwrap();
+    assert_eq!(
+        ((account_balance_after.ui_amount.unwrap() -
+            account_balance_before.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
+        .round() as u64,
+        TRANSFER_AMOUNT
+    );
 
     Ok(())
 }
