@@ -178,7 +178,7 @@ pub fn mock_deliver_impl(
         )
         .unwrap();
 
-    // Minting some tokens to the authority so that he can do the transfer
+    // Minting some tokens to the escrow so that he can do the transfer
     let bump_vector = ctx.bumps.get("mint_authority").unwrap().to_le_bytes();
     let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
     let outer = vec![inner.as_slice()];
@@ -186,7 +186,7 @@ pub fn mock_deliver_impl(
     // Mint some tokens to escrow account
     let mint_instruction = MintTo {
         mint: ctx.accounts.token_mint.to_account_info(),
-        to: ctx.accounts.sender_token_account.to_account_info(),
+        to: ctx.accounts.escrow_account.to_account_info(),
         authority: ctx.accounts.mint_authority.to_account_info(),
     };
     let cpi_ctx = CpiContext::new_with_signer(

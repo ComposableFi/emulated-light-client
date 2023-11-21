@@ -39,8 +39,9 @@ use crate::storage::PrivateStorage;
 use crate::{accounts, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
-const DENOM: &str = "transfer/channel-1/PICA";
 const BASE_DENOM: &str = "PICA";
+
+const TRANSFER_AMOUNT: u64 = 1000000;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -116,7 +117,6 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
                 is_writable: false,
             },
         ];
-
 
         let remaining = self.remaining_accounts.iter().map(|&account| {
             AccountMeta { pubkey: account, is_signer: false, is_writable: true }
@@ -261,11 +261,13 @@ fn anchor_test_deliver() -> Result<()> {
     */
 
     let port_id = PortId::transfer();
-    let channel_id = ChannelId::new(0);
+    let channel_id_on_a = ChannelId::new(0);
+    let channel_id_on_b = ChannelId::new(1);
 
     let receiver = Keypair::new();
 
-    let seeds = [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
+    let seeds =
+        [port_id.as_bytes().as_ref(), channel_id_on_b.as_bytes().as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
@@ -276,7 +278,6 @@ fn anchor_test_deliver() -> Result<()> {
         get_associated_token_address(&authority.pubkey(), &token_mint_key);
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
-
 
     let sig = program
         .request()
@@ -300,7 +301,7 @@ fn anchor_test_deliver() -> Result<()> {
         })
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
-            channel_id: channel_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
             base_denom: BASE_DENOM.to_string(),
             commitment_prefix,
             client_id: client_id.clone(),
@@ -329,40 +330,30 @@ fn anchor_test_deliver() -> Result<()> {
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
-    let base_denom: BaseDenom = BaseDenom::from_str(DENOM).unwrap();
-    let token: BaseCoin =
-        Coin { denom: base_denom, amount: Amount::from(1000000) };
+     /*
+     *
+     * On Source chain
+     *
+     */
 
-    let packet_data = PacketData {
-        token: token.into(),
-        sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
-        receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
-        memo: String::from("My first tx").into(),
-    };
-
-    let serialized_data = serde_json::to_vec(&packet_data).unwrap();
-
-    let packet = Packet {
-        seq_on_a: 1.into(),
-        port_id_on_a: port_id.clone(),
-        chan_id_on_a: channel_id,
-        port_id_on_b: port_id,
-        chan_id_on_b: ChannelId::new(1),
-        data: serialized_data.clone(),
-        timeout_height_on_b: TimeoutHeight::Never,
-        timeout_timestamp_on_b: Timestamp::none(),
-    };
-
+    let packet = construct_packet_from_denom(
+        port_id.clone(),
+        channel_id_on_a.clone(),
+        channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
+        1,
+        sender_token_address,
+        receiver_token_address,
+        String::from("Tx from Source chain"),
+    );
 
     let proof_height_on_a = mock_client_state.header.height;
 
     let message = make_message!(
         MsgRecvPacket {
-            packet,
-            proof_commitment_on_a: CommitmentProofBytes::try_from(
-                serialized_data
-            )
-            .unwrap(),
+            packet: packet.clone(),
+            proof_commitment_on_a: CommitmentProofBytes::try_from(packet.data)
+                .unwrap(),
             proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
@@ -394,6 +385,72 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("These are remaining accounts {:?}", remaining_accounts);
 
+   
+    let escrow_account_balance_before = sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    let receiver_account_balance_before = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(DeliverWithRemainingAccounts {
+            sender: authority.pubkey(),
+            storage,
+            trie,
+            system_program: system_program::ID,
+            packets,
+            chain,
+            remaining_accounts: remaining_accounts.clone(),
+        })
+        .args(instruction::Deliver { message })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
+
+    println!("signature for transfer packet on Source chain: {sig}");
+
+    let escrow_account_balance_after = sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    let receiver_account_balance_after = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+    assert_eq!(((escrow_account_balance_before.ui_amount.unwrap() - escrow_account_balance_after.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
+    assert_eq!(((receiver_account_balance_after.ui_amount.unwrap() - receiver_account_balance_before.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
+
+    /*
+     *
+     * On Destination chain
+     *
+     */
+
+    let account_balance_before = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+
+    let packet = construct_packet_from_denom(
+        port_id.clone(),
+        channel_id_on_b.clone(),
+        channel_id_on_a,
+        channel_id_on_b,
+        2,
+        sender_token_address,
+        receiver_token_address,
+        String::from("Tx from destination chain"),
+    );
+    let proof_height_on_a = mock_client_state.header.height;
+
+    let message = make_message!(
+        MsgRecvPacket {
+            packet: packet.clone(),
+            proof_commitment_on_a: CommitmentProofBytes::try_from(packet.data)
+                .unwrap(),
+            proof_height_on_a,
+            signer: ibc::Signer::from(authority.pubkey().to_string())
+        },
+        ibc::core::ics04_channel::msgs::PacketMsg::Recv,
+        ibc::core::MsgEnvelope::Packet,
+    );
+
+
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -416,53 +473,48 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
-    println!("signature for transfer packet: {sig}");
+    println!("signature for transfer packet on destination chain: {sig}");
 
-    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
-
-    println!("This is the mint information {:?}", mint_info);
+    let account_balance_after = sol_rpc_client.get_token_account_balance(&receiver_token_address).unwrap();
+    assert_eq!(((account_balance_after.ui_amount.unwrap() - account_balance_before.ui_amount.unwrap()) * 10_f64.powf(mint_info.decimals.into())).round() as u64, TRANSFER_AMOUNT);
 
     Ok(())
 }
 
-// #[test]
-// fn internal_test() {
-//     let authority = Keypair::new();
-//     let mut solana_ibc_store = IbcStorage::new(authority.pubkey());
-//     let mock_client_state = MockClientState::new(MockHeader::default());
-//     let mock_cs_state = MockConsensusState::new(MockHeader::default());
-//     let client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
-//     let msg = MsgCreateClient::new(
-//         Any::from(mock_client_state),
-//         Any::from(mock_cs_state),
-//         ibc::Signer::from(authority.pubkey().to_string()),
-//     );
-//     let messages = ibc::Any {
-//         type_url: TYPE_URL.to_string(),
-//         value: msg.encode_vec(),
-//     };
+fn construct_packet_from_denom(
+    port_id: PortId,
+    denom_channel_id: ChannelId, // Channel id used to define if its source chain or destination chain (in denom)
+    channel_id_on_a: ChannelId,
+    channel_id_on_b: ChannelId,
+    sequence: u64,
+    sender_token_address: Pubkey,
+    receiver_token_address: Pubkey,
+    memo: String,
+) -> Packet {
+    let denom = format!("{port_id}/{denom_channel_id}/{BASE_DENOM}");
+    let base_denom: BaseDenom = BaseDenom::from_str(&denom).unwrap();
+    let token: BaseCoin =
+        Coin { denom: base_denom, amount: Amount::from(1000000) };
 
-//     let all_messages = [messages];
+    let packet_data = PacketData {
+        token: token.into(),
+        sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
+        receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
+        memo: memo.into(),
+    };
 
-//     let errors = all_messages.into_iter().fold(vec![], |mut errors, msg| {
-//         match ibc::core::MsgEnvelope::try_from(msg) {
-//             Ok(msg) => {
-//                 match ibc::core::dispatch(&mut solana_ibc_store.clone(), &mut solana_ibc_store, msg)
-//                 {
-//                     Ok(()) => (),
-//                     Err(e) => {
-//                         println!("during dispatch");
-//                         errors.push(e);
-//                     }
-//                 }
-//             }
-//             Err(e) => {
-//                 println!("This while converting from msg to msgEnvelope");
-//                 errors.push(e);
-//             }
-//         }
-//         errors
-//     });
-//     println!("These are the errors");
-//     println!("{:?}", errors);
-// }
+    let serialized_data = serde_json::to_vec(&packet_data).unwrap();
+
+    let packet = Packet {
+        seq_on_a: sequence.into(),
+        port_id_on_a: port_id.clone(),
+        chan_id_on_a: channel_id_on_a,
+        port_id_on_b: port_id,
+        chan_id_on_b: channel_id_on_b,
+        data: serialized_data.clone(),
+        timeout_height_on_b: TimeoutHeight::Never,
+        timeout_timestamp_on_b: Timestamp::none(),
+    };
+
+    packet
+}

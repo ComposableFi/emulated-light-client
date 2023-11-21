@@ -69,6 +69,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
+        //Find if sender is escrow or receiver
         let sender_id = Pubkey::from(from);
         let receiver_id = Pubkey::from(to);
         let base_denom = amt.denom.base_denom.to_string();
@@ -76,22 +77,26 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
 
         let amount_in_u64 = check_amount_overflow(amount)?;
 
-        let (_token_mint_key, bump) =
+        let (_token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
+        let (mint_authority_key, mint_authority_bump) =
+            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
         let sender = get_account_info_from_key(accounts, sender_id)?;
         let receiver = get_account_info_from_key(accounts, receiver_id)?;
+        let mint_authority =
+            get_account_info_from_key(accounts, mint_authority_key)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
-        let bump_vector = bump.to_le_bytes();
-        let inner = vec![base_denom.as_ref(), bump_vector.as_ref()];
+        let bump_vector = mint_authority_bump.to_le_bytes();
+        let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
         let outer = vec![inner.as_slice()];
 
         // Below is the actual instruction that we are going to send to the Token program.
         let transfer_instruction = Transfer {
             from: sender.clone(),
             to: receiver.clone(),
-            authority: sender.clone(),
+            authority: mint_authority.clone(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),
@@ -212,7 +217,8 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let seeds = [port_id.as_bytes(), channel_id.as_bytes()];
+        let seeds =
+            [port_id.as_bytes().as_ref(), channel_id.as_bytes().as_ref()];
         let (escrow_account_key, _bump) =
             Pubkey::find_program_address(&seeds, &crate::ID);
         Ok(AccountId(escrow_account_key))

@@ -172,7 +172,7 @@ pub mod solana_ibc {
     pub fn mock_deliver(
         ctx: Context<MockDeliver>,
         port_id: PortId,
-        channel_id: ChannelId,
+        channel_id_on_b: ChannelId,
         base_denom: String,
         commitment_prefix: CommitmentPrefix,
         client_id: ClientId,
@@ -183,7 +183,7 @@ pub mod solana_ibc {
             mock_deliver_impl(
                 ctx,
                 port_id,
-                channel_id,
+                channel_id_on_b,
                 base_denom,
                 commitment_prefix,
                 client_id,
@@ -268,7 +268,7 @@ pub struct Deliver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: PortId, channel_id: ChannelId, base_denom: String)]
+#[instruction(port_id: PortId, channel_id_on_b: ChannelId, base_denom: String)]
 pub struct MockDeliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -277,18 +277,18 @@ pub struct MockDeliver<'info> {
     receiver: AccountInfo<'info>,
 
     /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump, realloc = 10000, realloc::payer = sender, realloc::zero = false)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump, realloc = 10240, realloc::payer = sender, realloc::zero = false)]
     storage: Box<Account<'info, storage::PrivateStorage>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10000)]
+    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
     trie: UncheckedAccount<'info>,
 
     /// The account holding packets.
-    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 1000)]
+    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 10240)]
     packets: Box<Account<'info, IbcPackets>>,
 
     /// The below accounts are being created for testing purposes only.
@@ -299,7 +299,7 @@ pub struct MockDeliver<'info> {
     mint_authority: UncheckedAccount<'info>,
     #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()], bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
-    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id.as_bytes()], bump, token::mint = token_mint, token::authority = sender)]
+    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id_on_b.as_bytes()], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
     #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
     sender_token_account: Box<Account<'info, TokenAccount>>,
