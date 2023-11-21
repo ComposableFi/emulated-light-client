@@ -128,59 +128,58 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
         })
     }
 
-    fn channel_end(
-        &self,
-        channel_end_path: &ChannelEndPath,
-    ) -> Result<ChannelEnd> {
-        let key =
-            (channel_end_path.0.to_string(), channel_end_path.1.to_string());
+    fn channel_end(&self, path: &ChannelEndPath) -> Result<ChannelEnd> {
+        let key = ids::PortChannelPK::try_from(&path.0, &path.1)?;
         self.borrow()
             .private
             .channel_ends
             .get(&key)
             .ok_or_else(|| ChannelError::ChannelNotFound {
-                port_id: channel_end_path.0.clone(),
-                channel_id: channel_end_path.1.clone(),
+                port_id: path.0.clone(),
+                channel_id: path.1.clone(),
             })?
             .get()
             .map_err(Into::into)
     }
 
     fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Send)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextSendSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Send,
+            |port_id, channel_id| PacketError::MissingNextSendSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
     fn get_next_sequence_recv(&self, path: &SeqRecvPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Recv)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextRecvSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Recv,
+            |port_id, channel_id| PacketError::MissingNextRecvSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
     fn get_next_sequence_ack(&self, path: &SeqAckPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Ack)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextAckSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Ack,
+            |port_id, channel_id| PacketError::MissingNextAckSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
     fn get_packet_commitment(
         &self,
         path: &CommitmentPath,
     ) -> Result<PacketCommitment> {
-        let trie_key = TrieKey::from(path);
+        let trie_key = TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ContextError::PacketError(
@@ -190,7 +189,7 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
     }
 
     fn get_packet_receipt(&self, path: &ReceiptPath) -> Result<Receipt> {
-        let trie_key = TrieKey::from(path);
+        let trie_key = TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) if hash == CryptoHash::DEFAULT => Ok(Receipt::Ok),
             _ => Err(ContextError::PacketError(
@@ -203,7 +202,7 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         path: &AckPath,
     ) -> Result<AcknowledgementCommitment> {
-        let trie_key = TrieKey::from(path);
+        let trie_key = TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ContextError::PacketError(
@@ -215,8 +214,7 @@ impl ValidationContext for IbcStorage<'_, '_, '_> {
     }
 
     fn channel_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.channel_counter)
+        Ok(u64::from(self.borrow().private.channel_counter))
     }
 
     fn max_expected_time_per_block(&self) -> Duration {
@@ -313,24 +311,34 @@ impl ibc::core::ics02_client::ClientValidationContext
 }
 
 impl IbcStorage<'_, '_, '_> {
-    fn get_next_sequence(
+    fn get_next_sequence<'a>(
         &self,
-        path: crate::storage::trie_key::SequencePath<'_>,
+        path: impl Into<storage::trie_key::SequencePath<'a>>,
         index: storage::SequenceTripleIdx,
-    ) -> core::result::Result<
-        Sequence,
-        (
+        make_err: impl FnOnce(
             ibc::core::ics24_host::identifier::PortId,
             ibc::core::ics24_host::identifier::ChannelId,
-        ),
-    > {
-        let store = self.borrow();
-        store
-            .private
-            .next_sequence
-            .get(&(path.port_id.to_string(), path.channel_id.to_string()))
-            .and_then(|triple| triple.get(index))
-            .ok_or_else(|| (path.port_id.clone(), path.channel_id.clone()))
+        ) -> PacketError,
+    ) -> Result<Sequence> {
+        fn get(
+            this: &IbcStorage<'_, '_, '_>,
+            port_channel: &ids::PortChannelPK,
+            index: storage::SequenceTripleIdx,
+        ) -> Option<Sequence> {
+            this.borrow()
+                .private
+                .next_sequence
+                .get(port_channel)
+                .and_then(|triple| triple.get(index))
+        }
+
+        let path = path.into();
+        let key = ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        get(self, &key, index)
+            .ok_or_else(|| {
+                make_err(path.port_id.clone(), path.channel_id.clone())
+            })
+            .map_err(ContextError::from)
     }
 }
 
