@@ -266,7 +266,5 @@ impl AsComponent for u64 {
 
 impl<const N: usize> AsComponent for [u8; N] {
     fn key_len(&self) -> usize { N }
-    fn append_into(&self, dest: &mut Vec<u8>) {
-        dest.extend_from_slice(self)
-    }
+    fn append_into(&self, dest: &mut Vec<u8>) { dest.extend_from_slice(self) }
 }
