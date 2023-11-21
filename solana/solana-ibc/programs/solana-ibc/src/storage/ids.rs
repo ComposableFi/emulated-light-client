@@ -5,14 +5,6 @@ use super::ibc;
 type Result<T, E = ibc::ClientError> = core::result::Result<T, E>;
 
 
-/// Prefix of IBC channel ids.
-///
-/// Note: We’re not using ChannelId::prefix() because it returns the prefix
-/// without trailing `-` which we want included to simplify stripping of the
-/// prefix.
-pub(super) const CHANNEL_ID_PREFIX: &str = "channel-";
-
-
 /// An index used as unique identifier for a client.
 ///
 /// IBC client id uses `<client-type>-<counter>` format.  This index is
@@ -110,6 +102,71 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
             }),
         }
     }
+}
+
+
+/// An internal port-channel identifier; that is, it combines IBC port and
+/// channel identifier into a single primary key type.
+///
+/// Currently port identifier is represented as a string.
+///
+/// Meanwhile, the channel identifier is build from IBC identifiers which are of
+/// the form `channel-<number>`.  Rather than treating the identifier as
+/// a string, we’re parsing the number out and keep only that.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+)]
+pub struct PortChannelPK {
+    pub(super) port_id: ibc::PortId,
+    pub(super) channel_idx: u32,
+}
+
+impl PortChannelPK {
+    /// Prefix of IBC channel ids.
+    ///
+    /// Note: We’re not using ChannelId::prefix() because it returns the
+    /// prefix without trailing `-` which we want included to simplify stripping
+    /// of the prefix.
+    const CHANNEL_IBC_PREFIX: &'static str = "channel-";
+
+    pub fn try_from(
+        port_id: impl MaybeOwned<ibc::PortId>,
+        channel_id: impl MaybeOwned<ibc::ChannelId>,
+    ) -> Result<Self, ibc::ChannelError> {
+        let channel_str = channel_id.as_ref().as_str();
+        match parse_sans_prefix(Self::CHANNEL_IBC_PREFIX, channel_str) {
+            Some(channel_idx) => {
+                Ok(Self { port_id: port_id.into_owned(), channel_idx })
+            }
+            None => Err(ibc::ChannelError::ChannelNotFound {
+                port_id: port_id.into_owned(),
+                channel_id: channel_id.into_owned(),
+            }),
+        }
+    }
+}
+
+pub trait MaybeOwned<T> {
+    fn as_ref(&self) -> &T;
+    fn into_owned(self) -> T;
+}
+
+impl<T: Clone> MaybeOwned<T> for &T {
+    fn as_ref(&self) -> &T { self }
+    fn into_owned(self) -> T { (*self).clone() }
+}
+
+impl<T> MaybeOwned<T> for T {
+    fn as_ref(&self) -> &T { self }
+    fn into_owned(self) -> T { self }
 }
 
 

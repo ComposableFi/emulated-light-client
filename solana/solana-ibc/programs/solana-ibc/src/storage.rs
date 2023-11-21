@@ -16,9 +16,13 @@ mod ibc {
     pub use ibc::core::ics03_connection::connection::ConnectionEnd;
     pub use ibc::core::ics03_connection::error::ConnectionError;
     pub use ibc::core::ics04_channel::channel::ChannelEnd;
+    pub use ibc::core::ics04_channel::error::ChannelError;
     pub use ibc::core::ics04_channel::msgs::PacketMsg;
     pub use ibc::core::ics04_channel::packet::Sequence;
-    pub use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
+    pub use ibc::core::ics24_host::identifier::{
+        ChannelId, ClientId, ConnectionId, PortId,
+    };
+    pub use ibc::core::ics24_host::path;
     pub use ibc::Height;
 }
 
@@ -26,8 +30,6 @@ pub(crate) mod ids;
 pub(crate) mod trie_key;
 
 pub(crate) type SolanaTimestamp = u64;
-pub(crate) type InnerPortId = String;
-pub(crate) type InnerChannelId = String;
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -155,23 +157,15 @@ pub(crate) struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    pub channel_ends:
-        BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
-    pub channel_counter: u64,
-
-    /// The sequence numbers of the packet commitments.
-    pub packet_commitment_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<ibc::Sequence>>,
-    /// The sequence numbers of the packet acknowledgements.
-    pub packet_acknowledgement_sequence_sets:
-        BTreeMap<(InnerPortId, InnerChannelId), Vec<ibc::Sequence>>,
+    pub channel_ends: BTreeMap<ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
+    pub channel_counter: u32,
 
     /// Next send, receive and ack sequence for given (port, channel).
     ///
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<(InnerPortId, InnerChannelId), SequenceTriple>,
+    pub next_sequence: BTreeMap<ids::PortChannelPK, SequenceTriple>,
 }
 
 impl PrivateStorage {
