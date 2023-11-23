@@ -38,7 +38,7 @@ pub struct Slice<'a> {
 ///
 /// This is owned version of [`Slice`] though it has very limited set of
 /// features only allowing some forms of concatenation.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Owned {
     /// Offset in bits to start the slice in `bytes`.
     offset: u8,
@@ -437,6 +437,18 @@ impl<'a> Slice<'a> {
     }
 }
 
+impl<'a> Default for Slice<'a> {
+    fn default() -> Self {
+        static NUL: u8 = 0;
+        Slice {
+            offset: 0,
+            length: 0,
+            ptr: &NUL as *const u8,
+            phantom: core::marker::PhantomData,
+        }
+    }
+}
+
 impl From<Slice<'_>> for Owned {
     fn from(slice: Slice<'_>) -> Self {
         Self {
@@ -513,8 +525,8 @@ impl Owned {
 
     /// Concatenates a [`Slice`] with [`Owned`].
     ///
-    /// Returns `None` if end of `prefix` doesn’t align with start of `suffix`
-    /// or if resulting length is too large.
+    /// Returns `MisalignedError` if end of `prefix` doesn’t align with start
+    /// of `suffix` or if resulting length is too large.
     ///
     /// ## Example
     ///
@@ -523,41 +535,46 @@ impl Owned {
     ///
     /// let prefix = bits::Slice::new(&[255], 1, 5).unwrap();
     /// let suffix = bits::Owned::bit(true, 6);
-    /// let got = bits::Owned::concat(prefix, suffix).unwrap();
+    /// let got = bits::Owned::concat(prefix, suffix.as_slice()).unwrap();
     /// assert_eq!(bits::Slice::new(&[126], 1, 6).unwrap(), got);
     ///
     /// let prefix = bits::Slice::new(&[0, 0], 6, 3).unwrap();;
-    /// let suffix = got;
+    /// let suffix = got.as_slice();
     /// let got = bits::Owned::concat(prefix, suffix).unwrap();
     /// assert_eq!(bits::Slice::new(&[0, 126], 6, 9).unwrap(), got);
     /// ```
-    pub fn concat(prefix: Slice, mut suffix: Self) -> Option<Self> {
-        let bits = usize::from(prefix.offset) + usize::from(prefix.length);
-        if usize::from(suffix.offset) != bits % 8 {
+    pub fn concat(
+        prefix: Slice,
+        suffix: Slice,
+    ) -> Result<Self, MisalignedError> {
+        let prefix_bits =
+            usize::from(prefix.offset) + usize::from(prefix.length);
+        if usize::from(suffix.offset) != prefix_bits % 8 {
             // Misaligned slices.
-            return None;
+            return Err(MisalignedError);
         }
 
-        let length = suffix.length.checked_add(prefix.length)?;
-        let mut prefix_bytes = prefix.bytes();
-
-        // Take last partial byte from prefix and add it to suffix.  This aligns
-        // the seam to byte boundary and makes concatenation trivial.
-        if suffix.length > 0 && suffix.offset != 0 {
-            if let Some((last, bytes)) = prefix_bytes.split_last() {
-                prefix_bytes = bytes;
-                let mask = 255 >> suffix.offset;
-                suffix.bytes[0] &= mask;
-                suffix.bytes[0] |= *last & !mask;
-            }
-        }
-
-        let bytes = if prefix_bytes.is_empty() {
-            suffix.bytes
+        let pre_bytes = prefix.bytes();
+        let suf_bytes = suffix.bytes();
+        let bytes = if pre_bytes.is_empty() ||
+            suf_bytes.is_empty() ||
+            suffix.offset == 0
+        {
+            // If either of the slices is empty or they meet at a byte boundary
+            // we just need to concatenate the bytes and we’re good.
+            [pre_bytes, suf_bytes].concat()
         } else {
-            [prefix_bytes, suffix.bytes.as_slice()].concat()
+            // Otherwise, the two slices have one byte that overlaps.
+            // Concatenate excluding the first byte of the suffix and
+            let mut bytes = [pre_bytes, &suf_bytes[1..]].concat();
+            let mask = 255 >> suffix.offset;
+            bytes[pre_bytes.len() - 1] &= !mask;
+            bytes[pre_bytes.len() - 1] |= suf_bytes[0] & mask;
+            bytes
         };
-        Some(Self { bytes, offset: prefix.offset, length })
+
+        let length = suffix.length.checked_add(prefix.length).unwrap();
+        Ok(Self { bytes, offset: prefix.offset, length })
     }
 
     /// Borrows the owned slice.
@@ -623,6 +640,58 @@ impl core::cmp::PartialEq<Owned> for Slice<'_> {
     #[inline]
     fn eq(&self, other: &Owned) -> bool { self == &other.as_slice() }
 }
+
+
+/// Error when trying to concatenate bit slices or convert them into
+/// a continuous bytes vector.
+///
+/// # Example
+///
+/// The error can happen when trying to convert a bit slice which doesn’t cover
+/// full bytes into a vector of bytes.  This may happen even if the bit slice is
+/// empty if its offset is non-zero.
+///
+/// ```
+/// # use sealable_trie::bits;
+///
+/// let slice = bits::Slice::new(b"A", 0, 8).unwrap();
+/// assert_eq!(b"A", <Vec<u8>>::try_from(slice).unwrap().as_slice());
+///
+/// let slice = bits::Slice::new(b"A", 0, 0).unwrap();
+/// assert_eq!(b"", <Vec<u8>>::try_from(slice).unwrap().as_slice());
+///
+/// let slice = bits::Slice::new(b"A", 0, 4).unwrap();
+/// assert_eq!(Err(bits::MisalignedError), <Vec<u8>>::try_from(slice));
+///
+/// let slice = bits::Slice::new(b"A", 4, 0).unwrap();
+/// assert_eq!(Err(bits::MisalignedError), <Vec<u8>>::try_from(slice));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MisalignedError;
+
+impl TryFrom<Slice<'_>> for Vec<u8> {
+    type Error = MisalignedError;
+    #[inline]
+    fn try_from(slice: Slice<'_>) -> Result<Self, Self::Error> {
+        if slice.offset == 0 && slice.length % 8 == 0 {
+            Ok(slice.bytes().into())
+        } else {
+            Err(MisalignedError)
+        }
+    }
+}
+
+impl TryFrom<Owned> for Vec<u8> {
+    type Error = MisalignedError;
+    fn try_from(slice: Owned) -> Result<Self, Self::Error> {
+        if slice.offset == 0 && slice.length % 8 == 0 {
+            Ok(slice.bytes)
+        } else {
+            Err(MisalignedError)
+        }
+    }
+}
+
 
 impl fmt::Display for Slice<'_> {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -819,11 +888,12 @@ fn test_owned_concat() {
         .unwrap();
 
         let prefix = Slice::new(&[255], 0, len).unwrap();
-        let suffix = Owned {
-            bytes: alloc::vec![0],
-            offset: (len % 8) as u8,
-            length: if len == 8 { 8 } else { 8 - len },
-        };
+        let suffix = Slice::new(
+            &[0],
+            (len % 8) as u8,
+            if len == 8 { 8 } else { 8 - len },
+        )
+        .unwrap();
         let got = Owned::concat(prefix, suffix).unwrap();
         assert_eq!(want, got, "len: {len}");
     }
