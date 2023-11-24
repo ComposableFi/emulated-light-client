@@ -125,8 +125,8 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
     borsh::BorshDeserialize,
 )]
 pub struct PortChannelPK {
-    pub(super) port_id: ibc::PortId,
-    pub(super) channel_idx: u32,
+    pub port_id: ibc::PortId,
+    pub channel_idx: u32,
 }
 
 impl PortChannelPK {
