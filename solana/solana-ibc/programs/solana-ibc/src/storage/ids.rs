@@ -1,4 +1,5 @@
 use anchor_lang::prelude::borsh;
+use ::ibc::core::ics24_host::identifier::ChannelId;
 
 use super::ibc;
 
@@ -125,8 +126,8 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
     borsh::BorshDeserialize,
 )]
 pub struct PortChannelPK {
-    pub port_id: ibc::PortId,
-    pub channel_idx: u32,
+    pub(super) port_id: ibc::PortId,
+    pub(super) channel_idx: u32,
 }
 
 impl PortChannelPK {
@@ -151,6 +152,14 @@ impl PortChannelPK {
                 channel_id: channel_id.into_owned(),
             }),
         }
+    }
+
+    pub fn channel_id(&self) -> ibc::ChannelId {
+        ChannelId::new(self.channel_idx.into())
+    }
+
+    pub fn port_id(&self) -> ibc::PortId {
+        self.port_id.clone()
     }
 }
 
