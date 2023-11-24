@@ -102,7 +102,7 @@ pub fn emit<'a>(event: impl Into<Event<'a>>) -> Result<(), String> {
 pub type CowBlock<'a> = alloc::borrow::Cow<'a, Block>;
 
 #[inline]
-pub fn block<'a>(block: &'a crate::chain::Block) -> CowBlock {
+pub fn block(block: &crate::chain::Block) -> CowBlock {
     CowBlock::Borrowed(bytemuck::TransparentWrapper::wrap_ref(block))
 }
 

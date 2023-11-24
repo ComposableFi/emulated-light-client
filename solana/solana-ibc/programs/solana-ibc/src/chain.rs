@@ -192,7 +192,7 @@ impl ChainInner {
                 assert!(!finalised);
                 events::emit(events::NewBlock {
                     hash: head.calc_hash(),
-                    block: events::block(&head),
+                    block: events::block(head),
                 })
                 .map_err(ProgramError::BorshIoError)?;
                 Ok(())
