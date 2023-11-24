@@ -58,8 +58,8 @@ impl TrieKey {
     /// Constructs a new key for a client state path for client with given
     /// counter.
     ///
-    /// The hash stored under the key is `hash(borsh(client_id.as_str()) ||
-    /// borsh(client_state))`.
+    /// The hash stored under the key is `hash(borsh((client_id.as_str(),
+    /// client_state)))`.
     pub fn for_client_state(client: ids::ClientIdx) -> Self {
         new_key_impl!(Tag::ClientState, client)
     }
