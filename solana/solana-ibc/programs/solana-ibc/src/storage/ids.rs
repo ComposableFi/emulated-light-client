@@ -1,5 +1,5 @@
-use anchor_lang::prelude::borsh;
 use ::ibc::core::ics24_host::identifier::ChannelId;
+use anchor_lang::prelude::borsh;
 
 use super::ibc;
 
@@ -158,9 +158,7 @@ impl PortChannelPK {
         ChannelId::new(self.channel_idx.into())
     }
 
-    pub fn port_id(&self) -> ibc::PortId {
-        self.port_id.clone()
-    }
+    pub fn port_id(&self) -> ibc::PortId { self.port_id.clone() }
 }
 
 pub trait MaybeOwned<T> {
