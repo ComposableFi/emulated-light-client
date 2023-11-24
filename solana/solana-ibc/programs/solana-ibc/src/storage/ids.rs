@@ -152,6 +152,12 @@ impl PortChannelPK {
             }),
         }
     }
+
+    pub fn port_id(&self) -> ibc::PortId { self.port_id.clone() }
+
+    pub fn channel_id(&self) -> ibc::ChannelId {
+        ibc::ChannelId::new(self.channel_idx.into())
+    }
 }
 
 pub trait MaybeOwned<T> {
