@@ -44,9 +44,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
         let serialised = client.client_state.set(&state)?;
+        let client_id = path.0.as_bytes();
         let hash = CryptoHash::digestv(&[
-            path.0.as_bytes(),
-            &[0],
+            &(client_id.len() as u32).to_le_bytes()[..],
+            client_id,
             serialised.as_bytes(),
         ]);
         let key = TrieKey::for_client_state(client.index);
