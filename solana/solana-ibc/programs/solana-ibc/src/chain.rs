@@ -49,7 +49,10 @@ impl ChainData {
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
         events::emit(events::Initialised {
-            genesis: events::NewBlock { hash: &head.calc_hash(), block: head },
+            genesis: events::NewBlock {
+                hash: head.calc_hash(),
+                block: events::block(head),
+            },
         })
         .map_err(ProgramError::BorshIoError)?;
         Ok(())
@@ -124,8 +127,8 @@ impl ChainData {
                 let (finalised, head) = inner.manager.head();
                 assert!(!finalised);
                 events::emit(events::NewBlock {
-                    hash: &head.calc_hash(),
-                    block: head,
+                    hash: head.calc_hash(),
+                    block: events::block(head),
                 })
                 .map_err(ProgramError::BorshIoError)?;
                 Ok(())
@@ -155,8 +158,8 @@ impl ChainData {
         if res.got_new_signature() {
             let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
             events::emit(events::BlockSigned {
-                block_hash: hash,
-                pubkey: &pubkey,
+                block_hash: hash.clone(),
+                pubkey,
             })
             .map_err(ProgramError::BorshIoError)?;
         }
