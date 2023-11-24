@@ -11,22 +11,22 @@ use ibc::core::ics24_host::identifier::PortId;
 use ibc::core::router::{Module, ModuleId, Router};
 use ibc::core::MsgEnvelope;
 
-const CHAIN_SEED: &[u8] = b"chain";
-const PACKET_SEED: &[u8] = b"packet";
-const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
-const TRIE_SEED: &[u8] = b"trie";
+pub const CHAIN_SEED: &[u8] = b"chain";
+pub const PACKET_SEED: &[u8] = b"packet";
+pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
+pub const TRIE_SEED: &[u8] = b"trie";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
-mod chain;
-mod client_state;
-mod consensus_state;
+pub mod chain;
+pub mod client_state;
+pub mod consensus_state;
 mod ed25519;
 mod error;
-mod events;
+pub mod events;
 mod execution_context;
 mod host;
-mod storage;
+pub mod storage;
 #[cfg(test)]
 mod tests;
 mod transfer;
@@ -122,7 +122,7 @@ pub mod solana_ibc {
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,

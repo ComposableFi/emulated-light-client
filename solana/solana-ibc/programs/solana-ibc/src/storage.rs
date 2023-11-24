@@ -22,8 +22,8 @@ mod ibc {
     pub use ibc::Height;
 }
 
-pub(crate) mod ids;
-pub(crate) mod trie_key;
+pub mod ids;
+pub mod trie_key;
 
 pub(crate) type SolanaTimestamp = u64;
 pub(crate) type InnerPortId = String;
@@ -39,13 +39,13 @@ pub(crate) type InnerChannelId = String;
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
 )]
-pub(crate) struct SequenceTriple {
+pub struct SequenceTriple {
     sequences: [u64; 3],
     mask: u8,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum SequenceTripleIdx {
+pub enum SequenceTripleIdx {
     Send = 0,
     Recv = 1,
     Ack = 2,
@@ -53,7 +53,7 @@ pub(crate) enum SequenceTripleIdx {
 
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
-    pub(crate) fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
+    pub fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
         if self.mask & (1 << (idx as u32)) == 1 {
             Some(ibc::Sequence::from(self.sequences[idx as usize]))
         } else {
@@ -84,7 +84,7 @@ impl SequenceTriple {
 
 /// Per-client private storage.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
-pub(crate) struct ClientStore {
+pub struct ClientStore {
     pub client_id: ibc::ClientId,
     pub connection_id: Option<ids::ConnectionIdx>,
 
@@ -108,7 +108,7 @@ impl ClientStore {
 }
 
 /// A shared reference to a [`ClientStore`] together with its index.
-pub(crate) struct ClientRef<'a> {
+pub struct ClientRef<'a> {
     #[allow(dead_code)]
     pub index: ids::ClientIdx,
     pub store: &'a ClientStore,
@@ -120,7 +120,7 @@ impl<'a> core::ops::Deref for ClientRef<'a> {
 }
 
 /// An exclusive reference to a [`ClientStore`] together with its index.
-pub(crate) struct ClientMut<'a> {
+pub struct ClientMut<'a> {
     pub index: ids::ClientIdx,
     pub store: &'a mut ClientStore,
 }
@@ -142,12 +142,12 @@ pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 #[account]
 #[derive(Debug)]
 /// The private IBC storage, i.e. data which doesn’t require proofs.
-pub(crate) struct PrivateStorage {
+pub struct PrivateStorage {
     /// Per-client information.
     ///
     /// Entry at index `N` corresponds to the client with IBC identifier
     /// `client-<N>`.
-    clients: Vec<ClientStore>,
+    pub clients: Vec<ClientStore>,
 
     /// Information about the counterparty on given connection.
     ///
@@ -345,7 +345,7 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// must less than 64 KiB.  Solana’s heap is only half that so this limit isn’t
 /// an issue.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
+pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
