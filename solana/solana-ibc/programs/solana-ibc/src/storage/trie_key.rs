@@ -48,7 +48,7 @@ impl TrieKey {
     /// The hash stored under the key is `hash(borsh(client_id.as_str()) ||
     /// borsh(client_state))`.
     pub fn for_client_state(client: ids::ClientIdx) -> Self {
-        Self::new(Tag::ClientState, client)
+        Self::new(Tag::ClientState, u32::from(client))
     }
 
     /// Constructs a new key for a consensus state path for client with given
@@ -59,14 +59,14 @@ impl TrieKey {
         client: ids::ClientIdx,
         height: ibc::Height,
     ) -> Self {
-        Self::new(Tag::ConsensusState, (client, height))
+        Self::new(Tag::ConsensusState, (u32::from(client), height))
     }
 
     /// Constructs a new key for a connection end path.
     ///
     /// The hash stored under the key is `hash(borsh(connection_end))`.
     pub fn for_connection(connection: ids::ConnectionIdx) -> Self {
-        Self::new(Tag::Connection, connection)
+        Self::new(Tag::Connection, u32::from(connection))
     }
 
     /// Constructs a new key for a channel end path.
@@ -105,7 +105,7 @@ impl TrieKey {
         sequence: ibc::Sequence,
     ) -> Result<Self, ibc::ChannelError> {
         let port_channel = ids::PortChannelPK::try_from(port_id, channel_id)?;
-        Ok(Self::new(tag, (port_channel, sequence)))
+        Ok(Self::new(tag, (port_channel, u64::from(sequence))))
     }
 
     /// Constructs a new key with given tag and key component.
@@ -222,18 +222,6 @@ trait AsComponent {
     fn append_into(&self, dest: &mut TrieKey);
 }
 
-impl AsComponent for ids::ClientIdx {
-    fn append_into(&self, dest: &mut TrieKey) {
-        u32::from(*self).append_into(dest);
-    }
-}
-
-impl AsComponent for ids::ConnectionIdx {
-    fn append_into(&self, dest: &mut TrieKey) {
-        u32::from(*self).append_into(dest);
-    }
-}
-
 impl AsComponent for ids::PortChannelPK {
     fn append_into(&self, dest: &mut TrieKey) {
         self.port_key.as_bytes().append_into(dest);
@@ -243,14 +231,7 @@ impl AsComponent for ids::PortChannelPK {
 
 impl AsComponent for ibc::Height {
     fn append_into(&self, dest: &mut TrieKey) {
-        self.revision_number().append_into(dest);
-        self.revision_height().append_into(dest);
-    }
-}
-
-impl AsComponent for ibc::Sequence {
-    fn append_into(&self, dest: &mut TrieKey) {
-        u64::from(*self).append_into(dest);
+        (self.revision_number(), self.revision_height()).append_into(dest);
     }
 }
 
