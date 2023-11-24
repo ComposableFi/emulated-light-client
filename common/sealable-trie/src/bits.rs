@@ -484,7 +484,7 @@ impl Owned {
 
     /// Prepends given slice by a specified bit.
     ///
-    /// Returns `None` if length (in bits) of the resulting slice would exceed
+    /// Panics if length (in bits) of the resulting slice would exceed
     /// `u16::MAX`.
     ///
     /// ## Example
@@ -493,19 +493,20 @@ impl Owned {
     /// # use sealable_trie::bits;
     ///
     /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
-    /// let got = bits::Owned::unshift(false, suffix).unwrap();
+    /// let got = bits::Owned::unshift(false, suffix);
     /// assert_eq!(bits::Slice::new(&[124], 0, 6).unwrap(), got);
     ///
     /// let suffix = bits::Slice::new(&[255], 1, 5).unwrap();
-    /// let got = bits::Owned::unshift(true, suffix).unwrap();
+    /// let got = bits::Owned::unshift(true, suffix);
     /// assert_eq!(bits::Slice::new(&[252], 0, 6).unwrap(), got);
     ///
     /// let suffix = bits::Slice::new(&[255], 0, 5).unwrap();
-    /// let got = bits::Owned::unshift(true, suffix).unwrap();
+    /// let got = bits::Owned::unshift(true, suffix);
     /// assert_eq!(bits::Slice::new(&[255, 255], 7, 6).unwrap(), got);
     /// ```
-    pub fn unshift(bit: bool, suffix: Slice) -> Option<Self> {
-        let length = suffix.length.checked_add(1)?;
+    // TODO(mina86): Add consistent handling of length > u16::MAX.
+    pub fn unshift(bit: bool, suffix: Slice) -> Self {
+        let length = suffix.length.checked_add(1).unwrap();
         let (bytes, offset) = if suffix.is_empty() {
             let offset = suffix.offset.checked_sub(1).unwrap_or(7);
             let bytes = alloc::vec![255 * u8::from(bit)];
@@ -520,7 +521,74 @@ impl Owned {
             let bytes = [core::slice::from_ref(&bit), suffix.bytes()].concat();
             (bytes, 7)
         };
-        Some(Self { bytes, offset, length })
+        Self { bytes, offset, length }
+    }
+
+    /// Append given bit to the slice.
+    ///
+    /// Returns `None` if length (in bits) of the resulting slice would exceed
+    /// `u16::MAX`.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let bits = bits::Slice::new(&[0b_0100_1101], 1, 5).unwrap();
+    /// let mut bits = bits::Owned::from(bits);
+    ///
+    /// bits.push(true);
+    /// assert_eq!(bits::Slice::new(&[0b_0100_1110], 1, 6).unwrap(), bits);
+    ///
+    /// bits.push(false);
+    /// assert_eq!(bits::Slice::new(&[0b_0100_1110], 1, 7).unwrap(), bits);
+    ///
+    /// bits.push(true);
+    /// assert_eq!(bits::Slice::new(&[0b_0100_1110, 0x80], 1, 8).unwrap(), bits);
+    /// ```
+    // TODO(mina86): Add consistent handling of length > u16::MAX.
+    pub fn push(&mut self, bit: bool) {
+        let off = self.underlying_bits_length() % 8;
+        self.length = self.length.checked_add(1).unwrap();
+        let mask = 0x80 >> off;
+        match self.bytes.last_mut() {
+            Some(byte) if off != 0 => {
+                // If self.bytes is non-empty and we’re not adding msb of a new
+                // byte (i.e. off != 0), modify the last byte.
+                *byte = (*byte & !mask) | (mask * u8::from(bit));
+            }
+            _ => {
+                // Otherwise, either self.bytes is empty (and thus we’re adding
+                // a new byte with given bit set) or we’re aligned at the byte
+                // boundary (and we’re adding a new byte with msb set).
+                self.bytes.push(mask * u8::from(bit));
+            }
+        }
+    }
+
+    /// Returns the last bit in the slice shrinking the slice by one bit.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
+    /// let mut bits = bits::Owned::new(slice);
+    /// assert_eq!(Some(true), bits.pop_back());
+    /// assert_eq!(Some(true), bits.pop_back());
+    /// assert_eq!(Some(false), bits.pop_back());
+    /// assert_eq!(None, bits.pop_back());
+    /// ```
+    #[inline]
+    pub fn pop_back(&mut self) -> Option<bool> {
+        self.length = self.length.checked_sub(1)?;
+        let off = self.underlying_bits_length() % 8;
+        let bit = *self.bytes.last().unwrap() & (0x80 >> off);
+        if off == 0 {
+            self.bytes.pop();
+        }
+        Some(bit != 0)
     }
 
     /// Concatenates a [`Slice`] with [`Owned`].
@@ -543,6 +611,7 @@ impl Owned {
     /// let got = bits::Owned::concat(prefix, suffix).unwrap();
     /// assert_eq!(bits::Slice::new(&[0, 126], 6, 9).unwrap(), got);
     /// ```
+    // TODO(mina86): Add consistent handling of length > u16::MAX.
     pub fn concat(
         prefix: Slice,
         suffix: Slice,
@@ -586,6 +655,13 @@ impl Owned {
             phantom: Default::default(),
         }
     }
+
+    /// Returns total number of underlying bits, i.e. bits in the slice plus the
+    /// offset.
+    fn underlying_bits_length(&self) -> usize {
+        usize::from(self.offset) + usize::from(self.length)
+    }
+
 }
 
 impl core::cmp::PartialEq for Slice<'_> {
@@ -863,7 +939,7 @@ fn test_pop() {
 
 #[test]
 fn test_owned_unshift() {
-    for offset in 0..7 {
+    for offset in 0..=7 {
         let slice = Slice::new(&[255], offset, 1).unwrap();
         let want = if offset == 0 {
             Slice::new(&[1, 128], 7, 2)
@@ -871,8 +947,38 @@ fn test_owned_unshift() {
             Slice::new(&[255], offset - 1, 2)
         }
         .unwrap();
-        let got = Owned::unshift(true, slice).unwrap();
-        assert_eq!(want, got, "offset: {offset}");
+        assert_eq!(want, Owned::unshift(true, slice), "offset: {offset}");
+    }
+}
+
+#[test]
+fn test_owned_push() {
+    let mut bits = Owned::from(Slice::new(&[255], 1, 1).unwrap());
+
+    let mut push = |bit, want| {
+        let want = Slice::new(want, 1, bits.length + 1).unwrap();
+        bits.push(bit != 0);
+        assert_eq!(want, bits);
+    };
+
+    push(1, &[0b_0110_0000]);
+    push(1, &[0b_0111_0000]);
+    push(0, &[0b_0111_0000]);
+    push(0, &[0b_0111_0000]);
+    push(1, &[0b_0111_0010]);
+    push(1, &[0b_0111_0011]);
+    push(1, &[0b_0111_0011, 0b_1000_0000]);
+}
+
+#[test]
+fn test_owned_push_from_empty() {
+    for offset in 0..=7 {
+        let mut bits = Owned::from(Slice::new(&[], offset, 0).unwrap());
+        for length in 1..=16 {
+            let want = Slice::new(&[255, 255, 255], offset, length).unwrap();
+            bits.push(true);
+            assert_eq!(want, bits);
+        }
     }
 }
 
