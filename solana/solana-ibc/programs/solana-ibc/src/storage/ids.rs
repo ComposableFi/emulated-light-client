@@ -1,3 +1,5 @@
+use core::str::FromStr;
+
 use anchor_lang::prelude::borsh;
 use base64::engine::{general_purpose, Engine};
 
@@ -157,6 +159,14 @@ impl PortChannelPK {
             channel_id: channel_id.into_owned(),
         })
     }
+
+    #[allow(dead_code)]
+    pub fn port_id(&self) -> ibc::PortId { ibc::PortId::from(&self.port_key) }
+
+    #[allow(dead_code)]
+    pub fn channel_id(&self) -> ibc::ChannelId {
+        ibc::ChannelId::new(self.channel_idx.into())
+    }
 }
 
 pub trait MaybeOwned<T> {
@@ -200,6 +210,27 @@ pub struct PortKey([u8; 9]);
 impl PortKey {
     #[inline]
     pub fn as_bytes(&self) -> &[u8; 9] { &self.0 }
+
+    fn write_into<'a>(&self, buf: &'a mut [u8; 12]) -> &'a str {
+        let mut len = general_purpose::STANDARD
+            .encode_slice(self.as_bytes(), &mut buf[..])
+            .unwrap();
+        debug_assert_eq!(buf.len(), len);
+
+        while len > 0 && buf[len - 1] == b'/' {
+            len -= 1;
+        }
+
+        // SAFETY: base64 outputs ASCII characters.
+        unsafe { core::str::from_utf8_unchecked(&buf[..len]) }
+    }
+}
+
+impl TryFrom<ibc::PortId> for PortKey {
+    type Error = ();
+    fn try_from(port_id: ibc::PortId) -> Result<Self, Self::Error> {
+        Self::try_from(&port_id)
+    }
 }
 
 impl TryFrom<&ibc::PortId> for PortKey {
@@ -235,20 +266,22 @@ impl TryFrom<&ibc::PortId> for PortKey {
     }
 }
 
+impl From<PortKey> for ibc::PortId {
+    fn from(port_key: PortKey) -> Self { Self::from(&port_key) }
+}
+
+impl From<&PortKey> for ibc::PortId {
+    fn from(port_key: &PortKey) -> Self {
+        let mut buf = [0; 12];
+        Self::from_str(port_key.write_into(&mut buf)).unwrap()
+    }
+}
+
 impl core::fmt::Display for PortKey {
+    #[inline]
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut buf = [0; 12];
-        let mut len = general_purpose::STANDARD
-            .encode_slice(self.as_bytes(), &mut buf[..])
-            .unwrap();
-        debug_assert_eq!(buf.len(), len);
-
-        while len > 0 && buf[len - 1] == b'/' {
-            len -= 1;
-        }
-
-        // SAFETY: base64 outputs ASCII characters.
-        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
+        fmtr.write_str(self.write_into(&mut buf))
     }
 }
 
