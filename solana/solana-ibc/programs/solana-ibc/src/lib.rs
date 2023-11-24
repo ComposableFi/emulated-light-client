@@ -7,9 +7,6 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use ibc::core::ics24_host::identifier::PortId;
-use ibc::core::router::{Module, ModuleId, Router};
-use ibc::core::MsgEnvelope;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -26,6 +23,7 @@ mod error;
 pub mod events;
 mod execution_context;
 mod host;
+mod ibc;
 pub mod storage;
 #[cfg(test)]
 mod tests;
@@ -108,7 +106,7 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        message: ibc::core::MsgEnvelope,
+        message: ibc::MsgEnvelope,
     ) -> Result<()> {
         msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
@@ -133,11 +131,15 @@ pub mod solana_ibc {
 
         {
             let mut router = store.clone();
-            ibc::core::dispatch(&mut store, &mut router, message.clone())
-                .map_err(error::Error::RouterError)
-                .map_err(|err| error!((&err)))?;
+            ::ibc::core::entrypoint::dispatch(
+                &mut store,
+                &mut router,
+                message.clone(),
+            )
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))?;
         }
-        if let MsgEnvelope::Packet(packet) = message {
+        if let ibc::MsgEnvelope::Packet(packet) = message {
             // store the packet if not exists
             // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
             let mut store = store.borrow_mut();
@@ -230,32 +232,34 @@ pub struct Deliver<'info> {
     system_program: Program<'info, System>,
 }
 
-impl Router for storage::IbcStorage<'_, '_> {
+impl ibc::Router for storage::IbcStorage<'_, '_> {
     //
-    fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
+    fn get_route(&self, module_id: &ibc::ModuleId) -> Option<&dyn ibc::Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
         match module_id {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+            ibc::apps::transfer::types::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
     //
     fn get_route_mut(
         &mut self,
-        module_id: &ModuleId,
-    ) -> Option<&mut dyn Module> {
+        module_id: &ibc::ModuleId,
+    ) -> Option<&mut dyn ibc::Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
         match module_id {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+            ibc::apps::transfer::types::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
     //
-    fn lookup_module(&self, port_id: &PortId) -> Option<ModuleId> {
+    fn lookup_module(&self, port_id: &ibc::PortId) -> Option<ibc::ModuleId> {
         match port_id.as_str() {
-            ibc::applications::transfer::PORT_ID_STR => Some(ModuleId::new(
-                ibc::applications::transfer::MODULE_ID_STR.to_string(),
-            )),
+            ibc::apps::transfer::types::PORT_ID_STR => {
+                Some(ibc::ModuleId::new(
+                    ibc::apps::transfer::types::MODULE_ID_STR.to_string(),
+                ))
+            }
             _ => None,
         }
     }

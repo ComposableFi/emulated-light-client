@@ -30,8 +30,8 @@ borsh = { version = "0.10.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
-ibc = { version = "0.47.0", default-features = false, features = ["borsh", "serde"] }
-ibc-proto = { version = "0.37.1", default-features = false }
+ibc = { version = "0.48.0", default-features = false, features = ["borsh", "serde"] }
+ibc-testkit = { version = "0.48.0", default-features = false }
 pretty_assertions = "1.4.0"
 rand = { version = "0.8.5" }
 serde = "1"

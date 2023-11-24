@@ -1,13 +1,11 @@
 use anchor_lang::solana_program::msg;
-use ibc::applications::transfer::context::{
+use ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
-use ibc::applications::transfer::error::TokenTransferError;
-use ibc::applications::transfer::PrefixedCoin;
-use ibc::core::ics24_host::identifier::{ChannelId, PortId};
-use ibc::Signer;
+use ibc::apps::transfer::types::error::TokenTransferError;
+use ibc::apps::transfer::types::PrefixedCoin;
 
-// use crate::module_holder::IbcStorage<'_,'_>;
+use crate::ibc;
 use crate::storage::IbcStorage;
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
@@ -57,20 +55,20 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 }
 
 impl TokenTransferValidationContext for IbcStorage<'_, '_> {
-    type AccountId = Signer;
+    type AccountId = ibc::Signer;
 
-    fn get_port(&self) -> Result<PortId, TokenTransferError> {
-        Ok(PortId::transfer())
+    fn get_port(&self) -> Result<ibc::PortId, TokenTransferError> {
+        Ok(ibc::PortId::transfer())
     }
 
     fn get_escrow_account(
         &self,
-        port_id: &PortId,
-        channel_id: &ChannelId,
+        port_id: &ibc::PortId,
+        channel_id: &ibc::ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
         let escrow_account =
             format!("{}.ef.{}", channel_id.as_str(), port_id.as_str(),);
-        Ok(Signer::from(escrow_account))
+        Ok(ibc::Signer::from(escrow_account))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {

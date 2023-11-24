@@ -10,20 +10,10 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
 use anyhow::Result;
-use ibc::core::ics02_client::client_state::ClientStateCommon;
-use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
-use ibc::core::ics03_connection::connection::Counterparty;
-use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
-use ibc::core::ics03_connection::version::Version;
-use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::ClientId;
-use ibc::mock::client_state::MockClientState;
-use ibc::mock::consensus_state::MockConsensusState;
-use ibc::mock::header::MockHeader;
-use ibc_proto::google::protobuf::Any;
 
+use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{accounts, instruction};
+use crate::{accounts, ibc, instruction};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 
@@ -40,9 +30,10 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     airdrop_signature
 }
 
-fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
-    let mock_client_state = MockClientState::new(MockHeader::default());
-    let mock_cs_state = MockConsensusState::new(MockHeader::default());
+fn create_mock_client_and_cs_state(
+) -> (ibc::mock::MockClientState, ibc::mock::MockConsensusState) {
+    let mock_client_state = ibc::mock::MockClientState::new(Default::default());
+    let mock_cs_state = ibc::mock::MockConsensusState::new(Default::default());
     (mock_client_state, mock_cs_state)
 }
 
@@ -85,15 +76,16 @@ fn anchor_test_deliver() -> Result<()> {
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
+    let _client_id =
+        ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
     let message = make_message!(
-        MsgCreateClient::new(
-            Any::from(mock_client_state),
-            Any::from(mock_cs_state),
+        ibc::MsgCreateClient::new(
+            ibc::Any::from(mock_client_state),
+            ibc::Any::from(mock_cs_state),
             ibc::Signer::from(authority.pubkey().to_string()),
         ),
-        ibc::core::ics02_client::msgs::ClientMsg::CreateClient,
-        ibc::core::MsgEnvelope::Client,
+        ibc::ClientMsg::CreateClient,
+        ibc::MsgEnvelope::Client,
     );
 
     let sig = program
@@ -123,17 +115,20 @@ fn anchor_test_deliver() -> Result<()> {
     println!("This is solana storage account {:?}", solana_ibc_storage_account);
 
     let counter_party_client_id =
-        ClientId::new(mock_client_state.client_type(), 1).unwrap();
+        ibc::ClientId::new(mock_client_state.client_type(), 1).unwrap();
 
-    let commitment_prefix: CommitmentPrefix =
+    let commitment_prefix: ibc::CommitmentPrefix =
         IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
     let message = make_message!(
-        MsgConnectionOpenInit {
-            client_id_on_a: ClientId::new(mock_client_state.client_type(), 0)
-                .unwrap(),
-            version: Some(Version::default()),
-            counterparty: Counterparty::new(
+        ibc::MsgConnectionOpenInit {
+            client_id_on_a: ibc::ClientId::new(
+                mock_client_state.client_type(),
+                0
+            )
+            .unwrap(),
+            version: Some(Default::default()),
+            counterparty: ibc::connection::Counterparty::new(
                 counter_party_client_id,
                 None,
                 commitment_prefix,
@@ -141,8 +136,8 @@ fn anchor_test_deliver() -> Result<()> {
             delay_period: Duration::from_secs(5),
             signer: ibc::Signer::from(authority.pubkey().to_string()),
         },
-        ibc::core::ics03_connection::msgs::ConnectionMsg::OpenInit,
-        ibc::core::MsgEnvelope::Connection,
+        ibc::ConnectionMsg::OpenInit,
+        ibc::MsgEnvelope::Connection,
     );
 
     let sig = program
@@ -172,12 +167,12 @@ fn anchor_test_deliver() -> Result<()> {
 // fn internal_test() {
 //     let authority = Keypair::new();
 //     let mut solana_ibc_store = IbcStorage::new(authority.pubkey());
-//     let mock_client_state = MockClientState::new(MockHeader::default());
-//     let mock_cs_state = MockConsensusState::new(MockHeader::default());
-//     let client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
-//     let msg = MsgCreateClient::new(
-//         Any::from(mock_client_state),
-//         Any::from(mock_cs_state),
+//     let mock_client_state = MockClientState::new(Default::default());
+//     let mock_cs_state = MockConsensusState::new(Default::default());
+//     let client_id = ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
+//     let msg = ibc::MsgCreateClient::new(
+//         ibc::Any::from(mock_client_state),
+//         ibc::Any::from(mock_cs_state),
 //         ibc::Signer::from(authority.pubkey().to_string()),
 //     );
 //     let messages = ibc::Any {
@@ -188,7 +183,7 @@ fn anchor_test_deliver() -> Result<()> {
 //     let all_messages = [messages];
 
 //     let errors = all_messages.into_iter().fold(vec![], |mut errors, msg| {
-//         match ibc::core::MsgEnvelope::try_from(msg) {
+//         match ibc::core::ibc::MsgEnvelope::try_from(msg) {
 //             Ok(msg) => {
 //                 match ibc::core::dispatch(&mut solana_ibc_store.clone(), &mut solana_ibc_store, msg)
 //                 {

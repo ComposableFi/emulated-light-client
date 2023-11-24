@@ -2,12 +2,14 @@ use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program;
 use lib::hash::CryptoHash;
 
+use crate::ibc;
+
 /// Possible events emitted by the smart contract.
 ///
 /// The events are logged in their borsh-serialised form.
 #[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
 pub enum Event<'a> {
-    IbcEvent(ibc::core::events::IbcEvent),
+    IbcEvent(ibc::IbcEvent),
     Initialised(Initialised<'a>),
     NewBlock(NewBlock<'a>),
     BlockSigned(BlockSigned<'a>),

@@ -11,7 +11,7 @@ pub(crate) enum Error {
     Internal(&'static str),
 
     /// Error handling an IBC request.
-    RouterError(ibc::core::RouterError),
+    ContextError(crate::ibc::ContextError),
 
     /// Guest block hasn’t been initialised yet.
     ChainNotInitialised,
@@ -67,7 +67,7 @@ impl core::fmt::Display for Error {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Internal(msg) => fmtr.write_str(msg.as_ref()),
-            Self::RouterError(err) => err.fmt(fmtr),
+            Self::ContextError(err) => err.fmt(fmtr),
             err => fmtr.write_str(&err.name()),
         }
     }
