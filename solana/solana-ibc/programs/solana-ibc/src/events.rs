@@ -1,3 +1,5 @@
+use alloc::borrow::Cow;
+
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program;
 use lib::hash::CryptoHash;
@@ -56,4 +58,15 @@ impl Event<'_> {
 
 pub fn emit<'a>(event: impl Into<Event<'a>>) -> Result<(), String> {
     event.into().emit()
+}
+
+/// A wrapper around [`crate::chain::Block`] which can be used with a [`Cow`].
+#[derive(bytemuck::TransparentWrapper)]
+#[repr(transparent)]
+pub struct Block(pub crate::chain::Block);
+
+impl alloc::borrow::ToOwned for Block {
+    type Owned = alloc::box::Box<crate::chain::Block>;
+
+    fn to_owned(&self) -> Self::Owned { Box::new(self.clone()) }
 }
