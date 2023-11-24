@@ -574,13 +574,12 @@ impl Owned {
     /// # use sealable_trie::bits;
     ///
     /// let slice = bits::Slice::new(&[0x60], 0, 3).unwrap();
-    /// let mut bits = bits::Owned::new(slice);
+    /// let mut bits = bits::Owned::from(slice);
     /// assert_eq!(Some(true), bits.pop_back());
     /// assert_eq!(Some(true), bits.pop_back());
     /// assert_eq!(Some(false), bits.pop_back());
     /// assert_eq!(None, bits.pop_back());
     /// ```
-    #[inline]
     pub fn pop_back(&mut self) -> Option<bool> {
         self.length = self.length.checked_sub(1)?;
         let off = self.underlying_bits_length() % 8;
@@ -589,6 +588,29 @@ impl Owned {
             self.bytes.pop();
         }
         Some(bit != 0)
+    }
+
+    /// Sets the last bit in the slice; panics if slice is empty.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits;
+    ///
+    /// let slice = bits::Slice::new(&[0x0f], 4, 4).unwrap();
+    /// let mut bits = bits::Owned::from(slice);
+    ///
+    /// bits.set_last(false);
+    /// assert_eq!(bits::Slice::new(&[0x0e], 4, 4).unwrap(), bits);
+    ///
+    /// bits.set_last(true);
+    /// assert_eq!(bits::Slice::new(&[0x0f], 4, 4).unwrap(), bits);
+    /// ```
+    pub fn set_last(&mut self, bit: bool) {
+        let bits = self.underlying_bits_length();
+        let last = self.bytes.last_mut().unwrap();
+        let mask = 0x80 >> ((bits - 1) % 8);
+        *last = (*last & !mask) | (mask * u8::from(bit));
     }
 
     /// Concatenates a [`Slice`] with [`Owned`].
@@ -661,7 +683,6 @@ impl Owned {
     fn underlying_bits_length(&self) -> usize {
         usize::from(self.offset) + usize::from(self.length)
     }
-
 }
 
 impl core::cmp::PartialEq for Slice<'_> {
