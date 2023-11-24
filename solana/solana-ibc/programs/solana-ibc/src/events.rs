@@ -5,7 +5,7 @@ use lib::hash::CryptoHash;
 /// Possible events emitted by the smart contract.
 ///
 /// The events are logged in their borsh-serialised form.
-#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
+#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize, derive_more::From)]
 pub enum Event<'a> {
     IbcEvent(ibc::core::events::IbcEvent),
     Initialised(Initialised<'a>),
@@ -15,14 +15,14 @@ pub enum Event<'a> {
 }
 
 /// Event emitted once blockchain is implemented.
-#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
+#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize, derive_more::From)]
 pub struct Initialised<'a> {
     /// Genesis block of the chain.
     pub genesis: NewBlock<'a>,
 }
 
 /// Event emitted once a new block is generated.
-#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
+#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize, derive_more::From)]
 pub struct NewBlock<'a> {
     /// Hash of the new block.
     pub hash: CryptoHash,
@@ -31,7 +31,7 @@ pub struct NewBlock<'a> {
 }
 
 /// Event emitted once a new block is generated.
-#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
+#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize, derive_more::From)]
 pub struct BlockSigned {
     /// Hash of the block to which signature was added.
     pub block_hash: CryptoHash,
@@ -40,7 +40,7 @@ pub struct BlockSigned {
 }
 
 /// Event emitted once a block is finalised.
-#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, derive_more::From)]
+#[derive(Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize, derive_more::From)]
 pub struct BlockFinalised<'a> {
     /// Hash of the block to which signature was added.
     pub block_hash: &'a CryptoHash,
