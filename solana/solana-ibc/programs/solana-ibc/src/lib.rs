@@ -26,12 +26,12 @@ const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
-mod chain;
-mod client_state;
-mod consensus_state;
+pub mod chain;
+pub mod client_state;
+pub mod consensus_state;
 mod ed25519;
 mod error;
-mod events;
+pub mod events;
 mod execution_context;
 mod host;
 #[cfg(feature = "mocks")]

@@ -15,13 +15,13 @@ use crate::storage::{ibc, ids};
 ///     ClientState      { client_id: u32 },
 ///     ConsensusState   { client_id: u32, epoch: u64, height: u64 },
 ///     Connection       { connection_id: u32 },
-///     ChannelEnd       { port_id: String, channel_id: u32 },
-///     NextSequenceSend { port_id: String, channel_id: u32 },
-///     NextSequenceRecv { port_id: String, channel_id: u32 },
-///     NextSequenceAck  { port_id: String, channel_id: u32 },
-///     Commitment       { port_id: String, channel_id: u32, sequence: u64 },
-///     Receipts         { port_id: String, channel_id: u32, sequence: u64 },
-///     Acks             { port_id: String, channel_id: u32, sequence: u64 },
+///     ChannelEnd       { port_id: [u8; 9], channel_id: u32 },
+///     NextSequenceSend { port_id: [u8; 9], channel_id: u32 },
+///     NextSequenceRecv { port_id: [u8; 9], channel_id: u32 },
+///     NextSequenceAck  { port_id: [u8; 9], channel_id: u32 },
+///     Commitment       { port_id: [u8; 9], channel_id: u32, sequence: u64 },
+///     Receipts         { port_id: [u8; 9], channel_id: u32, sequence: u64 },
+///     Acks             { port_id: [u8; 9], channel_id: u32, sequence: u64 },
 /// }
 /// ```
 ///
@@ -58,8 +58,8 @@ impl TrieKey {
     /// Constructs a new key for a client state path for client with given
     /// counter.
     ///
-    /// The hash stored under the key is `hash(borsh(client_id.as_str()) ||
-    /// borsh(client_state))`.
+    /// The hash stored under the key is `hash(borsh((client_id.as_str(),
+    /// client_state)))`.
     pub fn for_client_state(client: ids::ClientIdx) -> Self {
         new_key_impl!(Tag::ClientState, client)
     }
@@ -83,24 +83,34 @@ impl TrieKey {
     }
 
     /// Constructs a new key for a channel end path.
+    ///
+    /// The hash stored under the key is `hash(borsh(channel_end))`.
     pub fn for_channel_end(port_channel: &ids::PortChannelPK) -> Self {
         Self::for_channel_path(Tag::ChannelEnd, port_channel)
     }
 
+    /// Constructs a new key for next sequence counters.
+    ///
+    /// The hash stored under the key is built by `SequenceTriple::hash` method
+    /// and directly encodes next send, receive and ack sequence numbers.
     pub fn for_next_sequence(port_channel: &ids::PortChannelPK) -> Self {
         Self::for_channel_path(Tag::NextSequence, port_channel)
     }
 
     /// Constructs a new key for a `(port_id, channel_id)` path.
     ///
-    /// Panics if `channel_id` is invalid.
+    /// This is internal method used by other public-facing methods which use
+    /// only (port, channel) tuple as the key component.
     fn for_channel_path(tag: Tag, port_channel: &ids::PortChannelPK) -> Self {
         new_key_impl!(tag, port_channel)
     }
 
     /// Constructs a new key for a `(port_id, channel_id, sequence)` path.
     ///
-    /// Panics if `channel_id` is invalid.
+    /// Returns an error if `port_id` or `channel_id` is invalid.
+    ///
+    /// This is internal method used by other public-facing interfaces which use
+    /// only (port, channel, sequence) tuple as the key component.
     fn try_for_sequence_path(
         tag: Tag,
         port_id: &ibc::PortId,
@@ -222,18 +232,12 @@ cast_component!(ids::ClientIdx as u32);
 cast_component!(ids::ConnectionIdx as u32);
 cast_component!(ibc::Sequence as u64);
 
-// TODO(#35): Investigate more compact ways of representing port identifier or
-// enforcing restrictions on it
 impl AsComponent for ids::PortChannelPK {
     fn key_len(&self) -> usize {
-        let port_id_len = self.port_id.as_bytes().len();
-        assert!(port_id_len <= usize::from(u8::MAX));
-        1 + port_id_len + self.channel_idx.key_len()
+        self.port_key.as_bytes().len() + self.channel_idx.key_len()
     }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        let port_id = self.port_id.as_bytes();
-        dest.push(port_id.len() as u8);
-        dest.extend(port_id);
+        self.port_key.as_bytes().append_into(dest);
         self.channel_idx.append_into(dest);
     }
 }
@@ -249,13 +253,18 @@ impl AsComponent for ibc::Height {
 impl AsComponent for u32 {
     fn key_len(&self) -> usize { core::mem::size_of_val(self) }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        dest.extend(&self.to_be_bytes()[..]);
+        self.to_be_bytes().append_into(dest)
     }
 }
 
 impl AsComponent for u64 {
     fn key_len(&self) -> usize { core::mem::size_of_val(self) }
     fn append_into(&self, dest: &mut Vec<u8>) {
-        dest.extend(&self.to_be_bytes()[..]);
+        self.to_be_bytes().append_into(dest)
     }
+}
+
+impl<const N: usize> AsComponent for [u8; N] {
+    fn key_len(&self) -> usize { N }
+    fn append_into(&self, dest: &mut Vec<u8>) { dest.extend_from_slice(self) }
 }
