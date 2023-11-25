@@ -13,6 +13,7 @@ pub use ibc::core::client::context::client_state::{
 };
 pub use ibc::core::client::context::consensus_state::ConsensusState;
 pub use ibc::core::client::context::types::error::ClientError;
+#[cfg(test)]
 pub use ibc::core::client::context::types::msgs::{ClientMsg, MsgCreateClient};
 pub use ibc::core::client::context::{
     ClientExecutionContext, ClientValidationContext,
@@ -22,6 +23,7 @@ pub use ibc::core::commitment_types::commitment::{
     CommitmentPrefix, CommitmentProofBytes, CommitmentRoot,
 };
 pub use ibc::core::connection::types::error::ConnectionError;
+#[cfg(test)]
 pub use ibc::core::connection::types::msgs::{
     ConnectionMsg, MsgConnectionOpenInit,
 };
@@ -36,7 +38,6 @@ pub use ibc::core::host::types::path;
 pub use ibc::core::host::{ExecutionContext, ValidationContext};
 pub use ibc::core::router::module::Module;
 pub use ibc::core::router::router::Router;
-pub use ibc::core::router::types::error::RouterError;
 pub use ibc::core::router::types::module::{ModuleExtras, ModuleId};
 pub use ibc::primitives::{Signer, Timestamp};
 
@@ -44,6 +45,7 @@ pub mod connection {
     pub use ibc::core::connection::types::version::{
         get_compatible_versions, pick_version, Version,
     };
+    #[cfg(test)]
     pub use ibc::core::connection::types::Counterparty;
 }
 pub use ibc::primitives::proto::{Any, Protobuf};
