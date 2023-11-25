@@ -36,7 +36,8 @@ impl AnyConsensusStateTag {
 
 impl AnyConsensusState {
     /// Protobuf type URL for Tendermint client state used in Any message.
-    const TENDERMINT_TYPE: &'static str = ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
+    const TENDERMINT_TYPE: &'static str =
+        ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;

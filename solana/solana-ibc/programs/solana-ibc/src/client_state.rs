@@ -42,7 +42,8 @@ impl AnyClientStateTag {
 
 impl AnyClientState {
     /// Protobuf type URL for Tendermint client state used in Any message.
-    const TENDERMINT_TYPE: &'static str = ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
+    const TENDERMINT_TYPE: &'static str =
+        ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
