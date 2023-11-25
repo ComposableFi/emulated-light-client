@@ -1,11 +1,11 @@
 use anchor_lang::solana_program::msg;
-use ibc::apps::transfer::context::{
-    TokenTransferExecutionContext, TokenTransferValidationContext,
-};
-use ibc::apps::transfer::types::error::TokenTransferError;
-use ibc::apps::transfer::types::PrefixedCoin;
 
 use crate::ibc;
+use crate::ibc::apps::transfer::context::{
+    TokenTransferExecutionContext, TokenTransferValidationContext,
+};
+use crate::ibc::apps::transfer::types::error::TokenTransferError;
+use crate::ibc::apps::transfer::types::PrefixedCoin;
 use crate::storage::IbcStorage;
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_> {

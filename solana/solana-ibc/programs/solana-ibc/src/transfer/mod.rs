@@ -2,11 +2,11 @@ use std::result::Result;
 use std::str;
 
 use anchor_lang::prelude::*;
-use ibc::apps::transfer::types::packet::PacketData;
-use ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
 use serde::{Deserialize, Serialize};
 
 use crate::ibc;
+use crate::ibc::apps::transfer::types::packet::PacketData;
+use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
 use crate::storage::IbcStorage;
 
 mod impls;
