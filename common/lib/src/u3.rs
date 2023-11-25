@@ -21,7 +21,7 @@ pub enum U3 {
 pub struct ValueTooLargeError;
 
 /// Helper trait for unsigned integer types.
-pub trait Unsigned: Copy + From<u8> + ops::Div<Self> {
+pub trait Unsigned: Copy {
     fn as_u8(self) -> u8;
 }
 
@@ -36,9 +36,7 @@ impl U3 {
 
     /// Divides argument by eight and returns quotient and reminder of the
     /// operation.
-    pub fn divmod<T: Unsigned>(value: T) -> (<T as ops::Div<T>>::Output, U3) {
-        (value / T::from(8), Self::wrap(value))
-    }
+    pub fn divmod(value: u16) -> (u16, U3) { (value / 8, Self::wrap(value)) }
 
     /// Returns an iterator over all `U3` values in ascending order.
     pub fn all() -> impl core::iter::Iterator<Item = U3> {
@@ -73,6 +71,15 @@ impl U3 {
 impl Default for U3 {
     #[inline]
     fn default() -> Self { Self::MIN }
+}
+
+impl Unsigned for U3 {
+    fn as_u8(self) -> u8 { self.into_integer() }
+}
+
+impl ops::Neg for U3 {
+    type Output = U3;
+    fn neg(self) -> U3 { U3::_0.wrapping_sub(self) }
 }
 
 macro_rules! impls {

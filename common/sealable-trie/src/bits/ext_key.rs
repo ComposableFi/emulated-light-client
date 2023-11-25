@@ -45,6 +45,10 @@ impl<'a> ExtKey<'a> {
     #[inline]
     pub fn len(&self) -> u16 { self.0.len() }
 
+    /// Converts the object into underlying [`Slice`].
+    #[inline]
+    pub fn into_slice(self) -> Slice<'a> { self.0 }
+
     /// Encodes key into raw binary representation.
     ///
     /// Fills entire 36-byte buffer.  The first the first two bytes encode
@@ -113,7 +117,7 @@ impl<'a> TryFrom<Slice<'a>> for ExtKey<'a> {
     fn try_from(slice: Slice<'a>) -> Result<Self, Self::Error> {
         if slice.is_empty() {
             Err(Error::Empty)
-        } else if slice.underlying_bits_length() > MAX_EXTENSION_KEY_SIZE * 8 {
+        } else if slice.bytes_len() > MAX_EXTENSION_KEY_SIZE {
             Err(Error::TooLong)
         } else {
             Ok(Self(slice))
@@ -186,10 +190,8 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
             return Some(ExtKey(core::mem::replace(&mut self.0, empty)));
         }
 
-        // `1 << 20` is an arbitrary number which is divisible by 8 and greater
-        // than underlying_bits_length.
-        let tail = ((1 << 20) - self.0.underlying_bits_length()) % 8;
-        let length = (bytes.len() * 8 - tail) as u16;
+        let tail = self.0.offset.wrapping_add(self.0.length);
+        let length = (bytes.len() * 8 - usize::from(-tail)) as u16;
         self.0.length -= length;
 
         Some(ExtKey(Slice {
