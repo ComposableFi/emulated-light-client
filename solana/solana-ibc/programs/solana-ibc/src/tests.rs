@@ -77,7 +77,7 @@ pub struct DeliverWithRemainingAccounts {
     packets: Pubkey,
     chain: Pubkey,
     system_program: Pubkey,
-    remaining_accounts: Vec<Pubkey>,
+    remaining_accounts: Vec<AccountMeta>,
 }
 
 impl ToAccountMetas for DeliverWithRemainingAccounts {
@@ -118,9 +118,8 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
             },
         ];
 
-        let remaining = self.remaining_accounts.iter().map(|&account| {
-            AccountMeta { pubkey: account, is_signer: false, is_writable: true }
-        });
+        let remaining =
+            self.remaining_accounts.iter().map(|account| account.clone());
 
         accounts.into_iter().chain(remaining).collect::<Vec<_>>()
     }
@@ -266,8 +265,11 @@ fn anchor_test_deliver() -> Result<()> {
 
     let receiver = Keypair::new();
 
-    let seeds =
-        [port_id.as_bytes().as_ref(), channel_id_on_b.as_bytes().as_ref()];
+    let seeds = [
+        port_id.as_bytes().as_ref(),
+        channel_id_on_b.as_bytes().as_ref(),
+        BASE_DENOM.as_bytes().as_ref(),
+    ];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
@@ -375,16 +377,39 @@ fn anchor_test_deliver() -> Result<()> {
     */
 
     let remaining_accounts = vec![
-        sender_token_address,
-        receiver_token_address,
-        token_mint_key,
-        escrow_account_key,
-        mint_authority_key,
-        anchor_spl::token::ID,
+        AccountMeta {
+            pubkey: sender_token_address,
+            is_signer: false,
+            is_writable: true,
+        },
+        AccountMeta {
+            pubkey: receiver_token_address,
+            is_signer: false,
+            is_writable: true,
+        },
+        AccountMeta {
+            pubkey: token_mint_key,
+            is_signer: false,
+            is_writable: true,
+        },
+        AccountMeta {
+            pubkey: escrow_account_key,
+            is_signer: false,
+            is_writable: true,
+        },
+        AccountMeta {
+            pubkey: mint_authority_key,
+            is_signer: false,
+            is_writable: true,
+        },
+        AccountMeta {
+            pubkey: anchor_spl::token::ID,
+            is_signer: false,
+            is_writable: true,
+        },
     ];
 
     println!("These are remaining accounts {:?}", remaining_accounts);
-
 
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
@@ -469,7 +494,6 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::core::ics04_channel::msgs::PacketMsg::Recv,
         ibc::core::MsgEnvelope::Packet,
     );
-
 
     let sig = program
         .request()

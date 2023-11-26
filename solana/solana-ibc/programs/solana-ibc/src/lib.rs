@@ -277,18 +277,18 @@ pub struct MockDeliver<'info> {
     receiver: AccountInfo<'info>,
 
     /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump, realloc = 10240, realloc::payer = sender, realloc::zero = false)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump)]
     storage: Box<Account<'info, storage::PrivateStorage>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
+    #[account(mut , seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     /// The account holding packets.
-    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED], bump, space = 10240)]
+    #[account(mut , seeds = [PACKET_SEED], bump)]
     packets: Box<Account<'info, IbcPackets>>,
 
     /// The below accounts are being created for testing purposes only.
@@ -299,7 +299,7 @@ pub struct MockDeliver<'info> {
     mint_authority: UncheckedAccount<'info>,
     #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()], bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
-    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id_on_b.as_bytes()], bump, token::mint = token_mint, token::authority = mint_authority)]
+    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
     #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
     sender_token_account: Box<Account<'info, TokenAccount>>,

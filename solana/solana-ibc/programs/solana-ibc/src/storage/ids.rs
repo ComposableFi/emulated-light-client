@@ -160,8 +160,10 @@ impl PortChannelPK {
         })
     }
 
+    #[allow(dead_code)]
     pub fn port_id(&self) -> ibc::PortId { ibc::PortId::from(&self.port_key) }
 
+    #[allow(dead_code)]
     pub fn channel_id(&self) -> ibc::ChannelId {
         ibc::ChannelId::new(self.channel_idx.into())
     }

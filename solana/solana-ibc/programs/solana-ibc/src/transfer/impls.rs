@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use anchor_lang::prelude::{AccountInfo, CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
-use anchor_spl::token::{spl_token, Burn, MintTo, Transfer};
+use anchor_lang::AccountDeserialize;
+use anchor_spl::token::{spl_token, Burn, MintTo, TokenAccount, Transfer};
 use ibc::applications::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
@@ -10,9 +11,10 @@ use ibc::applications::transfer::error::TokenTransferError;
 use ibc::applications::transfer::{Amount, PrefixedCoin};
 use ibc::core::ics24_host::identifier::{ChannelId, PortId};
 use primitive_types::U256;
+use strum::Display;
 use uint::FromDecStrErr;
 
-// use crate::module_holder::IbcStorage<'_,'_>;
+use crate::storage::ids::PortChannelPK;
 use crate::{storage::IbcStorage, MINT_ESCROW_SEED};
 
 #[derive(Clone, PartialEq, Eq, derive_more::From)]
@@ -22,7 +24,7 @@ impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Pubkey::from_str(value.as_ref()).map(Self)
+        Pubkey::try_from(value.as_ref()).map(Self)
     }
 }
 
@@ -54,6 +56,61 @@ impl From<&AccountId> for Pubkey {
     fn from(value: &AccountId) -> Self { value.0 }
 }
 
+/// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
+#[derive(Clone, Display, PartialEq, Eq, derive_more::From)]
+pub enum AccountIdx {
+    Signer(AccountId),
+    Escrow(PortChannelPK),
+}
+
+impl TryFrom<ibc::Signer> for AccountIdx {
+    type Error = <Pubkey as FromStr>::Err;
+
+    fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
+        Ok(Self::Signer(AccountId::try_from(value).unwrap()))
+    }
+}
+
+#[derive(Debug)]
+pub enum InvalidAccountIdVariant {
+    NotEscrowAccount,
+    NotSignerAccount,
+}
+
+impl AccountIdx {
+    pub fn get_escrow_account(
+        &self,
+        denom: String,
+    ) -> Result<Pubkey, InvalidAccountIdVariant> {
+        let port_channel = match self {
+            AccountIdx::Escrow(pk) => pk,
+            AccountIdx::Signer(_) => {
+                return Err(InvalidAccountIdVariant::NotEscrowAccount)
+            }
+        };
+        let channel_id = port_channel.channel_id();
+        let port_id = port_channel.port_id();
+        let seeds =
+            [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
+        let (escrow_account_key, _bump) =
+            Pubkey::find_program_address(&seeds, &crate::ID);
+        Ok(escrow_account_key)
+    }
+}
+
+impl TryFrom<&AccountIdx> for Pubkey {
+    type Error = InvalidAccountIdVariant;
+
+    fn try_from(value: &AccountIdx) -> Result<Self, Self::Error> {
+        match value {
+            AccountIdx::Signer(signer) => Ok(signer.0),
+            AccountIdx::Escrow(_) => {
+                Err(InvalidAccountIdVariant::NotSignerAccount)
+            }
+        }
+    }
+}
+
 impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     fn send_coins_execute(
         &mut self,
@@ -69,42 +126,82 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        //Find if sender is escrow or receiver
-        let sender_id = Pubkey::from(from);
-        let receiver_id = Pubkey::from(to);
         let base_denom = amt.denom.base_denom.to_string();
-        let amount = amt.amount;
+        let sender_id = Pubkey::try_from(from).unwrap_or_else(|_| {
+            from.get_escrow_account(base_denom.clone()).unwrap()
+        });
+        let receiver_id = Pubkey::try_from(to).unwrap_or_else(|_| {
+            to.get_escrow_account(base_denom.clone()).unwrap()
+        });
 
+        let amount = amt.amount;
         let amount_in_u64 = check_amount_overflow(amount)?;
 
         let (_token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (mint_authority_key, mint_authority_bump) =
-            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
+
         let sender = get_account_info_from_key(accounts, sender_id)?;
         let receiver = get_account_info_from_key(accounts, receiver_id)?;
-        let mint_authority =
-            get_account_info_from_key(accounts, mint_authority_key)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
-        let bump_vector = mint_authority_bump.to_le_bytes();
-        let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
-        let outer = vec![inner.as_slice()];
 
-        // Below is the actual instruction that we are going to send to the Token program.
-        let transfer_instruction = Transfer {
-            from: sender.clone(),
-            to: receiver.clone(),
-            authority: mint_authority.clone(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            token_program.clone(),
-            transfer_instruction,
-            outer.as_slice(), //signer PDA
-        );
+        if matches!(from, AccountIdx::Escrow(_)) {
+            let (mint_authority_key, mint_authority_bump) =
+                Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
-        anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
+            let mint_authority =
+                get_account_info_from_key(accounts, mint_authority_key)?;
+
+            let bump_vector = mint_authority_bump.to_le_bytes();
+            let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
+            let outer = vec![inner.as_slice()];
+
+            // Below is the actual instruction that we are going to send to the Token program.
+            let transfer_instruction = Transfer {
+                from: sender.clone(),
+                to: receiver.clone(),
+                authority: mint_authority.clone(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                token_program.clone(),
+                transfer_instruction,
+                outer.as_slice(), //signer PDA
+            );
+
+            anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
+        } else {
+            let sender_token_account =
+                TokenAccount::try_deserialize(&mut &sender.data.borrow()[..])
+                    .unwrap();
+            let sender_token_account_owner = sender_token_account.owner;
+            let authority = get_account_info_from_key(
+                accounts,
+                sender_token_account_owner,
+            )?;
+
+            // PDA generated so that we can sign the tx
+            let (_mint_authority_key, mint_authority_bump) =
+                Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+            let bump_vector = mint_authority_bump.to_le_bytes();
+            let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
+            let outer = vec![inner.as_slice()];
+
+            // Below is the actual instruction that we are going to send to the Token program.
+            let transfer_instruction = Transfer {
+                from: sender.clone(),
+                to: receiver.clone(),
+                authority: authority.clone(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                token_program.clone(),
+                transfer_instruction,
+                outer.as_slice(), //signer PDA
+            );
+
+            anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
+        }
+
         Ok(())
     }
 
@@ -119,7 +216,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = Pubkey::from(account);
+        let receiver_id = Pubkey::try_from(account)
+            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
 
@@ -168,7 +266,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = Pubkey::from(account);
+        let burner_id = Pubkey::try_from(account)
+            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount = amt.amount;
         let amount_in_u64 = check_amount_overflow(amount)?;
@@ -206,7 +305,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
 }
 
 impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
-    type AccountId = AccountId;
+    type AccountId = AccountIdx;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
         Ok(PortId::transfer())
@@ -217,10 +316,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let seeds = [port_id.as_bytes(), channel_id.as_bytes()];
-        let (escrow_account_key, _bump) =
-            Pubkey::find_program_address(&seeds, &crate::ID);
-        Ok(AccountId(escrow_account_key))
+        Ok(AccountIdx::Escrow(
+            PortChannelPK::try_from(port_id, channel_id).unwrap(),
+        ))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {

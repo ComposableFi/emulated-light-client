@@ -179,7 +179,7 @@ pub fn mock_deliver_impl(
         .unwrap();
 
     // Minting some tokens to the escrow so that he can do the transfer
-    let bump_vector = ctx.bumps.get("mint_authority").unwrap().to_le_bytes();
+    let bump_vector = ctx.bumps.mint_authority.to_le_bytes();
     let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
     let outer = vec![inner.as_slice()];
 
