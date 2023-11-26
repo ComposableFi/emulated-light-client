@@ -49,10 +49,7 @@ impl ChainData {
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
         events::emit(events::Initialised {
-            genesis: events::NewBlock {
-                hash: head.calc_hash(),
-                block: events::block(head),
-            },
+            genesis: events::NewBlock { block: events::block(head) },
         })
         .map_err(ProgramError::BorshIoError)?;
         Ok(())
@@ -118,7 +115,7 @@ impl ChainData {
             .map_err(ProgramError::BorshIoError)?;
         }
         if res.got_quorum() {
-            let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
+            let hash = hash.unwrap_or_else(|| manager.head().1.calc_hash());
             events::emit(events::BlockFinalised { block_hash: hash })
                 .map_err(ProgramError::BorshIoError)?;
         }
@@ -190,11 +187,8 @@ impl ChainInner {
             Ok(()) => {
                 let (finalised, head) = self.manager.head();
                 assert!(!finalised);
-                events::emit(events::NewBlock {
-                    hash: head.calc_hash(),
-                    block: events::block(head),
-                })
-                .map_err(ProgramError::BorshIoError)?;
+                events::emit(events::NewBlock { block: events::block(head) })
+                    .map_err(ProgramError::BorshIoError)?;
                 Ok(())
             }
             Err(err) if force => Err(into_error(err)),

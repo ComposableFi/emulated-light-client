@@ -36,3 +36,4 @@ stdx.workspace = true
 anchor-client.workspace = true
 anyhow.workspace = true
 ibc = { workspace = true, features = ["mocks"] }
+insta.workspace = true

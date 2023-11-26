@@ -7,6 +7,7 @@ use lib::hash::CryptoHash;
 /// The events are logged in their borsh-serialised form.
 #[derive(
     Clone,
+    Debug,
     PartialEq,
     Eq,
     borsh::BorshSerialize,
@@ -18,12 +19,13 @@ pub enum Event<'a> {
     Initialised(Initialised<'a>),
     NewBlock(NewBlock<'a>),
     BlockSigned(BlockSigned),
-    BlockFinalised(BlockFinalised<'a>),
+    BlockFinalised(BlockFinalised),
 }
 
 /// Event emitted once blockchain is implemented.
 #[derive(
     Clone,
+    Debug,
     PartialEq,
     Eq,
     borsh::BorshSerialize,
@@ -38,6 +40,7 @@ pub struct Initialised<'a> {
 /// Event emitted once a new block is generated.
 #[derive(
     Clone,
+    Debug,
     PartialEq,
     Eq,
     borsh::BorshSerialize,
@@ -45,8 +48,6 @@ pub struct Initialised<'a> {
     derive_more::From,
 )]
 pub struct NewBlock<'a> {
-    /// Hash of the new block.
-    pub hash: CryptoHash,
     /// The new block.
     pub block: CowBlock<'a>,
 }
@@ -54,6 +55,7 @@ pub struct NewBlock<'a> {
 /// Event emitted once a new block is generated.
 #[derive(
     Clone,
+    Debug,
     PartialEq,
     Eq,
     borsh::BorshSerialize,
@@ -70,15 +72,16 @@ pub struct BlockSigned {
 /// Event emitted once a block is finalised.
 #[derive(
     Clone,
+    Debug,
     PartialEq,
     Eq,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
     derive_more::From,
 )]
-pub struct BlockFinalised<'a> {
+pub struct BlockFinalised {
     /// Hash of the block to which signature was added.
-    pub block_hash: &'a CryptoHash,
+    pub block_hash: CryptoHash,
 }
 
 impl Event<'_> {
@@ -144,5 +147,88 @@ impl alloc::borrow::Borrow<Block> for BoxedBlock {
     #[inline]
     fn borrow(&self) -> &Block {
         bytemuck::TransparentWrapper::wrap_ref(&*self.0)
+    }
+}
+
+impl core::fmt::Debug for Block {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.fmt(fmtr)
+    }
+}
+
+impl core::fmt::Debug for BoxedBlock {
+    #[inline]
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        self.0.fmt(fmtr)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use borsh::BorshDeserialize;
+
+    use super::*;
+
+    macro_rules! test {
+        ($name:ident $event:expr) => {
+            #[test]
+            fn $name() {
+                let event = super::Event::from($event);
+                let serialised = borsh::to_vec(&event).unwrap();
+                insta::assert_debug_snapshot!(serialised);
+                assert_eq!(event, Event::try_from_slice(&serialised).unwrap());
+            }
+        };
+    }
+
+    test!(borsh_ibc_event {
+        let event = ibc::core::events::ModuleEvent {
+            kind: "kind".into(),
+            attributes: alloc::vec![
+                ibc::core::events::ModuleEventAttribute {
+                    key: "key".into(),
+                    value: "value".into(),
+                }
+            ],
+        };
+        ibc::core::events::IbcEvent::Module(event)
+    });
+
+    test!(borsh_initialised Initialised { genesis: make_new_block() });
+    test!(borsh_new_block make_new_block());
+    test!(borsh_block_signed BlockSigned {
+        block_hash: CryptoHash::test(42),
+        pubkey: make_pub_key(24),
+    });
+    test!(borsh_block_finalised BlockFinalised {
+        block_hash: CryptoHash::test(42),
+    });
+
+    fn make_new_block() -> NewBlock<'static> {
+        let validators = [(80, 10), (81, 10)]
+            .into_iter()
+            .map(|(num, stake)| {
+                let pubkey = make_pub_key(num);
+                let stake = stake.try_into().unwrap();
+                blockchain::Validator::new(pubkey, stake)
+            })
+            .collect();
+
+        let block = crate::chain::Block::generate_genesis(
+            blockchain::BlockHeight::from(0),
+            blockchain::HostHeight::from(42),
+            24,
+            CryptoHash::test(66),
+            blockchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap(),
+        )
+        .unwrap();
+
+        NewBlock { block: CowBlock::Owned(BoxedBlock(block.into())) }
+    }
+
+    fn make_pub_key(num: usize) -> crate::chain::PubKey {
+        let bytes: [u8; 32] = CryptoHash::test(num).into();
+        bytes.into()
     }
 }
