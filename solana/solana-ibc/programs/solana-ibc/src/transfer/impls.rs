@@ -15,7 +15,8 @@ use strum::Display;
 use uint::FromDecStrErr;
 
 use crate::storage::ids::PortChannelPK;
-use crate::{storage::IbcStorage, MINT_ESCROW_SEED};
+use crate::storage::IbcStorage;
+use crate::MINT_ESCROW_SEED;
 
 #[derive(Clone, PartialEq, Eq, derive_more::From)]
 pub struct AccountId(Pubkey);
