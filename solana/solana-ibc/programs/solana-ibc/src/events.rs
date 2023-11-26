@@ -165,7 +165,10 @@ impl core::fmt::Debug for BoxedBlock {
 }
 
 #[cfg(test)]
-mod tests {
+// insta uses open to read the snapshot file which is not available when running
+// through Miri.
+#[cfg(not(miri))]
+mod snapshot_tests {
     use borsh::BorshDeserialize;
 
     use super::*;
