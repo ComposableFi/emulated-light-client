@@ -909,23 +909,22 @@ fn test_owned_unshift() {
 
 #[test]
 fn test_owned_concat() {
-    for len in 0..8 {
+    for len in 0..=8 {
         let bytes = (0xFF00_u16 >> len).to_be_bytes();
-        let want = if len == 8 {
-            Slice::new(&bytes, 0, 16)
-        } else {
-            Slice::new(&bytes[1..], 0, 8)
-        }
-        .unwrap();
+        let want = Slice::new(&bytes[1..], 0, 8).unwrap();
 
         let prefix = Slice::new(&[255], 0, len).unwrap();
-        let suffix = Slice::new(
-            &[0],
-            (len % 8) as u8,
-            if len == 8 { 8 } else { 8 - len },
-        )
-        .unwrap();
+        let suffix = Slice::new(&[0], len as u8 % 8, 8 - len).unwrap();
         let got = Owned::concat(prefix, suffix).unwrap();
         assert_eq!(want, got, "len: {len}");
+    }
+}
+
+#[test]
+fn test_owned_concat_empty() {
+    for offset in 0..8 {
+        let slice = Slice::new(&[], offset, 0).unwrap();
+        let got = Owned::concat(slice, slice).unwrap();
+        assert_eq!(slice, got, "offset: {offset}");
     }
 }
