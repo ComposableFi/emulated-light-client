@@ -337,30 +337,61 @@ impl<'a> Slice<'a> {
         false
     }
 
-    /// Strips common prefix from two slices; returns new slice with the common
-    /// prefix.
+    /// Strips common prefix from two slices.
+    ///
+    /// Determines common prefix of two slices—`self` and `other`—and strips it
+    /// from both (as if by using [`Self::strip_prefix`]).  `self` is modified
+    /// in place and function returns `(common_prefix, remaining_other)` tuple
+    /// where `remaining_other` is `other` with the common prefix stripped.
+    ///
+    /// However, if the common prefix or remaining part of other slice is empty,
+    /// rather than returning an empty slice, the function returns `None`.  This
+    /// is to maintain type-safety where `other` is an [`ExtKey`] and returned
+    /// slices are `ExtKey` as well (which cannot be empty).
     ///
     /// **Note**: If two slices have different bit offset they are considered to
     /// have an empty prefix.
     ///
     /// ## Example
     ///
-    /// ```ignore
-    /// # use sealable_trie::bits;
+    /// ```
+    /// # use sealable_trie::bits::{Slice, ExtKey};
     ///
-    /// let mut left = bits::Slice::new(&[0xFF], 0, 8).unwrap();
-    /// let mut right = bits::Slice::new(&[0xF0], 0, 8).unwrap();
-    /// assert_eq!(bits::Slice::new(&[0xF0], 0, 4).unwrap(),
-    ///            left.forward_common_prefix(&mut right));
-    /// assert_eq!(bits::Slice::new(&[0xFF], 4, 4).unwrap(), left);
-    /// assert_eq!(bits::Slice::new(&[0xF0], 4, 4).unwrap(), right);
+    /// // Some common prefix
+    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let (prefix, other) = key.forward_common_prefix(
+    ///     ExtKey::new(&[0xF0], 0, 8).unwrap()
+    /// );
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 4).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], 4, 4).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0xF0], 4, 4).unwrap()), other);
     ///
-    /// let mut left = bits::Slice::new(&[0xFF], 0, 8).unwrap();
-    /// let mut right = bits::Slice::new(&[0xFF], 0, 6).unwrap();
-    /// assert_eq!(bits::Slice::new(&[0xFC], 0, 6).unwrap(),
-    ///            left.forward_common_prefix(&mut right));
-    /// assert_eq!(bits::Slice::new(&[0xFF], 6, 2).unwrap(), left);
-    /// assert_eq!(bits::Slice::new(&[0xFF], 6, 0).unwrap(), right);
+    /// // No common prefix
+    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let (prefix, other) = key.forward_common_prefix(
+    ///     ExtKey::new(&[0x0F], 0, 8).unwrap()
+    /// );
+    /// assert_eq!(None, prefix);
+    /// assert_eq!(Slice::new(&[0xFF], 0, 8).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0x0F], 0, 8).unwrap()), other);
+    ///
+    /// // other is prefix of key
+    /// let mut key = Slice::new(&[0xFF], 0, 8).unwrap();
+    /// let (prefix, other) = key.forward_common_prefix(
+    ///     ExtKey::new(&[0xFF], 0, 6).unwrap()
+    /// );
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 6).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], 6, 2).unwrap(), key);
+    /// assert_eq!(None, other);
+    ///
+    /// // key is prefix of other
+    /// let mut key = Slice::new(&[0xFF], 0, 6).unwrap();
+    /// let (prefix, other) = key.forward_common_prefix(
+    ///     ExtKey::new(&[0xFF], 0, 8).unwrap()
+    /// );
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], 0, 6).unwrap()), prefix);
+    /// assert_eq!(Slice::new(&[0xFF], 6, 0).unwrap(), key);
+    /// assert_eq!(Some(ExtKey::new(&[0xFF], 6, 2).unwrap()), other);
     /// ```
     pub fn forward_common_prefix<'b>(
         &mut self,
