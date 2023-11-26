@@ -6,17 +6,12 @@ use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics23_commitment::commitment::CommitmentRoot;
 use ibc::core::timestamp::Timestamp;
 #[cfg(any(test, feature = "mocks"))]
-use ibc::mock::consensus_state::{
-    MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
-};
+use ibc::mock::consensus_state::MockConsensusState;
 use ibc_proto::google::protobuf::Any;
 use ibc_proto::ibc::lightclients::tendermint::v1::ConsensusState as RawTmConsensusState;
 #[cfg(any(test, feature = "mocks"))]
 use ibc_proto::ibc::mock::ConsensusState as RawMockConsensusState;
 use ibc_proto::protobuf::Protobuf;
-
-const TENDERMINT_CONSENSUS_STATE_TYPE_URL: &str =
-    "/ibc.lightclients.tendermint.v1.ConsensusState";
 
 #[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyConsensusState {
@@ -112,16 +107,14 @@ impl TryFrom<Any> for AnyConsensusState {
 
     fn try_from(value: Any) -> Result<Self, Self::Error> {
         match value.type_url.as_str() {
-            TENDERMINT_CONSENSUS_STATE_TYPE_URL => {
-                Ok(AnyConsensusState::Tendermint(
-                    Protobuf::<RawTmConsensusState>::decode_vec(&value.value)
-                        .map_err(|e| ClientError::ClientSpecific {
+            Self::TENDERMINT_TYPE => Ok(AnyConsensusState::Tendermint(
+                Protobuf::<RawTmConsensusState>::decode_vec(&value.value)
+                    .map_err(|e| ClientError::ClientSpecific {
                         description: e.to_string(),
                     })?,
-                ))
-            }
+            )),
             #[cfg(any(test, feature = "mocks"))]
-            MOCK_CONSENSUS_STATE_TYPE_URL => Ok(AnyConsensusState::Mock(
+            Self::MOCK_TYPE => Ok(AnyConsensusState::Mock(
                 Protobuf::<RawMockConsensusState>::decode_vec(&value.value)
                     .map_err(|e| ClientError::ClientSpecific {
                         description: e.to_string(),
