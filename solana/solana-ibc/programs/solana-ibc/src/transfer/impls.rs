@@ -100,6 +100,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
 
         let (_token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
+        let (mint_authority_key, mint_authority_bump) =
+            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
 
@@ -107,64 +109,33 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let receiver = get_account_info_from_key(accounts, receiver_id)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
 
-        if matches!(from, AccountId::Escrow(_)) {
-            let (mint_authority_key, mint_authority_bump) =
-                Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-
-            let mint_authority =
-                get_account_info_from_key(accounts, mint_authority_key)?;
-
-            let bump_vector = mint_authority_bump.to_le_bytes();
-            let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
-            let seeds = seeds.as_ref();
-            let seeds = core::slice::from_ref(&seeds);
-
-            // Below is the actual instruction that we are going to send to the Token program.
-            let transfer_instruction = Transfer {
-                from: sender.clone(),
-                to: receiver.clone(),
-                authority: mint_authority.clone(),
-            };
-            let cpi_ctx = CpiContext::new_with_signer(
-                token_program.clone(),
-                transfer_instruction,
-                seeds, //signer PDA
-            );
-
-            anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
+        let authority = if matches!(from, AccountId::Escrow(_)) {
+            get_account_info_from_key(accounts, mint_authority_key)?
         } else {
             let sender_token_account =
                 TokenAccount::try_deserialize(&mut &sender.data.borrow()[..])
                     .unwrap();
-            let sender_token_account_owner = sender_token_account.owner;
-            let authority = get_account_info_from_key(
-                accounts,
-                sender_token_account_owner,
-            )?;
+            get_account_info_from_key(accounts, sender_token_account.owner)?
+        };
 
-            // PDA generated so that we can sign the tx
-            let (_mint_authority_key, mint_authority_bump) =
-                Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-            let bump_vector = mint_authority_bump.to_le_bytes();
-            let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
-            let seeds = seeds.as_ref();
-            let seeds = core::slice::from_ref(&seeds);
+        let bump_vector = mint_authority_bump.to_le_bytes();
+        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
 
-            // Below is the actual instruction that we are going to send to the Token program.
-            let transfer_instruction = Transfer {
-                from: sender.clone(),
-                to: receiver.clone(),
-                authority: authority.clone(),
-            };
-            let cpi_ctx = CpiContext::new_with_signer(
-                token_program.clone(),
-                transfer_instruction,
-                seeds, //signer PDA
-            );
+        // Below is the actual instruction that we are going to send to the Token program.
+        let transfer_instruction = Transfer {
+            from: sender.clone(),
+            to: receiver.clone(),
+            authority: authority.clone(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            token_program.clone(),
+            transfer_instruction,
+            seeds, //signer PDA
+        );
 
-            anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
-        }
-
+        anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
         Ok(())
     }
 
