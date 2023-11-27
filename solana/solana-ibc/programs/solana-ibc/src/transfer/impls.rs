@@ -19,7 +19,7 @@ use crate::storage::IbcStorage;
 use crate::MINT_ESCROW_SEED;
 
 /// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
-#[derive(Clone, Display, PartialEq, Eq, derive_more::From)]
+#[derive(Clone, Display, PartialEq, Eq, derive_more::From, derive_more::TryInto)]
 pub enum AccountId {
     Signer(Pubkey),
     Escrow(PortChannelPK),
@@ -29,7 +29,7 @@ impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(Self::Signer(Pubkey::try_from(value.as_ref())?))
+        Ok(Pubkey::try_from(value.as_ref()).map(Self::Signer).unwrap())
     }
 }
 

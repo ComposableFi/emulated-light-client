@@ -23,7 +23,7 @@ use ibc::mock::client_state::MockClientState;
 use storage::IbcPackets;
 
 use crate::{
-    client_state, error, host, storage, MockDeliver, MINT_ESCROW_SEED,
+    error, host, storage, MockDeliver, MINT_ESCROW_SEED,
 };
 
 pub fn mock_deliver_impl(
