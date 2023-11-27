@@ -19,7 +19,9 @@ use crate::storage::IbcStorage;
 use crate::MINT_ESCROW_SEED;
 
 /// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
-#[derive(Clone, Display, PartialEq, Eq, derive_more::From, derive_more::TryInto)]
+#[derive(
+    Clone, Display, PartialEq, Eq, derive_more::From, derive_more::TryInto,
+)]
 pub enum AccountId {
     Signer(Pubkey),
     Escrow(PortChannelPK),
@@ -34,15 +36,10 @@ impl TryFrom<ibc::Signer> for AccountId {
 }
 
 impl AccountId {
-    pub fn get_escrow_account(
-        &self,
-        denom: &str,
-    ) -> Result<Pubkey, ()> {
+    pub fn get_escrow_account(&self, denom: &str) -> Result<Pubkey, ()> {
         let port_channel = match self {
             AccountId::Escrow(pk) => pk,
-            AccountId::Signer(_) => {
-                return Err(())
-            }
+            AccountId::Signer(_) => return Err(()),
         };
         let channel_id = port_channel.channel_id();
         let port_id = port_channel.port_id();
@@ -60,9 +57,7 @@ impl TryFrom<&AccountId> for Pubkey {
     fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
         match value {
             AccountId::Signer(signer) => Ok(*signer),
-            AccountId::Escrow(_) => {
-                Err(())
-            }
+            AccountId::Escrow(_) => Err(()),
         }
     }
 }
@@ -144,7 +139,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = account.try_into()
+        let receiver_id = account
+            .try_into()
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
@@ -192,7 +188,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = account.try_into()
+        let burner_id = account
+            .try_into()
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;

@@ -22,9 +22,7 @@ use ibc::core::{ExecutionContext, ValidationContext};
 use ibc::mock::client_state::MockClientState;
 use storage::IbcPackets;
 
-use crate::{
-    error, host, storage, MockDeliver, MINT_ESCROW_SEED,
-};
+use crate::{error, host, storage, MockDeliver, MINT_ESCROW_SEED};
 
 pub fn mock_deliver_impl(
     ctx: Context<MockDeliver>,
