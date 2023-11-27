@@ -86,10 +86,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let base_denom = amt.denom.base_denom.as_str();
         let sender_id = from
             .try_into()
-            .unwrap_or_else(|_| from.get_escrow_account(base_denom).unwrap());
+            .or_else(|_| from.get_escrow_account(base_denom))
+            .map_err(|_|TokenTransferError::ParseAccountFailure)?;
         let receiver_id = to
             .try_into()
-            .unwrap_or_else(|_| to.get_escrow_account(base_denom).unwrap());
+            .or_else(|_| to.get_escrow_account(base_denom))
+            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
 
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
@@ -246,9 +248,8 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        Ok(AccountId::Escrow(
-            PortChannelPK::try_from(port_id, channel_id).unwrap(),
-        ))
+        let port_channel = PortChannelPK::try_from(port_id, channel_id).map_err(|_| TokenTransferError::DestinationChannelNotFound { port_id: port_id.clone(), channel_id: channel_id.clone()})?;
+        Ok(AccountId::Escrow(port_channel))
     }
 
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {
