@@ -18,11 +18,11 @@ use ibc::core::MsgEnvelope;
 use mocks::mock_deliver_impl;
 use storage::IbcPackets;
 
-const CHAIN_SEED: &[u8] = b"chain";
-const PACKET_SEED: &[u8] = b"packet";
-const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
-const TRIE_SEED: &[u8] = b"trie";
-const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
+pub const CHAIN_SEED: &[u8] = b"chain";
+pub const PACKET_SEED: &[u8] = b"packet";
+pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
+pub const TRIE_SEED: &[u8] = b"trie";
+pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
@@ -36,7 +36,7 @@ mod execution_context;
 mod host;
 #[cfg(feature = "mocks")]
 mod mocks;
-mod storage;
+pub mod storage;
 #[cfg(test)]
 mod tests;
 mod transfer;
@@ -130,7 +130,7 @@ pub mod solana_ibc {
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
@@ -167,7 +167,8 @@ pub mod solana_ibc {
         Ok(())
     }
 
-    /// This method is called to set up connection, channel and store the next sequence. Will panic if called without `[mocks]` feature
+    /// Called to set up a connection, channel and store the next
+    /// sequence.  Will panic if called without `mocks` feature.
     #[allow(unused_variables)]
     pub fn mock_deliver(
         ctx: Context<MockDeliver>,
