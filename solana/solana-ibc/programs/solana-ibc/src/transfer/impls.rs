@@ -39,7 +39,11 @@ impl AccountId {
     pub fn get_escrow_account(&self, denom: &str) -> Result<Pubkey, &str> {
         let port_channel = match self {
             AccountId::Escrow(pk) => pk,
-            AccountId::Signer(_) => return Err("Expected Escrow account, instead found Signer account"),
+            AccountId::Signer(_) => {
+                return Err(
+                    "Expected Escrow account, instead found Signer account"
+                )
+            }
         };
         let channel_id = port_channel.channel_id();
         let port_id = port_channel.port_id();
@@ -57,7 +61,9 @@ impl TryFrom<&AccountId> for Pubkey {
     fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
         match value {
             AccountId::Signer(signer) => Ok(*signer),
-            AccountId::Escrow(_) => Err("Expected Signer account, instead found Escrow account"),
+            AccountId::Escrow(_) => {
+                Err("Expected Signer account, instead found Escrow account")
+            }
         }
     }
 }
@@ -78,12 +84,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.base_denom
         );
         let base_denom = amt.denom.base_denom.as_str();
-        let sender_id = from.try_into().unwrap_or_else(|_| {
-            from.get_escrow_account(base_denom).unwrap()
-        });
-        let receiver_id = to.try_into().unwrap_or_else(|_| {
-            to.get_escrow_account(base_denom).unwrap()
-        });
+        let sender_id = from
+            .try_into()
+            .unwrap_or_else(|_| from.get_escrow_account(base_denom).unwrap());
+        let receiver_id = to
+            .try_into()
+            .unwrap_or_else(|_| to.get_escrow_account(base_denom).unwrap());
 
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
 

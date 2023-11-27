@@ -323,7 +323,7 @@ fn anchor_test_deliver() -> Result<()> {
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
     println!("This is the mint information {:?}", mint_info);
-    
+
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
