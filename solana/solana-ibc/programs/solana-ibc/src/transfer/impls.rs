@@ -42,7 +42,7 @@ pub enum InvalidAccountIdVariant {
 impl AccountId {
     pub fn get_escrow_account(
         &self,
-        denom: String,
+        denom: &str,
     ) -> Result<Pubkey, InvalidAccountIdVariant> {
         let port_channel = match self {
             AccountId::Escrow(pk) => pk,
@@ -90,10 +90,10 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         );
         let base_denom = amt.denom.base_denom.to_string();
         let sender_id = Pubkey::try_from(from).unwrap_or_else(|_| {
-            from.get_escrow_account(base_denom.clone()).unwrap()
+            from.get_escrow_account(base_denom.as_str()).unwrap()
         });
         let receiver_id = Pubkey::try_from(to).unwrap_or_else(|_| {
-            to.get_escrow_account(base_denom.clone()).unwrap()
+            to.get_escrow_account(base_denom.as_str()).unwrap()
         });
 
         let amount = amt.amount;
