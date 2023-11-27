@@ -57,12 +57,7 @@ pub fn mock_deliver_impl(
     });
 
     let any_client_state = store.client_state(&client_id).unwrap();
-    let client_state: MockClientState = match any_client_state {
-        client_state::AnyClientState::Tendermint(_) => {
-            panic!("Only for mocks")
-        }
-        client_state::AnyClientState::Mock(mock) => mock,
-    };
+    let client_state = MockClientState::try_from(any_client_state).unwrap();
 
     // Store update time since its not called during mocks
     store
