@@ -96,8 +96,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             to.get_escrow_account(base_denom.as_str()).unwrap()
         });
 
-        let amount = amt.amount;
-        let amount_in_u64 = check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
         let (_token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
@@ -116,8 +115,9 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
                 get_account_info_from_key(accounts, mint_authority_key)?;
 
             let bump_vector = mint_authority_bump.to_le_bytes();
-            let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
-            let outer = vec![inner.as_slice()];
+            let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+            let seeds = seeds.as_ref();
+            let seeds = core::slice::from_ref(&seeds);
 
             // Below is the actual instruction that we are going to send to the Token program.
             let transfer_instruction = Transfer {
@@ -128,7 +128,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             let cpi_ctx = CpiContext::new_with_signer(
                 token_program.clone(),
                 transfer_instruction,
-                outer.as_slice(), //signer PDA
+                seeds, //signer PDA
             );
 
             anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
@@ -146,8 +146,9 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             let (_mint_authority_key, mint_authority_bump) =
                 Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
             let bump_vector = mint_authority_bump.to_le_bytes();
-            let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
-            let outer = vec![inner.as_slice()];
+            let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+            let seeds = seeds.as_ref();
+            let seeds = core::slice::from_ref(&seeds);
 
             // Below is the actual instruction that we are going to send to the Token program.
             let transfer_instruction = Transfer {
@@ -158,7 +159,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             let cpi_ctx = CpiContext::new_with_signer(
                 token_program.clone(),
                 transfer_instruction,
-                outer.as_slice(), //signer PDA
+                seeds, //signer PDA
             );
 
             anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
@@ -181,9 +182,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let receiver_id = Pubkey::try_from(account)
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
-        let amount = amt.amount;
-
-        let amount_in_u64 = check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
         let (token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
@@ -231,8 +230,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let burner_id = Pubkey::try_from(account)
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
-        let amount = amt.amount;
-        let amount_in_u64 = check_amount_overflow(amount)?;
+        let amount_in_u64 = check_amount_overflow(amt.amount)?;
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (mint_authority_key, _bump) =
