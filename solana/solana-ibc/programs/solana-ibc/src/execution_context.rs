@@ -183,19 +183,20 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         Ok(())
     }
 
+    /// Connections are stored in a vector with client_id which can be traversed to fetch connections from client_id or vice versa (using client store)
+    #[allow(unused_variables)]
     fn store_connection_to_client(
         &mut self,
         path: &ClientConnectionPath,
         conn_id: ConnectionId,
     ) -> Result {
-        msg!("store_connection_to_client({}, {:?})", path, conn_id);
-        let conn_id = ids::ConnectionIdx::try_from(&conn_id)?;
-        self.borrow_mut().private.client_mut(&path.0, false)?.connection_id =
-            Some(conn_id);
         Ok(())
     }
 
-    fn increase_connection_counter(&mut self) -> Result { Ok(()) }
+    /// Connections are stored in a vector in an order, so the size of the array would give the number of connections
+    fn increase_connection_counter(&mut self) -> Result { 
+        Ok(()) 
+    }
 
     fn store_packet_commitment(
         &mut self,
