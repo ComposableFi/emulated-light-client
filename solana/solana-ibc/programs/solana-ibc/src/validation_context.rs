@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
+use anchor_lang::solana_program::msg;
 use ibc::core::ics02_client::error::ClientError;
 use ibc::core::ics03_connection::connection::ConnectionEnd;
 use ibc::core::ics03_connection::error::ConnectionError;
@@ -29,7 +30,7 @@ use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ContextError> = core::result::Result<T, E>;
 
-impl ValidationContext for IbcStorage<'_, '_> {
+impl ValidationContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
@@ -259,12 +260,15 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
+impl ibc::core::ics02_client::ClientValidationContext
+    for IbcStorage<'_, '_, '_>
+{
     fn client_update_time(
         &self,
         client_id: &ClientId,
         height: &Height,
     ) -> Result<Timestamp> {
+        msg!("This is the client id {}", client_id);
         let store = self.borrow();
         store
             .private
@@ -306,7 +310,7 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl IbcStorage<'_, '_> {
+impl IbcStorage<'_, '_, '_> {
     fn get_next_sequence<'a>(
         &self,
         path: impl Into<storage::trie_key::SequencePath<'a>>,
@@ -317,7 +321,7 @@ impl IbcStorage<'_, '_> {
         ) -> PacketError,
     ) -> Result<Sequence> {
         fn get(
-            this: &IbcStorage<'_, '_>,
+            this: &IbcStorage<'_, '_, '_>,
             port_channel: &ids::PortChannelPK,
             index: storage::SequenceTripleIdx,
         ) -> Option<Sequence> {

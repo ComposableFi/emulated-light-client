@@ -158,7 +158,7 @@ impl borsh::BorshDeserialize for AnyClientState {
     }
 }
 
-impl ClientStateValidation<IbcStorage<'_, '_>> for AnyClientState {
+impl ClientStateValidation<IbcStorage<'_, '_, '_>> for AnyClientState {
     fn verify_client_message(
         &self,
         ctx: &IbcStorage,
@@ -354,7 +354,7 @@ impl ClientStateCommon for AnyClientState {
     }
 }
 
-impl ClientStateExecution<IbcStorage<'_, '_>> for AnyClientState {
+impl ClientStateExecution<IbcStorage<'_, '_, '_>> for AnyClientState {
     fn initialise(
         &self,
         ctx: &mut IbcStorage,
@@ -442,7 +442,7 @@ impl ClientStateExecution<IbcStorage<'_, '_>> for AnyClientState {
     }
 }
 
-impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
+impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_, '_> {
     type ConversionError = &'static str;
 
     type AnyConsensusState = AnyConsensusState;
@@ -478,7 +478,7 @@ impl ibc::clients::ics07_tendermint::CommonContext for IbcStorage<'_, '_> {
 }
 
 #[cfg(any(test, feature = "mocks"))]
-impl MockClientContext for IbcStorage<'_, '_> {
+impl MockClientContext for IbcStorage<'_, '_, '_> {
     type ConversionError = &'static str;
     type AnyConsensusState = AnyConsensusState;
 
@@ -498,7 +498,9 @@ impl MockClientContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ibc::clients::ics07_tendermint::ValidationContext for IbcStorage<'_, '_> {
+impl ibc::clients::ics07_tendermint::ValidationContext
+    for IbcStorage<'_, '_, '_>
+{
     fn next_consensus_state(
         &self,
         client_id: &ClientId,
@@ -522,7 +524,7 @@ enum Direction {
     Prev,
 }
 
-impl IbcStorage<'_, '_> {
+impl IbcStorage<'_, '_, '_> {
     fn get_consensus_state(
         &self,
         client_id: &ClientId,

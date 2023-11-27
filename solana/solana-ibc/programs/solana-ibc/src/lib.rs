@@ -7,14 +7,22 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use ibc::core::ics24_host::identifier::PortId;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, Token, TokenAccount};
+use borsh::BorshDeserialize;
+use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
+use ibc::core::ics24_host::identifier::{ChannelId, ClientId, PortId};
 use ibc::core::router::{Module, ModuleId, Router};
 use ibc::core::MsgEnvelope;
+#[cfg(feature = "mocks")]
+use mocks::mock_deliver_impl;
+use storage::IbcPackets;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
 pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
+pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
@@ -26,13 +34,13 @@ mod error;
 pub mod events;
 mod execution_context;
 mod host;
+#[cfg(feature = "mocks")]
+mod mocks;
 pub mod storage;
 #[cfg(test)]
 mod tests;
 mod transfer;
 mod validation_context;
-// mod client_context;
-
 
 #[anchor_lang::program]
 pub mod solana_ibc {
@@ -110,11 +118,11 @@ pub mod solana_ibc {
         ctx: Context<Deliver>,
         message: ibc::core::MsgEnvelope,
     ) -> Result<()> {
-        msg!("Called deliver method: {:?}", message);
+        // msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        msg!("This is private: {:?}", private);
+        // msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let packets = &mut ctx.accounts.packets;
         let host_head = host::Head::get()?;
@@ -128,6 +136,7 @@ pub mod solana_ibc {
             private,
             provable,
             packets,
+            accounts: ctx.remaining_accounts.to_vec(),
             host_head,
         });
 
@@ -149,13 +158,42 @@ pub mod solana_ibc {
 
         // `store` is the only reference to inner storage making refcount == 1
         // which means try_into_inner will succeed.
-        let inner = store.try_into_inner().unwrap();
+        // let inner = store.try_into_inner().unwrap();
 
-        msg!("This is final structure {:?}", inner.private);
+        // msg!("This is final structure {:?}", inner.private);
 
         // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
 
         Ok(())
+    }
+
+    /// Called to set up a connection, channel and store the next
+    /// sequence.  Will panic if called without `mocks` feature.
+    pub fn mock_deliver(
+        ctx: Context<MockDeliver>,
+        port_id: PortId,
+        channel_id_on_b: ChannelId,
+        base_denom: String,
+        commitment_prefix: CommitmentPrefix,
+        client_id: ClientId,
+        counterparty_client_id: ClientId,
+    ) -> Result<()> {
+        #[cfg(feature = "mocks")]
+        {
+            mock_deliver_impl(
+                ctx,
+                port_id,
+                channel_id_on_b,
+                base_denom,
+                commitment_prefix,
+                client_id,
+                counterparty_client_id,
+            )
+            .unwrap();
+            Ok(())
+        }
+        #[cfg(not(feature = "mocks"))]
+        panic!("This method is only for mocks");
     }
 }
 
@@ -226,11 +264,54 @@ pub struct Deliver<'info> {
     /// The guest blockchain data.
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10240)]
     chain: Box<Account<'info, chain::ChainData>>,
-
     system_program: Program<'info, System>,
 }
 
-impl Router for storage::IbcStorage<'_, '_> {
+#[derive(Accounts)]
+#[instruction(port_id: PortId, channel_id_on_b: ChannelId, base_denom: String)]
+pub struct MockDeliver<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// CHECK:
+    receiver: AccountInfo<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump)]
+    storage: Box<Account<'info, storage::PrivateStorage>>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut , seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The account holding packets.
+    #[account(mut , seeds = [PACKET_SEED], bump)]
+    packets: Box<Account<'info, IbcPackets>>,
+
+    /// The below accounts are being created for testing purposes only.
+    /// In real, we would run conditionally create an escrow account when the channel is created.
+    /// And we could have another method that can create a mint given the denom.
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED], bump, space = 100)]
+    /// CHECK:
+    mint_authority: UncheckedAccount<'info>,
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()], bump, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Box<Account<'info, Mint>>,
+    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
+    sender_token_account: Box<Account<'info, TokenAccount>>,
+    #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = receiver)]
+    receiver_token_account: Box<Account<'info, TokenAccount>>,
+
+    associated_token_program: Program<'info, AssociatedToken>,
+    token_program: Program<'info, Token>,
+    system_program: Program<'info, System>,
+}
+
+impl Router for storage::IbcStorage<'_, '_, '_> {
     //
     fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);

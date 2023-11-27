@@ -30,7 +30,7 @@ use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
 
-impl ClientExecutionContext for IbcStorage<'_, '_> {
+impl ClientExecutionContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
@@ -118,7 +118,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         height: Height,
         timestamp: Timestamp,
     ) -> Result<(), ContextError> {
-        msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
+        // msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -133,7 +133,7 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
         height: Height,
         host_height: Height,
     ) -> Result<(), ContextError> {
-        msg!("store_update_height({}, {}, {})", client_id, height, host_height);
+        // msg!("store_update_height({}, {}, {})", client_id, height, host_height);
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -143,7 +143,9 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ExecutionContext for IbcStorage<'_, '_> {
+impl ExecutionContext for IbcStorage<'_, '_, '_> {
+    /// The clients are stored in the vector so we can easily find how many
+    /// clients were created. So thats why this method doesnt do anything.
     fn increase_client_counter(&mut self) -> Result { Ok(()) }
 
     fn store_connection(
@@ -311,7 +313,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl storage::IbcStorage<'_, '_> {
+impl storage::IbcStorage<'_, '_, '_> {
     fn store_commitment(&mut self, key: TrieKey, commitment: &[u8]) -> Result {
         // Caller promises that commitment is always 32 bytes.
         let commitment = <&CryptoHash>::try_from(commitment).unwrap();
@@ -340,7 +342,7 @@ impl storage::IbcStorage<'_, '_> {
     }
 }
 
-impl storage::IbcStorageInner<'_, '_> {
+impl storage::IbcStorageInner<'_, '_, '_> {
     /// Serialises `value` and stores it in private storage along with its
     /// commitment in provable storage.
     ///
