@@ -18,49 +18,10 @@ use crate::storage::ids::PortChannelPK;
 use crate::storage::IbcStorage;
 use crate::MINT_ESCROW_SEED;
 
-#[derive(Clone, PartialEq, Eq, derive_more::From)]
-pub struct AccountId(Pubkey);
-
-impl TryFrom<ibc::Signer> for AccountId {
-    type Error = <Pubkey as FromStr>::Err;
-
-    fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Pubkey::try_from(value.as_ref()).map(Self)
-    }
-}
-
-impl PartialEq<Pubkey> for AccountId {
-    #[inline]
-    fn eq(&self, rhs: &Pubkey) -> bool { &self.0 == rhs }
-}
-
-impl PartialEq<AccountId> for Pubkey {
-    #[inline]
-    fn eq(&self, rhs: &AccountId) -> bool { self == &rhs.0 }
-}
-
-impl core::fmt::Debug for AccountId {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl core::fmt::Display for AccountId {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl From<&AccountId> for Pubkey {
-    fn from(value: &AccountId) -> Self { value.0 }
-}
-
 /// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
 #[derive(Clone, Display, PartialEq, Eq, derive_more::From)]
 pub enum AccountIdx {
-    Signer(AccountId),
+    Signer(Pubkey),
     Escrow(PortChannelPK),
 }
 
@@ -68,7 +29,7 @@ impl TryFrom<ibc::Signer> for AccountIdx {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(Self::Signer(AccountId::try_from(value).unwrap()))
+        Ok(Self::Signer(Pubkey::try_from(value.as_ref())?))
     }
 }
 
@@ -104,7 +65,7 @@ impl TryFrom<&AccountIdx> for Pubkey {
 
     fn try_from(value: &AccountIdx) -> Result<Self, Self::Error> {
         match value {
-            AccountIdx::Signer(signer) => Ok(signer.0),
+            AccountIdx::Signer(signer) => Ok(*signer),
             AccountIdx::Escrow(_) => {
                 Err(InvalidAccountIdVariant::NotSignerAccount)
             }
