@@ -169,7 +169,6 @@ pub mod solana_ibc {
 
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
-    #[allow(unused_variables)]
     pub fn mock_deliver(
         ctx: Context<MockDeliver>,
         port_id: PortId,

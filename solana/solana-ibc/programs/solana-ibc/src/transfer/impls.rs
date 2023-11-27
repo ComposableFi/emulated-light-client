@@ -31,15 +31,15 @@ impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Ok(Pubkey::try_from(value.as_ref()).map(Self::Signer).unwrap())
+        Pubkey::from_str(value.as_ref()).map(Self::Signer)
     }
 }
 
 impl AccountId {
-    pub fn get_escrow_account(&self, denom: &str) -> Result<Pubkey, ()> {
+    pub fn get_escrow_account(&self, denom: &str) -> Result<Pubkey, &str> {
         let port_channel = match self {
             AccountId::Escrow(pk) => pk,
-            AccountId::Signer(_) => return Err(()),
+            AccountId::Signer(_) => return Err("Expected Escrow account, instead found Signer account"),
         };
         let channel_id = port_channel.channel_id();
         let port_id = port_channel.port_id();
@@ -52,12 +52,12 @@ impl AccountId {
 }
 
 impl TryFrom<&AccountId> for Pubkey {
-    type Error = ();
+    type Error = <Self as TryFrom<AccountId>>::Error;
 
     fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
         match value {
             AccountId::Signer(signer) => Ok(*signer),
-            AccountId::Escrow(_) => Err(()),
+            AccountId::Escrow(_) => Err("Expected Signer account, instead found Escrow account"),
         }
     }
 }
