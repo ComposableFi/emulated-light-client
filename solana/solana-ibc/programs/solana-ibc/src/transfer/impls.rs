@@ -33,21 +33,15 @@ impl TryFrom<ibc::Signer> for AccountId {
     }
 }
 
-#[derive(Debug)]
-pub enum InvalidAccountIdVariant {
-    NotEscrowAccount,
-    NotSignerAccount,
-}
-
 impl AccountId {
     pub fn get_escrow_account(
         &self,
         denom: &str,
-    ) -> Result<Pubkey, InvalidAccountIdVariant> {
+    ) -> Result<Pubkey, ()> {
         let port_channel = match self {
             AccountId::Escrow(pk) => pk,
             AccountId::Signer(_) => {
-                return Err(InvalidAccountIdVariant::NotEscrowAccount)
+                return Err(())
             }
         };
         let channel_id = port_channel.channel_id();
@@ -61,13 +55,13 @@ impl AccountId {
 }
 
 impl TryFrom<&AccountId> for Pubkey {
-    type Error = InvalidAccountIdVariant;
+    type Error = ();
 
     fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
         match value {
             AccountId::Signer(signer) => Ok(*signer),
             AccountId::Escrow(_) => {
-                Err(InvalidAccountIdVariant::NotSignerAccount)
+                Err(())
             }
         }
     }
@@ -89,10 +83,10 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.base_denom
         );
         let base_denom = amt.denom.base_denom.to_string();
-        let sender_id = Pubkey::try_from(from).unwrap_or_else(|_| {
+        let sender_id = from.try_into().unwrap_or_else(|_| {
             from.get_escrow_account(base_denom.as_str()).unwrap()
         });
-        let receiver_id = Pubkey::try_from(to).unwrap_or_else(|_| {
+        let receiver_id = to.try_into().unwrap_or_else(|_| {
             to.get_escrow_account(base_denom.as_str()).unwrap()
         });
 
@@ -150,7 +144,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = Pubkey::try_from(account)
+        let receiver_id = account.try_into()
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
@@ -198,7 +192,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = Pubkey::try_from(account)
+        let burner_id = account.try_into()
             .map_err(|_| TokenTransferError::ParseAccountFailure)?;
         let base_denom = amt.denom.base_denom.to_string();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
