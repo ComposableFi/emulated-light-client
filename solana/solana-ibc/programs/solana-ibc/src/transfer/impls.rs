@@ -20,12 +20,12 @@ use crate::MINT_ESCROW_SEED;
 
 /// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
 #[derive(Clone, Display, PartialEq, Eq, derive_more::From)]
-pub enum AccountIdx {
+pub enum AccountId {
     Signer(Pubkey),
     Escrow(PortChannelPK),
 }
 
-impl TryFrom<ibc::Signer> for AccountIdx {
+impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
@@ -39,14 +39,14 @@ pub enum InvalidAccountIdVariant {
     NotSignerAccount,
 }
 
-impl AccountIdx {
+impl AccountId {
     pub fn get_escrow_account(
         &self,
         denom: String,
     ) -> Result<Pubkey, InvalidAccountIdVariant> {
         let port_channel = match self {
-            AccountIdx::Escrow(pk) => pk,
-            AccountIdx::Signer(_) => {
+            AccountId::Escrow(pk) => pk,
+            AccountId::Signer(_) => {
                 return Err(InvalidAccountIdVariant::NotEscrowAccount)
             }
         };
@@ -60,13 +60,13 @@ impl AccountIdx {
     }
 }
 
-impl TryFrom<&AccountIdx> for Pubkey {
+impl TryFrom<&AccountId> for Pubkey {
     type Error = InvalidAccountIdVariant;
 
-    fn try_from(value: &AccountIdx) -> Result<Self, Self::Error> {
+    fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
         match value {
-            AccountIdx::Signer(signer) => Ok(*signer),
-            AccountIdx::Escrow(_) => {
+            AccountId::Signer(signer) => Ok(*signer),
+            AccountId::Escrow(_) => {
                 Err(InvalidAccountIdVariant::NotSignerAccount)
             }
         }
@@ -108,7 +108,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
         let receiver = get_account_info_from_key(accounts, receiver_id)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
 
-        if matches!(from, AccountIdx::Escrow(_)) {
+        if matches!(from, AccountId::Escrow(_)) {
             let (mint_authority_key, mint_authority_bump) =
                 Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
@@ -267,7 +267,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
 }
 
 impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
-    type AccountId = AccountIdx;
+    type AccountId = AccountId;
 
     fn get_port(&self) -> Result<PortId, TokenTransferError> {
         Ok(PortId::transfer())
@@ -278,7 +278,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &PortId,
         channel_id: &ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        Ok(AccountIdx::Escrow(
+        Ok(AccountId::Escrow(
             PortChannelPK::try_from(port_id, channel_id).unwrap(),
         ))
     }
