@@ -1,4 +1,4 @@
-#![cfg_attr(not(any(test, feature = "mocks")), allow(unused_imports))]
+#![allow(unused_imports)]
 
 pub use ibc::apps;
 pub use ibc::core::channel::types::acknowledgement::Acknowledgement;
