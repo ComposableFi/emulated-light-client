@@ -87,7 +87,7 @@ pub fn mock_deliver_impl(
     );
     let counterparty_for_b = ibc::chan::Counterparty::new(
         port_id.clone(),
-        Some(channel_id_on_a.clone())
+        Some(channel_id_on_a.clone()),
     );
 
     let channel_end_on_a = ibc::ChannelEnd::new(

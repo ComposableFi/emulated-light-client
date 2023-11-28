@@ -66,10 +66,10 @@ pub mod mock {
     pub use ibc_testkit::testapp::ibc::clients::mock::consensus_state::{
         MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
     };
+    pub use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
     pub use ibc_testkit::testapp::ibc::clients::mock::proto::{
         ClientState as ClientStatePB, ConsensusState as ConsensusStatePB,
     };
-    pub use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
 }
 
 pub mod tm {
