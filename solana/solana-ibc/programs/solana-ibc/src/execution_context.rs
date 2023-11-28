@@ -183,12 +183,14 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         Ok(())
     }
 
-    /// Connections are stored in a vector with client_id which can be traversed to fetch connections from client_id or vice versa (using client store)
-    #[allow(unused_variables)]
+    /// Does nothing in the current implementation.
+    ///
+    /// Connections are stored in a vector with client id which can be traversed
+    /// to fetch connections from client_id or vice versa (using client store).
     fn store_connection_to_client(
         &mut self,
-        path: &ClientConnectionPath,
-        conn_id: ConnectionId,
+        _path: &ClientConnectionPath,
+        _conn_id: ConnectionId,
     ) -> Result {
         Ok(())
     }
