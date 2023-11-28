@@ -74,7 +74,6 @@ pub struct DeliverWithRemainingAccounts {
     sender: Pubkey,
     storage: Pubkey,
     trie: Pubkey,
-    packets: Pubkey,
     chain: Pubkey,
     system_program: Pubkey,
     remaining_accounts: Vec<AccountMeta>,
@@ -98,11 +97,6 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
             },
             AccountMeta {
                 pubkey: self.trie,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.packets,
                 is_signer: false,
                 is_writable: true,
             },
@@ -150,8 +144,6 @@ fn anchor_test_deliver() -> Result<()> {
     )
     .0;
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
-    let packets =
-        Pubkey::find_program_address(&[crate::PACKET_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
@@ -179,7 +171,6 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
-            packets,
             chain,
             system_program: system_program::ID,
         })
@@ -235,7 +226,6 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
-            packets,
             chain: chain.clone(),
             system_program: system_program::ID,
         })
@@ -299,7 +289,6 @@ fn anchor_test_deliver() -> Result<()> {
             system_program: system_program::ID,
             associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
-            packets,
         })
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
@@ -422,7 +411,6 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             system_program: system_program::ID,
-            packets,
             chain,
             remaining_accounts: remaining_accounts.clone(),
         })
@@ -500,7 +488,6 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             system_program: system_program::ID,
-            packets,
             chain,
             remaining_accounts,
         })
