@@ -15,28 +15,10 @@ use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
-use ibc::applications::transfer::packet::PacketData;
-use ibc::applications::transfer::{Amount, BaseCoin, BaseDenom, Coin};
-use ibc::core::ics02_client::client_state::ClientStateCommon;
-use ibc::core::ics02_client::msgs::create_client::MsgCreateClient;
-use ibc::core::ics03_connection::connection::Counterparty;
-use ibc::core::ics03_connection::msgs::conn_open_init::MsgConnectionOpenInit;
-use ibc::core::ics03_connection::version::Version;
-use ibc::core::ics04_channel::msgs::MsgRecvPacket;
-use ibc::core::ics04_channel::packet::Packet;
-use ibc::core::ics04_channel::timeout::TimeoutHeight;
-use ibc::core::ics23_commitment::commitment::{
-    CommitmentPrefix, CommitmentProofBytes,
-};
-use ibc::core::ics24_host::identifier::{ChannelId, ClientId, PortId};
-use ibc::core::timestamp::Timestamp;
-use ibc::mock::client_state::MockClientState;
-use ibc::mock::consensus_state::MockConsensusState;
-use ibc::mock::header::MockHeader;
-use ibc_proto::google::protobuf::Any;
 
+use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{accounts, instruction, MINT_ESCROW_SEED};
+use crate::{accounts, ibc, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const BASE_DENOM: &str = "PICA";
@@ -56,9 +38,10 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     airdrop_signature
 }
 
-fn create_mock_client_and_cs_state() -> (MockClientState, MockConsensusState) {
-    let mock_client_state = MockClientState::new(MockHeader::default());
-    let mock_cs_state = MockConsensusState::new(MockHeader::default());
+fn create_mock_client_and_cs_state(
+) -> (ibc::mock::MockClientState, ibc::mock::MockConsensusState) {
+    let mock_client_state = ibc::mock::MockClientState::new(Default::default());
+    let mock_cs_state = ibc::mock::MockConsensusState::new(Default::default());
     (mock_client_state, mock_cs_state)
 }
 
@@ -74,7 +57,6 @@ pub struct DeliverWithRemainingAccounts {
     sender: Pubkey,
     storage: Pubkey,
     trie: Pubkey,
-    packets: Pubkey,
     chain: Pubkey,
     system_program: Pubkey,
     remaining_accounts: Vec<AccountMeta>,
@@ -98,11 +80,6 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
             },
             AccountMeta {
                 pubkey: self.trie,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.packets,
                 is_signer: false,
                 is_writable: true,
             },
@@ -150,8 +127,6 @@ fn anchor_test_deliver() -> Result<()> {
     )
     .0;
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
-    let packets =
-        Pubkey::find_program_address(&[crate::PACKET_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
@@ -162,15 +137,16 @@ fn anchor_test_deliver() -> Result<()> {
      */
 
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let _client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
+    let _client_id =
+        ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
     let message = make_message!(
-        MsgCreateClient::new(
-            Any::from(mock_client_state),
-            Any::from(mock_cs_state),
+        ibc::MsgCreateClient::new(
+            ibc::Any::from(mock_client_state),
+            ibc::Any::from(mock_cs_state),
             ibc::Signer::from(authority.pubkey().to_string()),
         ),
-        ibc::core::ics02_client::msgs::ClientMsg::CreateClient,
-        ibc::core::MsgEnvelope::Client,
+        ibc::ClientMsg::CreateClient,
+        ibc::MsgEnvelope::Client,
     );
 
     let sig = program
@@ -179,7 +155,6 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
-            packets,
             chain,
             system_program: system_program::ID,
         })
@@ -205,19 +180,24 @@ fn anchor_test_deliver() -> Result<()> {
      *
      */
 
-    let client_id = ClientId::new(mock_client_state.client_type(), 0).unwrap();
+    let client_id =
+        ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
 
     let counter_party_client_id =
-        ClientId::new(mock_client_state.client_type(), 1).unwrap();
+        ibc::ClientId::new(mock_client_state.client_type(), 1).unwrap();
 
-    let commitment_prefix: CommitmentPrefix =
+    let commitment_prefix: ibc::CommitmentPrefix =
         IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
     let message = make_message!(
-        MsgConnectionOpenInit {
-            client_id_on_a: client_id.clone(),
-            version: Some(Version::default()),
-            counterparty: Counterparty::new(
+        ibc::MsgConnectionOpenInit {
+            client_id_on_a: ibc::ClientId::new(
+                mock_client_state.client_type(),
+                0
+            )
+            .unwrap(),
+            version: Some(Default::default()),
+            counterparty: ibc::conn::Counterparty::new(
                 counter_party_client_id.clone(),
                 None,
                 commitment_prefix.clone(),
@@ -225,8 +205,8 @@ fn anchor_test_deliver() -> Result<()> {
             delay_period: Duration::from_secs(5),
             signer: ibc::Signer::from(authority.pubkey().to_string()),
         },
-        ibc::core::ics03_connection::msgs::ConnectionMsg::OpenInit,
-        ibc::core::MsgEnvelope::Connection,
+        ibc::ConnectionMsg::OpenInit,
+        ibc::MsgEnvelope::Connection,
     );
 
     let sig = program
@@ -235,7 +215,6 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
-            packets,
             chain: chain.clone(),
             system_program: system_program::ID,
         })
@@ -259,17 +238,14 @@ fn anchor_test_deliver() -> Result<()> {
     *
     */
 
-    let port_id = PortId::transfer();
-    let channel_id_on_a = ChannelId::new(0);
-    let channel_id_on_b = ChannelId::new(1);
+    let port_id = ibc::PortId::transfer();
+    let channel_id_on_a = ibc::ChannelId::new(0);
+    let channel_id_on_b = ibc::ChannelId::new(1);
 
     let receiver = Keypair::new();
 
-    let seeds = [
-        port_id.as_bytes().as_ref(),
-        channel_id_on_b.as_bytes().as_ref(),
-        BASE_DENOM.as_bytes().as_ref(),
-    ];
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
@@ -299,7 +275,6 @@ fn anchor_test_deliver() -> Result<()> {
             system_program: system_program::ID,
             associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
-            packets,
         })
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
@@ -347,15 +322,17 @@ fn anchor_test_deliver() -> Result<()> {
     let proof_height_on_a = mock_client_state.header.height;
 
     let message = make_message!(
-        MsgRecvPacket {
+        ibc::MsgRecvPacket {
             packet: packet.clone(),
-            proof_commitment_on_a: CommitmentProofBytes::try_from(packet.data)
-                .unwrap(),
+            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
+                packet.data
+            )
+            .unwrap(),
             proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
-        ibc::core::ics04_channel::msgs::PacketMsg::Recv,
-        ibc::core::MsgEnvelope::Packet,
+        ibc::PacketMsg::Recv,
+        ibc::MsgEnvelope::Packet,
     );
 
     println!("This is trie {:?}", trie);
@@ -422,7 +399,6 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             system_program: system_program::ID,
-            packets,
             chain,
             remaining_accounts: remaining_accounts.clone(),
         })
@@ -479,15 +455,17 @@ fn anchor_test_deliver() -> Result<()> {
     let proof_height_on_a = mock_client_state.header.height;
 
     let message = make_message!(
-        MsgRecvPacket {
+        ibc::MsgRecvPacket {
             packet: packet.clone(),
-            proof_commitment_on_a: CommitmentProofBytes::try_from(packet.data)
-                .unwrap(),
+            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
+                packet.data
+            )
+            .unwrap(),
             proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
-        ibc::core::ics04_channel::msgs::PacketMsg::Recv,
-        ibc::core::MsgEnvelope::Packet,
+        ibc::PacketMsg::Recv,
+        ibc::MsgEnvelope::Packet,
     );
 
     let sig = program
@@ -500,7 +478,6 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             system_program: system_program::ID,
-            packets,
             chain,
             remaining_accounts,
         })
@@ -529,21 +506,26 @@ fn anchor_test_deliver() -> Result<()> {
 }
 
 fn construct_packet_from_denom(
-    port_id: PortId,
-    denom_channel_id: ChannelId, // Channel id used to define if its source chain or destination chain (in denom)
-    channel_id_on_a: ChannelId,
-    channel_id_on_b: ChannelId,
+    port_id: ibc::PortId,
+    // Channel id used to define if its source chain or destination chain (in
+    // denom).
+    denom_channel_id: ibc::ChannelId,
+    channel_id_on_a: ibc::ChannelId,
+    channel_id_on_b: ibc::ChannelId,
     sequence: u64,
     sender_token_address: Pubkey,
     receiver_token_address: Pubkey,
     memo: String,
-) -> Packet {
+) -> ibc::Packet {
     let denom = format!("{port_id}/{denom_channel_id}/{BASE_DENOM}");
-    let base_denom: BaseDenom = BaseDenom::from_str(&denom).unwrap();
-    let token: BaseCoin =
-        Coin { denom: base_denom, amount: Amount::from(1000000) };
+    let base_denom =
+        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+    let token = ibc::apps::transfer::types::Coin {
+        denom: base_denom,
+        amount: 1000000.into(),
+    };
 
-    let packet_data = PacketData {
+    let packet_data = ibc::apps::transfer::types::packet::PacketData {
         token: token.into(),
         sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
         receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
@@ -552,15 +534,15 @@ fn construct_packet_from_denom(
 
     let serialized_data = serde_json::to_vec(&packet_data).unwrap();
 
-    let packet = Packet {
+    let packet = ibc::Packet {
         seq_on_a: sequence.into(),
         port_id_on_a: port_id.clone(),
         chan_id_on_a: channel_id_on_a,
         port_id_on_b: port_id,
         chan_id_on_b: channel_id_on_b,
         data: serialized_data.clone(),
-        timeout_height_on_b: TimeoutHeight::Never,
-        timeout_timestamp_on_b: Timestamp::none(),
+        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
     packet

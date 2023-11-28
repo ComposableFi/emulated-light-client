@@ -10,21 +10,7 @@ type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-
-mod ibc {
-    pub use ibc::core::ics02_client::error::ClientError;
-    pub use ibc::core::ics03_connection::connection::ConnectionEnd;
-    pub use ibc::core::ics03_connection::error::ConnectionError;
-    pub use ibc::core::ics04_channel::channel::ChannelEnd;
-    pub use ibc::core::ics04_channel::error::ChannelError;
-    pub use ibc::core::ics04_channel::msgs::PacketMsg;
-    pub use ibc::core::ics04_channel::packet::Sequence;
-    pub use ibc::core::ics24_host::identifier::{
-        ChannelId, ClientId, ConnectionId, PortId,
-    };
-    pub use ibc::core::ics24_host::path;
-    pub use ibc::Height;
-}
+use crate::ibc;
 
 pub mod ids;
 pub mod trie_key;
@@ -134,10 +120,6 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
     fn deref_mut(&mut self) -> &mut ClientStore { self.store }
 }
 
-
-#[account]
-#[derive(Debug)]
-pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 
 #[account]
 #[derive(Debug)]
@@ -276,7 +258,6 @@ pub fn get_provable_from<'a, 'info>(
 pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub packets: &'a mut IbcPackets,
     pub accounts: Vec<AccountInfo<'c>>,
     pub host_head: crate::host::Head,
 }

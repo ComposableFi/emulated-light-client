@@ -170,7 +170,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
     ) -> Result<(), UpdateCandidateError> {
         let pos = self.candidates.iter().position(|el| &el.pubkey == pubkey);
         if let Some(pos) = pos {
-            if self.candidates.len() <= cfg.min_validators.get().into() {
+            if self.candidates.len() <= usize::from(cfg.min_validators.get()) {
                 return Err(UpdateCandidateError::NotEnoughValidators);
             }
             self.update_stake_for_remove(cfg, pos)?;

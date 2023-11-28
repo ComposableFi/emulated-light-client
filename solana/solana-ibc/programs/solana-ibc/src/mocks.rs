@@ -2,41 +2,22 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
-use ibc::core::ics02_client::ClientExecutionContext;
-use ibc::core::ics03_connection::connection::{
-    ConnectionEnd, Counterparty, State as ConnState,
-};
-use ibc::core::ics03_connection::version::Version;
-use ibc::core::ics04_channel::channel::{
-    ChannelEnd, Counterparty as ChanCounterparty, Order, State as ChannelState,
-};
-use ibc::core::ics04_channel::Version as ChanVersion;
-use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::{
-    ChannelId, ClientId, ConnectionId, PortId,
-};
-use ibc::core::ics24_host::path::{
-    ChannelEndPath, ConnectionPath, SeqRecvPath, SeqSendPath,
-};
-use ibc::core::{ExecutionContext, ValidationContext};
-use ibc::mock::client_state::MockClientState;
-use storage::IbcPackets;
 
-use crate::{error, host, storage, MockDeliver, MINT_ESCROW_SEED};
+use crate::ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
+use crate::{error, host, ibc, storage, MockDeliver, MINT_ESCROW_SEED};
+
 
 pub fn mock_deliver_impl(
     ctx: Context<MockDeliver>,
-    port_id: PortId,
-    _channel_id: ChannelId,
+    port_id: ibc::PortId,
+    _channel_id: ibc::ChannelId,
     _base_denom: String,
-    commitment_prefix: CommitmentPrefix,
-    client_id: ClientId,
-    counterparty_client_id: ClientId,
+    commitment_prefix: ibc::CommitmentPrefix,
+    client_id: ibc::ClientId,
+    counterparty_client_id: ibc::ClientId,
 ) -> Result<()> {
-    let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-    // msg!("This is private: {private:?}");
+    let private = &mut ctx.accounts.storage;
     let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-    let packets: &mut IbcPackets = &mut ctx.accounts.packets;
     let accounts = ctx.remaining_accounts;
 
     let host_head = host::Head::get()?;
@@ -49,13 +30,13 @@ pub fn mock_deliver_impl(
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private,
         provable,
-        packets,
         accounts: accounts.to_vec(),
         host_head,
     });
 
     let any_client_state = store.client_state(&client_id).unwrap();
-    let client_state = MockClientState::try_from(any_client_state).unwrap();
+    let client_state =
+        ibc::mock::MockClientState::try_from(any_client_state).unwrap();
 
     // Store update time since its not called during mocks
     store
@@ -73,74 +54,83 @@ pub fn mock_deliver_impl(
         )
         .unwrap();
 
-    let connection_id_on_a = ConnectionId::new(0);
-    let connection_id_on_b = ConnectionId::new(1);
+    let connection_id_on_a = ibc::ConnectionId::new(0);
+    let connection_id_on_b = ibc::ConnectionId::new(1);
     let delay_period = core::time::Duration::from_nanos(0);
-    let connection_counterparty = Counterparty::new(
+    let connection_counterparty = ibc::conn::Counterparty::new(
         counterparty_client_id.clone(),
         Some(connection_id_on_b.clone()),
         commitment_prefix,
     );
-    let connection_end_on_a = ConnectionEnd::new(
-        ConnState::Open,
+    let connection_end_on_a = ibc::ConnectionEnd::new(
+        ibc::conn::State::Open,
         client_id.clone(),
         connection_counterparty.clone(),
-        vec![Version::default()],
+        vec![ibc::conn::Version::default()],
         delay_period,
     )
     .unwrap();
-    let connection_end_on_b = ConnectionEnd::new(
-        ConnState::Open,
+    let connection_end_on_b = ibc::ConnectionEnd::new(
+        ibc::conn::State::Open,
         client_id,
         connection_counterparty,
-        vec![Version::default()],
+        vec![ibc::conn::Version::default()],
         delay_period,
     )
     .unwrap();
 
-    let counterparty =
-        ChanCounterparty::new(port_id.clone(), Some(ChannelId::new(0)));
-    let channel_end_on_a = ChannelEnd::new(
-        ChannelState::Open,
-        Order::Unordered,
+    let counterparty = ibc::chan::Counterparty::new(
+        port_id.clone(),
+        Some(ibc::ChannelId::new(0)),
+    );
+    let channel_end_on_a = ibc::ChannelEnd::new(
+        ibc::chan::State::Open,
+        ibc::chan::Order::Unordered,
         counterparty.clone(),
         vec![connection_id_on_a.clone()],
-        ChanVersion::new(ibc::applications::transfer::VERSION.to_string()),
+        ibc::chan::Version::new(
+            ibc::apps::transfer::types::VERSION.to_string(),
+        ),
     )
     .unwrap();
-    let channel_end_on_b = ChannelEnd::new(
-        ChannelState::Open,
-        Order::Unordered,
+    let channel_end_on_b = ibc::ChannelEnd::new(
+        ibc::chan::State::Open,
+        ibc::chan::Order::Unordered,
         counterparty,
         vec![connection_id_on_b.clone()],
-        ChanVersion::new(ibc::applications::transfer::VERSION.to_string()),
+        ibc::chan::Version::new(
+            ibc::apps::transfer::types::VERSION.to_string(),
+        ),
     )
     .unwrap();
-    let channel_id_on_a = ChannelId::new(0);
-    let channel_id_on_b = ChannelId::new(1);
+    let channel_id_on_a = ibc::ChannelId::new(0);
+    let channel_id_on_b = ibc::ChannelId::new(1);
 
     // For Client on Chain A
     store
         .store_connection(
-            &ConnectionPath(connection_id_on_a),
+            &ibc::path::ConnectionPath(connection_id_on_a),
             connection_end_on_a,
         )
         .unwrap();
     store
         .store_channel(
-            &ChannelEndPath(port_id.clone(), channel_id_on_a.clone()),
+            &ibc::path::ChannelEndPath(
+                port_id.clone(),
+                channel_id_on_a.clone(),
+            ),
             channel_end_on_a,
         )
         .unwrap();
     store
         .store_next_sequence_send(
-            &SeqSendPath(port_id.clone(), channel_id_on_a.clone()),
+            &ibc::path::SeqSendPath(port_id.clone(), channel_id_on_a.clone()),
             1.into(),
         )
         .unwrap();
     store
         .store_next_sequence_recv(
-            &SeqRecvPath(port_id.clone(), channel_id_on_a),
+            &ibc::path::SeqRecvPath(port_id.clone(), channel_id_on_a),
             1.into(),
         )
         .unwrap();
@@ -148,25 +138,28 @@ pub fn mock_deliver_impl(
     // For Client on chain b
     store
         .store_connection(
-            &ConnectionPath(connection_id_on_b),
+            &ibc::path::ConnectionPath(connection_id_on_b),
             connection_end_on_b,
         )
         .unwrap();
     store
         .store_channel(
-            &ChannelEndPath(port_id.clone(), channel_id_on_b.clone()),
+            &ibc::path::ChannelEndPath(
+                port_id.clone(),
+                channel_id_on_b.clone(),
+            ),
             channel_end_on_b,
         )
         .unwrap();
     store
         .store_next_sequence_send(
-            &SeqSendPath(port_id.clone(), channel_id_on_b.clone()),
+            &ibc::path::SeqSendPath(port_id.clone(), channel_id_on_b.clone()),
             1.into(),
         )
         .unwrap();
     store
         .store_next_sequence_recv(
-            &SeqRecvPath(port_id, channel_id_on_b),
+            &ibc::path::SeqRecvPath(port_id, channel_id_on_b),
             1.into(),
         )
         .unwrap();

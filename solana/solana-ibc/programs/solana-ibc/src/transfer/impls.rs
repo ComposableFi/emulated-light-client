@@ -4,26 +4,33 @@ use anchor_lang::prelude::{AccountInfo, CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::{spl_token, Burn, MintTo, TokenAccount, Transfer};
-use ibc::applications::transfer::context::{
+
+use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
-use ibc::applications::transfer::error::TokenTransferError;
-use ibc::applications::transfer::{Amount, PrefixedCoin};
-use ibc::core::ics24_host::identifier::{ChannelId, PortId};
-use primitive_types::U256;
-use strum::Display;
-use uint::FromDecStrErr;
-
+use crate::ibc::apps::transfer::types::error::TokenTransferError;
+use crate::ibc::apps::transfer::types::{Amount, PrefixedCoin};
 use crate::storage::ids::PortChannelPK;
 use crate::storage::IbcStorage;
-use crate::MINT_ESCROW_SEED;
+use crate::{ibc, MINT_ESCROW_SEED};
 
-/// Structure to identify if the account is escrow or not. If it is escrow account, we derive the escrow account using port-id, channel-id and denom.
+/// Structure to identify if the account is escrow or not.
+///
+/// If it is escrow account, we derive the escrow account address using port-id,
+/// channel-id (stored in this type) and denom (provided in call to
+/// [`Self::get_escrow_account`]).
 #[derive(
-    Clone, Display, PartialEq, Eq, derive_more::From, derive_more::TryInto,
+    Clone,
+    derive_more::Display,
+    PartialEq,
+    Eq,
+    derive_more::From,
+    derive_more::TryInto,
 )]
 pub enum AccountId {
+    #[display(fmt = "{}", _0)]
     Signer(Pubkey),
+    #[display(fmt = "{}", _0)]
     Escrow(PortChannelPK),
 }
 
@@ -239,14 +246,14 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
 impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
     type AccountId = AccountId;
 
-    fn get_port(&self) -> Result<PortId, TokenTransferError> {
-        Ok(PortId::transfer())
+    fn get_port(&self) -> Result<ibc::PortId, TokenTransferError> {
+        Ok(ibc::PortId::transfer())
     }
 
     fn get_escrow_account(
         &self,
-        port_id: &PortId,
-        channel_id: &ChannelId,
+        port_id: &ibc::PortId,
+        channel_id: &ibc::ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
         let port_channel = PortChannelPK::try_from(port_id, channel_id)
             .map_err(|_| TokenTransferError::DestinationChannelNotFound {
@@ -302,9 +309,13 @@ fn get_account_info_from_key<'a, 'b>(
         .ok_or(TokenTransferError::ParseAccountFailure)
 }
 
-/// Solana transfer only supports u64 so checking if the token transfer amount overflows. If it overflows we return an error else we return the converted u64   
+/// Verifies transfer amount.
+///
+/// Solana supports transfers whose amount fits `u64`.  This function checks
+/// whether the token transfer amount overflows that type. If it does it returns
+/// an error or otherwise returns the amount downcast to `u64`.
 fn check_amount_overflow(amount: Amount) -> Result<u64, TokenTransferError> {
-    u64::try_from(U256::from(amount)).map_err(|_| {
-        TokenTransferError::InvalidAmount(FromDecStrErr::InvalidLength)
+    u64::try_from(primitive_types::U256::from(amount)).map_err(|_| {
+        TokenTransferError::InvalidAmount(uint::FromDecStrErr::InvalidLength)
     })
 }
