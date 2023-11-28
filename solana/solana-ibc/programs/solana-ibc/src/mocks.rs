@@ -79,14 +79,21 @@ pub fn mock_deliver_impl(
     )
     .unwrap();
 
-    let counterparty = ibc::chan::Counterparty::new(
+    let channel_id_on_a = ibc::ChannelId::new(0);
+    let channel_id_on_b = ibc::ChannelId::new(1);
+    let counterparty_for_a = ibc::chan::Counterparty::new(
         port_id.clone(),
-        Some(ibc::ChannelId::new(0)),
+        Some(channel_id_on_b.clone()),
     );
+    let counterparty_for_b = ibc::chan::Counterparty::new(
+        port_id.clone(),
+        Some(channel_id_on_a.clone())
+    );
+
     let channel_end_on_a = ibc::ChannelEnd::new(
         ibc::chan::State::Open,
         ibc::chan::Order::Unordered,
-        counterparty.clone(),
+        counterparty_for_a.clone(),
         vec![connection_id_on_a.clone()],
         ibc::chan::Version::new(
             ibc::apps::transfer::types::VERSION.to_string(),
@@ -96,15 +103,14 @@ pub fn mock_deliver_impl(
     let channel_end_on_b = ibc::ChannelEnd::new(
         ibc::chan::State::Open,
         ibc::chan::Order::Unordered,
-        counterparty,
+        counterparty_for_b.clone(),
         vec![connection_id_on_b.clone()],
         ibc::chan::Version::new(
             ibc::apps::transfer::types::VERSION.to_string(),
         ),
     )
     .unwrap();
-    let channel_id_on_a = ibc::ChannelId::new(0);
-    let channel_id_on_b = ibc::ChannelId::new(1);
+
 
     // For Client on Chain A
     store

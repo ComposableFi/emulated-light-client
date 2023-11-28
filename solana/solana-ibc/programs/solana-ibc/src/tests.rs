@@ -40,8 +40,12 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
 
 fn create_mock_client_and_cs_state(
 ) -> (ibc::mock::MockClientState, ibc::mock::MockConsensusState) {
-    let mock_client_state = ibc::mock::MockClientState::new(Default::default());
-    let mock_cs_state = ibc::mock::MockConsensusState::new(Default::default());
+    let mock_header = ibc::mock::MockHeader {
+        height: ibc::Height::new(0, 1).unwrap(),
+        timestamp: ibc::Timestamp::from_nanoseconds(1).unwrap(),
+    };
+    let mock_client_state = ibc::mock::MockClientState::new(mock_header);
+    let mock_cs_state = ibc::mock::MockConsensusState::new(mock_header);
     (mock_client_state, mock_cs_state)
 }
 
@@ -445,8 +449,8 @@ fn anchor_test_deliver() -> Result<()> {
     let packet = construct_packet_from_denom(
         port_id.clone(),
         channel_id_on_b.clone(),
-        channel_id_on_a,
-        channel_id_on_b,
+        channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
         2,
         sender_token_address,
         receiver_token_address,
@@ -501,6 +505,42 @@ fn anchor_test_deliver() -> Result<()> {
         .round() as u64,
         TRANSFER_AMOUNT
     );
+
+    /*
+     *
+     * Send Packets
+     *
+     */
+
+    let packet = construct_packet_from_denom(
+        port_id.clone(),
+        channel_id_on_a.clone(),
+        channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
+        1,
+        sender_token_address,
+        receiver_token_address,
+        String::from("Just a packet"),
+    );
+
+    let sig = program
+        .request()
+        .accounts(accounts::SendPacket {
+            sender: authority.pubkey(),
+            storage,
+            trie,
+            chain: chain.clone(),
+            system_program: system_program::ID,
+        })
+        .args(instruction::SendPacket { packet })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
+
+    println!("signature for sending packet: {sig}");
 
     Ok(())
 }

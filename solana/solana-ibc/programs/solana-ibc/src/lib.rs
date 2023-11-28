@@ -166,7 +166,7 @@ pub mod solana_ibc {
 
     /// Should be called after setting up client, connection and channels.
     pub fn send_packet(
-        ctx: Context<Deliver>,
+        ctx: Context<SendPacket>,
         packet: ibc::Packet,
     ) -> Result<()> {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
