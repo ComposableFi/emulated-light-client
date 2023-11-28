@@ -195,7 +195,10 @@ impl ExecutionContext for IbcStorage<'_, '_, '_> {
         Ok(())
     }
 
-    /// Connections are stored in a vector in an order, so the size of the array would give the number of connections
+    /// Does nothing in the current implementation.
+    ///
+    /// Connections are stored in a vector in an order, so the length of the
+    /// array specifies the number of connections.
     fn increase_connection_counter(&mut self) -> Result { Ok(()) }
 
     fn store_packet_commitment(
