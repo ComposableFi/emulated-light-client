@@ -137,10 +137,10 @@ pub mod solana_ibc {
             host_head,
         });
 
-            let mut router = store.clone();
-            ibc::core::dispatch(&mut store, &mut router, message)
-                .map_err(error::Error::RouterError)
-                .map_err(|err| error!((&err)))?;
+        let mut router = store.clone();
+        ibc::core::dispatch(&mut store, &mut router, message)
+            .map_err(error::Error::RouterError)
+            .map_err(|err| error!((&err)))?;
 
         // `store` is the only reference to inner storage making refcount == 1
         // which means try_into_inner will succeed.
