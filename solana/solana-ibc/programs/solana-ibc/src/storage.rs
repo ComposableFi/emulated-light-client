@@ -261,10 +261,11 @@ pub fn get_provable_from<'a, 'info>(
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub(crate) struct IbcStorageInner<'a, 'b> {
+pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
     pub packets: &'a mut IbcPackets,
+    pub accounts: Vec<AccountInfo<'c>>,
     pub host_head: crate::host::Head,
 }
 
@@ -274,11 +275,13 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
 /// Accessing the data must follow aliasing rules as enforced by `RefCell`.
 /// Violations will cause a panic.
 #[derive(Debug, Clone)]
-pub(crate) struct IbcStorage<'a, 'b>(Rc<RefCell<IbcStorageInner<'a, 'b>>>);
+pub(crate) struct IbcStorage<'a, 'b, 'c>(
+    Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>,
+);
 
-impl<'a, 'b> IbcStorage<'a, 'b> {
+impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Constructs a new object with given inner storage.
-    pub fn new(inner: IbcStorageInner<'a, 'b>) -> Self {
+    pub fn new(inner: IbcStorageInner<'a, 'b, 'c>) -> Self {
         Self(Rc::new(RefCell::new(inner)))
     }
 
@@ -287,7 +290,8 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     ///
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
-    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b>> {
+    #[allow(dead_code)]
+    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b, 'c>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }
 
@@ -296,9 +300,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently mutably borrowed.
-    pub fn borrow<'c>(
-        &'c self,
-    ) -> core::cell::Ref<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow<'s>(
+        &'s self,
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow()
     }
 
@@ -307,7 +311,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    pub fn borrow_mut<'c>(&'c self) -> RefMut<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow_mut<'s>(
+        &'s self,
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow_mut()
     }
 }

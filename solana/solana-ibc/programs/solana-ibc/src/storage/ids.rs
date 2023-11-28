@@ -126,7 +126,9 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
     Hash,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
+    derive_more::Display,
 )]
+#[display(fmt = "(port: ‘{}’, channel: ‘channel-{}’)", port_key, channel_idx)]
 pub struct PortChannelPK {
     pub(super) port_key: PortKey,
     pub(super) channel_idx: u32,

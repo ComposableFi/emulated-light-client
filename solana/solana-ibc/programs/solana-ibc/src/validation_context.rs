@@ -12,7 +12,7 @@ use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ibc::ValidationContext for IbcStorage<'_, '_> {
+impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ibc::ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
@@ -242,15 +242,15 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn get_client_validation_context(&self) -> &Self::V { self }
 
-    fn get_compatible_versions(&self) -> Vec<ibc::connection::Version> {
-        ibc::connection::get_compatible_versions()
+    fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
+        ibc::conn::get_compatible_versions()
     }
 
     fn pick_version(
         &self,
-        counterparty_candidate_versions: &[ibc::connection::Version],
-    ) -> Result<ibc::connection::Version> {
-        let version = ibc::connection::pick_version(
+        counterparty_candidate_versions: &[ibc::conn::Version],
+    ) -> Result<ibc::conn::Version> {
+        let version = ibc::conn::pick_version(
             &self.get_compatible_versions(),
             counterparty_candidate_versions,
         )?;
@@ -265,7 +265,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
+impl ibc::ClientValidationContext for IbcStorage<'_, '_, '_> {
     fn client_update_time(
         &self,
         client_id: &ibc::ClientId,
@@ -312,7 +312,7 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl IbcStorage<'_, '_> {
+impl IbcStorage<'_, '_, '_> {
     fn get_next_sequence<'a>(
         &self,
         path: impl Into<storage::trie_key::SequencePath<'a>>,
@@ -320,7 +320,7 @@ impl IbcStorage<'_, '_> {
         make_err: impl FnOnce(ibc::PortId, ibc::ChannelId) -> ibc::PacketError,
     ) -> Result<ibc::Sequence> {
         fn get(
-            this: &IbcStorage<'_, '_>,
+            this: &IbcStorage<'_, '_, '_>,
             port_channel: &ids::PortChannelPK,
             index: storage::SequenceTripleIdx,
         ) -> Option<ibc::Sequence> {

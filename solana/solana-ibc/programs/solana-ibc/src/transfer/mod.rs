@@ -11,14 +11,14 @@ use crate::storage::IbcStorage;
 
 mod impls;
 
-impl ibc::Module for IbcStorage<'_, '_> {
+impl ibc::Module for IbcStorage<'_, '_, '_> {
     fn on_chan_open_init_validate(
         &self,
-        order: ibc::channel::Order,
+        order: ibc::chan::Order,
         connection_hops: &[ibc::ConnectionId],
         port_id: &ibc::PortId,
         channel_id: &ibc::ChannelId,
-        counterparty: &ibc::channel::Counterparty,
+        counterparty: &ibc::chan::Counterparty,
         version: &ibc::Version,
     ) -> Result<ibc::Version, ibc::ChannelError> {
         ibc::apps::transfer::module::on_chan_open_init_validate(
@@ -38,11 +38,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
 
     fn on_chan_open_try_validate(
         &self,
-        order: ibc::channel::Order,
+        order: ibc::chan::Order,
         connection_hops: &[ibc::ConnectionId],
         port_id: &ibc::PortId,
         channel_id: &ibc::ChannelId,
-        counterparty: &ibc::channel::Counterparty,
+        counterparty: &ibc::chan::Counterparty,
         counterparty_version: &ibc::Version,
     ) -> Result<ibc::Version, ibc::ChannelError> {
         ibc::apps::transfer::module::on_chan_open_try_validate(
@@ -180,11 +180,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
 
     fn on_chan_open_init_execute(
         &mut self,
-        order: ibc::channel::Order,
+        order: ibc::chan::Order,
         connection_hops: &[ibc::ConnectionId],
         port_id: &ibc::PortId,
         channel_id: &ibc::ChannelId,
-        counterparty: &ibc::channel::Counterparty,
+        counterparty: &ibc::chan::Counterparty,
         version: &ibc::Version,
     ) -> Result<(ibc::ModuleExtras, ibc::Version), ibc::ChannelError> {
         ibc::apps::transfer::module::on_chan_open_init_execute(
@@ -203,11 +203,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
 
     fn on_chan_open_try_execute(
         &mut self,
-        order: ibc::channel::Order,
+        order: ibc::chan::Order,
         connection_hops: &[ibc::ConnectionId],
         port_id: &ibc::PortId,
         channel_id: &ibc::ChannelId,
-        counterparty: &ibc::channel::Counterparty,
+        counterparty: &ibc::chan::Counterparty,
         counterparty_version: &ibc::Version,
     ) -> Result<(ibc::ModuleExtras, ibc::Version), ibc::ChannelError> {
         ibc::apps::transfer::module::on_chan_open_try_execute(

@@ -1,3 +1,5 @@
+#![cfg_attr(not(any(test, feature = "mocks")), allow(unused_imports))]
+
 pub use ibc::apps;
 pub use ibc::core::channel::types::acknowledgement::Acknowledgement;
 pub use ibc::core::channel::types::channel::ChannelEnd;
@@ -5,8 +7,9 @@ pub use ibc::core::channel::types::commitment::{
     AcknowledgementCommitment, PacketCommitment,
 };
 pub use ibc::core::channel::types::error::{ChannelError, PacketError};
-pub use ibc::core::channel::types::msgs::PacketMsg;
+pub use ibc::core::channel::types::msgs::{MsgRecvPacket, PacketMsg};
 pub use ibc::core::channel::types::packet::{Packet, Receipt};
+pub use ibc::core::channel::types::timeout::TimeoutHeight;
 pub use ibc::core::channel::types::Version;
 pub use ibc::core::client::context::client_state::{
     ClientStateCommon, ClientStateExecution, ClientStateValidation,
@@ -38,20 +41,21 @@ pub use ibc::core::host::types::path;
 pub use ibc::core::host::{ExecutionContext, ValidationContext};
 pub use ibc::core::router::module::Module;
 pub use ibc::core::router::router::Router;
+pub use ibc::core::router::types::event::{ModuleEvent, ModuleEventAttribute};
 pub use ibc::core::router::types::module::{ModuleExtras, ModuleId};
 pub use ibc::primitives::{Signer, Timestamp};
 
-pub mod connection {
+pub mod conn {
     pub use ibc::core::connection::types::version::{
         get_compatible_versions, pick_version, Version,
     };
-    #[cfg(test)]
-    pub use ibc::core::connection::types::Counterparty;
+    pub use ibc::core::connection::types::{Counterparty, State};
 }
 pub use ibc::primitives::proto::{Any, Protobuf};
 
-pub mod channel {
-    pub use ibc::core::channel::types::channel::{Counterparty, Order};
+pub mod chan {
+    pub use ibc::core::channel::types::channel::{Counterparty, Order, State};
+    pub use ibc::core::channel::types::Version;
 }
 
 #[cfg(any(test, feature = "mocks"))]
