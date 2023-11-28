@@ -138,7 +138,7 @@ pub mod solana_ibc {
 
         {
             let mut router = store.clone();
-            ibc::core::dispatch(&mut store, &mut router, message.clone())
+            ibc::core::dispatch(&mut store, &mut router, message)
                 .map_err(error::Error::RouterError)
                 .map_err(|err| error!((&err)))?;
         }
