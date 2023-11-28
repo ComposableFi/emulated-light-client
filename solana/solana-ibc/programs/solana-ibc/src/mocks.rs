@@ -20,7 +20,6 @@ use ibc::core::ics24_host::path::{
 };
 use ibc::core::{ExecutionContext, ValidationContext};
 use ibc::mock::client_state::MockClientState;
-use storage::IbcPackets;
 
 use crate::{error, host, storage, MockDeliver, MINT_ESCROW_SEED};
 
@@ -36,7 +35,6 @@ pub fn mock_deliver_impl(
     let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
     // msg!("This is private: {private:?}");
     let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-    let packets: &mut IbcPackets = &mut ctx.accounts.packets;
     let accounts = ctx.remaining_accounts;
 
     let host_head = host::Head::get()?;
@@ -49,7 +47,6 @@ pub fn mock_deliver_impl(
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private,
         provable,
-        packets,
         accounts: accounts.to_vec(),
         host_head,
     });
