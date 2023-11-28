@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::num::NonZeroU16;
 
 use lib::hash::CryptoHash;
@@ -7,6 +8,7 @@ use crate::nodes::{Node, NodeRef, RawNode, Reference};
 use crate::{bits, proof};
 
 mod del;
+mod iter;
 mod seal;
 mod set;
 #[cfg(test)]
@@ -102,6 +104,7 @@ impl From<crate::nodes::DecodeError> for Error {
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
 type Value = [u8; crate::nodes::RawNode::SIZE];
+
 
 macro_rules! proof {
     ($proof:ident push $item:expr) => {
@@ -238,6 +241,18 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                     };
                 }
             };
+        }
+    }
+
+    /// Returns all keys and values in a given subtrie.
+    pub fn get_subtrie<'a>(
+        &'a self,
+        key: &'a [u8],
+    ) -> Result<Vec<iter::Entry>> {
+        if self.is_empty() {
+            Ok(Vec::new())
+        } else {
+            iter::get_entries(&self.alloc, self.root_ptr, key)
         }
     }
 

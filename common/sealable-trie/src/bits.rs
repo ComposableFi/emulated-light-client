@@ -515,6 +515,14 @@ impl Owned {
         Self { bytes: alloc::vec![255 * u8::from(bit)], offset, length: 1 }
     }
 
+    /// Returns length of the slice in bits.
+    #[inline]
+    pub fn len(&self) -> u16 { self.length }
+
+    /// Returns whether the slice is empty.
+    #[inline]
+    pub fn is_empty(&self) -> bool { self.length == 0 }
+
     /// Borrows the owned slice.
     pub fn as_slice(&self) -> Slice {
         Slice {
@@ -721,8 +729,16 @@ impl TryFrom<Slice<'_>> for Vec<u8> {
     type Error = MisalignedSlice;
     #[inline]
     fn try_from(slice: Slice<'_>) -> Result<Self, Self::Error> {
+        <&[u8]>::try_from(slice).map(Self::from)
+    }
+}
+
+impl<'a> TryFrom<Slice<'a>> for &'a [u8] {
+    type Error = MisalignedSlice;
+    #[inline]
+    fn try_from(slice: Slice<'a>) -> Result<Self, Self::Error> {
         if slice.offset == 0 && slice.length % 8 == 0 {
-            Ok(slice.bytes().into())
+            Ok(slice.bytes())
         } else {
             Err(MisalignedSlice)
         }
