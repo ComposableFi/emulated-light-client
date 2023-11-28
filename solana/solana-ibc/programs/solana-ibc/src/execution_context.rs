@@ -2,51 +2,34 @@ use alloc::collections::BTreeMap;
 
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
-use ibc::core::events::IbcEvent;
-use ibc::core::ics02_client::error::ClientError;
-use ibc::core::ics02_client::ClientExecutionContext;
-use ibc::core::ics03_connection::connection::ConnectionEnd;
-use ibc::core::ics03_connection::error::ConnectionError;
-use ibc::core::ics04_channel::channel::ChannelEnd;
-use ibc::core::ics04_channel::commitment::{
-    AcknowledgementCommitment, PacketCommitment,
-};
-use ibc::core::ics04_channel::packet::{Receipt, Sequence};
-use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
-use ibc::core::ics24_host::path::{
-    AckPath, ChannelEndPath, ClientConnectionPath, ClientConsensusStatePath,
-    ClientStatePath, CommitmentPath, ConnectionPath, ReceiptPath, SeqAckPath,
-    SeqRecvPath, SeqSendPath,
-};
-use ibc::core::timestamp::Timestamp;
-use ibc::core::{ContextError, ExecutionContext};
-use ibc::Height;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
+use crate::ibc;
 use crate::storage::trie_key::TrieKey;
 use crate::storage::{self, ids, IbcStorage};
 
-type Result<T = (), E = ibc::core::ContextError> = core::result::Result<T, E>;
+type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ClientExecutionContext for IbcStorage<'_, '_> {
+impl ibc::ClientExecutionContext for IbcStorage<'_, '_, '_> {
     type V = Self; // ClientValidationContext
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
     fn store_client_state(
         &mut self,
-        path: ClientStatePath,
+        path: ibc::path::ClientStatePath,
         state: Self::AnyClientState,
     ) -> Result {
         msg!("store_client_state({}, {:?})", path, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
         let serialised = client.client_state.set(&state)?;
+        let client_id = path.0.as_bytes();
         let hash = CryptoHash::digestv(&[
-            path.0.as_bytes(),
-            &[0],
+            &(client_id.len() as u32).to_le_bytes()[..],
+            client_id,
             serialised.as_bytes(),
         ]);
         let key = TrieKey::for_client_state(client.index);
@@ -55,11 +38,12 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn store_consensus_state(
         &mut self,
-        path: ClientConsensusStatePath,
+        path: ibc::path::ClientConsensusStatePath,
         state: Self::AnyConsensusState,
     ) -> Result {
         msg!("store_consensus_state({}, {:?})", path, state);
-        let height = Height::new(path.epoch, path.height)?;
+        let height =
+            ibc::Height::new(path.revision_number, path.revision_height)?;
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.client_id, false)?;
         let serialised = storage::Serialised::new(&state)?;
@@ -72,10 +56,11 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn delete_consensus_state(
         &mut self,
-        path: ClientConsensusStatePath,
-    ) -> Result<(), ContextError> {
+        path: ibc::path::ClientConsensusStatePath,
+    ) -> Result {
         msg!("delete_consensus_state({})", path);
-        let height = Height::new(path.epoch, path.height)?;
+        let height =
+            ibc::Height::new(path.revision_number, path.revision_height)?;
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.client_id, false)?;
         client.consensus_states.remove(&height);
@@ -87,9 +72,9 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn delete_update_height(
         &mut self,
-        client_id: ClientId,
-        height: Height,
-    ) -> Result<(), ContextError> {
+        client_id: ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result {
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -100,9 +85,9 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn delete_update_time(
         &mut self,
-        client_id: ClientId,
-        height: Height,
-    ) -> Result<(), ContextError> {
+        client_id: ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result {
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -113,11 +98,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn store_update_time(
         &mut self,
-        client_id: ClientId,
-        height: Height,
-        timestamp: Timestamp,
-    ) -> Result<(), ContextError> {
-        msg!("store_update_time({}, {}, {})", client_id, height, timestamp);
+        client_id: ibc::ClientId,
+        height: ibc::Height,
+        timestamp: ibc::Timestamp,
+    ) -> Result {
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -128,11 +112,10 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
 
     fn store_update_height(
         &mut self,
-        client_id: ClientId,
-        height: Height,
-        host_height: Height,
-    ) -> Result<(), ContextError> {
-        msg!("store_update_height({}, {}, {})", client_id, height, host_height);
+        client_id: ibc::ClientId,
+        height: ibc::Height,
+        host_height: ibc::Height,
+    ) -> Result {
         self.borrow_mut()
             .private
             .client_mut(&client_id, false)?
@@ -142,13 +125,17 @@ impl ClientExecutionContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ExecutionContext for IbcStorage<'_, '_> {
+impl ibc::ExecutionContext for IbcStorage<'_, '_, '_> {
+    /// Does nothing in the current implementation.
+    ///
+    /// The clients are stored in the vector so we can easily find how many
+    /// clients were created. So thats why this method doesnt do anything.
     fn increase_client_counter(&mut self) -> Result { Ok(()) }
 
     fn store_connection(
         &mut self,
-        path: &ConnectionPath,
-        connection_end: ConnectionEnd,
+        path: &ibc::path::ConnectionPath,
+        connection_end: ibc::ConnectionEnd,
     ) -> Result {
         use core::cmp::Ordering;
 
@@ -165,7 +152,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
             Ordering::Less => connections[index] = serialised,
             Ordering::Equal => connections.push(serialised),
             Ordering::Greater => {
-                return Err(ConnectionError::ConnectionNotFound {
+                return Err(ibc::ConnectionError::ConnectionNotFound {
                     connection_id: path.0.clone(),
                 }
                 .into())
@@ -180,39 +167,47 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
+    /// Does nothing in the current implementation.
+    ///
+    /// Connections are stored in a vector with client id which can be traversed
+    /// to fetch connections from client_id or vice versa (using client store).
+    #[allow(unused_variables)]
     fn store_connection_to_client(
         &mut self,
-        path: &ClientConnectionPath,
-        conn_id: ConnectionId,
+        path: &ibc::path::ClientConnectionPath,
+        conn_id: ibc::ConnectionId,
     ) -> Result {
-        msg!("store_connection_to_client({}, {:?})", path, conn_id);
-        let conn_id = ids::ConnectionIdx::try_from(&conn_id)?;
-        self.borrow_mut().private.client_mut(&path.0, false)?.connection_id =
-            Some(conn_id);
         Ok(())
     }
 
+    /// Does nothing in the current implementation.
+    ///
+    /// Connections are stored in a vector in an order, so the length of the
+    /// array specifies the number of connections.
     fn increase_connection_counter(&mut self) -> Result { Ok(()) }
 
     fn store_packet_commitment(
         &mut self,
-        path: &CommitmentPath,
-        commitment: PacketCommitment,
+        path: &ibc::path::CommitmentPath,
+        commitment: ibc::PacketCommitment,
     ) -> Result {
         msg!("store_packet_commitment({}, {:?})", path, commitment);
-        // Note: PacketCommitment is always 32-byte long.
+        // Note: ibc::PacketCommitment is always 32-byte long.
         self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
     }
 
-    fn delete_packet_commitment(&mut self, path: &CommitmentPath) -> Result {
+    fn delete_packet_commitment(
+        &mut self,
+        path: &ibc::path::CommitmentPath,
+    ) -> Result {
         msg!("delete_packet_commitment({})", path);
         self.delete_commitment(TrieKey::try_from(path)?)
     }
 
     fn store_packet_receipt(
         &mut self,
-        path: &ReceiptPath,
-        Receipt::Ok: Receipt,
+        path: &ibc::path::ReceiptPath,
+        ibc::Receipt::Ok: ibc::Receipt,
     ) -> Result {
         msg!("store_packet_receipt({}, Ok)", path);
         self.store_commitment(TrieKey::try_from(path)?, &[0; 32][..])
@@ -220,23 +215,26 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_packet_acknowledgement(
         &mut self,
-        path: &AckPath,
-        commitment: AcknowledgementCommitment,
+        path: &ibc::path::AckPath,
+        commitment: ibc::AcknowledgementCommitment,
     ) -> Result {
         msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
-        // Note: AcknowledgementCommitment is always 32-byte long.
+        // Note: ibc::AcknowledgementCommitment is always 32-byte long.
         self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
     }
 
-    fn delete_packet_acknowledgement(&mut self, path: &AckPath) -> Result {
+    fn delete_packet_acknowledgement(
+        &mut self,
+        path: &ibc::path::AckPath,
+    ) -> Result {
         msg!("delete_packet_acknowledgement({})", path);
         self.delete_commitment(TrieKey::try_from(path)?)
     }
 
     fn store_channel(
         &mut self,
-        path: &ChannelEndPath,
-        channel_end: ChannelEnd,
+        path: &ibc::path::ChannelEndPath,
+        channel_end: ibc::ChannelEnd,
     ) -> Result {
         msg!("store_channel({}, {:?})", path, channel_end);
         let port_channel = ids::PortChannelPK::try_from(&path.0, &path.1)?;
@@ -251,8 +249,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_next_sequence_send(
         &mut self,
-        path: &SeqSendPath,
-        seq: Sequence,
+        path: &ibc::path::SeqSendPath,
+        seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
         self.store_next_sequence(
@@ -264,8 +262,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_next_sequence_recv(
         &mut self,
-        path: &SeqRecvPath,
-        seq: Sequence,
+        path: &ibc::path::SeqRecvPath,
+        seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
         self.store_next_sequence(
@@ -277,8 +275,8 @@ impl ExecutionContext for IbcStorage<'_, '_> {
 
     fn store_next_sequence_ack(
         &mut self,
-        path: &SeqAckPath,
-        seq: Sequence,
+        path: &ibc::path::SeqAckPath,
+        seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {}, seq: {}", path, seq);
         self.store_next_sequence(
@@ -298,7 +296,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn emit_ibc_event(&mut self, event: IbcEvent) -> Result {
+    fn emit_ibc_event(&mut self, event: ibc::IbcEvent) -> Result {
         crate::events::emit(event).map_err(error)
     }
 
@@ -310,7 +308,7 @@ impl ExecutionContext for IbcStorage<'_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl storage::IbcStorage<'_, '_> {
+impl storage::IbcStorage<'_, '_, '_> {
     fn store_commitment(&mut self, key: TrieKey, commitment: &[u8]) -> Result {
         // Caller promises that commitment is always 32 bytes.
         let commitment = <&CryptoHash>::try_from(commitment).unwrap();
@@ -325,7 +323,7 @@ impl storage::IbcStorage<'_, '_> {
         &mut self,
         path: storage::trie_key::SequencePath<'_>,
         index: storage::SequenceTripleIdx,
-        seq: Sequence,
+        seq: ibc::Sequence,
     ) -> Result {
         let key = ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
         let trie_key = TrieKey::for_next_sequence(&key);
@@ -339,7 +337,7 @@ impl storage::IbcStorage<'_, '_> {
     }
 }
 
-impl storage::IbcStorageInner<'_, '_> {
+impl storage::IbcStorageInner<'_, '_, '_> {
     /// Serialises `value` and stores it in private storage along with its
     /// commitment in provable storage.
     ///
@@ -363,6 +361,6 @@ impl storage::IbcStorageInner<'_, '_> {
     }
 }
 
-fn error(description: impl ToString) -> ContextError {
-    ClientError::Other { description: description.to_string() }.into()
+fn error(description: impl ToString) -> ibc::ContextError {
+    ibc::ClientError::Other { description: description.to_string() }.into()
 }

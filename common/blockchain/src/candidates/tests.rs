@@ -240,7 +240,7 @@ impl TestCtx {
     fn check(&self) {
         assert!(
             self.candidates.candidates.len() >=
-                self.config.min_validators.get().into(),
+                usize::from(self.config.min_validators.get()),
             "Violated min validators constraint: {} < {}",
             self.candidates.candidates.len(),
             self.config.min_validators.get(),
@@ -287,7 +287,7 @@ impl TestCtx {
                 NotEnoughValidators => {
                     assert!(
                         self.candidates.candidates.len() <=
-                            self.config.min_validators.get().into()
+                            usize::from(self.config.min_validators.get())
                     );
                 }
             }

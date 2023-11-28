@@ -10,21 +10,7 @@ type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-
-mod ibc {
-    pub use ibc::core::ics02_client::error::ClientError;
-    pub use ibc::core::ics03_connection::connection::ConnectionEnd;
-    pub use ibc::core::ics03_connection::error::ConnectionError;
-    pub use ibc::core::ics04_channel::channel::ChannelEnd;
-    pub use ibc::core::ics04_channel::error::ChannelError;
-    pub use ibc::core::ics04_channel::msgs::PacketMsg;
-    pub use ibc::core::ics04_channel::packet::Sequence;
-    pub use ibc::core::ics24_host::identifier::{
-        ChannelId, ClientId, ConnectionId, PortId,
-    };
-    pub use ibc::core::ics24_host::path;
-    pub use ibc::Height;
-}
+use crate::ibc;
 
 pub mod ids;
 pub mod trie_key;
@@ -88,7 +74,6 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientStore {
     pub client_id: ibc::ClientId,
-    pub connection_id: Option<ids::ConnectionIdx>,
 
     pub client_state: Serialised<AnyClientState>,
     pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
@@ -100,7 +85,6 @@ impl ClientStore {
     fn new(client_id: ibc::ClientId) -> Self {
         Self {
             client_id,
-            connection_id: Default::default(),
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
             processed_times: Default::default(),
@@ -136,10 +120,6 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
     fn deref_mut(&mut self) -> &mut ClientStore { self.store }
 }
 
-
-#[account]
-#[derive(Debug)]
-pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
 
 #[account]
 #[derive(Debug)]
@@ -275,10 +255,10 @@ pub fn get_provable_from<'a, 'info>(
 /// All the structs from IBC are stored as String since they dont implement
 /// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub(crate) struct IbcStorageInner<'a, 'b> {
+pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub packets: &'a mut IbcPackets,
+    pub accounts: Vec<AccountInfo<'c>>,
     pub host_head: crate::host::Head,
 }
 
@@ -288,11 +268,13 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
 /// Accessing the data must follow aliasing rules as enforced by `RefCell`.
 /// Violations will cause a panic.
 #[derive(Debug, Clone)]
-pub(crate) struct IbcStorage<'a, 'b>(Rc<RefCell<IbcStorageInner<'a, 'b>>>);
+pub(crate) struct IbcStorage<'a, 'b, 'c>(
+    Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>,
+);
 
-impl<'a, 'b> IbcStorage<'a, 'b> {
+impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Constructs a new object with given inner storage.
-    pub fn new(inner: IbcStorageInner<'a, 'b>) -> Self {
+    pub fn new(inner: IbcStorageInner<'a, 'b, 'c>) -> Self {
         Self(Rc::new(RefCell::new(inner)))
     }
 
@@ -301,7 +283,8 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     ///
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
-    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b>> {
+    #[allow(dead_code)]
+    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b, 'c>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }
 
@@ -310,9 +293,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently mutably borrowed.
-    pub fn borrow<'c>(
-        &'c self,
-    ) -> core::cell::Ref<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow<'s>(
+        &'s self,
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow()
     }
 
@@ -321,7 +304,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    pub fn borrow_mut<'c>(&'c self) -> RefMut<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow_mut<'s>(
+        &'s self,
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b, 'c>> {
         self.0.borrow_mut()
     }
 }

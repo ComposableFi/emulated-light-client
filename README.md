@@ -4,26 +4,29 @@ This is our attempt to build a bridge between Solana and Cosmos using IBC
 
 ## Instructions to test solana program
 
-Since the solana program takes more than the default compute units (200000), we need to run a local validator with increased compute units for the program to run successfully. The steps are given below.
-
-1. Start a local validator with increased compute units
-```
-solana-test-validator -r --max-compute-units 5000000
-```
-
-2. In another terminal, run anchor test with `mocks` feature. Since we cannot pass features to anchor test command, we need to build it.
+1. Run anchor test with `mocks` feature. Since we cannot pass features to anchor test command, we need to build it.
 ```
 anchor build -- --features mocks
 ```
 
-3. Now while running the tests, we need to provide a flag to skip build and validator since they are already set. Not providing the flag to skip build would make the program to be built again but without any features ( which we dont want for testing ).
+2. Now while running the tests, we need to provide a flag to skip build since they are already set. Not providing the flag to skip build would make the program to be built again but without any features ( which we dont want for testing ).
 ```
-anchor test --skip-local-validator --skip-build
+anchor test --skip-build
 ```
 
 ### Note:
-If you want to deploy the program with `mocks` feature, you need to build the program with the mocks feature and then deploy.
+- If you want to deploy the program with `mocks` feature, you need to build the program with the mocks feature and then deploy.
 ```
 anchor build -- --features mocks
 anchor deploy
 ```
+- If you want to retain the local state once the tests are run, you would have to run a local validator. A local validator should run in the background and while running the test `skip-local-validator` flag has to be passed so that the program doesnt spin up its only validator.
+Below is the command to run local validator ( run it in a seperate terminal).
+```
+solana-test-validator -r
+```
+And pass the flag to skip local validator while running the tests.
+```
+anchor test --skip-local-validator --skip-build
+```
+The `skip-build` has to be passed if you are running tests with `mocks` feature. So remember to build it with the command above before you run the tests.
