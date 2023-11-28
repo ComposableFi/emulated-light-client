@@ -41,7 +41,7 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
 fn create_mock_client_and_cs_state(
 ) -> (ibc::mock::MockClientState, ibc::mock::MockConsensusState) {
     let mock_header = ibc::mock::MockHeader {
-        height: ibc::Height::new(0, 1).unwrap(),
+        height: ibc::Height::min(0),
         timestamp: ibc::Timestamp::from_nanoseconds(1).unwrap(),
     };
     let mock_client_state = ibc::mock::MockClientState::new(mock_header);
