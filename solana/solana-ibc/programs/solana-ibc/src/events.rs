@@ -2,6 +2,8 @@ use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program;
 use lib::hash::CryptoHash;
 
+use crate::ibc;
+
 /// Possible events emitted by the smart contract.
 ///
 /// The events are logged in their borsh-serialised form.
@@ -15,7 +17,7 @@ use lib::hash::CryptoHash;
     derive_more::From,
 )]
 pub enum Event<'a> {
-    IbcEvent(ibc::core::events::IbcEvent),
+    IbcEvent(ibc::IbcEvent),
     Initialised(Initialised<'a>),
     NewBlock(NewBlock<'a>),
     BlockSigned(BlockSigned),
@@ -185,18 +187,15 @@ mod snapshot_tests {
         };
     }
 
-    test!(borsh_ibc_event {
-        let event = ibc::core::events::ModuleEvent {
-            kind: "kind".into(),
-            attributes: alloc::vec![
-                ibc::core::events::ModuleEventAttribute {
-                    key: "key".into(),
-                    value: "value".into(),
-                }
-            ],
-        };
-        ibc::core::events::IbcEvent::Module(event)
-    });
+    test!(borsh_ibc_event ibc::IbcEvent::Module(ibc::ModuleEvent {
+        kind: "kind".into(),
+        attributes: alloc::vec![
+            ibc::ModuleEventAttribute {
+                key: "key".into(),
+                value: "value".into(),
+            }
+        ],
+    }));
 
     test!(borsh_initialised Initialised { genesis: make_new_block() });
     test!(borsh_new_block make_new_block());
