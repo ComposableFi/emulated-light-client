@@ -17,7 +17,6 @@ mod ibc {
     pub use ibc::core::ics03_connection::error::ConnectionError;
     pub use ibc::core::ics04_channel::channel::ChannelEnd;
     pub use ibc::core::ics04_channel::error::ChannelError;
-    pub use ibc::core::ics04_channel::msgs::PacketMsg;
     pub use ibc::core::ics04_channel::packet::Sequence;
     pub use ibc::core::ics24_host::identifier::{
         ChannelId, ClientId, ConnectionId, PortId,
