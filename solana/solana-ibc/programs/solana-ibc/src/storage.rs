@@ -74,7 +74,6 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientStore {
     pub client_id: ibc::ClientId,
-    pub connection_id: Option<ids::ConnectionIdx>,
 
     pub client_state: Serialised<AnyClientState>,
     pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
@@ -86,7 +85,6 @@ impl ClientStore {
     fn new(client_id: ibc::ClientId) -> Self {
         Self {
             client_id,
-            connection_id: Default::default(),
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
             processed_times: Default::default(),
