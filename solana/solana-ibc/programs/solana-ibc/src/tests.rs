@@ -3,6 +3,8 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
+use ::ibc::core::client::types::Height;
+use ::ibc::primitives::Timestamp;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -15,8 +17,6 @@ use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
-use ::ibc::core::client::types::Height;
-use ::ibc::primitives::Timestamp;
 use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
 
 use crate::ibc::ClientStateCommon;
