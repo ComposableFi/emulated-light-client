@@ -3,8 +3,6 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use ::ibc::core::client::types::Height;
-use ::ibc::primitives::Timestamp;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -17,7 +15,6 @@ use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
-use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
@@ -43,9 +40,9 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
 
 fn create_mock_client_and_cs_state(
 ) -> (ibc::mock::MockClientState, ibc::mock::MockConsensusState) {
-    let mock_header = MockHeader {
-        height: Height::new(0, 1).unwrap(),
-        timestamp: Timestamp::from_nanoseconds(1).unwrap(),
+    let mock_header = ibc::mock::MockHeader {
+        height: ibc::Height::new(0, 1).unwrap(),
+        timestamp: ibc::Timestamp::from_nanoseconds(1).unwrap(),
     };
     let mock_client_state = ibc::mock::MockClientState::new(mock_header);
     let mock_cs_state = ibc::mock::MockConsensusState::new(mock_header);
