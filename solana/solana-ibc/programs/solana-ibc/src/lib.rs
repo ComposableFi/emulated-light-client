@@ -219,8 +219,7 @@ pub mod solana_ibc {
 
         ibc::core::send_packet(&mut store, packet)
             .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))?;
-        Ok(())
+            .map_err(|err| error!((&err)))
     }
 }
 
