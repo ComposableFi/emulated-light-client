@@ -188,7 +188,6 @@ pub mod solana_ibc {
     pub fn send_packet(ctx: Context<Deliver>, packet: Packet) -> Result<()> {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        let packets = &mut ctx.accounts.packets;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
@@ -199,7 +198,6 @@ pub mod solana_ibc {
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            packets,
             accounts: Vec::new(), // We are not doing any transfers so no point of having accounts
             host_head,
         });
@@ -332,10 +330,6 @@ pub struct SendPacket<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
-
-    /// The account holding packets.
-    #[account(mut, seeds = [PACKET_SEED], bump)]
-    packets: Account<'info, storage::IbcPackets>,
 
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
