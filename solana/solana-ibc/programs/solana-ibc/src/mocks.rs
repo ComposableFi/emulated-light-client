@@ -2,8 +2,8 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
-use ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
 
+use crate::ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
 use crate::{error, host, ibc, storage, MockDeliver, MINT_ESCROW_SEED};
 
 
