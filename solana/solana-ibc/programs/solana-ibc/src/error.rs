@@ -10,8 +10,11 @@ pub(crate) enum Error {
     /// Internal error which ‘should never happen’.
     Internal(&'static str),
 
-    /// Error handling an IBC request.
+    /// Error handling an IBC deliver packet request.
     RouterError(ibc::core::RouterError),
+
+    /// Error handling an IBC send packet request
+    ContextError(ibc::core::ContextError),
 
     /// Guest block hasn’t been initialised yet.
     ChainNotInitialised,
