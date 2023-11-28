@@ -1,6 +1,6 @@
 use anchor_lang::solana_program;
-use ibc::core::ics02_client::error::ClientError;
-use ibc::core::timestamp::Timestamp;
+
+use crate::ibc;
 
 /// Representation of Solana’s head.
 #[derive(Clone, Copy, Debug)]
@@ -21,15 +21,16 @@ impl Head {
 
     /// Returns height as an IBC type.
     #[inline]
-    pub fn ibc_height(&self) -> Result<ibc::Height, ClientError> {
+    pub fn ibc_height(&self) -> Result<ibc::Height, ibc::ClientError> {
         ibc::Height::new(0, self.height.into())
     }
 
     /// Returns timestamp as an IBC type.
     #[inline]
-    pub fn ibc_timestamp(&self) -> Result<Timestamp, ClientError> {
-        Timestamp::from_nanoseconds(self.timestamp)
-            .map_err(|err| ClientError::Other { description: err.to_string() })
+    pub fn ibc_timestamp(&self) -> Result<ibc::Timestamp, ibc::ClientError> {
+        ibc::Timestamp::from_nanoseconds(self.timestamp).map_err(|err| {
+            ibc::ClientError::Other { description: err.to_string() }
+        })
     }
 }
 
@@ -55,14 +56,14 @@ impl From<Error> for anchor_lang::error::Error {
     fn from(error: Error) -> Self { Self::from(error.0) }
 }
 
-impl From<Error> for ClientError {
+impl From<Error> for ibc::ClientError {
     #[inline]
     fn from(error: Error) -> Self {
         Self::Other { description: error.0.to_string() }
     }
 }
 
-impl From<Error> for ibc::core::ContextError {
+impl From<Error> for ibc::ContextError {
     #[inline]
     fn from(error: Error) -> Self { Self::ClientError(error.into()) }
 }

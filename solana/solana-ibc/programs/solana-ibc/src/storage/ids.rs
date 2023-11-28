@@ -3,7 +3,7 @@ use core::str::FromStr;
 use anchor_lang::prelude::borsh;
 use base64::engine::{general_purpose, Engine};
 
-use super::ibc;
+use crate::ibc;
 
 type Result<T, E = ibc::ClientError> = core::result::Result<T, E>;
 
@@ -70,7 +70,7 @@ pub struct ConnectionIdx(u32);
 impl ConnectionIdx {
     /// Prefix of IBC connection ids.
     ///
-    /// Note: We’re not using ConnectionId::prefix() because it returns the
+    /// Note: We’re not using ibc::ConnectionId::prefix() because it returns the
     /// prefix without trailing `-` which we want included to simplify stripping
     /// of the prefix.
     const IBC_PREFIX: &'static str = "connection-";
@@ -126,7 +126,9 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
     Hash,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
+    derive_more::Display,
 )]
+#[display(fmt = "(port: ‘{}’, channel: ‘channel-{}’)", port_key, channel_idx)]
 pub struct PortChannelPK {
     pub(super) port_key: PortKey,
     pub(super) channel_idx: u32,
@@ -135,7 +137,7 @@ pub struct PortChannelPK {
 impl PortChannelPK {
     /// Prefix of IBC channel ids.
     ///
-    /// Note: We’re not using ChannelId::prefix() because it returns the
+    /// Note: We’re not using ibc::ChannelId::prefix() because it returns the
     /// prefix without trailing `-` which we want included to simplify stripping
     /// of the prefix.
     const CHANNEL_IBC_PREFIX: &'static str = "channel-";

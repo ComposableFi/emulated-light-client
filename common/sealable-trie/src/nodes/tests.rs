@@ -1,4 +1,5 @@
 use lib::hash::CryptoHash;
+use lib::u3::U3;
 use memory::Ptr;
 use pretty_assertions::assert_eq;
 
@@ -169,7 +170,7 @@ fn test_branch_encoding() {
 fn test_extension_encoding() {
     // Extension pointing at a node
     check_node_encoding(Node::Extension {
-        key: bits::ExtKey::new(&[0xFF; 34], 5, 25).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], U3::_5, 25).unwrap(),
         child: Reference::node(Some(DEAD), &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
@@ -180,7 +181,7 @@ fn test_extension_encoding() {
 
     // Extension pointing at a sealed node
     check_node_encoding(Node::Extension {
-        key: bits::ExtKey::new(&[0xFF; 34], 5, 25).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], U3::_5, 25).unwrap(),
         child: Reference::node(None, &ONE),
     }, [
         /* tag:  */ 0x80, 0xCD,
@@ -191,7 +192,7 @@ fn test_extension_encoding() {
 
     // Extension pointing at a value
     check_node_encoding(Node::Extension {
-        key: bits::ExtKey::new(&[0xFF; 34], 4, 248).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], U3::_4, 248).unwrap(),
         child: Reference::value(false, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,
@@ -203,7 +204,7 @@ fn test_extension_encoding() {
     ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
 
     check_node_encoding(Node::Extension {
-        key: bits::ExtKey::new(&[0xFF; 34], 4, 248).unwrap(),
+        key: bits::ExtKey::new(&[0xFF; 34], U3::_4, 248).unwrap(),
         child: Reference::value(true, &ONE),
     }, [
         /* tag:  */ 0x87, 0xC4,

@@ -10,12 +10,6 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
-use ibc::core::ics04_channel::packet::Packet;
-use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::{ChannelId, ClientId, PortId};
-use ibc::core::router::{Module, ModuleId, Router};
-#[cfg(feature = "mocks")]
-use mocks::mock_deliver_impl;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -33,6 +27,7 @@ mod error;
 pub mod events;
 mod execution_context;
 mod host;
+mod ibc;
 #[cfg(feature = "mocks")]
 mod mocks;
 pub mod storage;
@@ -115,7 +110,7 @@ pub mod solana_ibc {
 
     pub fn deliver(
         ctx: Context<Deliver>,
-        message: ibc::core::MsgEnvelope,
+        message: ibc::MsgEnvelope,
     ) -> Result<()> {
         // msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
@@ -138,52 +133,42 @@ pub mod solana_ibc {
         });
 
         let mut router = store.clone();
-        ibc::core::dispatch(&mut store, &mut router, message)
-            .map_err(error::Error::RouterError)
-            .map_err(|err| error!((&err)))?;
-
-        // `store` is the only reference to inner storage making refcount == 1
-        // which means try_into_inner will succeed.
-        // let inner = store.try_into_inner().unwrap();
-
-        // msg!("This is final structure {:?}", inner.private);
-
-        // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
-
-        Ok(())
+        ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))
     }
 
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
+    #[allow(unused_variables)]
     pub fn mock_deliver(
         ctx: Context<MockDeliver>,
-        port_id: PortId,
-        channel_id_on_b: ChannelId,
+        port_id: ibc::PortId,
+        channel_id_on_b: ibc::ChannelId,
         base_denom: String,
-        commitment_prefix: CommitmentPrefix,
-        client_id: ClientId,
-        counterparty_client_id: ClientId,
+        commitment_prefix: ibc::CommitmentPrefix,
+        client_id: ibc::ClientId,
+        counterparty_client_id: ibc::ClientId,
     ) -> Result<()> {
         #[cfg(feature = "mocks")]
-        {
-            mock_deliver_impl(
-                ctx,
-                port_id,
-                channel_id_on_b,
-                base_denom,
-                commitment_prefix,
-                client_id,
-                counterparty_client_id,
-            )
-            .unwrap();
-            Ok(())
-        }
+        return mocks::mock_deliver_impl(
+            ctx,
+            port_id,
+            channel_id_on_b,
+            base_denom,
+            commitment_prefix,
+            client_id,
+            counterparty_client_id,
+        );
         #[cfg(not(feature = "mocks"))]
         panic!("This method is only for mocks");
     }
 
     /// Should be called after setting up client, connection and channels.
-    pub fn send_packet(ctx: Context<Deliver>, packet: Packet) -> Result<()> {
+    pub fn send_packet(
+        ctx: Context<Deliver>,
+        packet: ibc::Packet,
+    ) -> Result<()> {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
         let host_head = host::Head::get()?;
@@ -200,7 +185,7 @@ pub mod solana_ibc {
             host_head,
         });
 
-        ibc::core::send_packet(&mut store, packet)
+        ::ibc::core::channel::handler::send_packet(&mut store, packet)
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))
     }
@@ -256,24 +241,27 @@ pub struct Deliver<'info> {
     sender: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED], bump, space = 10240)]
+    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
+              bump, space = 10240)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
+    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED],
+              bump, space = 10240)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
-    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10240)]
+    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED],
+              bump, space = 10240)]
     chain: Box<Account<'info, chain::ChainData>>,
     system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: PortId, channel_id_on_b: ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
 pub struct MockDeliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -292,19 +280,28 @@ pub struct MockDeliver<'info> {
     #[account(mut , seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
-    /// The below accounts are being created for testing purposes only.
-    /// In real, we would run conditionally create an escrow account when the channel is created.
-    /// And we could have another method that can create a mint given the denom.
-    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED], bump, space = 100)]
+    /// The below accounts are being created for testing purposes only.  In
+    /// real, we would run conditionally create an escrow account when the
+    /// channel is created.  And we could have another method that can create
+    /// a mint given the denom.
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
+              bump, space = 100)]
     /// CHECK:
     mint_authority: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()], bump, mint::decimals = 6, mint::authority = mint_authority)]
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+              bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
-    #[account(init_if_needed, payer = sender, seeds = [port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()], bump, token::mint = token_mint, token::authority = mint_authority)]
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
-    #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = sender)]
+    #[account(init_if_needed, payer = sender,
+              associated_token::mint = token_mint,
+              associated_token::authority = sender)]
     sender_token_account: Box<Account<'info, TokenAccount>>,
-    #[account(init_if_needed, payer = sender, associated_token::mint = token_mint, associated_token::authority = receiver)]
+    #[account(init_if_needed, payer = sender,
+              associated_token::mint = token_mint,
+              associated_token::authority = receiver)]
     receiver_token_account: Box<Account<'info, TokenAccount>>,
 
     associated_token_program: Program<'info, AssociatedToken>,
@@ -335,32 +332,34 @@ pub struct SendPacket<'info> {
     system_program: Program<'info, System>,
 }
 
-impl Router for storage::IbcStorage<'_, '_, '_> {
+impl ibc::Router for storage::IbcStorage<'_, '_, '_> {
     //
-    fn get_route(&self, module_id: &ModuleId) -> Option<&dyn Module> {
+    fn get_route(&self, module_id: &ibc::ModuleId) -> Option<&dyn ibc::Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
         match module_id {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+            ibc::apps::transfer::types::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
     //
     fn get_route_mut(
         &mut self,
-        module_id: &ModuleId,
-    ) -> Option<&mut dyn Module> {
+        module_id: &ibc::ModuleId,
+    ) -> Option<&mut dyn ibc::Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
         match module_id {
-            ibc::applications::transfer::MODULE_ID_STR => Some(self),
+            ibc::apps::transfer::types::MODULE_ID_STR => Some(self),
             _ => None,
         }
     }
     //
-    fn lookup_module(&self, port_id: &PortId) -> Option<ModuleId> {
+    fn lookup_module(&self, port_id: &ibc::PortId) -> Option<ibc::ModuleId> {
         match port_id.as_str() {
-            ibc::applications::transfer::PORT_ID_STR => Some(ModuleId::new(
-                ibc::applications::transfer::MODULE_ID_STR.to_string(),
-            )),
+            ibc::apps::transfer::types::PORT_ID_STR => {
+                Some(ibc::ModuleId::new(
+                    ibc::apps::transfer::types::MODULE_ID_STR.to_string(),
+                ))
+            }
             _ => None,
         }
     }

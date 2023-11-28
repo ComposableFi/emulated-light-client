@@ -1,20 +1,19 @@
 use blockchain::manager;
 
+use crate::ibc;
+
 /// Error returned when handling a request.
 // Note: When changing variants in the enum, try to preserve indexes of each
 // variant.  The position is translated into error code returned by Anchor and
 // keeping them consistent makes things easier.
-#[derive(strum::EnumDiscriminants, strum::IntoStaticStr)]
+#[derive(strum::EnumDiscriminants, strum::IntoStaticStr, derive_more::From)]
 #[strum_discriminants(repr(u32))]
 pub(crate) enum Error {
     /// Internal error which ‘should never happen’.
     Internal(&'static str),
 
-    /// Error handling an IBC deliver packet request.
-    RouterError(ibc::core::RouterError),
-
-    /// Error handling an IBC send packet request
-    ContextError(ibc::core::ContextError),
+    /// Error handling an IBC request.
+    ContextError(crate::ibc::ContextError),
 
     /// Guest block hasn’t been initialised yet.
     ChainNotInitialised,
@@ -70,7 +69,7 @@ impl core::fmt::Display for Error {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Internal(msg) => fmtr.write_str(msg.as_ref()),
-            Self::RouterError(err) => err.fmt(fmtr),
+            Self::ContextError(err) => err.fmt(fmtr),
             err => fmtr.write_str(&err.name()),
         }
     }
@@ -120,17 +119,10 @@ impl From<manager::UpdateCandidateError> for Error {
     }
 }
 
-impl From<ibc::core::ContextError> for Error {
+impl From<ibc::ClientError> for Error {
     #[inline]
-    fn from(err: ibc::core::ContextError) -> Self {
-        Self::RouterError(err.into())
-    }
-}
-
-impl From<ibc::core::ics02_client::error::ClientError> for Error {
-    #[inline]
-    fn from(err: ibc::core::ics02_client::error::ClientError) -> Self {
-        ibc::core::ContextError::from(err).into()
+    fn from(err: ibc::ClientError) -> Self {
+        ibc::ContextError::from(err).into()
     }
 }
 
