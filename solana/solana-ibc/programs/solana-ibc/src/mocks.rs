@@ -18,7 +18,6 @@ pub fn mock_deliver_impl(
 ) -> Result<()> {
     let private = &mut ctx.accounts.storage;
     let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-    let packets = &mut ctx.accounts.packets;
     let accounts = ctx.remaining_accounts;
 
     let host_head = host::Head::get()?;
@@ -31,7 +30,6 @@ pub fn mock_deliver_impl(
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private,
         provable,
-        packets,
         accounts: accounts.to_vec(),
         host_head,
     });

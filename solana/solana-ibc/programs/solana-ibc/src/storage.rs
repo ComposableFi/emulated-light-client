@@ -125,10 +125,6 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
 
 #[account]
 #[derive(Debug)]
-pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
-
-#[account]
-#[derive(Debug)]
 /// The private IBC storage, i.e. data which doesn’t require proofs.
 pub struct PrivateStorage {
     /// Per-client information.
@@ -264,7 +260,6 @@ pub fn get_provable_from<'a, 'info>(
 pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub packets: &'a mut IbcPackets,
     pub accounts: Vec<AccountInfo<'c>>,
     pub host_head: crate::host::Head,
 }

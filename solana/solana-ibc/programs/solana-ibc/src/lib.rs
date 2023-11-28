@@ -10,7 +10,6 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
-use storage::IbcPackets;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -119,7 +118,6 @@ pub mod solana_ibc {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         // msg!("This is private: {:?}", private);
         let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-        let packets = &mut ctx.accounts.packets;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
@@ -130,40 +128,14 @@ pub mod solana_ibc {
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            packets,
             accounts: ctx.remaining_accounts.to_vec(),
             host_head,
         });
 
-        {
-            let mut router = store.clone();
-            ::ibc::core::entrypoint::dispatch(
-                &mut store,
-                &mut router,
-                message.clone(),
-            )
+        let mut router = store.clone();
+        ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))?;
-        }
-        if let ibc::MsgEnvelope::Packet(packet) = message {
-            // store the packet if not exists
-            // TODO(dhruvja) Store in a PDA with channelId, portId and Sequence
-            let mut store = store.borrow_mut();
-            let packets = &mut store.packets.0;
-            if !packets.iter().any(|pack| &packet == pack) {
-                packets.push(packet);
-            }
-        }
-
-        // `store` is the only reference to inner storage making refcount == 1
-        // which means try_into_inner will succeed.
-        // let inner = store.try_into_inner().unwrap();
-
-        // msg!("This is final structure {:?}", inner.private);
-
-        // msg!("this is length {}", TrieKey::ClientState{ client_id: String::from("hello")}.into());
-
-        Ok(())
+            .map_err(|err| error!((&err)))
     }
 
     /// Called to set up a connection, channel and store the next
@@ -255,11 +227,6 @@ pub struct Deliver<'info> {
               bump, space = 10240)]
     trie: UncheckedAccount<'info>,
 
-    /// The account holding packets.
-    #[account(init_if_needed, payer = sender, seeds = [PACKET_SEED],
-              bump, space = 10240)]
-    packets: Account<'info, storage::IbcPackets>,
-
     /// The guest blockchain data.
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED],
               bump, space = 10240)]
@@ -286,10 +253,6 @@ pub struct MockDeliver<'info> {
     /// function.
     #[account(mut , seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
-
-    /// The account holding packets.
-    #[account(mut , seeds = [PACKET_SEED], bump)]
-    packets: Box<Account<'info, IbcPackets>>,
 
     /// The below accounts are being created for testing purposes only.  In
     /// real, we would run conditionally create an escrow account when the
