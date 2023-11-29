@@ -163,6 +163,32 @@ pub mod solana_ibc {
         #[cfg(not(feature = "mocks"))]
         panic!("This method is only for mocks");
     }
+
+    /// Should be called after setting up client, connection and channels.
+    pub fn send_packet(
+        ctx: Context<SendPacket>,
+        packet: ibc::Packet,
+    ) -> Result<()> {
+        let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
+        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let host_head = host::Head::get()?;
+
+        // Before anything else, try generating a new guest block.  However, if
+        // that fails it’s not an error condition.  We do this at the beginning
+        // of any request.
+        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+
+        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
+            private,
+            provable,
+            accounts: Vec::new(), // We are not doing any transfers so no point of having accounts
+            host_head,
+        });
+
+        ::ibc::core::channel::handler::send_packet(&mut store, packet)
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))
+    }
 }
 
 #[derive(Accounts)]
@@ -280,6 +306,29 @@ pub struct MockDeliver<'info> {
 
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,
+    system_program: Program<'info, System>,
+}
+
+/// Has the same structure as `Deliver` though we expect for accounts to be already initialized here.
+#[derive(Accounts)]
+pub struct SendPacket<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Box<Account<'info, chain::ChainData>>,
     system_program: Program<'info, System>,
 }
 
