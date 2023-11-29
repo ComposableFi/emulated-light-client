@@ -70,10 +70,7 @@ impl<'a> Slice<'a> {
     /// length of the slice.
     #[inline]
     pub fn new(bytes: &'a [u8], offset: U3, length: u16) -> Option<Self> {
-        let needs_bits = u32::from(offset) + u32::from(length);
-        let got_bits =
-            u32::try_from(bytes.len().saturating_mul(8)).unwrap_or(u32::MAX);
-        (length == 0 || needs_bits <= got_bits).then_some(Self {
+        (bytes_len(offset, length) <= bytes.len()).then_some(Self {
             offset,
             length,
             ptr: bytes.as_ptr(),
@@ -140,9 +137,7 @@ impl<'a> Slice<'a> {
     /// ```
     #[inline]
     pub fn pop_front(&mut self) -> Option<bool> {
-        if self.length == 0 {
-            return None;
-        }
+        self.length = self.length.checked_sub(1)?;
         // SAFETY: self.length != 0 ⇒ self.ptr points at a valid byte and
         // `self.ptr + 1` is valid pointer value.
         let (first, rest) = unsafe { (self.ptr.read(), self.ptr.add(1)) };
@@ -151,7 +146,6 @@ impl<'a> Slice<'a> {
         if self.offset == 0 {
             self.ptr = rest;
         }
-        self.length -= 1;
         Some(bit)
     }
 
@@ -441,6 +435,7 @@ impl<'a> Slice<'a> {
     }
 
     /// Returns bytes underlying the bit slice.
+    #[inline]
     fn bytes(&self) -> &'a [u8] {
         // SAFETY: `ptr` is guaranteed to be valid pointer point at `offset +
         // length` valid bits.
@@ -448,24 +443,29 @@ impl<'a> Slice<'a> {
     }
 
     /// Calculates underlying bytes length of the slice.
-    fn bytes_len(&self) -> usize {
-        // We need to special-case zero length to make sure that in situation of
-        // non-zero offset and zero length we return an empty slice.
-        if self.length == 0 {
-            0
-        } else {
-            ((u32::from(self.offset) + u32::from(self.length) + 7) / 8) as usize
-        }
-    }
+    #[inline]
+    fn bytes_len(&self) -> usize { bytes_len(self.offset, self.length) }
 
     /// Helper method which returns masks for leading and trailing byte.
     ///
     /// Based on provided bit offset (which must be ≤ 7) and bit length of the
     /// slice returns: mask of bits in the first byte that are part of the
     /// slice and mask of bits in the last byte that are part of the slice.
+    #[inline]
     fn masks(offset: U3, length: u16) -> (u8, u8) {
         let tail = -offset.wrapping_add(length);
         (0xFFu8 >> offset, 0xFFu8 << tail)
+    }
+}
+
+/// Calculates underlying bytes length of a slice with given offset and length.
+#[inline]
+fn bytes_len(offset: U3, length: u16) -> usize {
+    // We need to special-case zero length to make sure that in situation of
+    // non-zero offset and zero length we return an empty slice.
+    match length {
+        0 => 0,
+        _ => ((u32::from(offset) + u32::from(length) + 7) / 8) as usize,
     }
 }
 
@@ -632,7 +632,7 @@ impl Owned {
     pub fn truncate(&mut self, len: u16) {
         if len < self.length {
             self.length = len;
-            self.bytes.truncate(self.as_slice().bytes_len());
+            self.bytes.truncate(bytes_len(self.offset, len));
         }
     }
 
