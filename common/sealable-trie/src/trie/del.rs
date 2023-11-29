@@ -113,7 +113,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let child = children[1 - side];
         Ok(self
             .maybe_pop_extension(child, &|key| {
-                bits::Owned::unshift(side == 0, key.into()).unwrap()
+                bits::Owned::unshift(side == 0, key.into())
             })?
             .unwrap_or_else(|| {
                 Action::Ext(
