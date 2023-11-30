@@ -232,7 +232,6 @@ pub type AccountTrie<'a, 'b> =
 /// The account needs to be owned by [`crate::ID`] and
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
-    name: &str,
 ) -> Result<AccountTrie<'a, 'info>> {
     fn get<'a, 'info>(
         info: &'a AccountInfo<'info>,
@@ -249,16 +248,14 @@ pub fn get_provable_from<'a, 'info>(
                 .ok_or(Error::from(ProgramError::InvalidAccountData))
         }
     }
-    get(info).map_err(|err| err.with_account_name(name))
+    get(info).map_err(|err| err.with_account_name("trie"))
 }
 
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
+pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub accounts: Vec<AccountInfo<'c>>,
+    pub accounts: &'a [AccountInfo<'b>],
     pub host_head: crate::host::Head,
 }
 
@@ -268,13 +265,13 @@ pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
 /// Accessing the data must follow aliasing rules as enforced by `RefCell`.
 /// Violations will cause a panic.
 #[derive(Debug, Clone)]
-pub(crate) struct IbcStorage<'a, 'b, 'c>(
-    Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>,
+pub(crate) struct IbcStorage<'a, 'b>(
+    Rc<RefCell<IbcStorageInner<'a, 'b>>>,
 );
 
-impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
+impl<'a, 'b> IbcStorage<'a, 'b> {
     /// Constructs a new object with given inner storage.
-    pub fn new(inner: IbcStorageInner<'a, 'b, 'c>) -> Self {
+    pub fn new(inner: IbcStorageInner<'a, 'b>) -> Self {
         Self(Rc::new(RefCell::new(inner)))
     }
 
@@ -284,7 +281,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
     #[allow(dead_code)]
-    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b, 'c>> {
+    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }
 
@@ -295,7 +292,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Panics if the value is currently mutably borrowed.
     pub fn borrow<'s>(
         &'s self,
-    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b, 'c>> {
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow()
     }
 
@@ -306,7 +303,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Panics if the value is currently borrowed.
     pub fn borrow_mut<'s>(
         &'s self,
-    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b, 'c>> {
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow_mut()
     }
 }

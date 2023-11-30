@@ -12,7 +12,7 @@ use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
+impl ibc::ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ibc::ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
@@ -265,7 +265,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl ibc::ClientValidationContext for IbcStorage<'_, '_, '_> {
+impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn client_update_time(
         &self,
         client_id: &ibc::ClientId,
@@ -312,7 +312,7 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl IbcStorage<'_, '_, '_> {
+impl IbcStorage<'_, '_> {
     fn get_next_sequence<'a>(
         &self,
         path: impl Into<storage::trie_key::SequencePath<'a>>,
@@ -320,7 +320,7 @@ impl IbcStorage<'_, '_, '_> {
         make_err: impl FnOnce(ibc::PortId, ibc::ChannelId) -> ibc::PacketError,
     ) -> Result<ibc::Sequence> {
         fn get(
-            this: &IbcStorage<'_, '_, '_>,
+            this: &IbcStorage<'_, '_>,
             port_channel: &ids::PortChannelPK,
             index: storage::SequenceTripleIdx,
         ) -> Option<ibc::Sequence> {

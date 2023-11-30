@@ -75,7 +75,7 @@ impl TryFrom<&AccountId> for Pubkey {
     }
 }
 
-impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
+impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
     fn send_coins_execute(
         &mut self,
         from: &Self::AccountId,
@@ -243,7 +243,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
+impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     type AccountId = AccountId;
 
     fn get_port(&self) -> Result<ibc::PortId, TokenTransferError> {

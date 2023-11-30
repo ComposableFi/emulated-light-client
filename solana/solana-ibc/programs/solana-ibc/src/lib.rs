@@ -48,7 +48,7 @@ pub mod solana_ibc {
         genesis_epoch: chain::Epoch,
     ) -> Result<()> {
         let mut provable =
-            storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+            storage::get_provable_from(&ctx.accounts.trie)?;
         ctx.accounts.chain.initialise(&mut provable, config, genesis_epoch)
     }
 
@@ -61,7 +61,7 @@ pub mod solana_ibc {
     /// should offer rewards to account making the generate block call.  This is
     /// currently not implemented and will be added at a later time.
     pub fn generate_block(ctx: Context<Chain>) -> Result<()> {
-        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         ctx.accounts.chain.generate_block(&provable)
     }
 
@@ -80,7 +80,7 @@ pub mod solana_ibc {
         ctx: Context<ChainWithVerifier>,
         signature: [u8; ed25519::Signature::LENGTH],
     ) -> Result<()> {
-        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
@@ -103,13 +103,13 @@ pub mod solana_ibc {
     /// validator can set whatever stake they want.  This is purely for testing
     /// and not intended for production use.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
-        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         ctx.accounts.chain.maybe_generate_block(&provable, None)?;
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
-    pub fn deliver(
-        ctx: Context<Deliver>,
+    pub fn deliver<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         // msg!("Called deliver method: {:?}", message);
@@ -117,7 +117,7 @@ pub mod solana_ibc {
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
         // msg!("This is private: {:?}", private);
-        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
@@ -128,21 +128,21 @@ pub mod solana_ibc {
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            accounts: ctx.remaining_accounts.to_vec(),
+            accounts: ctx.remaining_accounts,
             host_head,
         });
 
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))
+            .map_err(move |err| error!((&err)))
     }
 
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
     #[allow(unused_variables)]
-    pub fn mock_deliver(
-        ctx: Context<MockDeliver>,
+    pub fn mock_deliver<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         base_denom: String,
@@ -165,12 +165,12 @@ pub mod solana_ibc {
     }
 
     /// Should be called after setting up client, connection and channels.
-    pub fn send_packet(
-        ctx: Context<SendPacket>,
+    pub fn send_packet<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
         packet: ibc::Packet,
     ) -> Result<()> {
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
+        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         let host_head = host::Head::get()?;
 
         // Before anything else, try generating a new guest block.  However, if
@@ -181,7 +181,7 @@ pub mod solana_ibc {
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            accounts: Vec::new(), // We are not doing any transfers so no point of having accounts
+            accounts: ctx.remaining_accounts,
             host_head,
         });
 
@@ -332,7 +332,7 @@ pub struct SendPacket<'info> {
     system_program: Program<'info, System>,
 }
 
-impl ibc::Router for storage::IbcStorage<'_, '_, '_> {
+impl ibc::Router for storage::IbcStorage<'_, '_> {
     //
     fn get_route(&self, module_id: &ibc::ModuleId) -> Option<&dyn ibc::Module> {
         let module_id = core::borrow::Borrow::borrow(module_id);
