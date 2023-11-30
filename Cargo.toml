@@ -32,6 +32,10 @@ bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
 ibc = { version = "0.48.1", default-features = false, features = ["borsh", "serde"] }
+ibc-core-channel-types = { version = "0.48.1", default-features = false }
+ibc-core-client-types = { version = "0.48.1", default-features = false }
+ibc-core-connection-types = { version = "0.48.1", default-features = false }
+ibc-core-host-types = { version = "0.48.1", default-features = false }
 ibc-testkit = { version = "0.48.1", default-features = false }
 insta = { version = "1.34.0" }
 pretty_assertions = "1.4.0"
@@ -53,6 +57,7 @@ memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }
 solana-trie = { path = "solana/trie" }
 stdx = { path = "common/stdx" }
+trie-ids = { path = "common/trie-ids" }
 
 # dev-dependencies
 anchor-client = "0.29.0"
