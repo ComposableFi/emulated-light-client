@@ -12,7 +12,7 @@ use crate::storage::{self, ids, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ibc::ClientExecutionContext for IbcStorage<'_, '_, '_> {
+impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
@@ -125,7 +125,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl ibc::ExecutionContext for IbcStorage<'_, '_, '_> {
+impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///
     /// The clients are stored in the vector so we can easily find how many
@@ -308,7 +308,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_, '_> {
     fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
-impl storage::IbcStorage<'_, '_, '_> {
+impl storage::IbcStorage<'_, '_> {
     fn store_commitment(&mut self, key: TrieKey, commitment: &[u8]) -> Result {
         // Caller promises that commitment is always 32 bytes.
         let commitment = <&CryptoHash>::try_from(commitment).unwrap();
@@ -337,7 +337,7 @@ impl storage::IbcStorage<'_, '_, '_> {
     }
 }
 
-impl storage::IbcStorageInner<'_, '_, '_> {
+impl storage::IbcStorageInner<'_, '_> {
     /// Serialises `value` and stores it in private storage along with its
     /// commitment in provable storage.
     ///
