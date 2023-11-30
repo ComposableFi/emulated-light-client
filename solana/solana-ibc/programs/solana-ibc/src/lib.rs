@@ -47,8 +47,7 @@ pub mod solana_ibc {
         config: chain::Config,
         genesis_epoch: chain::Epoch,
     ) -> Result<()> {
-        let mut provable =
-            storage::get_provable_from(&ctx.accounts.trie)?;
+        let mut provable = storage::get_provable_from(&ctx.accounts.trie)?;
         ctx.accounts.chain.initialise(&mut provable, config, genesis_epoch)
     }
 

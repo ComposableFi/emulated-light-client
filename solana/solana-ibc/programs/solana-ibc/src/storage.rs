@@ -265,9 +265,7 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
 /// Accessing the data must follow aliasing rules as enforced by `RefCell`.
 /// Violations will cause a panic.
 #[derive(Debug, Clone)]
-pub(crate) struct IbcStorage<'a, 'b>(
-    Rc<RefCell<IbcStorageInner<'a, 'b>>>,
-);
+pub(crate) struct IbcStorage<'a, 'b>(Rc<RefCell<IbcStorageInner<'a, 'b>>>);
 
 impl<'a, 'b> IbcStorage<'a, 'b> {
     /// Constructs a new object with given inner storage.
