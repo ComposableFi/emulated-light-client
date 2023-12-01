@@ -51,7 +51,7 @@ impl<T> Height<T> {
 macro_rules! impls {
     ($ty:ident) => {
         impl<T> Clone for $ty<T> {
-            fn clone(&self) -> Self { Self(self.0, self.1) }
+            fn clone(&self) -> Self { *self }
         }
 
         impl<T> Copy for $ty<T> {}
