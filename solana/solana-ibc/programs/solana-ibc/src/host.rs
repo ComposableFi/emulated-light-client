@@ -1,3 +1,5 @@
+use core::num::NonZeroU64;
+
 use anchor_lang::solana_program;
 
 use crate::ibc;
@@ -8,7 +10,7 @@ pub struct Head {
     /// Solana’s slot number which we interpret as block height.
     pub height: blockchain::HostHeight,
     /// Solana’s UNix timestamp in nanoseconds.
-    pub timestamp: u64,
+    pub timestamp: NonZeroU64,
 }
 
 impl Head {
@@ -28,7 +30,7 @@ impl Head {
     /// Returns timestamp as an IBC type.
     #[inline]
     pub fn ibc_timestamp(&self) -> Result<ibc::Timestamp, ibc::ClientError> {
-        ibc::Timestamp::from_nanoseconds(self.timestamp).map_err(|err| {
+        ibc::Timestamp::from_nanoseconds(self.timestamp.get()).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }
         })
     }
@@ -37,10 +39,11 @@ impl Head {
 impl From<solana_program::clock::Clock> for Head {
     #[inline]
     fn from(clock: solana_program::clock::Clock) -> Head {
-        Self {
-            height: clock.slot.into(),
-            timestamp: clock.unix_timestamp as u64,
-        }
+        let height = clock.slot.into();
+        let timestamp = clock.unix_timestamp;
+        assert!(timestamp > 0);
+        let timestamp = NonZeroU64::new(timestamp as u64).unwrap();
+        Self { height, timestamp }
     }
 }
 
