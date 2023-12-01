@@ -1,3 +1,5 @@
+use core::num::NonZeroU64;
+
 use lib::hash::CryptoHash;
 
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
@@ -28,7 +30,7 @@ pub struct Block<PK> {
     /// Height of the host blockchain’s block in which this block was created.
     pub host_height: crate::HostHeight,
     /// Timestamp of the host blockchani’s block in which this block was created.
-    pub host_timestamp: u64,
+    pub host_timestamp: NonZeroU64,
     /// Hash of the root node of the state trie, i.e. the commitment
     /// of the state.
     pub state_root: CryptoHash,
@@ -97,7 +99,7 @@ impl<PK: crate::PubKey> Block<PK> {
     pub fn generate_next(
         &self,
         host_height: crate::HostHeight,
-        host_timestamp: u64,
+        host_timestamp: NonZeroU64,
         state_root: CryptoHash,
         next_epoch: Option<crate::Epoch<PK>>,
     ) -> Result<Self, GenerateError> {
@@ -134,7 +136,7 @@ impl<PK: crate::PubKey> Block<PK> {
     pub fn generate_genesis(
         block_height: crate::BlockHeight,
         host_height: crate::HostHeight,
-        host_timestamp: u64,
+        host_timestamp: NonZeroU64,
         state_root: CryptoHash,
         next_epoch: crate::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
@@ -229,7 +231,7 @@ fn test_block_generation() {
     let genesis = Block::generate_genesis(
         crate::BlockHeight::from(0),
         crate::HostHeight::from(42),
-        24,
+        NonZeroU64::new(24).unwrap(),
         CryptoHash::test(66),
         crate::Epoch::test(&[(0, 10), (1, 10)]),
     )
@@ -253,7 +255,7 @@ fn test_block_generation() {
         Err(GenerateError::BadHostHeight),
         genesis.generate_next(
             crate::HostHeight::from(42),
-            100,
+            NonZeroU64::new(100).unwrap(),
             CryptoHash::test(99),
             None
         )
@@ -262,7 +264,7 @@ fn test_block_generation() {
         Err(GenerateError::BadHostTimestamp),
         genesis.generate_next(
             crate::HostHeight::from(43),
-            24,
+            NonZeroU64::new(24).unwrap(),
             CryptoHash::test(99),
             None
         )
@@ -272,7 +274,7 @@ fn test_block_generation() {
     let block = genesis
         .generate_next(
             crate::HostHeight::from(50),
-            50,
+            NonZeroU64::new(50).unwrap(),
             CryptoHash::test(99),
             None,
         )
@@ -290,7 +292,7 @@ fn test_block_generation() {
     let block = block
         .generate_next(
             crate::HostHeight::from(60),
-            60,
+            NonZeroU64::new(60).unwrap(),
             CryptoHash::test(99),
             epoch,
         )
@@ -305,7 +307,7 @@ fn test_block_generation() {
     let block = block
         .generate_next(
             crate::HostHeight::from(65),
-            65,
+            NonZeroU64::new(65).unwrap(),
             CryptoHash::test(99),
             None,
         )

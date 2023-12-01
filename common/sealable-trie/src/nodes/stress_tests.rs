@@ -6,6 +6,7 @@
 //! variable.
 
 use lib::test_utils::get_iteration_count;
+use lib::u3::U3;
 use memory::Ptr;
 use pretty_assertions::assert_eq;
 
@@ -53,7 +54,7 @@ fn gen_random_raw_node(
         // regenerate random data.
 
         // Random length and offset for the key.
-        let offset = rng.gen::<u8>() % 8;
+        let offset = U3::wrap(rng.gen::<u8>());
         let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
         let length = rng.gen_range(1..=max_length - u16::from(offset));
         let tag = 0x8000 | (length << 3) | u16::from(offset);
@@ -117,7 +118,7 @@ fn gen_random_node<'a>(
     match rng.gen_range(0..3) {
         0 => Node::branch(rand_ref(rng, &left), rand_ref(rng, &right)),
         1 => {
-            let offset = rng.gen::<u8>() % 8;
+            let offset = U3::wrap(rng.gen::<u8>());
             let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
             let length = rng.gen_range(1..=max_length - u16::from(offset));
             let key = bits::ExtKey::new(&key[..], offset, length).unwrap();

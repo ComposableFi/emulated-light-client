@@ -10,24 +10,9 @@ type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-
-mod ibc {
-    pub use ibc::core::ics02_client::error::ClientError;
-    pub use ibc::core::ics03_connection::connection::ConnectionEnd;
-    pub use ibc::core::ics04_channel::channel::ChannelEnd;
-    pub use ibc::core::ics04_channel::msgs::PacketMsg;
-    pub use ibc::core::ics04_channel::packet::Sequence;
-    pub use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
-    pub use ibc::Height;
-}
-
-pub(crate) mod ids;
-pub(crate) mod trie_key;
+use crate::ibc;
 
 pub(crate) type SolanaTimestamp = u64;
-pub(crate) type InnerConnectionId = String;
-pub(crate) type InnerPortId = String;
-pub(crate) type InnerChannelId = String;
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -39,13 +24,13 @@ pub(crate) type InnerChannelId = String;
     borsh::BorshSerialize,
     borsh::BorshDeserialize,
 )]
-pub(crate) struct SequenceTriple {
+pub struct SequenceTriple {
     sequences: [u64; 3],
     mask: u8,
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum SequenceTripleIdx {
+pub enum SequenceTripleIdx {
     Send = 0,
     Recv = 1,
     Ack = 2,
@@ -53,7 +38,7 @@ pub(crate) enum SequenceTripleIdx {
 
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
-    pub(crate) fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
+    pub fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
         if self.mask & (1 << (idx as u32)) == 1 {
             Some(ibc::Sequence::from(self.sequences[idx as usize]))
         } else {
@@ -84,9 +69,8 @@ impl SequenceTriple {
 
 /// Per-client private storage.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
-pub(crate) struct ClientStore {
+pub struct ClientStore {
     pub client_id: ibc::ClientId,
-    pub connection_id: Option<ibc::ConnectionId>,
 
     pub client_state: Serialised<AnyClientState>,
     pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
@@ -98,7 +82,6 @@ impl ClientStore {
     fn new(client_id: ibc::ClientId) -> Self {
         Self {
             client_id,
-            connection_id: Default::default(),
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
             processed_times: Default::default(),
@@ -107,30 +90,60 @@ impl ClientStore {
     }
 }
 
-#[account]
-#[derive(Debug)]
-pub struct IbcPackets(pub Vec<ibc::PacketMsg>);
+/// A shared reference to a [`ClientStore`] together with its index.
+pub struct ClientRef<'a> {
+    #[allow(dead_code)]
+    pub index: trie_ids::ClientIdx,
+    pub store: &'a ClientStore,
+}
+
+impl<'a> core::ops::Deref for ClientRef<'a> {
+    type Target = ClientStore;
+    fn deref(&self) -> &ClientStore { self.store }
+}
+
+/// An exclusive reference to a [`ClientStore`] together with its index.
+pub struct ClientMut<'a> {
+    pub index: trie_ids::ClientIdx,
+    pub store: &'a mut ClientStore,
+}
+
+impl<'a> core::ops::Deref for ClientMut<'a> {
+    type Target = ClientStore;
+    fn deref(&self) -> &ClientStore { self.store }
+}
+
+impl<'a> core::ops::DerefMut for ClientMut<'a> {
+    fn deref_mut(&mut self) -> &mut ClientStore { self.store }
+}
+
 
 #[account]
 #[derive(Debug)]
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
-pub(crate) struct PrivateStorage {
-    clients: Vec<ClientStore>,
+/// The private IBC storage, i.e. data which doesn’t require proofs.
+pub struct PrivateStorage {
+    /// Per-client information.
+    ///
+    /// Entry at index `N` corresponds to the client with IBC identifier
+    /// `client-<N>`.
+    pub clients: Vec<ClientStore>,
 
-    pub connection_counter: u64,
-    pub connections:
-        BTreeMap<InnerConnectionId, Serialised<ibc::ConnectionEnd>>,
+    /// Information about the counterparty on given connection.
+    ///
+    /// Entry at index `N` corresponds to the connection with IBC identifier
+    /// `connection-<N>`.
+    pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
+
     pub channel_ends:
-        BTreeMap<(InnerPortId, InnerChannelId), Serialised<ibc::ChannelEnd>>,
-    pub channel_counter: u64,
+        BTreeMap<trie_ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
+    pub channel_counter: u32,
 
     /// Next send, receive and ack sequence for given (port, channel).
     ///
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<(InnerPortId, InnerChannelId), SequenceTriple>,
+    pub next_sequence: BTreeMap<trie_ids::PortChannelPK, SequenceTriple>,
 }
 
 impl PrivateStorage {
@@ -147,13 +160,14 @@ impl PrivateStorage {
     pub fn client(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<(ids::ClientIdx, &ClientStore), ibc::ClientError> {
-        self.client_index(client_id)
-            .and_then(|idx| {
+    ) -> Result<ClientRef<'_>, ibc::ClientError> {
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
+            .and_then(|index| {
                 self.clients
-                    .get(usize::from(idx))
-                    .filter(|state| state.client_id == *client_id)
-                    .map(|state| (idx, state))
+                    .get(usize::from(index))
+                    .filter(|store| store.client_id == *client_id)
+                    .map(|store| ClientRef { index, store })
             })
             .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
@@ -173,41 +187,29 @@ impl PrivateStorage {
         &mut self,
         client_id: &ibc::ClientId,
         create: bool,
-    ) -> Result<(ids::ClientIdx, &mut ClientStore), ibc::ClientError> {
-        self.client_mut_impl(client_id, create).ok_or_else(|| {
-            ibc::ClientError::ClientStateNotFound {
-                client_id: client_id.clone(),
-            }
-        })
-    }
-
-    fn client_mut_impl(
-        &mut self,
-        client_id: &ibc::ClientId,
-        create: bool,
-    ) -> Option<(ids::ClientIdx, &mut ClientStore)> {
+    ) -> Result<ClientMut<'_>, ibc::ClientError> {
         use core::cmp::Ordering;
 
-        let idx = self.client_index(client_id)?;
-        let pos = usize::from(idx);
-        match pos.cmp(&self.clients.len()) {
-            Ordering::Less => Some((idx, &mut self.clients[pos])),
-            Ordering::Equal if create => {
-                self.clients.push(ClientStore::new(client_id.clone()));
-                self.clients.last_mut().map(|client| (idx, client))
-            }
-            _ => None,
-        }
-    }
-
-    fn client_index(
-        &self,
-        client_id: &ibc::ClientId,
-    ) -> Option<ids::ClientIdx> {
-        client_id
-            .as_str()
-            .rsplit_once('-')
-            .and_then(|(_, index)| core::str::FromStr::from_str(index).ok())
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
+            .and_then(|index| {
+                let pos = usize::from(index);
+                match pos.cmp(&self.clients.len()) {
+                    Ordering::Less => self
+                        .clients
+                        .get_mut(pos)
+                        .filter(|store| store.client_id == *client_id),
+                    Ordering::Equal if create => {
+                        self.clients.push(ClientStore::new(client_id.clone()));
+                        self.clients.last_mut()
+                    }
+                    _ => None,
+                }
+                .map(|store| ClientMut { index, store })
+            })
+            .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
+                client_id: client_id.clone(),
+            })
     }
 }
 
@@ -220,7 +222,6 @@ pub type AccountTrie<'a, 'b> =
 /// The account needs to be owned by [`crate::ID`] and
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
-    name: &str,
 ) -> Result<AccountTrie<'a, 'info>> {
     fn get<'a, 'info>(
         info: &'a AccountInfo<'info>,
@@ -237,16 +238,14 @@ pub fn get_provable_from<'a, 'info>(
                 .ok_or(Error::from(ProgramError::InvalidAccountData))
         }
     }
-    get(info).map_err(|err| err.with_account_name(name))
+    get(info).map_err(|err| err.with_account_name("trie"))
 }
 
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub packets: &'a mut IbcPackets,
+    pub accounts: &'a [AccountInfo<'b>],
     pub host_head: crate::host::Head,
 }
 
@@ -269,6 +268,7 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     ///
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
+    #[allow(dead_code)]
     pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }
@@ -278,9 +278,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently mutably borrowed.
-    pub fn borrow<'c>(
-        &'c self,
-    ) -> core::cell::Ref<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow<'s>(
+        &'s self,
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow()
     }
 
@@ -289,7 +289,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     /// # Panics
     ///
     /// Panics if the value is currently borrowed.
-    pub fn borrow_mut<'c>(&'c self) -> RefMut<'c, IbcStorageInner<'a, 'b>> {
+    pub fn borrow_mut<'s>(
+        &'s self,
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow_mut()
     }
 }
@@ -307,10 +309,12 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// must less than 64 KiB.  Solana’s heap is only half that so this limit isn’t
 /// an issue.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
+pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
+
+    pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
 
     pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
 

@@ -2,78 +2,60 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
-use ibc::core::ics02_client::error::ClientError;
-use ibc::core::ics03_connection::connection::ConnectionEnd;
-use ibc::core::ics03_connection::error::ConnectionError;
-use ibc::core::ics04_channel::channel::ChannelEnd;
-use ibc::core::ics04_channel::commitment::{
-    AcknowledgementCommitment, PacketCommitment,
-};
-use ibc::core::ics04_channel::error::{ChannelError, PacketError};
-use ibc::core::ics04_channel::packet::{Receipt, Sequence};
-use ibc::core::ics23_commitment::commitment::CommitmentPrefix;
-use ibc::core::ics24_host::identifier::{ClientId, ConnectionId};
-use ibc::core::ics24_host::path::{
-    AckPath, ChannelEndPath, ClientConsensusStatePath, CommitmentPath,
-    ReceiptPath, SeqAckPath, SeqRecvPath, SeqSendPath,
-};
-use ibc::core::timestamp::Timestamp;
-use ibc::core::{ContextError, ValidationContext};
-use ibc::Height;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::storage::trie_key::TrieKey;
+use crate::ibc;
 use crate::storage::{self, IbcStorage};
 
-type Result<T = (), E = ContextError> = core::result::Result<T, E>;
+type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ValidationContext for IbcStorage<'_, '_> {
+impl ibc::ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
-    type E = Self; // ClientExecutionContext
+    type E = Self; // ibc::ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
     type AnyClientState = AnyClientState;
 
     fn client_state(
         &self,
-        client_id: &ClientId,
+        client_id: &ibc::ClientId,
     ) -> Result<Self::AnyClientState> {
-        Ok(self.borrow().private.client(client_id)?.1.client_state.get()?)
+        Ok(self.borrow().private.client(client_id)?.client_state.get()?)
     }
 
     fn decode_client_state(
         &self,
-        client_state: ibc_proto::google::protobuf::Any,
+        client_state: ibc::Any,
     ) -> Result<Self::AnyClientState> {
         Ok(Self::AnyClientState::try_from(client_state)?)
     }
 
     fn consensus_state(
         &self,
-        path: &ClientConsensusStatePath,
+        path: &ibc::path::ClientConsensusStatePath,
     ) -> Result<Self::AnyConsensusState> {
-        let height = Height::new(path.epoch, path.height)?;
+        let height =
+            ibc::Height::new(path.revision_number, path.revision_height)?;
         self.borrow()
             .private
             .client(&path.client_id)?
-            .1
             .consensus_states
             .get(&height)
             .cloned()
-            .ok_or_else(|| ClientError::ConsensusStateNotFound {
+            .ok_or_else(|| ibc::ClientError::ConsensusStateNotFound {
                 client_id: path.client_id.clone(),
                 height,
             })
             .and_then(|data| data.get())
-            .map_err(ibc::core::ContextError::from)
+            .map_err(ibc::ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
         self.borrow().host_head.ibc_height().map_err(Into::into)
     }
 
-    fn host_timestamp(&self) -> Result<Timestamp> {
+    fn host_timestamp(&self) -> Result<ibc::Timestamp> {
         self.borrow().host_head.ibc_timestamp().map_err(Into::into)
     }
 
@@ -81,7 +63,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
         &self,
         _height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
-        Err(ContextError::ClientError(ClientError::ClientSpecific {
+        Err(ibc::ContextError::ClientError(ibc::ClientError::ClientSpecific {
             description: "The `host_consensus_state` is not supported on \
                           Solana protocol."
                 .into(),
@@ -92,12 +74,16 @@ impl ValidationContext for IbcStorage<'_, '_> {
         Ok(self.borrow().private.client_counter())
     }
 
-    fn connection_end(&self, conn_id: &ConnectionId) -> Result<ConnectionEnd> {
+    fn connection_end(
+        &self,
+        conn_id: &ibc::ConnectionId,
+    ) -> Result<ibc::ConnectionEnd> {
+        let idx = trie_ids::ConnectionIdx::try_from(conn_id)?;
         self.borrow()
             .private
             .connections
-            .get(conn_id.as_str())
-            .ok_or_else(|| ConnectionError::ConnectionNotFound {
+            .get(usize::from(idx))
+            .ok_or_else(|| ibc::ConnectionError::ConnectionNotFound {
                 connection_id: conn_id.clone(),
             })?
             .get()
@@ -106,10 +92,10 @@ impl ValidationContext for IbcStorage<'_, '_> {
 
     fn validate_self_client(
         &self,
-        client_state_of_host_on_counterparty: ibc_proto::google::protobuf::Any,
+        client_state_of_host_on_counterparty: ibc::Any,
     ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
-            .map_err(|e| ClientError::Other {
+            .map_err(|e| ibc::ClientError::Other {
                 description: format!("Decode ClientState failed: {:?}", e)
                     .to_string(),
             })?;
@@ -117,95 +103,114 @@ impl ValidationContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn commitment_prefix(&self) -> CommitmentPrefix {
-        CommitmentPrefix::try_from(b"ibc".to_vec()).unwrap()
+    fn commitment_prefix(&self) -> ibc::CommitmentPrefix {
+        ibc::CommitmentPrefix::try_from(b"ibc".to_vec()).unwrap()
     }
 
     fn connection_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.connection_counter)
+        u64::try_from(self.borrow().private.connections.len()).map_err(|err| {
+            ibc::ConnectionError::Other { description: err.to_string() }.into()
+        })
     }
 
     fn channel_end(
         &self,
-        channel_end_path: &ChannelEndPath,
-    ) -> Result<ChannelEnd> {
-        let key =
-            (channel_end_path.0.to_string(), channel_end_path.1.to_string());
+        path: &ibc::path::ChannelEndPath,
+    ) -> Result<ibc::ChannelEnd> {
+        let key = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         self.borrow()
             .private
             .channel_ends
             .get(&key)
-            .ok_or_else(|| ChannelError::ChannelNotFound {
-                port_id: channel_end_path.0.clone(),
-                channel_id: channel_end_path.1.clone(),
+            .ok_or_else(|| ibc::ChannelError::ChannelNotFound {
+                port_id: path.0.clone(),
+                channel_id: path.1.clone(),
             })?
             .get()
             .map_err(Into::into)
     }
 
-    fn get_next_sequence_send(&self, path: &SeqSendPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Send)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextSendSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+    fn get_next_sequence_send(
+        &self,
+        path: &ibc::path::SeqSendPath,
+    ) -> Result<ibc::Sequence> {
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Send,
+            |port_id, channel_id| ibc::PacketError::MissingNextSendSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
-    fn get_next_sequence_recv(&self, path: &SeqRecvPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Recv)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextRecvSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+    fn get_next_sequence_recv(
+        &self,
+        path: &ibc::path::SeqRecvPath,
+    ) -> Result<ibc::Sequence> {
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Recv,
+            |port_id, channel_id| ibc::PacketError::MissingNextRecvSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
-    fn get_next_sequence_ack(&self, path: &SeqAckPath) -> Result<Sequence> {
-        self.get_next_sequence(path.into(), storage::SequenceTripleIdx::Ack)
-            .map_err(|(port_id, channel_id)| {
-                ContextError::PacketError(PacketError::MissingNextAckSeq {
-                    port_id,
-                    channel_id,
-                })
-            })
+    fn get_next_sequence_ack(
+        &self,
+        path: &ibc::path::SeqAckPath,
+    ) -> Result<ibc::Sequence> {
+        self.get_next_sequence(
+            path,
+            storage::SequenceTripleIdx::Ack,
+            |port_id, channel_id| ibc::PacketError::MissingNextAckSeq {
+                port_id,
+                channel_id,
+            },
+        )
     }
 
     fn get_packet_commitment(
         &self,
-        path: &CommitmentPath,
-    ) -> Result<PacketCommitment> {
-        let trie_key = TrieKey::from(path);
+        path: &ibc::path::CommitmentPath,
+    ) -> Result<ibc::PacketCommitment> {
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
-            None => Err(ContextError::PacketError(
-                PacketError::PacketReceiptNotFound { sequence: path.sequence },
+            None => Err(ibc::ContextError::PacketError(
+                ibc::PacketError::PacketReceiptNotFound {
+                    sequence: path.sequence,
+                },
             )),
         }
     }
 
-    fn get_packet_receipt(&self, path: &ReceiptPath) -> Result<Receipt> {
-        let trie_key = TrieKey::from(path);
+    fn get_packet_receipt(
+        &self,
+        path: &ibc::path::ReceiptPath,
+    ) -> Result<ibc::Receipt> {
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
-            Some(hash) if hash == CryptoHash::DEFAULT => Ok(Receipt::Ok),
-            _ => Err(ContextError::PacketError(
-                PacketError::PacketReceiptNotFound { sequence: path.sequence },
+            Some(hash) if hash == CryptoHash::DEFAULT => Ok(ibc::Receipt::Ok),
+            _ => Err(ibc::ContextError::PacketError(
+                ibc::PacketError::PacketReceiptNotFound {
+                    sequence: path.sequence,
+                },
             )),
         }
     }
 
     fn get_packet_acknowledgement(
         &self,
-        path: &AckPath,
-    ) -> Result<AcknowledgementCommitment> {
-        let trie_key = TrieKey::from(path);
+        path: &ibc::path::AckPath,
+    ) -> Result<ibc::AcknowledgementCommitment> {
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
-            None => Err(ContextError::PacketError(
-                PacketError::PacketAcknowledgementNotFound {
+            None => Err(ibc::ContextError::PacketError(
+                ibc::PacketError::PacketAcknowledgementNotFound {
                     sequence: path.sequence,
                 },
             )),
@@ -213,8 +218,7 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn channel_counter(&self) -> Result<u64> {
-        let store = self.borrow();
-        Ok(store.private.channel_counter)
+        Ok(u64::from(self.borrow().private.channel_counter))
     }
 
     fn max_expected_time_per_block(&self) -> Duration {
@@ -227,25 +231,25 @@ impl ValidationContext for IbcStorage<'_, '_> {
     fn validate_message_signer(&self, signer: &ibc::Signer) -> Result {
         match Pubkey::from_str(signer.as_ref()) {
             Ok(_) => Ok(()),
-            Err(e) => Err(ContextError::ClientError(ClientError::Other {
-                description: format!("Invalid signer: {e:?}"),
-            })),
+            Err(e) => {
+                Err(ibc::ContextError::ClientError(ibc::ClientError::Other {
+                    description: format!("Invalid signer: {e:?}"),
+                }))
+            }
         }
     }
 
     fn get_client_validation_context(&self) -> &Self::V { self }
 
-    fn get_compatible_versions(
-        &self,
-    ) -> Vec<ibc::core::ics03_connection::version::Version> {
-        ibc::core::ics03_connection::version::get_compatible_versions()
+    fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
+        ibc::conn::get_compatible_versions()
     }
 
     fn pick_version(
         &self,
-        counterparty_candidate_versions: &[ibc::core::ics03_connection::version::Version],
-    ) -> Result<ibc::core::ics03_connection::version::Version> {
-        let version = ibc::core::ics03_connection::version::pick_version(
+        counterparty_candidate_versions: &[ibc::conn::Version],
+    ) -> Result<ibc::conn::Version> {
+        let version = ibc::conn::pick_version(
             &self.get_compatible_versions(),
             counterparty_candidate_versions,
         )?;
@@ -260,22 +264,21 @@ impl ValidationContext for IbcStorage<'_, '_> {
     }
 }
 
-impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
+impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn client_update_time(
         &self,
-        client_id: &ClientId,
-        height: &Height,
-    ) -> Result<Timestamp> {
+        client_id: &ibc::ClientId,
+        height: &ibc::Height,
+    ) -> Result<ibc::Timestamp> {
         let store = self.borrow();
         store
             .private
             .client(client_id)?
-            .1
             .processed_times
             .get(height)
-            .map(|ts| Timestamp::from_nanoseconds(*ts).unwrap())
+            .map(|ts| ibc::Timestamp::from_nanoseconds(*ts).unwrap())
             .ok_or_else(|| {
-                ContextError::ClientError(ClientError::Other {
+                ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
                         "Client update time not found. client_id: {}, height: \
                          {}",
@@ -287,18 +290,17 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
 
     fn client_update_height(
         &self,
-        client_id: &ClientId,
-        height: &Height,
-    ) -> Result<Height> {
+        client_id: &ibc::ClientId,
+        height: &ibc::Height,
+    ) -> Result<ibc::Height> {
         self.borrow()
             .private
             .client(client_id)?
-            .1
             .processed_heights
             .get(height)
             .copied()
             .ok_or_else(|| {
-                ContextError::ClientError(ClientError::Other {
+                ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
                         "Client update height not found. client_id: {}, \
                          height: {}",
@@ -310,24 +312,32 @@ impl ibc::core::ics02_client::ClientValidationContext for IbcStorage<'_, '_> {
 }
 
 impl IbcStorage<'_, '_> {
-    fn get_next_sequence(
+    fn get_next_sequence<'a>(
         &self,
-        path: crate::storage::trie_key::SequencePath<'_>,
+        path: impl Into<trie_ids::SequencePath<'a>>,
         index: storage::SequenceTripleIdx,
-    ) -> core::result::Result<
-        Sequence,
-        (
-            ibc::core::ics24_host::identifier::PortId,
-            ibc::core::ics24_host::identifier::ChannelId,
-        ),
-    > {
-        let store = self.borrow();
-        store
-            .private
-            .next_sequence
-            .get(&(path.port_id.to_string(), path.channel_id.to_string()))
-            .and_then(|triple| triple.get(index))
-            .ok_or_else(|| (path.port_id.clone(), path.channel_id.clone()))
+        make_err: impl FnOnce(ibc::PortId, ibc::ChannelId) -> ibc::PacketError,
+    ) -> Result<ibc::Sequence> {
+        fn get(
+            this: &IbcStorage<'_, '_>,
+            port_channel: &trie_ids::PortChannelPK,
+            index: storage::SequenceTripleIdx,
+        ) -> Option<ibc::Sequence> {
+            this.borrow()
+                .private
+                .next_sequence
+                .get(port_channel)
+                .and_then(|triple| triple.get(index))
+        }
+
+        let path = path.into();
+        let key =
+            trie_ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        get(self, &key, index)
+            .ok_or_else(|| {
+                make_err(path.port_id.clone(), path.channel_id.clone())
+            })
+            .map_err(ibc::ContextError::from)
     }
 }
 

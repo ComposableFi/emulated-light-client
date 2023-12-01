@@ -1,5 +1,7 @@
 use core::fmt;
 
+use lib::u3::U3;
+
 use crate::bits::Slice;
 use crate::nodes::MAX_EXTENSION_KEY_SIZE;
 
@@ -34,7 +36,7 @@ impl<'a> ExtKey<'a> {
     /// In addition to limits imposed by [`Slice::new`], constraints of the
     /// Extension key are checked and `None` returned if they aren’t met.
     #[inline]
-    pub fn new(bytes: &'a [u8], offset: u8, length: u16) -> Option<Self> {
+    pub fn new(bytes: &'a [u8], offset: U3, length: u16) -> Option<Self> {
         Slice::new(bytes, offset, length)
             .and_then(|slice| Self::try_from(slice).ok())
     }
@@ -42,6 +44,10 @@ impl<'a> ExtKey<'a> {
     /// Returns length of the slice in bits.
     #[inline]
     pub fn len(&self) -> u16 { self.0.len() }
+
+    /// Converts the object into underlying [`Slice`].
+    #[inline]
+    pub fn into_slice(self) -> Slice<'a> { self.0 }
 
     /// Encodes key into raw binary representation.
     ///
@@ -79,7 +85,7 @@ impl<'a> ExtKey<'a> {
     pub(crate) fn decode(src: &'a [u8], tag: u8) -> Option<Self> {
         let (&[high, low], bytes) = stdx::split_at(src)?;
         let tag = u16::from_be_bytes([high ^ tag, low]);
-        let (offset, length) = ((tag % 8) as u8, tag / 8);
+        let (length, offset) = U3::divmod(tag);
         Slice::new_check_zeros(bytes, offset, length)
             .and_then(|slice| Self::try_from(slice).ok())
     }
@@ -111,7 +117,7 @@ impl<'a> TryFrom<Slice<'a>> for ExtKey<'a> {
     fn try_from(slice: Slice<'a>) -> Result<Self, Self::Error> {
         if slice.is_empty() {
             Err(Error::Empty)
-        } else if slice.underlying_bits_length() > MAX_EXTENSION_KEY_SIZE * 8 {
+        } else if slice.bytes_len() > MAX_EXTENSION_KEY_SIZE {
             Err(Error::TooLong)
         } else {
             Ok(Self(slice))
@@ -176,7 +182,7 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
 
         if chunks.next().is_none() {
             let empty = Slice {
-                offset: 0,
+                offset: U3::_0,
                 length: 0,
                 ptr: self.0.ptr,
                 phantom: Default::default(),
@@ -184,14 +190,12 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
             return Some(ExtKey(core::mem::replace(&mut self.0, empty)));
         }
 
-        // `1 << 20` is an arbitrary number which is divisible by 8 and greater
-        // than underlying_bits_length.
-        let tail = ((1 << 20) - self.0.underlying_bits_length()) % 8;
-        let length = (bytes.len() * 8 - tail) as u16;
+        let tail = self.0.offset.wrapping_add(self.0.length);
+        let length = (bytes.len() * 8 - usize::from(-tail)) as u16;
         self.0.length -= length;
 
         Some(ExtKey(Slice {
-            offset: 0,
+            offset: U3::_0,
             length,
             ptr: bytes.as_ptr(),
             phantom: Default::default(),
@@ -202,7 +206,7 @@ impl<'a> core::iter::DoubleEndedIterator for Chunks<'a> {
 #[test]
 fn test_encode() {
     #[track_caller]
-    fn test(want_encoded: &[u8], offset: u8, length: u16, bytes: &[u8]) {
+    fn test(want_encoded: &[u8], offset: U3, length: u16, bytes: &[u8]) {
         let slice = ExtKey::new(bytes, offset, length).unwrap();
 
         let mut want = [0; 36];
@@ -219,35 +223,35 @@ fn test_encode() {
         assert_eq!(slice, round_trip);
     }
 
-    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0x80]);
-    test(&[0, 1 * 8 + 0, 0x80], 0, 1, &[0xFF]);
-    test(&[0, 1 * 8 + 4, 0x08], 4, 1, &[0xFF]);
-    test(&[0, 9 * 8 + 0, 0xFF, 0x80], 0, 9, &[0xFF, 0xFF]);
-    test(&[0, 9 * 8 + 4, 0x0F, 0xF8], 4, 9, &[0xFF, 0xFF]);
-    test(&[0, 17 * 8 + 0, 0xFF, 0xFF, 0x80], 0, 17, &[0xFF, 0xFF, 0xFF]);
-    test(&[0, 17 * 8 + 4, 0x0F, 0xFF, 0xF8], 4, 17, &[0xFF, 0xFF, 0xFF]);
+    test(&[0, 1 * 8 + 0, 0x80], U3::_0, 1, &[0x80]);
+    test(&[0, 1 * 8 + 0, 0x80], U3::_0, 1, &[0xFF]);
+    test(&[0, 1 * 8 + 4, 0x08], U3::_4, 1, &[0xFF]);
+    test(&[0, 9 * 8 + 0, 0xFF, 0x80], U3::_0, 9, &[0xFF, 0xFF]);
+    test(&[0, 9 * 8 + 4, 0x0F, 0xF8], U3::_4, 9, &[0xFF, 0xFF]);
+    test(&[0, 17 * 8 + 0, 0xFF, 0xFF, 0x80], U3::_0, 17, &[0xFF, 0xFF, 0xFF]);
+    test(&[0, 17 * 8 + 4, 0x0F, 0xFF, 0xF8], U3::_4, 17, &[0xFF, 0xFF, 0xFF]);
 
     let mut want = [0xFF; 36];
     want[0] = (272u16 >> 5) as u8;
     want[1] = (272u16 << 3) as u8;
-    test(&want[..], 0, 34 * 8, &[0xFF; 34][..]);
+    test(&want[..], U3::_0, 34 * 8, &[0xFF; 34][..]);
 
     want[0] = (271u16 >> 5) as u8;
     want[1] = (271u16 << 3) as u8;
     want[35] = 0xFE;
-    test(&want[..], 0, 34 * 8 - 1, &[0xFF; 34][..]);
+    test(&want[..], U3::_0, 34 * 8 - 1, &[0xFF; 34][..]);
 
     want[0] = (271u16 >> 5) as u8;
     want[1] = (271u16 << 3) as u8 + 1;
     want[2] = 0x7F;
     want[35] = 0xFF;
-    test(&want[..], 1, 34 * 8 - 1, &[0xFF; 34][..]);
+    test(&want[..], U3::_1, 34 * 8 - 1, &[0xFF; 34][..]);
 }
 
 #[test]
 fn test_decode() {
     #[track_caller]
-    fn ok(num: u16, bytes: &[u8], want_offset: u8, want_length: u16) {
+    fn ok(num: u16, bytes: &[u8], want_offset: U3, want_length: u16) {
         let bytes = [&num.to_be_bytes()[..], bytes].concat();
         let got = ExtKey::decode(&bytes, 0).unwrap_or_else(|| {
             panic!("Expected to get a ExtKey from {bytes:x?}")
@@ -256,9 +260,9 @@ fn test_decode() {
     }
 
     // Correct values, all bits zero.
-    ok(34 * 64, &[0; 34], 0, 34 * 8);
-    ok(33 * 64 + 7, &[0; 34], 7, 264);
-    ok(2 * 64, &[0, 0], 0, 16);
+    ok(34 * 64, &[0; 34], U3::_0, 34 * 8);
+    ok(33 * 64 + 7, &[0; 34], U3::_7, 264);
+    ok(2 * 64, &[0, 0], U3::_0, 16);
 
     // Empty
     assert_eq!(None, ExtKey::decode(&[], 0));
@@ -266,7 +270,8 @@ fn test_decode() {
     assert_eq!(None, ExtKey::decode(&[0, 0], 0));
 
     #[track_caller]
-    fn test(length: u16, offset: u8, bad: &[u8], good: &[u8]) {
+    fn test(length: u16, offset: U3, bad: &[u8], good: &[u8]) {
+        let offset = U3::try_from(offset).unwrap();
         let num = length * 8 + u16::from(offset);
         let bad = [&num.to_be_bytes()[..], bad].concat();
         assert_eq!(None, ExtKey::decode(&bad, 0));
@@ -293,36 +298,36 @@ fn test_decode() {
     }
 
     // Bytes buffer doesn’t match the length.
-    test(8, 0, &[], &[0]);
-    test(8, 7, &[0], &[0, 0]);
-    test(16, 1, &[0, 0], &[0, 0, 0]);
+    test(8, U3::_0, &[], &[0]);
+    test(8, U3::_7, &[0], &[0, 0]);
+    test(16, U3::_1, &[0, 0], &[0, 0, 0]);
 
     // Bits which should be zero aren’t.
     // Leading bits are skipped:
-    test(16 - 1, 1, &[0x80, 0], &[0x7F, 0xFF]);
-    test(16 - 2, 2, &[0x40, 0], &[0x3F, 0xFF]);
-    test(16 - 3, 3, &[0x20, 0], &[0x1F, 0xFF]);
-    test(16 - 4, 4, &[0x10, 0], &[0x0F, 0xFF]);
-    test(16 - 5, 5, &[0x08, 0], &[0x07, 0xFF]);
-    test(16 - 6, 6, &[0x04, 0], &[0x03, 0xFF]);
-    test(16 - 7, 7, &[0x02, 0], &[0x01, 0xFF]);
+    test(16 - 1, U3::_1, &[0x80, 0], &[0x7F, 0xFF]);
+    test(16 - 2, U3::_2, &[0x40, 0], &[0x3F, 0xFF]);
+    test(16 - 3, U3::_3, &[0x20, 0], &[0x1F, 0xFF]);
+    test(16 - 4, U3::_4, &[0x10, 0], &[0x0F, 0xFF]);
+    test(16 - 5, U3::_5, &[0x08, 0], &[0x07, 0xFF]);
+    test(16 - 6, U3::_6, &[0x04, 0], &[0x03, 0xFF]);
+    test(16 - 7, U3::_7, &[0x02, 0], &[0x01, 0xFF]);
 
     // Tailing bits are skipped:
-    test(16 - 1, 0, &[0, 0x01], &[0xFF, 0xFE]);
-    test(16 - 2, 0, &[0, 0x02], &[0xFF, 0xFC]);
-    test(16 - 3, 0, &[0, 0x04], &[0xFF, 0xF8]);
-    test(16 - 4, 0, &[0, 0x08], &[0xFF, 0xF0]);
-    test(16 - 5, 0, &[0, 0x10], &[0xFF, 0xE0]);
-    test(16 - 6, 0, &[0, 0x20], &[0xFF, 0xC0]);
-    test(16 - 7, 0, &[0, 0x40], &[0xFF, 0x80]);
+    test(16 - 1, U3::_0, &[0, 0x01], &[0xFF, 0xFE]);
+    test(16 - 2, U3::_0, &[0, 0x02], &[0xFF, 0xFC]);
+    test(16 - 3, U3::_0, &[0, 0x04], &[0xFF, 0xF8]);
+    test(16 - 4, U3::_0, &[0, 0x08], &[0xFF, 0xF0]);
+    test(16 - 5, U3::_0, &[0, 0x10], &[0xFF, 0xE0]);
+    test(16 - 6, U3::_0, &[0, 0x20], &[0xFF, 0xC0]);
+    test(16 - 7, U3::_0, &[0, 0x40], &[0xFF, 0x80]);
 
     // Some leading and some tailing bits are skipped of the same byte:
-    test(1, 1, &[!0x40], &[0x40]);
-    test(1, 2, &[!0x20], &[0x20]);
-    test(1, 3, &[!0x10], &[0x10]);
-    test(1, 4, &[!0x08], &[0x08]);
-    test(1, 5, &[!0x04], &[0x04]);
-    test(1, 6, &[!0x02], &[0x02]);
+    test(1, U3::_1, &[!0x40], &[0x40]);
+    test(1, U3::_2, &[!0x20], &[0x20]);
+    test(1, U3::_3, &[!0x10], &[0x10]);
+    test(1, U3::_4, &[!0x08], &[0x08]);
+    test(1, U3::_5, &[!0x04], &[0x04]);
+    test(1, U3::_6, &[!0x02], &[0x02]);
 }
 
 #[test]
@@ -330,10 +335,10 @@ fn test_chunks() {
     let data = (0..=255).collect::<alloc::vec::Vec<u8>>();
     let data = data.as_slice();
 
-    let slice = |off: u8, len: u16| Slice::new(data, off, len).unwrap();
+    let slice = |off: U3, len: u16| Slice::new(data, off, len).unwrap();
 
     // Single chunk
-    for offset in 0..8 {
+    for offset in U3::all() {
         for length in 1..(34 * 8 - u16::from(offset)) {
             let want = Some(ExtKey::new(data, offset, length).unwrap());
 
@@ -348,12 +353,13 @@ fn test_chunks() {
     }
 
     // Two chunks
-    for offset in 0..8 {
+    for offset in U3::all() {
         let want_first = Some(
             ExtKey::new(data, offset, 34 * 8 - u16::from(offset)).unwrap(),
         );
-        let want_second =
-            Some(ExtKey::new(&data[34..], 0, 10 + u16::from(offset)).unwrap());
+        let want_second = Some(
+            ExtKey::new(&data[34..], U3::_0, 10 + u16::from(offset)).unwrap(),
+        );
 
         let mut chunks = slice(offset, 34 * 8 + 10).chunks();
         assert_eq!(want_first, chunks.next());

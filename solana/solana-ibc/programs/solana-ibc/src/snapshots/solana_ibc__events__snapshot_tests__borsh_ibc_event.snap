@@ -1,0 +1,36 @@
+---
+source: solana/solana-ibc/programs/solana-ibc/src/events.rs
+expression: serialised
+---
+[
+    0,
+    20,
+    4,
+    0,
+    0,
+    0,
+    107,
+    105,
+    110,
+    100,
+    1,
+    0,
+    0,
+    0,
+    3,
+    0,
+    0,
+    0,
+    107,
+    101,
+    121,
+    5,
+    0,
+    0,
+    0,
+    118,
+    97,
+    108,
+    117,
+    101,
+]

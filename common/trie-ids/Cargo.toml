@@ -1,0 +1,20 @@
+[package]
+name = "trie-ids"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+base64.workspace = true
+borsh = { workspace = true, optional = true }
+ibc-core-channel-types.workspace = true
+ibc-core-client-types.workspace = true
+ibc-core-connection-types.workspace = true
+ibc-core-host-types.workspace = true
+bytemuck.workspace = true
+derive_more.workspace = true
+strum.workspace = true
+
+[dev-dependencies]
+lib = { workspace = true, features = ["test_utils"] }
+rand.workspace = true

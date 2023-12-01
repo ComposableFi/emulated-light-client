@@ -113,7 +113,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let child = children[1 - side];
         Ok(self
             .maybe_pop_extension(child, &|key| {
-                bits::Owned::unshift(side == 0, key.into()).unwrap()
+                bits::Owned::concat(side == 0, key.into_slice()).unwrap()
             })?
             .unwrap_or_else(|| {
                 Action::Ext(
@@ -140,8 +140,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 Action::Ext(bits::Slice::from(key).into(), child)
             }
             Action::Ext(suffix, child) => {
-                let key = bits::Owned::concat(key.into(), suffix).unwrap();
-                Action::Ext(key, child)
+                let key =
+                    bits::Owned::concat(key.into_slice(), suffix.as_slice());
+                Action::Ext(key.unwrap(), child)
             }
         })
     }
