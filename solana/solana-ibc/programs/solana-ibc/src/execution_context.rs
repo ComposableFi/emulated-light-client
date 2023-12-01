@@ -7,8 +7,7 @@ use lib::hash::CryptoHash;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
-use crate::storage::trie_key::TrieKey;
-use crate::storage::{self, ids, IbcStorage};
+use crate::storage::{self, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -32,7 +31,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
             client_id,
             serialised.as_bytes(),
         ]);
-        let key = TrieKey::for_client_state(client.index);
+        let key = trie_ids::TrieKey::for_client_state(client.index);
         store.provable.set(&key, &hash).map_err(error)
     }
 
@@ -49,7 +48,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let serialised = storage::Serialised::new(&state)?;
         let hash = serialised.digest();
         client.consensus_states.insert(height, serialised);
-        let trie_key = TrieKey::for_consensus_state(client.index, height);
+        let trie_key =
+            trie_ids::TrieKey::for_consensus_state(client.index, height);
         store.provable.set(&trie_key, &hash).map_err(error)?;
         Ok(())
     }
@@ -64,7 +64,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.client_id, false)?;
         client.consensus_states.remove(&height);
-        let key = TrieKey::for_consensus_state(client.index, height);
+        let key = trie_ids::TrieKey::for_consensus_state(client.index, height);
         store.provable.del(&key).map_err(error)?;
         Ok(())
     }
@@ -140,7 +140,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         use core::cmp::Ordering;
 
         msg!("store_connection({}, {:?})", path, connection_end);
-        let connection = ids::ConnectionIdx::try_from(&path.0)?;
+        let connection = trie_ids::ConnectionIdx::try_from(&path.0)?;
         let serialised = storage::Serialised::new(&connection_end)?;
         let hash = serialised.digest();
 
@@ -161,7 +161,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
 
         store
             .provable
-            .set(&TrieKey::for_connection(connection), &hash)
+            .set(&trie_ids::TrieKey::for_connection(connection), &hash)
             .map_err(error)?;
 
         Ok(())
@@ -193,7 +193,10 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ) -> Result {
         msg!("store_packet_commitment({}, {:?})", path, commitment);
         // Note: ibc::PacketCommitment is always 32-byte long.
-        self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
+        self.store_commitment(
+            trie_ids::TrieKey::try_from(path)?,
+            commitment.as_ref(),
+        )
     }
 
     fn delete_packet_commitment(
@@ -201,7 +204,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         path: &ibc::path::CommitmentPath,
     ) -> Result {
         msg!("delete_packet_commitment({})", path);
-        self.delete_commitment(TrieKey::try_from(path)?)
+        self.delete_commitment(trie_ids::TrieKey::try_from(path)?)
     }
 
     fn store_packet_receipt(
@@ -210,7 +213,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         ibc::Receipt::Ok: ibc::Receipt,
     ) -> Result {
         msg!("store_packet_receipt({}, Ok)", path);
-        self.store_commitment(TrieKey::try_from(path)?, &[0; 32][..])
+        self.store_commitment(trie_ids::TrieKey::try_from(path)?, &[0; 32][..])
     }
 
     fn store_packet_acknowledgement(
@@ -220,7 +223,10 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ) -> Result {
         msg!("store_packet_acknowledgement({}, {:?})", path, commitment);
         // Note: ibc::AcknowledgementCommitment is always 32-byte long.
-        self.store_commitment(TrieKey::try_from(path)?, commitment.as_ref())
+        self.store_commitment(
+            trie_ids::TrieKey::try_from(path)?,
+            commitment.as_ref(),
+        )
     }
 
     fn delete_packet_acknowledgement(
@@ -228,7 +234,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         path: &ibc::path::AckPath,
     ) -> Result {
         msg!("delete_packet_acknowledgement({})", path);
-        self.delete_commitment(TrieKey::try_from(path)?)
+        self.delete_commitment(trie_ids::TrieKey::try_from(path)?)
     }
 
     fn store_channel(
@@ -237,8 +243,8 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         channel_end: ibc::ChannelEnd,
     ) -> Result {
         msg!("store_channel({}, {:?})", path, channel_end);
-        let port_channel = ids::PortChannelPK::try_from(&path.0, &path.1)?;
-        let trie_key = TrieKey::for_channel_end(&port_channel);
+        let port_channel = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
+        let trie_key = trie_ids::TrieKey::for_channel_end(&port_channel);
         self.borrow_mut().store_serialised_proof(
             |private| &mut private.channel_ends,
             port_channel,
@@ -309,24 +315,29 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
 }
 
 impl storage::IbcStorage<'_, '_> {
-    fn store_commitment(&mut self, key: TrieKey, commitment: &[u8]) -> Result {
+    fn store_commitment(
+        &mut self,
+        key: trie_ids::TrieKey,
+        commitment: &[u8],
+    ) -> Result {
         // Caller promises that commitment is always 32 bytes.
         let commitment = <&CryptoHash>::try_from(commitment).unwrap();
         self.borrow_mut().provable.set(&key, commitment).map_err(error)
     }
 
-    fn delete_commitment(&mut self, key: TrieKey) -> Result {
+    fn delete_commitment(&mut self, key: trie_ids::TrieKey) -> Result {
         self.borrow_mut().provable.del(&key).map(|_| ()).map_err(error)
     }
 
     fn store_next_sequence(
         &mut self,
-        path: storage::trie_key::SequencePath<'_>,
+        path: trie_ids::SequencePath<'_>,
         index: storage::SequenceTripleIdx,
         seq: ibc::Sequence,
     ) -> Result {
-        let key = ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
-        let trie_key = TrieKey::for_next_sequence(&key);
+        let key =
+            trie_ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        let trie_key = trie_ids::TrieKey::for_next_sequence(&key);
         let mut store = self.borrow_mut();
         let hash = {
             let triple = store.private.next_sequence.entry(key).or_default();
@@ -351,7 +362,7 @@ impl storage::IbcStorageInner<'_, '_> {
             &mut storage::PrivateStorage,
         ) -> &mut BTreeMap<K, storage::Serialised<V>>,
         key: K,
-        trie_key: &TrieKey,
+        trie_key: &trie_ids::TrieKey,
         value: &V,
     ) -> Result {
         let serialised = storage::Serialised::new(value)?;

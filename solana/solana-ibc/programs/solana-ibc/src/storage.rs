@@ -12,9 +12,6 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 
-pub mod ids;
-pub mod trie_key;
-
 pub(crate) type SolanaTimestamp = u64;
 
 /// A triple of send, receive and acknowledge sequences.
@@ -96,7 +93,7 @@ impl ClientStore {
 /// A shared reference to a [`ClientStore`] together with its index.
 pub struct ClientRef<'a> {
     #[allow(dead_code)]
-    pub index: ids::ClientIdx,
+    pub index: trie_ids::ClientIdx,
     pub store: &'a ClientStore,
 }
 
@@ -107,7 +104,7 @@ impl<'a> core::ops::Deref for ClientRef<'a> {
 
 /// An exclusive reference to a [`ClientStore`] together with its index.
 pub struct ClientMut<'a> {
-    pub index: ids::ClientIdx,
+    pub index: trie_ids::ClientIdx,
     pub store: &'a mut ClientStore,
 }
 
@@ -137,7 +134,8 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    pub channel_ends: BTreeMap<ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
+    pub channel_ends:
+        BTreeMap<trie_ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u32,
 
     /// Next send, receive and ack sequence for given (port, channel).
@@ -145,7 +143,7 @@ pub struct PrivateStorage {
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<ids::PortChannelPK, SequenceTriple>,
+    pub next_sequence: BTreeMap<trie_ids::PortChannelPK, SequenceTriple>,
 }
 
 impl PrivateStorage {
@@ -163,7 +161,8 @@ impl PrivateStorage {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<ClientRef<'_>, ibc::ClientError> {
-        self.client_index(client_id)
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
             .and_then(|index| {
                 self.clients
                     .get(usize::from(index))
@@ -191,7 +190,8 @@ impl PrivateStorage {
     ) -> Result<ClientMut<'_>, ibc::ClientError> {
         use core::cmp::Ordering;
 
-        self.client_index(client_id)
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
             .and_then(|index| {
                 let pos = usize::from(index);
                 match pos.cmp(&self.clients.len()) {
@@ -210,16 +210,6 @@ impl PrivateStorage {
             .ok_or_else(|| ibc::ClientError::ClientStateNotFound {
                 client_id: client_id.clone(),
             })
-    }
-
-    fn client_index(
-        &self,
-        client_id: &ibc::ClientId,
-    ) -> Option<ids::ClientIdx> {
-        client_id
-            .as_str()
-            .rsplit_once('-')
-            .and_then(|(_, index)| core::str::FromStr::from_str(index).ok())
     }
 }
 

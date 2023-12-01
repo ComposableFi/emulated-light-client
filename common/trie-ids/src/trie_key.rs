@@ -1,7 +1,5 @@
-use crate::storage::ibc::path::{
-    AckPath, CommitmentPath, ReceiptPath, SeqAckPath, SeqRecvPath, SeqSendPath,
-};
-use crate::storage::{ibc, ids};
+use super::path::SequencePath;
+use super::{ibc, ids};
 
 
 /// A key used for indexing entries in the provable storage.
@@ -35,11 +33,6 @@ pub struct TrieKey {
     len: u8,
 }
 
-/// A path for next send, receive and ack sequence paths.
-pub struct SequencePath<'a> {
-    pub port_id: &'a ibc::PortId,
-    pub channel_id: &'a ibc::ChannelId,
-}
 
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
@@ -133,24 +126,6 @@ impl core::ops::Deref for TrieKey {
     fn deref(&self) -> &[u8] { &self.bytes[..usize::from(self.len)] }
 }
 
-impl<'a> From<&'a SeqSendPath> for SequencePath<'a> {
-    fn from(path: &'a SeqSendPath) -> Self {
-        Self { port_id: &path.0, channel_id: &path.1 }
-    }
-}
-
-impl<'a> From<&'a SeqRecvPath> for SequencePath<'a> {
-    fn from(path: &'a SeqRecvPath) -> Self {
-        Self { port_id: &path.0, channel_id: &path.1 }
-    }
-}
-
-impl<'a> From<&'a SeqAckPath> for SequencePath<'a> {
-    fn from(path: &'a SeqAckPath) -> Self {
-        Self { port_id: &path.0, channel_id: &path.1 }
-    }
-}
-
 impl TryFrom<SequencePath<'_>> for TrieKey {
     type Error = ibc::ChannelError;
     fn try_from(path: SequencePath<'_>) -> Result<Self, Self::Error> {
@@ -160,9 +135,9 @@ impl TryFrom<SequencePath<'_>> for TrieKey {
     }
 }
 
-impl TryFrom<&CommitmentPath> for TrieKey {
+impl TryFrom<&ibc::path::CommitmentPath> for TrieKey {
     type Error = ibc::ChannelError;
-    fn try_from(path: &CommitmentPath) -> Result<Self, Self::Error> {
+    fn try_from(path: &ibc::path::CommitmentPath) -> Result<Self, Self::Error> {
         Self::try_for_sequence_path(
             Tag::Commitment,
             &path.port_id,
@@ -172,9 +147,9 @@ impl TryFrom<&CommitmentPath> for TrieKey {
     }
 }
 
-impl TryFrom<&ReceiptPath> for TrieKey {
+impl TryFrom<&ibc::path::ReceiptPath> for TrieKey {
     type Error = ibc::ChannelError;
-    fn try_from(path: &ReceiptPath) -> Result<Self, Self::Error> {
+    fn try_from(path: &ibc::path::ReceiptPath) -> Result<Self, Self::Error> {
         Self::try_for_sequence_path(
             Tag::Receipt,
             &path.port_id,
@@ -184,9 +159,9 @@ impl TryFrom<&ReceiptPath> for TrieKey {
     }
 }
 
-impl TryFrom<&AckPath> for TrieKey {
+impl TryFrom<&ibc::path::AckPath> for TrieKey {
     type Error = ibc::ChannelError;
-    fn try_from(path: &AckPath) -> Result<Self, Self::Error> {
+    fn try_from(path: &ibc::path::AckPath) -> Result<Self, Self::Error> {
         Self::try_for_sequence_path(
             Tag::Ack,
             &path.port_id,
@@ -225,7 +200,7 @@ trait AsComponent {
 impl AsComponent for ids::PortChannelPK {
     fn append_into(&self, dest: &mut TrieKey) {
         self.port_key.as_bytes().append_into(dest);
-        self.channel_idx.append_into(dest);
+        u32::from(self.channel_idx).append_into(dest);
     }
 }
 

@@ -35,6 +35,7 @@ lib.workspace = true
 memory.workspace = true
 solana-trie.workspace = true
 stdx.workspace = true
+trie-ids = { workspace = true, features = ["borsh"] }
 
 [dev-dependencies]
 anchor-client.workspace = true
