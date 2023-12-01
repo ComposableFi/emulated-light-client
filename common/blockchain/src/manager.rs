@@ -1,6 +1,6 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use core::num::NonZeroU128;
+use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
 
@@ -150,7 +150,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     pub fn generate_next(
         &mut self,
         host_height: crate::HostHeight,
-        host_timestamp: u64,
+        host_timestamp: NonZeroU64,
         state_root: CryptoHash,
         force: bool,
     ) -> Result<(), GenerateError> {
@@ -289,7 +289,7 @@ fn test_generate() {
     let genesis = crate::Block::generate_genesis(
         1.into(),
         1.into(),
-        1,
+        NonZeroU64::MIN,
         CryptoHash::default(),
         epoch,
     )
@@ -305,25 +305,32 @@ fn test_generate() {
     };
     let mut mgr = ChainManager::new(config, genesis).unwrap();
 
+    let one = NonZeroU64::new(1).unwrap();
+    let two = NonZeroU64::new(2).unwrap();
+    let three = NonZeroU64::new(3).unwrap();
+    let four = NonZeroU64::new(4).unwrap();
+    let five = NonZeroU64::new(5).unwrap();
+    let six = NonZeroU64::new(6).unwrap();
+
     // min_block_length not reached
     assert_eq!(
         Err(GenerateError::BlockTooYoung),
-        mgr.generate_next(4.into(), 2, CryptoHash::default(), false)
+        mgr.generate_next(4.into(), two, CryptoHash::default(), false)
     );
     // No change to the state so no need for a new block.
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(5.into(), 2, CryptoHash::default(), false)
+        mgr.generate_next(5.into(), two, CryptoHash::default(), false)
     );
     // Inner error.
     assert_eq!(
         Err(GenerateError::Inner(
             crate::block::GenerateError::BadHostTimestamp
         )),
-        mgr.generate_next(5.into(), 1, CryptoHash::test(1), false)
+        mgr.generate_next(5.into(), one, CryptoHash::test(1), false)
     );
     // Force create even if state hasn’t changed.
-    mgr.generate_next(5.into(), 2, CryptoHash::default(), true).unwrap();
+    mgr.generate_next(5.into(), two, CryptoHash::default(), true).unwrap();
 
     fn sign_head(
         mgr: &mut ChainManager<MockPubKey>,
@@ -338,18 +345,18 @@ fn test_generate() {
     // The head hasn’t been fully signed yet.
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
     );
 
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
     );
     assert_eq!(Ok(AddSignatureEffect::Duplicate), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
     );
 
     // Signatures are verified
@@ -367,12 +374,12 @@ fn test_generate() {
 
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), 3, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
     );
 
 
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
-    mgr.generate_next(10.into(), 3, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(10.into(), three, CryptoHash::test(2), false).unwrap();
 
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
@@ -381,10 +388,10 @@ fn test_generate() {
     // trigger new block.
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(15.into(), 4, CryptoHash::test(2), false)
+        mgr.generate_next(15.into(), four, CryptoHash::test(2), false)
     );
     mgr.update_candidate(*eve.pubkey(), 1).unwrap();
-    mgr.generate_next(15.into(), 4, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(15.into(), four, CryptoHash::test(2), false).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
@@ -393,9 +400,9 @@ fn test_generate() {
     mgr.update_candidate(*eve.pubkey(), 2).unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(20.into(), 5, CryptoHash::test(2), false)
+        mgr.generate_next(20.into(), five, CryptoHash::test(2), false)
     );
-    mgr.generate_next(30.into(), 5, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(30.into(), five, CryptoHash::test(2), false).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
@@ -404,8 +411,8 @@ fn test_generate() {
     mgr.update_candidate(MockPubKey(4), 1).unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(40.into(), 5, CryptoHash::test(2), false)
+        mgr.generate_next(40.into(), five, CryptoHash::test(2), false)
     );
     mgr.update_candidate(*eve.pubkey(), 0).unwrap();
-    mgr.generate_next(40.into(), 6, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(40.into(), six, CryptoHash::test(2), false).unwrap();
 }
