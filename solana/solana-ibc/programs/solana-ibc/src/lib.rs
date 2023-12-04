@@ -384,46 +384,46 @@ impl<'a> Deliver<'a> {
             });
         }
         if self.receiver_token_account.is_some() {
-            TransferAccounts {
+            transfer_accounts.push(TransferAccounts {
                 name: TransferAccountNames::ReceiverTokenAccount,
                 account: self
                     .receiver_token_account
                     .as_ref()
                     .unwrap()
                     .to_account_info(),
-            };
+            });
         }
         if self.token_mint.is_some() {
-            TransferAccounts {
+            transfer_accounts.push(TransferAccounts {
                 name: TransferAccountNames::TokenMint,
                 account: self.token_mint.as_ref().unwrap().to_account_info(),
-            };
+            });
         }
         if self.escrow_account.is_some() {
-            TransferAccounts {
+            transfer_accounts.push(TransferAccounts {
                 name: TransferAccountNames::EscrowAccount,
                 account: self
                     .escrow_account
                     .as_ref()
                     .unwrap()
                     .to_account_info(),
-            };
+            });
         }
         if self.mint_authority.is_some() {
-            TransferAccounts {
+            transfer_accounts.push(TransferAccounts {
                 name: TransferAccountNames::MintAuthority,
                 account: self
                     .mint_authority
                     .as_ref()
                     .unwrap()
                     .to_account_info(),
-            };
+            });
         }
         if self.token_program.is_some() {
-            TransferAccounts {
+            transfer_accounts.push(TransferAccounts {
                 name: TransferAccountNames::TokenProgram,
                 account: self.token_program.as_ref().unwrap().to_account_info(),
-            };
+            });
         }
         transfer_accounts
     }
