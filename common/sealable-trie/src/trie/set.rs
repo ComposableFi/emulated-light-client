@@ -3,7 +3,7 @@ use memory::Ptr;
 
 use super::{Error, Result};
 use crate::bits::{self, ExtKey};
-use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::nodes::{Node, NodeRef, RawNode, Reference};
 
 /// Context for [`Trie::set`] operation.
 pub(super) struct Context<'a, A: memory::Allocator<Value = super::Value>> {
@@ -71,9 +71,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             Node::Extension { key, child } => {
                 self.handle_extension(nref, key, child)
             }
-            Node::Value { value, child } => {
-                self.handle_value(nref, value, child)
-            }
         }
     }
 
@@ -83,13 +80,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         nref: (Ptr, &CryptoHash),
         children: [Reference<'_>; 2],
     ) -> Result<(Ptr, CryptoHash)> {
-        let bit = if let Some(bit) = self.key.pop_front() {
-            bit
-        } else {
-            // If Key is empty, insert a new Node value with this node as
-            // a child.
-            return self.alloc_value_node(self.value_hash, nref.0, nref.1);
-        };
+        // If we’ve reached the end of the key, it’s been a prefix of an
+        // existing value which is disallowed.
+        let bit = self.key.pop_front().ok_or(Error::BadKeyPrefix)?;
 
         // Figure out which direction the key leads and update the node
         // in-place.
@@ -107,17 +100,10 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         ext_key: bits::ExtKey<'_>,
         child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
-        // If key is empty, insert a new Value node with this node as a child.
-        //
-        //   P                     P
-        //   ↓                     ↓
-        //  Ext(ext_key, ⫯)   →   Val(val, ⫯)
-        //               ↓                 ↓
-        //               C                Ext(ext_key, ⫯)
-        //                                             ↓
-        //                                             C
+        // If we’ve reached the end of the key, it’s been a prefix of an
+        // existing value which is disallowed.
         if self.key.is_empty() {
-            return self.alloc_value_node(self.value_hash, nref.0, nref.1);
+            return Err(Error::BadKeyPrefix);
         }
 
         let (prefix, suffix) = self.key.forward_common_prefix(ext_key);
@@ -139,31 +125,9 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             return self.set_node(nref.0, node);
         };
 
-        let our = if let Some(bit) = self.key.pop_front() {
-            usize::from(bit)
-        } else {
-            // Our key is done.  We need to split the Extension node into
-            // two and insert Value node in between.
-            //
-            //      P               P
-            //      ↓               ↓
-            //  Ext(key, ⫯)   →   Ext(prefix, ⫯)
-            //           ↓               ↓
-            //           C             Value(val, ⫯)
-            //                                    ↓
-            //                                Ext(suffix, ⫯)
-            //                                            ↓
-            //                                            C
-            let (ptr, hash) = self.alloc_extension_node(suffix, child)?;
-            let (ptr, hash) =
-                self.alloc_value_node(self.value_hash, ptr, &hash)?;
-            // We know prefix is non-empty since we’ve checked key.is_empty() at
-            // the beginning of function and now key is empty thus prefix equals
-            // what key was at the beginning of the function.
-            let prefix = prefix.unwrap();
-            let child = Reference::node(Some(ptr), &hash);
-            return self.set_node(nref.0, RawNode::extension(prefix, child));
-        };
+        // If we’ve reached the end of the key, it’s been a prefix of an
+        // existing value which is disallowed.
+        let our = usize::from(self.key.pop_front().ok_or(Error::BadKeyPrefix)?);
 
         let mut suffix = bits::Slice::from(suffix);
         let theirs = usize::from(suffix.pop_front().unwrap());
@@ -211,22 +175,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         }
     }
 
-    /// Inserts value assuming current node is an unsealed Value.
-    fn handle_value(
-        &mut self,
-        nref: (Ptr, &CryptoHash),
-        value: ValueRef<'_, ()>,
-        child: NodeRef,
-    ) -> Result<(Ptr, CryptoHash)> {
-        let node = if self.key.is_empty() {
-            RawNode::value(ValueRef::new((), self.value_hash), child)
-        } else {
-            let (ptr, hash) = self.handle(child)?;
-            RawNode::value(value, NodeRef::new(Some(ptr), &hash))
-        };
-        self.set_node(nref.0, node)
-    }
-
     /// Handles a reference which can either point at a node or a value.
     ///
     /// Returns a new value for the reference updating it such that it points at
@@ -239,19 +187,19 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 // reference points at a Value node correctly.
                 self.handle(node).map(|(p, h)| OwnedRef::Node(p, h))
             }
-            Reference::Value(value) => {
-                if value.is_sealed {
-                    return Err(Error::Sealed);
-                }
-                // It’s a value reference so we just need to update it
-                // accordingly.  One tricky thing is that we need to insert
-                // Value node with the old hash if our key isn’t empty.
-                match self.insert_value()? {
-                    rf @ OwnedRef::Value(_) => Ok(rf),
-                    OwnedRef::Node(p, h) => self
-                        .alloc_value_node(value.hash, p, &h)
-                        .map(|(p, h)| OwnedRef::Node(p, h)),
-                }
+            Reference::Value(_) if !self.key.is_empty() => {
+                // Existing key is a prefix of our key.  This is disallowed.
+                Err(Error::BadKeyPrefix)
+            }
+            Reference::Value(value) if value.is_sealed => {
+                // Sealed values cannot be changed.
+                Err(Error::Sealed)
+            }
+            Reference::Value(_) => {
+                // It’s a value reference so we just need to update it.  We know
+                // key is empty so there's nothing complex we need to do.  Just
+                // return new value reference.
+                Ok(OwnedRef::Value(self.value_hash.clone()))
             }
         }
     }
@@ -297,19 +245,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
         self.alloc_node(RawNode::extension(key, child))
-    }
-
-    /// A convenience method which allocates a new Value node and sets it to
-    /// given value.
-    fn alloc_value_node(
-        &mut self,
-        value_hash: &CryptoHash,
-        ptr: Ptr,
-        hash: &CryptoHash,
-    ) -> Result<(Ptr, CryptoHash)> {
-        let value = ValueRef::new((), value_hash);
-        let child = NodeRef::new(Some(ptr), hash);
-        self.alloc_node(RawNode::value(value, child))
     }
 
     /// Sets value of a node cell at given address and returns its hash.
