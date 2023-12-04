@@ -241,11 +241,33 @@ pub fn get_provable_from<'a, 'info>(
     get(info).map_err(|err| err.with_account_name("trie"))
 }
 
+/// Used for finding the account info from the keys.
+/// Useful for finding the token mint on the source chain which cannot be derived from the denom.
+/// Would also save us some compute units to find authority and other accounts which used to be found by deriving from the seeds.
+#[derive(Debug, Clone)]
+pub struct TransferAccounts<'a> {
+    pub name: TransferAccountNames,
+    pub account: AccountInfo<'a>,
+}
+
+/// The various account names which are used for the transfers.
+#[derive(Debug, Clone, PartialEq)]
+pub enum TransferAccountNames {
+    /// Should be a signer
+    Sender,
+    SenderTokenAccount,
+    ReceiverTokenAccount,
+    TokenMint,
+    EscrowAccount,
+    MintAuthority,
+    TokenProgram,
+}
+
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub accounts: &'a [AccountInfo<'b>],
+    pub accounts: &'a [TransferAccounts<'b>],
     pub host_head: crate::host::Head,
 }
 

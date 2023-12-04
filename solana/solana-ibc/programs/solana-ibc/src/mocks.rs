@@ -26,10 +26,11 @@ pub fn mock_deliver_impl<'a, 'info>(
         .map_err(error::Error::from)
         .map_err(|err| error!((&err)))?;
 
+    let binding = Vec::new();
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private,
         provable,
-        accounts: ctx.remaining_accounts,
+        accounts: &binding,
         host_head,
     });
 

@@ -10,6 +10,7 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use storage::{TransferAccountNames, TransferAccounts};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -107,11 +108,16 @@ pub mod solana_ibc {
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
+    #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
+        port_id: Option<ibc::PortId>,
+        channel_id_on_b: Option<ibc::ChannelId>,
+        base_denom: Option<String>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         // msg!("Called deliver method: {:?}", message);
+        let accounts = ctx.accounts.clone();
         let _sender = ctx.accounts.sender.to_account_info();
 
         let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
@@ -124,10 +130,12 @@ pub mod solana_ibc {
         // of any request.
         ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
+        let transfer_accounts = accounts.to_transfer_accounts();
+
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            accounts: ctx.remaining_accounts,
+            accounts: &transfer_accounts,
             host_head,
         });
 
@@ -177,10 +185,12 @@ pub mod solana_ibc {
         // of any request.
         ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
 
+        let accounts = &Vec::new();
+
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            accounts: ctx.remaining_accounts,
+            accounts,
             host_head,
         });
 
@@ -234,15 +244,18 @@ pub struct ChainWithVerifier<'info> {
     system_program: Program<'info, System>,
 }
 
-#[derive(Accounts)]
+#[derive(Accounts, Clone)]
+#[instruction(port_id: Option<ibc::PortId>, channel_id_on_b: Option<ibc::ChannelId>, base_denom: Option<String>)]
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    receiver: Option<AccountInfo<'info>>,
+
     /// The account holding private IBC storage.
     #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
               bump, space = 10240)]
-    storage: Account<'info, storage::PrivateStorage>,
+    storage: Box<Account<'info, storage::PrivateStorage>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
@@ -256,6 +269,28 @@ pub struct Deliver<'info> {
     #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED],
               bump, space = 10240)]
     chain: Box<Account<'info, chain::ChainData>>,
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
+        bump, space = 100)]
+    /// CHECK:
+    mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.clone().unwrap().as_bytes()],
+        bump, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Option<Box<Account<'info, Mint>>>,
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.clone().unwrap().as_bytes(), channel_id_on_b.clone().unwrap().as_bytes(), base_denom.clone().unwrap().as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(init_if_needed, payer = sender,
+        associated_token::mint = token_mint,
+        associated_token::authority = sender)]
+    sender_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(init_if_needed, payer = sender,
+        associated_token::mint = token_mint,
+        associated_token::authority = receiver)]
+    receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    associated_token_program: Option<Program<'info, AssociatedToken>>,
+    token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
 }
 
@@ -329,6 +364,69 @@ pub struct SendPacket<'info> {
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Box<Account<'info, chain::ChainData>>,
     system_program: Program<'info, System>,
+}
+
+impl<'a> Deliver<'a> {
+    fn to_transfer_accounts(&self) -> Vec<TransferAccounts<'a>> {
+        let mut transfer_accounts = Vec::new();
+        transfer_accounts.push(TransferAccounts {
+            name: TransferAccountNames::Sender,
+            account: self.sender.as_ref().to_account_info(),
+        });
+        if self.sender_token_account.is_some() {
+            transfer_accounts.push(TransferAccounts {
+                name: TransferAccountNames::SenderTokenAccount,
+                account: self
+                    .sender_token_account
+                    .as_ref()
+                    .unwrap()
+                    .to_account_info(),
+            });
+        }
+        if self.receiver_token_account.is_some() {
+            TransferAccounts {
+                name: TransferAccountNames::ReceiverTokenAccount,
+                account: self
+                    .receiver_token_account
+                    .as_ref()
+                    .unwrap()
+                    .to_account_info(),
+            };
+        }
+        if self.token_mint.is_some() {
+            TransferAccounts {
+                name: TransferAccountNames::TokenMint,
+                account: self.token_mint.as_ref().unwrap().to_account_info(),
+            };
+        }
+        if self.escrow_account.is_some() {
+            TransferAccounts {
+                name: TransferAccountNames::EscrowAccount,
+                account: self
+                    .escrow_account
+                    .as_ref()
+                    .unwrap()
+                    .to_account_info(),
+            };
+        }
+        if self.mint_authority.is_some() {
+            TransferAccounts {
+                name: TransferAccountNames::MintAuthority,
+                account: self
+                    .mint_authority
+                    .as_ref()
+                    .unwrap()
+                    .to_account_info(),
+            };
+        }
+        if self.token_program.is_some() {
+            TransferAccounts {
+                name: TransferAccountNames::TokenProgram,
+                account: self.token_program.as_ref().unwrap().to_account_info(),
+            };
+        }
+        transfer_accounts
+    }
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {

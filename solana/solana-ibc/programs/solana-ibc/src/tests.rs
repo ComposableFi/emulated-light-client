@@ -157,12 +157,25 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: None,
             storage,
             trie,
             chain,
             system_program: system_program::ID,
+            sender_token_account: None,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::Deliver {
+            port_id: None,
+            channel_id_on_b: None,
+            base_denom: None,
+            message,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -217,12 +230,25 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: None,
             storage,
             trie,
-            chain: chain.clone(),
+            chain,
             system_program: system_program::ID,
+            sender_token_account: None,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::Deliver {
+            port_id: None,
+            channel_id_on_b: None,
+            base_denom: None,
+            message,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -406,7 +432,12 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             remaining_accounts: remaining_accounts.clone(),
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::Deliver {
+            port_id: Some(port_id.clone()),
+            channel_id_on_b: Some(channel_id_on_b.clone()),
+            base_denom: Some(BASE_DENOM.to_string()),
+            message,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -485,7 +516,12 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             remaining_accounts,
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::Deliver {
+            port_id: Some(port_id.clone()),
+            channel_id_on_b: Some(channel_id_on_b.clone()),
+            base_denom: Some(BASE_DENOM.to_string()),
+            message,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
