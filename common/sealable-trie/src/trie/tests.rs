@@ -87,6 +87,7 @@ fn test_prefix() {
 
 /// Tests inserting 256 subsequent keys and then trying to manipulate its
 /// parent.
+#[cfg(not(miri))]
 #[test]
 fn test_sealed_parent() {
     let want_root = "rV4Guri3HSKkNvmODKQiKO1KCKGIMpyoTEzRj/VaC9E=";
