@@ -11,7 +11,7 @@ use memory::Ptr;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
-use crate::nodes::{self, Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::nodes::{self, Node, RawNode, Reference};
 
 /// Generates random raw representation and checks decode→encode round-trip.
 #[test]
@@ -43,12 +43,12 @@ fn gen_random_raw_node(
     }
 
     rng.fill(&mut bytes[..]);
-    let tag = bytes[0] >> 6;
-    if tag == 0 || tag == 1 {
+    bytes[0] &= !0x40;
+    if bytes[0] & 0x80 == 0 {
         // Branch.
         make_ref_canonical(&mut bytes[..36]);
         make_ref_canonical(&mut bytes[36..]);
-    } else if tag == 2 {
+    } else {
         // Extension.  Key must be valid and the most significant bit of
         // the child must be zero.  For the former it’s easiest to just
         // regenerate random data.
@@ -69,14 +69,6 @@ fn gen_random_raw_node(
         bytes[0..36].copy_from_slice(&tmp);
 
         make_ref_canonical(&mut bytes[36..]);
-    } else {
-        // Value.  Most bits in the first four bytes must be zero and child must
-        // be a node reference.
-        bytes[0] = 0xC0;
-        bytes[1] = 0;
-        bytes[2] = 0;
-        bytes[3] = 0;
-        bytes[36] &= !0xC0;
     }
 }
 
@@ -115,22 +107,16 @@ fn gen_random_node<'a>(
     rng.fill(&mut buf[..]);
     let (key, right) = stdx::split_array_ref::<34, 32, 66>(buf);
     let (_, left) = stdx::split_array_ref::<2, 32, 34>(key);
-    match rng.gen_range(0..3) {
-        0 => Node::branch(rand_ref(rng, &left), rand_ref(rng, &right)),
-        1 => {
-            let offset = U3::wrap(rng.gen::<u8>());
-            let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
-            let length = rng.gen_range(1..=max_length - u16::from(offset));
-            let key = bits::ExtKey::new(&key[..], offset, length).unwrap();
-            Node::extension(key, rand_ref(rng, &right))
+    if rng.gen::<u8>() & 1 == 0 {
+        let children = [rand_ref(rng, &left), rand_ref(rng, &right)];
+        Node::Branch { children }
+    } else {
+        let offset = U3::wrap(rng.gen::<u8>());
+        let max_length = (nodes::MAX_EXTENSION_KEY_SIZE * 8) as u16;
+        let length = rng.gen_range(1..=max_length - u16::from(offset));
+        Node::Extension {
+            key: bits::ExtKey::new(key, offset, length).unwrap(),
+            child: rand_ref(rng, &right),
         }
-        2 => {
-            let num = rng.gen::<u32>();
-            let value = ValueRef::new((), left.into());
-            let ptr = Ptr::new(num & 0x7FFF_FFFF).ok().flatten();
-            let child = NodeRef::new(ptr, right.into());
-            Node::value(value, child)
-        }
-        _ => unreachable!(),
     }
 }

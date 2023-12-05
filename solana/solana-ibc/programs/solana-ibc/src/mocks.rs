@@ -7,8 +7,8 @@ use crate::ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
 use crate::{error, host, ibc, storage, MockDeliver, MINT_ESCROW_SEED};
 
 
-pub fn mock_deliver_impl(
-    ctx: Context<MockDeliver>,
+pub fn mock_deliver_impl<'a, 'info>(
+    ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
     _base_denom: String,
@@ -17,8 +17,7 @@ pub fn mock_deliver_impl(
     counterparty_client_id: ibc::ClientId,
 ) -> Result<()> {
     let private = &mut ctx.accounts.storage;
-    let provable = storage::get_provable_from(&ctx.accounts.trie, "trie")?;
-    let accounts = ctx.remaining_accounts;
+    let provable = storage::get_provable_from(&ctx.accounts.trie)?;
 
     let host_head = host::Head::get()?;
     let (host_timestamp, host_height) = host_head
@@ -30,7 +29,7 @@ pub fn mock_deliver_impl(
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private,
         provable,
-        accounts: accounts.to_vec(),
+        accounts: ctx.remaining_accounts,
         host_head,
     });
 

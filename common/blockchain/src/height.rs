@@ -1,20 +1,12 @@
+use core::{cmp, fmt};
+
+use borsh::maybestd::io;
+
 /// Block height.
 ///
 /// The generic argument allows the value to be tagged to distinguish it from
 /// host blockchain height and emulated blockchain height.
-#[derive(
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
-pub struct Height<T>(u64, core::marker::PhantomData<*const T>);
+pub struct Height<T>(u64, core::marker::PhantomData<T>);
 
 /// Delta between two host heights.
 ///
@@ -22,29 +14,15 @@ pub struct Height<T>(u64, core::marker::PhantomData<*const T>);
 ///
 /// The generic argument allows the value to be tagged to distinguish it from
 /// host blockchain height and emulated blockchain height.
-#[derive(
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-)]
-pub struct Delta<T>(u64, core::marker::PhantomData<*const T>);
+pub struct Delta<T>(u64, core::marker::PhantomData<T>);
 
 /// Tag for use with [`Height`] and [`Delta`] to indicate it’s host blockchain
 /// height.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Host;
+pub enum Host {}
 
 /// Tag for use with [`Height`] and [`Delta`] to indicate it’s emulated
 /// blockchain height.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Block;
+pub enum Block {}
 
 pub type HostHeight = Height<Host>;
 pub type HostDelta = Delta<Host>;
@@ -59,49 +37,77 @@ impl<T> Height<T> {
     ///
     /// In essence, returns `self - past_height >= min`.
     pub fn check_delta_from(self, past_height: Self, min: Delta<T>) -> bool {
-        self.0.checked_sub(past_height.0).map_or(false, |age| age >= min.0)
+        self.checked_sub(past_height).map_or(false, |age| age >= min)
+    }
+
+    /// Performs checked integer subtraction returning `None` on overflow.
+    pub fn checked_sub(self, rhs: Self) -> Option<Delta<T>> {
+        self.0.checked_sub(rhs.0).map(|d| Delta(d, Default::default()))
     }
 }
 
-impl<T> From<u64> for Height<T> {
-    fn from(value: u64) -> Self { Self(value, Default::default()) }
+// Implement everything explicitly because derives create implementations which
+// include bounds on type T.  We don’t want that.
+macro_rules! impls {
+    ($ty:ident) => {
+        impl<T> Clone for $ty<T> {
+            fn clone(&self) -> Self { *self }
+        }
+
+        impl<T> Copy for $ty<T> {}
+
+        impl<T> From<u64> for $ty<T> {
+            fn from(value: u64) -> Self { Self(value, Default::default()) }
+        }
+
+        impl<T> From<$ty<T>> for u64 {
+            fn from(value: $ty<T>) -> u64 { value.0 }
+        }
+
+        impl<T> fmt::Debug for $ty<T> {
+            fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.fmt(fmtr)
+            }
+        }
+
+        impl<T> fmt::Display for $ty<T> {
+            fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.fmt(fmtr)
+            }
+        }
+
+        impl<T> PartialEq for $ty<T> {
+            fn eq(&self, rhs: &Self) -> bool { self.0 == rhs.0 }
+        }
+
+        impl<T> Eq for $ty<T> {}
+
+        impl<T> PartialOrd for $ty<T> {
+            fn partial_cmp(&self, rhs: &Self) -> Option<cmp::Ordering> {
+                Some(self.cmp(rhs))
+            }
+        }
+
+        impl<T> Ord for $ty<T> {
+            fn cmp(&self, rhs: &Self) -> cmp::Ordering { self.0.cmp(&rhs.0) }
+        }
+
+        impl<T> borsh::BorshSerialize for $ty<T> {
+            fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
+                self.0.serialize(wr)
+            }
+        }
+
+        impl<T> borsh::BorshDeserialize for $ty<T> {
+            fn deserialize_reader<R: io::Read>(rd: &mut R) -> io::Result<Self> {
+                u64::deserialize_reader(rd).map(|x| Self(x, Default::default()))
+            }
+        }
+    };
 }
 
-impl<T> From<u64> for Delta<T> {
-    fn from(value: u64) -> Self { Self(value, Default::default()) }
-}
-
-impl<T> From<Height<T>> for u64 {
-    fn from(value: Height<T>) -> u64 { value.0 }
-}
-
-impl<T> From<Delta<T>> for u64 {
-    fn from(value: Delta<T>) -> u64 { value.0 }
-}
-
-impl<T> core::fmt::Display for Height<T> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl<T> core::fmt::Debug for Height<T> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl<T> core::fmt::Display for Delta<T> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl<T> core::fmt::Debug for Delta<T> {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
+impls!(Height);
+impls!(Delta);
 
 #[test]
 fn test_sanity() {

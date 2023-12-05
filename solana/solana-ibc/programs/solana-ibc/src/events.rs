@@ -220,7 +220,7 @@ mod snapshot_tests {
         let block = crate::chain::Block::generate_genesis(
             blockchain::BlockHeight::from(0),
             blockchain::HostHeight::from(42),
-            24,
+            core::num::NonZeroU64::new(24).unwrap(),
             CryptoHash::test(66),
             blockchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap(),
         )

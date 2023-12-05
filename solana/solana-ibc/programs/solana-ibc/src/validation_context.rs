@@ -7,12 +7,11 @@ use lib::hash::CryptoHash;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
-use crate::storage::trie_key::TrieKey;
-use crate::storage::{self, ids, IbcStorage};
+use crate::storage::{self, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
-impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
+impl ibc::ValidationContext for IbcStorage<'_, '_> {
     type V = Self; // ClientValidationContext
     type E = Self; // ibc::ClientExecutionContext
     type AnyConsensusState = AnyConsensusState;
@@ -79,7 +78,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         conn_id: &ibc::ConnectionId,
     ) -> Result<ibc::ConnectionEnd> {
-        let idx = ids::ConnectionIdx::try_from(conn_id)?;
+        let idx = trie_ids::ConnectionIdx::try_from(conn_id)?;
         self.borrow()
             .private
             .connections
@@ -118,7 +117,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         path: &ibc::path::ChannelEndPath,
     ) -> Result<ibc::ChannelEnd> {
-        let key = ids::PortChannelPK::try_from(&path.0, &path.1)?;
+        let key = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         self.borrow()
             .private
             .channel_ends
@@ -177,7 +176,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         path: &ibc::path::CommitmentPath,
     ) -> Result<ibc::PacketCommitment> {
-        let trie_key = TrieKey::try_from(path)?;
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ibc::ContextError::PacketError(
@@ -192,7 +191,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         path: &ibc::path::ReceiptPath,
     ) -> Result<ibc::Receipt> {
-        let trie_key = TrieKey::try_from(path)?;
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) if hash == CryptoHash::DEFAULT => Ok(ibc::Receipt::Ok),
             _ => Err(ibc::ContextError::PacketError(
@@ -207,7 +206,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
         &self,
         path: &ibc::path::AckPath,
     ) -> Result<ibc::AcknowledgementCommitment> {
-        let trie_key = TrieKey::try_from(path)?;
+        let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.as_slice().to_vec().into()),
             None => Err(ibc::ContextError::PacketError(
@@ -265,7 +264,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl ibc::ClientValidationContext for IbcStorage<'_, '_, '_> {
+impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn client_update_time(
         &self,
         client_id: &ibc::ClientId,
@@ -312,16 +311,16 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl IbcStorage<'_, '_, '_> {
+impl IbcStorage<'_, '_> {
     fn get_next_sequence<'a>(
         &self,
-        path: impl Into<storage::trie_key::SequencePath<'a>>,
+        path: impl Into<trie_ids::SequencePath<'a>>,
         index: storage::SequenceTripleIdx,
         make_err: impl FnOnce(ibc::PortId, ibc::ChannelId) -> ibc::PacketError,
     ) -> Result<ibc::Sequence> {
         fn get(
-            this: &IbcStorage<'_, '_, '_>,
-            port_channel: &ids::PortChannelPK,
+            this: &IbcStorage<'_, '_>,
+            port_channel: &trie_ids::PortChannelPK,
             index: storage::SequenceTripleIdx,
         ) -> Option<ibc::Sequence> {
             this.borrow()
@@ -332,7 +331,8 @@ impl IbcStorage<'_, '_, '_> {
         }
 
         let path = path.into();
-        let key = ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
+        let key =
+            trie_ids::PortChannelPK::try_from(path.port_id, path.channel_id)?;
         get(self, &key, index)
             .ok_or_else(|| {
                 make_err(path.port_id.clone(), path.channel_id.clone())

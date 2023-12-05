@@ -5,7 +5,7 @@ use memory::Ptr;
 
 use super::{Error, Result};
 use crate::bits;
-use crate::nodes::{DecodeError, Node, RawNode, Reference, ValueRef};
+use crate::nodes::{DecodeError, Node, RawNode, Reference};
 
 /// A possibly sealed value returned from subtrie iterator.
 pub struct Entry {
@@ -117,14 +117,6 @@ fn get_subtrie_root<A: memory::Allocator<Value = super::Value>>(
                     return GetSubtrieRootResult::Empty;
                 }
             }
-
-            Node::Value { value, child } => {
-                if !key.is_empty() {
-                    node_ptr = child.ptr;
-                    continue;
-                }
-                Reference::Value(ValueRef::new(false, value.hash))
-            }
         };
 
         match child {
@@ -194,11 +186,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             Node::Extension { key, child } => {
                 self.prefix.extend(key.into_slice()).unwrap();
                 self.handle_ref(child, len)
-            }
-
-            Node::Value { value, child } => {
-                self.handle_value(false, value.hash, self.prefix.len());
-                self.handle_node(child.ptr, len)
             }
         }
     }

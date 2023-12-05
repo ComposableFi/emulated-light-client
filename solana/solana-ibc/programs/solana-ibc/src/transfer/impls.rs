@@ -10,7 +10,6 @@ use crate::ibc::apps::transfer::context::{
 };
 use crate::ibc::apps::transfer::types::error::TokenTransferError;
 use crate::ibc::apps::transfer::types::{Amount, PrefixedCoin};
-use crate::storage::ids::PortChannelPK;
 use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
@@ -31,7 +30,7 @@ pub enum AccountId {
     #[display(fmt = "{}", _0)]
     Signer(Pubkey),
     #[display(fmt = "{}", _0)]
-    Escrow(PortChannelPK),
+    Escrow(trie_ids::PortChannelPK),
 }
 
 impl TryFrom<ibc::Signer> for AccountId {
@@ -75,7 +74,7 @@ impl TryFrom<&AccountId> for Pubkey {
     }
 }
 
-impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
+impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
     fn send_coins_execute(
         &mut self,
         from: &Self::AccountId,
@@ -243,7 +242,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_, '_> {
     }
 }
 
-impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
+impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     type AccountId = AccountId;
 
     fn get_port(&self) -> Result<ibc::PortId, TokenTransferError> {
@@ -255,11 +254,13 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_, '_> {
         port_id: &ibc::PortId,
         channel_id: &ibc::ChannelId,
     ) -> Result<Self::AccountId, TokenTransferError> {
-        let port_channel = PortChannelPK::try_from(port_id, channel_id)
-            .map_err(|_| TokenTransferError::DestinationChannelNotFound {
-                port_id: port_id.clone(),
-                channel_id: channel_id.clone(),
-            })?;
+        let port_channel =
+            trie_ids::PortChannelPK::try_from(port_id, channel_id).map_err(
+                |_| TokenTransferError::DestinationChannelNotFound {
+                    port_id: port_id.clone(),
+                    channel_id: channel_id.clone(),
+                },
+            )?;
         Ok(AccountId::Escrow(port_channel))
     }
 

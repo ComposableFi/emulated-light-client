@@ -12,9 +12,6 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 
-pub mod ids;
-pub mod trie_key;
-
 pub(crate) type SolanaTimestamp = u64;
 
 /// A triple of send, receive and acknowledge sequences.
@@ -96,7 +93,7 @@ impl ClientStore {
 /// A shared reference to a [`ClientStore`] together with its index.
 pub struct ClientRef<'a> {
     #[allow(dead_code)]
-    pub index: ids::ClientIdx,
+    pub index: trie_ids::ClientIdx,
     pub store: &'a ClientStore,
 }
 
@@ -107,7 +104,7 @@ impl<'a> core::ops::Deref for ClientRef<'a> {
 
 /// An exclusive reference to a [`ClientStore`] together with its index.
 pub struct ClientMut<'a> {
-    pub index: ids::ClientIdx,
+    pub index: trie_ids::ClientIdx,
     pub store: &'a mut ClientStore,
 }
 
@@ -137,7 +134,8 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    pub channel_ends: BTreeMap<ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
+    pub channel_ends:
+        BTreeMap<trie_ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
     pub channel_counter: u32,
 
     /// Next send, receive and ack sequence for given (port, channel).
@@ -145,7 +143,7 @@ pub struct PrivateStorage {
     /// We’re storing all three sequences in a single object to reduce amount of
     /// different maps we need to maintain.  This saves us on the amount of
     /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<ids::PortChannelPK, SequenceTriple>,
+    pub next_sequence: BTreeMap<trie_ids::PortChannelPK, SequenceTriple>,
 }
 
 impl PrivateStorage {
@@ -163,7 +161,8 @@ impl PrivateStorage {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<ClientRef<'_>, ibc::ClientError> {
-        self.client_index(client_id)
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
             .and_then(|index| {
                 self.clients
                     .get(usize::from(index))
@@ -191,7 +190,8 @@ impl PrivateStorage {
     ) -> Result<ClientMut<'_>, ibc::ClientError> {
         use core::cmp::Ordering;
 
-        self.client_index(client_id)
+        trie_ids::ClientIdx::try_from(client_id)
+            .ok()
             .and_then(|index| {
                 let pos = usize::from(index);
                 match pos.cmp(&self.clients.len()) {
@@ -211,16 +211,6 @@ impl PrivateStorage {
                 client_id: client_id.clone(),
             })
     }
-
-    fn client_index(
-        &self,
-        client_id: &ibc::ClientId,
-    ) -> Option<ids::ClientIdx> {
-        client_id
-            .as_str()
-            .rsplit_once('-')
-            .and_then(|(_, index)| core::str::FromStr::from_str(index).ok())
-    }
 }
 
 /// Provable storage, i.e. the trie, held in an account.
@@ -232,7 +222,6 @@ pub type AccountTrie<'a, 'b> =
 /// The account needs to be owned by [`crate::ID`] and
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
-    name: &str,
 ) -> Result<AccountTrie<'a, 'info>> {
     fn get<'a, 'info>(
         info: &'a AccountInfo<'info>,
@@ -249,16 +238,14 @@ pub fn get_provable_from<'a, 'info>(
                 .ok_or(Error::from(ProgramError::InvalidAccountData))
         }
     }
-    get(info).map_err(|err| err.with_account_name(name))
+    get(info).map_err(|err| err.with_account_name("trie"))
 }
 
-/// All the structs from IBC are stored as String since they dont implement
-/// AnchorSerialize and AnchorDeserialize
 #[derive(Debug)]
-pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
+pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub accounts: Vec<AccountInfo<'c>>,
+    pub accounts: &'a [AccountInfo<'b>],
     pub host_head: crate::host::Head,
 }
 
@@ -268,13 +255,11 @@ pub(crate) struct IbcStorageInner<'a, 'b, 'c> {
 /// Accessing the data must follow aliasing rules as enforced by `RefCell`.
 /// Violations will cause a panic.
 #[derive(Debug, Clone)]
-pub(crate) struct IbcStorage<'a, 'b, 'c>(
-    Rc<RefCell<IbcStorageInner<'a, 'b, 'c>>>,
-);
+pub(crate) struct IbcStorage<'a, 'b>(Rc<RefCell<IbcStorageInner<'a, 'b>>>);
 
-impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
+impl<'a, 'b> IbcStorage<'a, 'b> {
     /// Constructs a new object with given inner storage.
-    pub fn new(inner: IbcStorageInner<'a, 'b, 'c>) -> Self {
+    pub fn new(inner: IbcStorageInner<'a, 'b>) -> Self {
         Self(Rc::new(RefCell::new(inner)))
     }
 
@@ -284,7 +269,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// This is mostly a wrapper around [`Rc::try_unwrap`].  Returns `None` if
     /// there are other references to the inner storage object.
     #[allow(dead_code)]
-    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b, 'c>> {
+    pub fn try_into_inner(self) -> Option<IbcStorageInner<'a, 'b>> {
         Rc::try_unwrap(self.0).ok().map(RefCell::into_inner)
     }
 
@@ -295,7 +280,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Panics if the value is currently mutably borrowed.
     pub fn borrow<'s>(
         &'s self,
-    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b, 'c>> {
+    ) -> core::cell::Ref<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow()
     }
 
@@ -306,7 +291,7 @@ impl<'a, 'b, 'c> IbcStorage<'a, 'b, 'c> {
     /// Panics if the value is currently borrowed.
     pub fn borrow_mut<'s>(
         &'s self,
-    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b, 'c>> {
+    ) -> core::cell::RefMut<'s, IbcStorageInner<'a, 'b>> {
         self.0.borrow_mut()
     }
 }

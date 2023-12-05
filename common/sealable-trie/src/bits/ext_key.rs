@@ -61,9 +61,6 @@ impl<'a> ExtKey<'a> {
     /// Returns the length of relevant portion of the buffer.  For example, if
     /// slice’s length is say 20 bits with zero offset returns five (two bytes
     /// for the encoded length and three bytes for the 20 bits).
-    ///
-    /// Returns `None` if the slice is empty or too long and won’t fit in the
-    /// destination buffer.
     pub(crate) fn encode_into(&self, dest: &mut [u8; 36], tag: u8) -> usize {
         let bytes = self.0.bytes();
         let (num, tail) = stdx::split_array_mut::<2, 34, 36>(dest);
@@ -92,11 +89,9 @@ impl<'a> ExtKey<'a> {
 
     /// Encodes offset and length as a two-byte number.
     ///
-    /// The encoding is `llll_llll llll_looo`, i.e. 13-bit length in the most
-    /// significant bits and 3-bit offset in the least significant bits.  The
+    /// The encoding is `0000_llll llll_looo`, i.e. (starting from most
+    /// significant bits) four zero bits, 9-bit length and 3-bit offset.  The
     /// first byte is then further xored with the `tag` argument.
-    ///
-    /// This method doesn’t check whether the length and offset are within range.
     fn encode_num(&self, tag: u8) -> [u8; 2] {
         let num = (self.0.length << 3) | u16::from(self.0.offset);
         (num ^ (u16::from(tag) << 8)).to_be_bytes()

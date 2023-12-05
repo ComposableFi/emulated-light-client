@@ -10,14 +10,13 @@ use rand::Rng;
 
 #[track_caller]
 fn make_trie_impl<'a>(
-    keys: impl IntoIterator<Item = &'a [u8]>,
+    mut keys: impl KeyGen<'a>,
     mut set: impl FnMut(&mut TestTrie, &'a [u8]),
     want: Option<(&str, usize)>,
 ) -> TestTrie {
-    let keys = keys.into_iter();
-    let count = keys.size_hint().1.unwrap_or(1000).saturating_mul(4).max(100);
+    let count = keys.count().unwrap_or(1000).saturating_mul(4).max(100);
     let mut trie = TestTrie::new(count);
-    for key in keys {
+    while let Some(key) = keys.next(&trie.mapping) {
         set(&mut trie, key)
     }
     if let Some((want_root, want_nodes)) = want {
@@ -30,7 +29,7 @@ fn make_trie_impl<'a>(
 /// Constructs a trie with given keys.
 #[track_caller]
 fn make_trie_from_keys<'a>(
-    keys: impl IntoIterator<Item = &'a [u8]>,
+    keys: impl KeyGen<'a>,
     want: Option<(&str, usize)>,
     verbose: bool,
 ) -> TestTrie {
@@ -44,7 +43,7 @@ fn make_trie_from_keys<'a>(
 /// them sealed.
 #[track_caller]
 fn make_sealed_trie_from_keys<'a>(
-    keys: impl IntoIterator<Item = &'a [u8]>,
+    keys: impl KeyGen<'a>,
     want: Option<(&str, usize)>,
     verbose: bool,
 ) -> TestTrie {
@@ -56,7 +55,7 @@ fn make_sealed_trie_from_keys<'a>(
 #[test]
 fn test_msb_difference() {
     make_trie_from_keys(
-        [&[0][..], &[0x80][..]],
+        IterKeyGen::new([&[0][..], &[0x80][..]]),
         Some(("Stmrss0PVu2RSGiHibdgHlBNxN/XPsqJsIlWoAAdI5g=", 3)),
         true,
     );
@@ -66,7 +65,7 @@ fn test_msb_difference() {
 #[test]
 fn test_2byte_extension() {
     make_trie_from_keys(
-        [&[123, 40][..], &[134, 233][..]],
+        IterKeyGen::new([&[123, 40][..], &[134, 233][..]]),
         Some(("KuGB/DlpPNpq95GPa47hyiWwWLqBvwStKohETSTCTWQ=", 3)),
         true,
     );
@@ -75,17 +74,40 @@ fn test_2byte_extension() {
 /// Tests setting value on a key and on a prefix of the key.
 #[test]
 fn test_prefix() {
-    let key = b"xy";
-    make_trie_from_keys(
-        [&key[..], &key[..1]],
-        Some(("gVrQ18qbqdhGPIIXSvlVD5dSyTy1OvduWpPsl4viANw=", 3)),
-        true,
-    );
-    make_trie_from_keys(
-        [&key[..1], &key[..]],
-        Some(("8LpINasPAwifquBydtqD7RFSgBZidoc2XmtNkThh23U=", 3)),
-        true,
-    );
+    fn test(key1: &[u8], key2: &[u8], want_root: &str) {
+        let mut trie = TestTrie::new(5);
+        trie.set(key1, true);
+        assert_eq!(Err(super::Error::BadKeyPrefix), trie.try_set(key2, true));
+
+        let want_root = CryptoHash::from_base64(want_root).unwrap();
+        assert_eq!((&want_root, 1), (trie.hash(), trie.nodes_count()));
+    }
+
+    test(b"xy", b"x", "RSLrcmouOB+n1azKsAoLZNf/AIMC9/TuzgLJ5SNaoF4=");
+    test(b"x", b"xy", "Lk8hhrdROehhinFrorqk9hRvRbwHx+9OYXn8jlqozCk=");
+}
+
+/// Tests inserting 256 subsequent keys and then trying to manipulate its
+/// parent.
+#[cfg(not(miri))]
+#[test]
+fn test_sealed_parent() {
+    let want_root = "rV4Guri3HSKkNvmODKQiKO1KCKGIMpyoTEzRj/VaC9E=";
+    let want_root = CryptoHash::from_base64(want_root).unwrap();
+
+    let mut trie = TestTrie::new(1000);
+
+    for byte in 0..=255 {
+        trie.set(&[0, byte], true);
+    }
+    assert_eq!(Err(super::Error::BadKeyPrefix), trie.try_set(&[0], true));
+    assert_eq!((&want_root, 256), (trie.hash(), trie.nodes_count()));
+
+    for byte in 0..=255 {
+        trie.seal(&[0, byte], true);
+    }
+    assert_eq!(Err(super::Error::Sealed), trie.try_set(&[0], true));
+    assert_eq!((&want_root, 1), (trie.hash(), trie.nodes_count()));
 }
 
 /// Creates a trie with sequential keys.  Returns `(trie, keys)` pair.
@@ -104,18 +126,12 @@ fn make_trie(small: bool, sealed: bool) -> (TestTrie, &'static [u8]) {
     } else {
         (16, "T9199/qDmjbqYqxaHrGh024lQRuTZcXBisiXCSwfNd4=", 16, 1)
     };
+    let keygen =
+        IterKeyGen::new(KEYS[..keys].iter().map(core::slice::from_ref));
     let trie = if sealed {
-        make_sealed_trie_from_keys(
-            KEYS[..keys].iter().map(core::slice::from_ref),
-            Some((hash, sealed_count)),
-            true,
-        )
+        make_sealed_trie_from_keys(keygen, Some((hash, sealed_count)), true)
     } else {
-        make_trie_from_keys(
-            KEYS[..keys].iter().map(core::slice::from_ref),
-            Some((hash, count)),
-            true,
-        )
+        make_trie_from_keys(keygen, Some((hash, count)), true)
     };
     (trie, &KEYS[..keys])
 }
@@ -193,7 +209,7 @@ fn test_del_extension_0() {
         )[..],
     ];
     let mut trie = make_trie_from_keys(
-        keys,
+        IterKeyGen::new(keys),
         Some(("k/+TqL56p1FI5Y7prnZ488jE6QsP1HjbxMNrLvnDEHw=", 5)),
         true,
     );
@@ -205,12 +221,12 @@ fn test_del_extension_0() {
 /// Extension nodes to be merged.
 #[test]
 fn test_del_extension_1() {
-    // Construct a trie with `Extension → Value → Extension` chain and delete
-    // the Value.  The Extensions should be merged into one.
-    let keys = [&hex!("00")[..], &hex!("00 FF")[..]];
+    // Construct a trie with `Extension → Branch → Extension` chain and delete
+    // the Branch.  The Extensions should be merged into one.
+    let keys = [&hex!("01")[..], &hex!("00 FF")[..]];
     let mut trie = make_trie_from_keys(
-        keys,
-        Some(("nmNwDIXQlBwdFRUKHk+1A6mki0W6O3EP5/LIzexY1lc=", 3)),
+        IterKeyGen::new(keys),
+        Some(("BQCCUp6s+joW9WfEixck9C/Qk3cDilx43Dwo2YSCxdk=", 3)),
         true,
     );
     trie.del(keys[0], true);
@@ -220,13 +236,13 @@ fn test_del_extension_1() {
 #[test]
 fn test_get_subtrie() {
     let trie = make_trie_from_keys(
-        [
+        IterKeyGen::new([
             "foo".as_bytes(),
             "bar".as_bytes(),
             "baz".as_bytes(),
-            "foobar".as_bytes(),
-        ],
-        Some(("T5Y/1w6Zm9VzuGUZm22amaYT4FhtXfS6AS3cDcOXwXw=", 9)),
+            "qux".as_bytes(),
+        ]),
+        Some(("BVZAtmk2I+EgBeqsICapayEfsLDxyws3mYYSNBPXYQ0=", 10)),
         true,
     );
 
@@ -238,47 +254,73 @@ fn test_get_subtrie() {
         }};
     }
 
-    test!("", { "bar" = 2, "baz" = 3, "foo" = 1, "foobar" = 4 });
+    test!("", { "bar" = 2, "baz" = 3, "foo" = 1, "qux" = 4 });
     test!("b", { "ar" = 2, "az" = 3 });
     test!("ba", { "r" = 2, "z" = 3 });
     test!("bar", { "" = 2 });
-    test!("foo", { "" = 1, "bar" = 4 });
-    test!("q", {});
+    test!("foo", { "" = 1 });
+    test!("q", { "ux" = 4 });
+    test!("z", {});
 }
 
 struct RandKeys<'a> {
     buf: &'a mut [u8],
     rng: rand::rngs::ThreadRng,
+    count: usize,
 }
 
 impl<'a> RandKeys<'a> {
-    fn new(buf: &'a mut [u8]) -> Self { Self { buf, rng: rand::thread_rng() } }
-}
+    fn generate(&mut self, known: &HashMap<Key, CryptoHash>) -> &'a [u8] {
+        fn check_prefix(x: &[u8], y: &[u8]) -> bool {
+            (x.len() != y.len()) && {
+                let len = x.len().min(y.len());
+                x[..len] == y[..len]
+            }
+        }
 
-impl<'a> Iterator for RandKeys<'a> {
-    type Item = &'a [u8];
+        fn check_key(key: &[u8], known: &HashMap<Key, CryptoHash>) -> bool {
+            for existing in known.keys() {
+                if check_prefix(existing.as_bytes(), key) {
+                    return false;
+                }
+            }
+            true
+        }
 
-    fn next(&mut self) -> Option<Self::Item> {
-        let len = self.rng.gen_range(1..self.buf.len());
-        self.rng.fill(&mut self.buf[..len]);
-        // Transmute lifetimes.  This is probably not sound in general but it
-        // works for our needs in this test.
-        unsafe { core::mem::transmute(self.buf.get_unchecked(..len)) }
+        loop {
+            let len = self.rng.gen_range(1..self.buf.len());
+            let key = &mut self.buf[..len];
+            self.rng.fill(key);
+            if check_key(key, known) {
+                // Transmute lifetimes.  This is unsound in general but it works
+                // for our needs in this test.
+                break unsafe { core::mem::transmute(key) };
+            }
+        }
     }
 }
+
+impl<'a> KeyGen<'a> for RandKeys<'a> {
+    fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]> {
+        self.count = self.count.checked_sub(1)?;
+        Some(self.generate(known))
+    }
+
+    fn count(&self) -> Option<usize> { Some(self.count) }
+}
+
 
 #[test]
 fn stress_test() {
     let count = lib::test_utils::get_iteration_count(500);
 
     // Insert count/2 random keys.
-    let mut buf = [0; 35];
-    let mut rand_keys = RandKeys::new(&mut buf);
-    let mut trie = make_trie_from_keys(
-        (&mut rand_keys).take((count / 2).max(5)),
-        None,
-        false,
-    );
+    let mut rand_keys = RandKeys {
+        buf: &mut [0; 35][..],
+        rng: rand::thread_rng(),
+        count: (count / 2).max(5),
+    };
+    let mut trie = make_trie_from_keys(&mut rand_keys, None, false);
 
     // Now insert and delete keys randomly total of count times.  On average
     // that means count/2 deletions and count/2 new insertions.
@@ -294,8 +336,8 @@ fn stress_test() {
             let key = keys.remove(idx);
             trie.del(&key, false);
         } else {
-            let key = rand_keys.next().unwrap();
-            trie.set(&key, false);
+            let key = rand_keys.generate(&trie.mapping);
+            trie.set(key, false);
         }
     }
 
@@ -316,9 +358,9 @@ fn stress_test_iter() {
     let count = ((count as f64).sqrt() as usize).max(5);
 
     // Populate the trie
-    let mut buf = [0; 4];
-    let mut rand_keys = RandKeys::new(&mut buf);
-    let trie = make_trie_from_keys((&mut rand_keys).take(count), None, false);
+    let mut rand_keys =
+        RandKeys { buf: &mut [0; 4][..], rng: rand::thread_rng(), count };
+    let trie = make_trie_from_keys(&mut rand_keys, None, false);
 
     // Extract created keys.  If we were to look up random prefixes chances are
     // we wouldn’t find any matches (especially if `count` is small).  Collect
@@ -373,7 +415,11 @@ impl<'a> From<&'a str> for Key {
 
 impl core::ops::Deref for Key {
     type Target = [u8];
-    fn deref(&self) -> &[u8] { &self.buf[..usize::from(self.len)] }
+    fn deref(&self) -> &[u8] { self.as_bytes() }
+}
+
+impl alloc::borrow::Borrow<[u8]> for Key {
+    fn borrow(&self) -> &[u8] { self.as_bytes() }
 }
 
 impl core::cmp::PartialEq for Key {
@@ -397,6 +443,33 @@ impl core::fmt::Debug for Key {
         self.as_bytes().fmt(fmtr)
     }
 }
+
+
+trait KeyGen<'a> {
+    fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]>;
+    fn count(&self) -> Option<usize>;
+}
+
+impl<'a, 'b, T: KeyGen<'b>> KeyGen<'b> for &'a mut T {
+    fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'b [u8]> {
+        (**self).next(known)
+    }
+    fn count(&self) -> Option<usize> { (**self).count() }
+}
+
+struct IterKeyGen<I>(I);
+
+impl<'a, I: Iterator<Item = &'a [u8]>> IterKeyGen<I> {
+    fn new(it: impl IntoIterator<IntoIter = I>) -> Self { Self(it.into_iter()) }
+}
+
+impl<'a, I: Iterator<Item = &'a [u8]>> KeyGen<'a> for IterKeyGen<I> {
+    fn next(&mut self, _known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]> {
+        self.0.next()
+    }
+    fn count(&self) -> Option<usize> { self.0.size_hint().1 }
+}
+
 
 struct TestTrie {
     trie: super::Trie<TestAllocator<super::Value>>,
@@ -427,18 +500,30 @@ impl TestTrie {
     pub fn nodes_count(&self) -> usize { self.trie.alloc.count() }
 
     pub fn set(&mut self, key: &[u8], verbose: bool) {
+        self.try_set(key, verbose).unwrap();
+        self.check_all_reads();
+    }
+
+    fn try_set(
+        &mut self,
+        key: &[u8],
+        verbose: bool,
+    ) -> Result<(), super::Error> {
         let key = Key::from(key);
 
         let value = self.next_value();
         println!("{}Inserting {key:?}", if verbose { "\n" } else { "" });
-        self.trie
-            .set(&key, &value)
-            .unwrap_or_else(|err| panic!("Failed setting ‘{key:?}’: {err}"));
-        self.mapping.insert(key, value);
+        let res = self.trie.set(&key, &value);
+        match &res {
+            Ok(_) => {
+                self.mapping.insert(key, value);
+            }
+            Err(err) => println!("Failed setting ‘{key:?}’: {err}"),
+        }
         if verbose {
             self.trie.print();
         }
-        self.check_all_reads();
+        res
     }
 
     pub fn seal(&mut self, key: &[u8], verbose: bool) {
