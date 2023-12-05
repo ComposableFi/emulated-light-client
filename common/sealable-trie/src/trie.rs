@@ -82,6 +82,8 @@ pub enum Error {
     KeyTooLong,
     #[display(fmt = "Tried to access sealed node")]
     Sealed,
+    #[display(fmt = "Tried to access value at a prefix of existing key")]
+    BadKeyPrefix,
     #[display(fmt = "Value not found")]
     NotFound,
     #[display(fmt = "Not enough space")]
@@ -204,19 +206,6 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                     } else {
                         let proof = proof!(proof rev.reached_extension(key.len(), ext_key, child));
                         return Ok((None, proof));
-                    }
-                }
-
-                Node::Value { value, child } => {
-                    if key.is_empty() {
-                        proof!(proof push proof::Item::Value(child.hash.clone()));
-                        let proof = proof!(proof rev.build());
-                        return Ok((Some(value.hash.clone()), proof));
-                    } else {
-                        proof!(proof push proof::Item::Value(value.hash.clone()));
-                        node_ptr = child.ptr;
-                        node_hash = child.hash.clone();
-                        continue;
                     }
                 }
             };
@@ -370,10 +359,6 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             Ok(Node::Extension { key, child }) => {
                 println!(" Extension {key}");
                 print_ref(child, depth + 2);
-            }
-            Ok(Node::Value { value, child }) => {
-                println!(" Value {}", value.hash);
-                print_ref(Reference::from(child), depth + 2);
             }
             Err(err) => {
                 println!(" BadRawNode: {err}: {node:?}");

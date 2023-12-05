@@ -5,7 +5,7 @@ use core::num::NonZeroU16;
 use lib::hash::CryptoHash;
 
 use crate::bits::{self, ExtKey};
-use crate::nodes::{Node, NodeRef, Reference, ValueRef};
+use crate::nodes::{Node, Reference};
 
 #[cfg(feature = "borsh")]
 mod serialisation;
@@ -35,8 +35,6 @@ pub(crate) enum Item {
     Branch(OwnedRef),
     /// An Extension node whose key has given length in bits.
     Extension(NonZeroU16),
-    /// A Value node.
-    Value(CryptoHash),
 }
 
 /// For non-membership proofs, description of the condition at which the lookup
@@ -205,15 +203,6 @@ fn verify_impl(
 ) -> Option<()> {
     for item in proof {
         let node = match item {
-            Item::Value(child) if want.is_value => Node::Value {
-                value: ValueRef::new((), &want.hash),
-                child: NodeRef::new((), child),
-            },
-            Item::Value(child) => Node::Value {
-                value: ValueRef::new((), child),
-                child: NodeRef::new((), &want.hash),
-            },
-
             Item::Branch(child) => {
                 let us = Reference::from(&want);
                 let them = child.into();
@@ -281,8 +270,8 @@ impl Builder {
 
     /// Creates a new non-membership proof after lookup reached a Branch node.
     ///
-    /// If a Branch node has been found at the lookup key (rather than Value
-    /// node), this method allows creation of a non-membership proof.
+    /// If a Branch node has been found at the lookup key (rather than value
+    /// reference), this method allows creation of a non-membership proof.
     /// `children` specifies children of the encountered Branch node.
     pub fn reached_branch<T: From<NonMembership>, P, S>(
         self,
@@ -361,7 +350,12 @@ impl<'a, P, S> From<Reference<'a, P, S>> for OwnedRef {
 }
 
 impl<'a> From<&'a OwnedRef> for Reference<'a, (), ()> {
-    fn from(rf: &'a OwnedRef) -> Self { Self::new(rf.is_value, &rf.hash) }
+    fn from(rf: &'a OwnedRef) -> Self {
+        match rf.is_value {
+            false => crate::nodes::NodeRef::new((), &rf.hash).into(),
+            true => crate::nodes::ValueRef::new((), &rf.hash).into(),
+        }
+    }
 }
 
 #[test]
