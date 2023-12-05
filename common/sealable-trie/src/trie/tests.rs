@@ -85,6 +85,28 @@ fn test_prefix() {
     test(b"x", b"xy", "Lk8hhrdROehhinFrorqk9hRvRbwHx+9OYXn8jlqozCk=");
 }
 
+/// Tests inserting 256 subsequent keys and then trying to manipulate its
+/// parent.
+#[test]
+fn test_sealed_parent() {
+    let want_root = "rV4Guri3HSKkNvmODKQiKO1KCKGIMpyoTEzRj/VaC9E=";
+    let want_root = CryptoHash::from_base64(want_root).unwrap();
+
+    let mut trie = TestTrie::new(1000);
+
+    for byte in 0..=255 {
+        trie.set(&[0, byte], true);
+    }
+    assert_eq!(Err(super::Error::BadKeyPrefix), trie.try_set(&[0], true));
+    assert_eq!((&want_root, 256), (trie.hash(), trie.nodes_count()));
+
+    for byte in 0..=255 {
+        trie.seal(&[0, byte], true);
+    }
+    assert_eq!(Err(super::Error::Sealed), trie.try_set(&[0], true));
+    assert_eq!((&want_root, 1), (trie.hash(), trie.nodes_count()));
+}
+
 /// Creates a trie with sequential keys.  Returns `(trie, keys)` pair.
 ///
 /// If `small` is true constructs a small trie with just four sequential keys.
@@ -404,7 +426,8 @@ impl TestTrie {
     pub fn nodes_count(&self) -> usize { self.trie.alloc.count() }
 
     pub fn set(&mut self, key: &[u8], verbose: bool) {
-        self.try_set(key, verbose).unwrap()
+        self.try_set(key, verbose).unwrap();
+        self.check_all_reads();
     }
 
     fn try_set(
@@ -426,7 +449,6 @@ impl TestTrie {
         if verbose {
             self.trie.print();
         }
-        self.check_all_reads();
         res
     }
 
