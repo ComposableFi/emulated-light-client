@@ -16,7 +16,7 @@ use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use solana_trie::trie;
-use trie_ids::{PortChannelPK, TrieKey, Tag};
+use trie_ids::{PortChannelPK, Tag, TrieKey};
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
@@ -544,11 +544,11 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("signature for sending packet: {sig}");
 
-    // let trie_account = sol_rpc_client 
-	// 		.get_account_with_commitment(&trie, CommitmentConfig::processed())
-	// 		.unwrap()
-	// 		.value
-	// 		.unwrap();
+    // let trie_account = sol_rpc_client
+    // 		.get_account_with_commitment(&trie, CommitmentConfig::processed())
+    // 		.unwrap()
+    // 		.value
+    // 		.unwrap();
     // let trie = trie::AccountTrie::new(trie_account.data).unwrap();
 
     // let key =
