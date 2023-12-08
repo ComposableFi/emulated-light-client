@@ -4,9 +4,10 @@ use super::{ibc, ids};
 
 /// A key used for indexing entries in the provable storage.
 ///
-/// The key is built from IBC storage paths.  The first byte is discriminant
-/// determining the type of path and the rest are concatenated components
-/// encoded in binary.  The key format can be visualised as the following enum:
+/// The key is built from IBC storage paths.  The first byte is a tag (see
+/// [`Tag`]) determining the type of path and the rest are concatenated
+/// components encoded in binary.  The key format can be visualised as the
+/// following enum:
 ///
 /// ```ignore
 /// enum TrieKey {
@@ -40,31 +41,35 @@ impl TrieKey {
     ///
     /// The hash stored under the key is `hash(borsh((client_id.as_str(),
     /// client_state)))`.
+    #[inline]
     pub fn for_client_state(client: ids::ClientIdx) -> Self {
-        Self::new(Tag::ClientState, u32::from(client))
+        Self::new(Tag::ClientState, client)
     }
 
     /// Constructs a new key for a consensus state path for client with given
     /// counter and specified height.
     ///
     /// The hash stored under the key is `hash(borsh(consensus_state))`.
+    #[inline]
     pub fn for_consensus_state(
         client: ids::ClientIdx,
         height: ibc::Height,
     ) -> Self {
-        Self::new(Tag::ConsensusState, (u32::from(client), height))
+        Self::new(Tag::ConsensusState, (client, height))
     }
 
     /// Constructs a new key for a connection end path.
     ///
     /// The hash stored under the key is `hash(borsh(connection_end))`.
+    #[inline]
     pub fn for_connection(connection: ids::ConnectionIdx) -> Self {
-        Self::new(Tag::Connection, u32::from(connection))
+        Self::new(Tag::Connection, connection)
     }
 
     /// Constructs a new key for a channel end path.
     ///
     /// The hash stored under the key is `hash(borsh(channel_end))`.
+    #[inline]
     pub fn for_channel_end(port_channel: &ids::PortChannelPK) -> Self {
         Self::for_channel_path(Tag::ChannelEnd, port_channel)
     }
@@ -73,6 +78,7 @@ impl TrieKey {
     ///
     /// The hash stored under the key is built by `SequenceTriple::hash` method
     /// and directly encodes next send, receive and ack sequence numbers.
+    #[inline]
     pub fn for_next_sequence(port_channel: &ids::PortChannelPK) -> Self {
         Self::for_channel_path(Tag::NextSequence, port_channel)
     }
@@ -81,6 +87,7 @@ impl TrieKey {
     ///
     /// This is internal method used by other public-facing methods which use
     /// only (port, channel) tuple as the key component.
+    #[inline]
     fn for_channel_path(tag: Tag, port_channel: &ids::PortChannelPK) -> Self {
         Self::new(tag, port_channel)
     }
@@ -91,6 +98,7 @@ impl TrieKey {
     ///
     /// This is internal method used by other public-facing interfaces which use
     /// only (port, channel, sequence) tuple as the key component.
+    #[inline]
     fn try_for_sequence_path(
         tag: Tag,
         port_id: &ibc::PortId,
@@ -113,6 +121,7 @@ impl TrieKey {
     }
 
     /// Internal function to append bytes into the internal buffer.
+    #[inline]
     fn extend(&mut self, bytes: &[u8]) {
         let start = usize::from(self.len);
         let end = start + bytes.len();
@@ -182,7 +191,7 @@ pub enum Tag {
     NextSequence = 4,
     Commitment = 5,
     Receipt = 6,
-    Ack = 8,
+    Ack = 7,
 }
 
 impl From<Tag> for u8 {
@@ -197,42 +206,131 @@ pub trait AsComponent {
     fn append_into(&self, dest: &mut TrieKey);
 }
 
-impl AsComponent for ids::PortChannelPK {
+impl AsComponent for ids::ClientIdx {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
-        self.port_key.as_bytes().append_into(dest);
-        u32::from(self.channel_idx).append_into(dest);
+        u32::from(*self).append_into(dest)
+    }
+}
+
+impl AsComponent for ids::ConnectionIdx {
+    #[inline]
+    fn append_into(&self, dest: &mut TrieKey) {
+        u32::from(*self).append_into(dest)
+    }
+}
+
+impl AsComponent for ids::ChannelIdx {
+    #[inline]
+    fn append_into(&self, dest: &mut TrieKey) {
+        u32::from(*self).append_into(dest)
+    }
+}
+
+impl AsComponent for ids::PortKey {
+    #[inline]
+    fn append_into(&self, dest: &mut TrieKey) {
+        self.as_bytes().append_into(dest)
+    }
+}
+
+impl AsComponent for ids::PortChannelPK {
+    #[inline]
+    fn append_into(&self, dest: &mut TrieKey) {
+        self.port_key.append_into(dest);
+        self.channel_idx.append_into(dest);
     }
 }
 
 impl AsComponent for ibc::Height {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
         (self.revision_number(), self.revision_height()).append_into(dest);
     }
 }
 
 impl AsComponent for u32 {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
         self.to_be_bytes().append_into(dest)
     }
 }
 
 impl AsComponent for u64 {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
         self.to_be_bytes().append_into(dest)
     }
 }
 
 impl<const N: usize> AsComponent for [u8; N] {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) { dest.extend(self); }
 }
 
 impl<T: AsComponent> AsComponent for &T {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) { (*self).append_into(dest) }
 }
 
 impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
+    #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
         self.0.append_into(dest);
         self.1.append_into(dest);
     }
+}
+
+#[test]
+fn test_encoding() {
+    use std::str::FromStr;
+
+    macro_rules! check {
+        ($want:literal, $got:expr) => {
+            assert_eq!(&hex_literal::hex!($want)[..], &$got[..]);
+        };
+        ($want:literal, from $path:expr) => {
+            check!($want, TrieKey::try_from(&$path).unwrap());
+        };
+    }
+
+    let client = ids::ClientIdx::try_from(ibc::ClientId::from_str("foo-bar-1").unwrap()).unwrap();
+    let height = ibc::Height::new(2, 3).unwrap();
+    let connection = ids::ConnectionIdx::try_from(ibc::ConnectionId::new(4)).unwrap();
+    let port_id = ibc::PortId::transfer();
+    let channel_id = ibc::ChannelId::new(5);
+    let port_channel = ids::PortChannelPK::try_from(&port_id, &channel_id).unwrap();
+    let sequence = ibc::Sequence::from(6);
+
+    check!("00 00000001", TrieKey::for_client_state(client));
+    check!("01 00000001 0000000000000002 0000000000000003",
+           TrieKey::for_consensus_state(client, height));
+    check!("02 00000004", TrieKey::for_connection(connection));
+    check!("03 b6b6a7b1f7abffffff 00000005",
+           TrieKey::for_channel_end(&port_channel));
+    check!("04 b6b6a7b1f7abffffff 00000005",
+           TrieKey::for_next_sequence(&port_channel));
+
+    check!("05 b6b6a7b1f7abffffff 00000005 0000000000000006",
+           from ibc::path::CommitmentPath {
+               port_id: port_id.clone(),
+               channel_id: channel_id.clone(),
+               sequence,
+           });
+    check!("06 b6b6a7b1f7abffffff 00000005 0000000000000006",
+           from ibc::path::ReceiptPath {
+               port_id: port_id.clone(),
+               channel_id: channel_id.clone(),
+               sequence,
+           });
+    check!("07 b6b6a7b1f7abffffff 00000005 0000000000000006",
+           from ibc::path::AckPath {
+               port_id: port_id.clone(),
+               channel_id: channel_id.clone(),
+               sequence,
+           });
+
+    check!("01 00000001", TrieKey::new(Tag::ConsensusState, client));
+    check!("03 b6b6a7b1f7abffffff",
+           TrieKey::new(Tag::ChannelEnd, ids::PortKey::try_from(&port_id).unwrap()));
 }
