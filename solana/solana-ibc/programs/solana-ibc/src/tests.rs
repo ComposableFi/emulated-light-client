@@ -15,6 +15,8 @@ use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
+use solana_trie::trie;
+use trie_ids::{PortChannelPK, TrieKey, Tag};
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
@@ -541,6 +543,20 @@ fn anchor_test_deliver() -> Result<()> {
         })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
 
     println!("signature for sending packet: {sig}");
+
+    // let trie_account = sol_rpc_client 
+	// 		.get_account_with_commitment(&trie, CommitmentConfig::processed())
+	// 		.unwrap()
+	// 		.value
+	// 		.unwrap();
+    // let trie = trie::AccountTrie::new(trie_account.data).unwrap();
+
+    // let key =
+    // TrieKey::new(Tag::Commitment, PortChannelPK::try_from(port_id, channel_id_on_a).unwrap());
+
+    // let commitments: Vec<_> = trie.get_subtrie(&key).unwrap().iter().map(|c| c.hash.clone()).collect();
+
+    // println!("These are commitments {:?}", commitments);
 
     Ok(())
 }

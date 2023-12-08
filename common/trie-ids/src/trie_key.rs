@@ -105,7 +105,7 @@ impl TrieKey {
     ///
     /// For keys consisting of a multiple components, a tuple component can be
     /// used.
-    fn new(tag: Tag, component: impl AsComponent) -> Self {
+    pub fn new(tag: Tag, component: impl AsComponent) -> Self {
         let mut key = TrieKey { bytes: [0; 22], len: 1 };
         key.bytes[0] = tag.into();
         component.append_into(&mut key);
@@ -174,7 +174,7 @@ impl TryFrom<&ibc::path::AckPath> for TrieKey {
 /// A discriminant used as the first byte of each trie key to create namespaces
 /// for different objects stored in the trie.
 #[repr(u8)]
-enum Tag {
+pub enum Tag {
     ClientState = 0,
     ConsensusState = 1,
     Connection = 2,
@@ -192,7 +192,7 @@ impl From<Tag> for u8 {
 /// Component of a [`TrieKey`].
 ///
 /// A `TrieKey` is constructed by concatenating a sequence of components.
-trait AsComponent {
+pub trait AsComponent {
     /// Appends the component into the trie key.
     fn append_into(&self, dest: &mut TrieKey);
 }
