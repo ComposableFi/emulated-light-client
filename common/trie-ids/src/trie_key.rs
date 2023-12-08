@@ -289,48 +289,63 @@ fn test_encoding() {
         ($want:literal, $got:expr) => {
             assert_eq!(&hex_literal::hex!($want)[..], &$got[..]);
         };
-        ($want:literal, from $path:expr) => {
+        ($want:literal,from $path:expr) => {
             check!($want, TrieKey::try_from(&$path).unwrap());
         };
     }
 
-    let client = ids::ClientIdx::try_from(ibc::ClientId::from_str("foo-bar-1").unwrap()).unwrap();
+    let client =
+        ids::ClientIdx::try_from(ibc::ClientId::from_str("foo-bar-1").unwrap())
+            .unwrap();
     let height = ibc::Height::new(2, 3).unwrap();
-    let connection = ids::ConnectionIdx::try_from(ibc::ConnectionId::new(4)).unwrap();
+    let connection =
+        ids::ConnectionIdx::try_from(ibc::ConnectionId::new(4)).unwrap();
     let port_id = ibc::PortId::transfer();
     let channel_id = ibc::ChannelId::new(5);
-    let port_channel = ids::PortChannelPK::try_from(&port_id, &channel_id).unwrap();
+    let port_channel =
+        ids::PortChannelPK::try_from(&port_id, &channel_id).unwrap();
     let sequence = ibc::Sequence::from(6);
 
     check!("00 00000001", TrieKey::for_client_state(client));
-    check!("01 00000001 0000000000000002 0000000000000003",
-           TrieKey::for_consensus_state(client, height));
+    check!(
+        "01 00000001 0000000000000002 0000000000000003",
+        TrieKey::for_consensus_state(client, height)
+    );
     check!("02 00000004", TrieKey::for_connection(connection));
-    check!("03 b6b6a7b1f7abffffff 00000005",
-           TrieKey::for_channel_end(&port_channel));
-    check!("04 b6b6a7b1f7abffffff 00000005",
-           TrieKey::for_next_sequence(&port_channel));
+    check!(
+        "03 b6b6a7b1f7abffffff 00000005",
+        TrieKey::for_channel_end(&port_channel)
+    );
+    check!(
+        "04 b6b6a7b1f7abffffff 00000005",
+        TrieKey::for_next_sequence(&port_channel)
+    );
 
     check!("05 b6b6a7b1f7abffffff 00000005 0000000000000006",
-           from ibc::path::CommitmentPath {
-               port_id: port_id.clone(),
-               channel_id: channel_id.clone(),
-               sequence,
-           });
+    from ibc::path::CommitmentPath {
+        port_id: port_id.clone(),
+        channel_id: channel_id.clone(),
+        sequence,
+    });
     check!("06 b6b6a7b1f7abffffff 00000005 0000000000000006",
-           from ibc::path::ReceiptPath {
-               port_id: port_id.clone(),
-               channel_id: channel_id.clone(),
-               sequence,
-           });
+    from ibc::path::ReceiptPath {
+        port_id: port_id.clone(),
+        channel_id: channel_id.clone(),
+        sequence,
+    });
     check!("07 b6b6a7b1f7abffffff 00000005 0000000000000006",
-           from ibc::path::AckPath {
-               port_id: port_id.clone(),
-               channel_id: channel_id.clone(),
-               sequence,
-           });
+    from ibc::path::AckPath {
+        port_id: port_id.clone(),
+        channel_id: channel_id.clone(),
+        sequence,
+    });
 
     check!("01 00000001", TrieKey::new(Tag::ConsensusState, client));
-    check!("03 b6b6a7b1f7abffffff",
-           TrieKey::new(Tag::ChannelEnd, ids::PortKey::try_from(&port_id).unwrap()));
+    check!(
+        "03 b6b6a7b1f7abffffff",
+        TrieKey::new(
+            Tag::ChannelEnd,
+            ids::PortKey::try_from(&port_id).unwrap()
+        )
+    );
 }
