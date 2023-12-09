@@ -34,7 +34,7 @@ jobs:
         id: cache-cargo-deny
         uses: actions/cache@v3
         with:
-          path: .cargo/bin/cargo-deny
+          path: ~/.cargo/bin/cargo-deny
           key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-cargo-deny
 
       - name: Install cargo-deny
@@ -55,11 +55,11 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            .avm
-            .cargo/bin/avm
-            .cargo/bin/anchor
-            .config/solana/
-            .local/share/solana/
+            ~/.avm
+            ~/.cargo/bin/avm
+            ~/.cargo/bin/anchor
+            ~/.config/solana/
+            ~/.local/share/solana/
           key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-anchor
 
       - name: Install Solana
