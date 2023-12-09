@@ -77,7 +77,9 @@ pub mod solana_ibc {
     /// will be added at a later time.
     pub fn sign_block(
         ctx: Context<ChainWithVerifier>,
-        signature: [u8; ed25519::Signature::LENGTH],
+        // Note: 64 = ed25519::Signature::LENGTH.  `anchor build` doesn’t like
+        // non-literals in array sizes.  Yeah, it’s dumb.
+        signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
