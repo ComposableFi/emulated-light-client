@@ -50,6 +50,23 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -D warnings
 
+      - name: Miri tests
+        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor
+
+  anchor-build:
+    name: Anchor Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        id: install-rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt
+
       - name: Cache Anchor
         id: cache-anchor
         uses: actions/cache@v3
@@ -90,7 +107,9 @@ jobs:
     name: Build SBF
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -111,7 +130,9 @@ jobs:
     name: Rust tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
@@ -126,17 +147,3 @@ jobs:
 
       - name: Run tests (all features)
         run: cargo test --all-features
-
-  nightly:
-    name: Rust Miri tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          components: miri
-
-      - name: Run tests with Miri
-        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor
