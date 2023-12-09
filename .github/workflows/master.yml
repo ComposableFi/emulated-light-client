@@ -25,7 +25,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          components: clippy rustfmt
+          components: clippy rustfmt miri
 
       - name: Check formatting
         run: cargo fmt --all --check
