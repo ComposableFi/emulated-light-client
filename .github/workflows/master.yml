@@ -30,7 +30,15 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
 
+      - name: Cache cargo-deny
+        id: cache-cargo-deny
+        uses: actions/cache@v3
+        with:
+          path: .cargo/bin/cargo-deny
+          key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-cargo-deny
+
       - name: Install cargo-deny
+        if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-deny
 
       - name: Check bans
@@ -43,7 +51,7 @@ jobs:
           args: --all-features -- -D warnings
 
       - name: Cache Anchor
-        id: cache
+        id: cache-anchor
         uses: actions/cache@v3
         with:
           path: |
@@ -52,22 +60,20 @@ jobs:
             .cargo/bin/anchor
             .config/solana/
             .local/share/solana/
-          key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-$SOLANA_VERSION-$ANCHOR_VERSION-tools
+          key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-anchor
 
       - name: Install Solana
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
         run: |
           set -eux
           curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cp solana/solana-ibc/keypair.json ~/.config/solana/id.json
 
       - name: Install Solana PATH
-        if: steps.cache.outputs.cache-hit == 'true'
         run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
       - name: Install Anchor
-        if: steps.cache.outputs.cache-hit != 'true'
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
         run: |
           set -eux
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
