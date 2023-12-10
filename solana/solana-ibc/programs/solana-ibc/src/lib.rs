@@ -28,7 +28,7 @@ pub mod events;
 mod execution_context;
 mod host;
 mod ibc;
-#[cfg(feature = "mocks")]
+#[cfg_attr(not(feature = "mocks"), path = "no-mocks.rs")]
 mod mocks;
 pub mod storage;
 #[cfg(test)]
@@ -141,27 +141,17 @@ pub mod solana_ibc {
 
     /// Called to set up escrow and mint accounts for given channel and denom.
     /// Panics if called without `mocks` feature.
-    #[allow(unused_variables)]
     pub fn mock_init_escrow<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         base_denom: String,
     ) -> Result<()> {
-        #[cfg(feature = "mocks")]
-        return mocks::mock_init_escrow(
-            ctx,
-            port_id,
-            channel_id_on_b,
-            base_denom,
-        );
-        #[cfg(not(feature = "mocks"))]
-        panic!("This method is only for mocks");
+        mocks::mock_init_escrow(ctx, port_id, channel_id_on_b, base_denom)
     }
 
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
-    #[allow(unused_variables)]
     pub fn mock_deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
         port_id: ibc::PortId,
@@ -171,8 +161,7 @@ pub mod solana_ibc {
         client_id: ibc::ClientId,
         counterparty_client_id: ibc::ClientId,
     ) -> Result<()> {
-        #[cfg(feature = "mocks")]
-        return mocks::mock_deliver(
+        mocks::mock_deliver(
             ctx,
             port_id,
             channel_id_on_b,
@@ -180,9 +169,7 @@ pub mod solana_ibc {
             commitment_prefix,
             client_id,
             counterparty_client_id,
-        );
-        #[cfg(not(feature = "mocks"))]
-        panic!("This method is only for mocks");
+        )
     }
 
     /// Should be called after setting up client, connection and channels.

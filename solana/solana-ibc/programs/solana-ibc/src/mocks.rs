@@ -1,5 +1,3 @@
-extern crate alloc;
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
 
@@ -9,7 +7,7 @@ use crate::{
 };
 
 
-pub fn mock_init_escrow<'a, 'info>(
+pub(crate) fn mock_init_escrow<'a, 'info>(
     _ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
     _port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
@@ -18,7 +16,7 @@ pub fn mock_init_escrow<'a, 'info>(
     Ok(())
 }
 
-pub fn mock_deliver<'a, 'info>(
+pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
