@@ -8,10 +8,16 @@ edition = "2021"
 borsh.workspace = true
 bytemuck.workspace = true
 derive_more.workspace = true
+ibc-core-commitment-types.workspace = true
+ibc-proto.workspace = true
+prost = { workspace = true, features = ["prost-derive"] }
 strum.workspace = true
 
 lib = { workspace = true, features = ["borsh"] }
 stdx.workspace = true
+
+[build-dependencies]
+prost-build.workspace = true
 
 [dev-dependencies]
 lib = { workspace = true, features = ["test_utils"] }

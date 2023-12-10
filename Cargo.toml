@@ -28,14 +28,18 @@ anchor-spl = "0.29.0"
 ascii = "1.1.0"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
+prost = { version = "0.12.3", default-features = false }
+prost-build = { version = "0.12.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
 hex-literal = "0.4.1"
 ibc = { version = "0.48.1", default-features = false, features = ["borsh", "serde"] }
 ibc-core-channel-types = { version = "0.48.1", default-features = false }
 ibc-core-client-types = { version = "0.48.1", default-features = false }
+ibc-core-commitment-types = { version = "0.48.1", default-features = false }
 ibc-core-connection-types = { version = "0.48.1", default-features = false }
 ibc-core-host-types = { version = "0.48.1", default-features = false }
+ibc-proto = { version = "0.39.1", default-features = false }
 ibc-testkit = { version = "0.48.1", default-features = false }
 insta = { version = "1.34.0" }
 pretty_assertions = "1.4.0"

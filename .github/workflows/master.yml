@@ -27,6 +27,11 @@ jobs:
           toolchain: nightly
           components: clippy rustfmt miri
 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Check formatting
         run: cargo fmt --all --check
 
@@ -66,6 +71,11 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Anchor
         id: cache-anchor
@@ -115,6 +125,11 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests (default features)
         run: cargo test
