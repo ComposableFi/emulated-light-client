@@ -139,6 +139,26 @@ pub mod solana_ibc {
             .map_err(move |err| error!((&err)))
     }
 
+    /// Called to set up escrow and mint accounts for given channel and denom.
+    /// Panics if called without `mocks` feature.
+    #[allow(unused_variables)]
+    pub fn mock_init_escrow<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
+        port_id: ibc::PortId,
+        channel_id_on_b: ibc::ChannelId,
+        base_denom: String,
+    ) -> Result<()> {
+        #[cfg(feature = "mocks")]
+        return mocks::mock_init_escrow(
+            ctx,
+            port_id,
+            channel_id_on_b,
+            base_denom,
+        );
+        #[cfg(not(feature = "mocks"))]
+        panic!("This method is only for mocks");
+    }
+
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
     #[allow(unused_variables)]
@@ -152,7 +172,7 @@ pub mod solana_ibc {
         counterparty_client_id: ibc::ClientId,
     ) -> Result<()> {
         #[cfg(feature = "mocks")]
-        return mocks::mock_deliver_impl(
+        return mocks::mock_deliver(
             ctx,
             port_id,
             channel_id_on_b,
@@ -289,10 +309,34 @@ pub struct Deliver<'info> {
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
-    #[account(mut, seeds = [CHAIN_SEED],
-              bump)]
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
 
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+pub struct MockInitEscrow<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// CHECK:
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
+              bump, space = 100)]
+    mint_authority: UncheckedAccount<'info>,
+
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+              bump, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Account<'info, Mint>,
+
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Box<Account<'info, TokenAccount>>,
+
+    associated_token_program: Program<'info, AssociatedToken>,
+    token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
 }
 
@@ -316,25 +360,25 @@ pub struct MockDeliver<'info> {
     #[account(mut , seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+
     /// The below accounts are being created for testing purposes only.  In
     /// real, we would run conditionally create an escrow account when the
     /// channel is created.  And we could have another method that can create
     /// a mint given the denom.
-    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
-              bump, space = 100)]
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: UncheckedAccount<'info>,
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+    #[account(mut, seeds = [base_denom.as_bytes()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
-    #[account(init_if_needed, payer = sender, seeds = [
+    #[account(mut, seeds = [
         port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
-    #[account(init_if_needed, payer = sender,
-              associated_token::mint = token_mint,
-              associated_token::authority = sender)]
-    sender_token_account: Box<Account<'info, TokenAccount>>,
+
     #[account(init_if_needed, payer = sender,
               associated_token::mint = token_mint,
               associated_token::authority = receiver)]

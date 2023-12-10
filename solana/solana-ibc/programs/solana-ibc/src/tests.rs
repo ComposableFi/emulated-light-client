@@ -271,19 +271,59 @@ fn anchor_test_deliver() -> Result<()> {
     println!("  Signature: {sig}");
 
     /*
-     * Setup mock connection and channel
-     *
-     * Steps before we proceed
-     *  - Create PDAs for the above keys,
-     *  - Create the token mint
-     *  - Get token account for receiver and sender
+     * Setup mock escrow.
      */
 
-    println!("\nSetting up mock connection and channel");
+    println!("\nCreating mint and escrow accounts");
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+    let (escrow_account_key, _bump) =
+        Pubkey::find_program_address(&seeds, &crate::ID);
+    let (token_mint_key, _bump) =
+        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+    let (mint_authority_key, _bump) =
+        Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::MockInitEscrow {
+            sender: authority.pubkey(),
+            mint_authority: mint_authority_key,
+            escrow_account: escrow_account_key,
+            token_mint: token_mint_key,
+            system_program: system_program::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            token_program: anchor_spl::token::ID,
+        })
+        .args(instruction::MockInitEscrow {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
+            base_denom: BASE_DENOM.to_string(),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
+     * Setup mock connection and channel
+     *
+     * Steps before we proceed
+     *  - Create PDAs for the above keys,
+     *  - Get token account for receiver and sender
+     */
+
+    println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
     let seeds =
@@ -306,11 +346,11 @@ fn anchor_test_deliver() -> Result<()> {
         ))
         .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
-            sender_token_account: sender_token_address,
             receiver: receiver.pubkey(),
             receiver_token_account: receiver_token_address,
             storage,
             trie,
+            chain,
             mint_authority: mint_authority_key,
             escrow_account: escrow_account_key,
             token_mint: token_mint_key,
