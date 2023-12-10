@@ -42,3 +42,5 @@ anchor-client.workspace = true
 anyhow.workspace = true
 ibc-testkit.workspace = true
 insta.workspace = true
+
+lib = { workspace = true, features = ["test_utils"] }
