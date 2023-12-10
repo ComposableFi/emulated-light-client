@@ -1,6 +1,3 @@
-use alloc::collections::BTreeMap;
-
-use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::msg;
 use lib::hash::CryptoHash;
 
@@ -250,12 +247,16 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         msg!("store_channel({}, {:?})", path, channel_end);
         let port_channel = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         let trie_key = trie_ids::TrieKey::for_channel_end(&port_channel);
-        self.borrow_mut().store_serialised_proof(
-            |private| &mut private.channel_ends,
-            port_channel,
-            &trie_key,
-            &channel_end,
-        )
+        let mut store = self.borrow_mut();
+        let digest = store
+            .private
+            .port_channel
+            .entry(port_channel)
+            .or_insert_with(Default::default)
+            .set_channel_end(&channel_end)
+            .map_err(error)?;
+        store.provable.set(&trie_key, &digest).map_err(error)?;
+        Ok(())
     }
 
     fn store_next_sequence_send(
@@ -345,35 +346,16 @@ impl storage::IbcStorage<'_, '_> {
         let trie_key = trie_ids::TrieKey::for_next_sequence(&key);
         let mut store = self.borrow_mut();
         let hash = {
-            let triple = store.private.next_sequence.entry(key).or_default();
+            let triple = &mut store
+                .private
+                .port_channel
+                .entry(key)
+                .or_insert_with(Default::default)
+                .next_sequence;
             triple.set(index, seq);
             triple.to_hash()
         };
         store.provable.set(&trie_key, &hash).map_err(error)
-    }
-}
-
-impl storage::IbcStorageInner<'_, '_> {
-    /// Serialises `value` and stores it in private storage along with its
-    /// commitment in provable storage.
-    ///
-    /// Serialises `value` and a) stores hash of the serialised object (i.e. its
-    /// commitment) in the provable storage under key `trie_key` and b) stores
-    /// the serialised object itself in map returned my `get_map` under the key
-    /// `key`.
-    fn store_serialised_proof<K: Ord, V: borsh::BorshSerialize>(
-        &mut self,
-        get_map: impl FnOnce(
-            &mut storage::PrivateStorage,
-        ) -> &mut BTreeMap<K, storage::Serialised<V>>,
-        key: K,
-        trie_key: &trie_ids::TrieKey,
-        value: &V,
-    ) -> Result {
-        let serialised = storage::Serialised::new(value)?;
-        self.provable.set(trie_key, &serialised.digest()).map_err(error)?;
-        get_map(self.private).insert(key, serialised);
-        Ok(())
     }
 }
 

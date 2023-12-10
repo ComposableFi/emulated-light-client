@@ -14,6 +14,10 @@ use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 
 /// A triple of send, receive and acknowledge sequences.
+///
+/// This is effectively a triple of `Option<Sequence>` values.  They are kept
+/// together so that they can be encoded in a single entry in the trie rather
+/// than having three separate locations for each of the values.
 #[derive(
     Clone,
     Debug,
@@ -186,6 +190,54 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
 }
 
 
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// Information about a specific `(port, channel)`.
+pub struct PortChannelStore {
+    /// Serialised channel end or empty if not set.
+    channel_end: Serialised<ibc::ChannelEnd>,
+
+    /// Next send, receive and ack sequence for this `(port, channel)`.
+    ///
+    /// We’re storing all three sequences in a single object to reduce amount of
+    /// different maps we need to maintain.  This saves us on the amount of trie
+    /// nodes we need to maintain.
+    pub next_sequence: SequenceTriple,
+}
+
+impl PortChannelStore {
+    /// Returns channel end information or `None` if the object hasn’t been
+    /// stored.
+    pub fn channel_end(
+        &self,
+    ) -> Result<Option<ibc::ChannelEnd>, ibc::ClientError> {
+        if self.channel_end.is_empty() {
+            Ok(None)
+        } else {
+            Some(self.channel_end.get()).transpose()
+        }
+    }
+
+    /// Sets channel end information for this channel; returns hash of the
+    /// serialised value.
+    pub fn set_channel_end(
+        &mut self,
+        end: &ibc::ChannelEnd,
+    ) -> Result<CryptoHash, ibc::ClientError> {
+        self.channel_end.set(end)?;
+        Ok(self.channel_end.digest())
+    }
+}
+
+impl Default for PortChannelStore {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            channel_end: Serialised::empty(),
+            next_sequence: SequenceTriple::default(),
+        }
+    }
+}
+
 #[account]
 #[derive(Debug)]
 /// The private IBC storage, i.e. data which doesn’t require proofs.
@@ -202,16 +254,10 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    pub channel_ends:
-        BTreeMap<trie_ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
-    pub channel_counter: u32,
+    /// Information about a each `(part, channel)` endpoint.
+    pub port_channel: BTreeMap<trie_ids::PortChannelPK, PortChannelStore>,
 
-    /// Next send, receive and ack sequence for given (port, channel).
-    ///
-    /// We’re storing all three sequences in a single object to reduce amount of
-    /// different maps we need to maintain.  This saves us on the amount of
-    /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<trie_ids::PortChannelPK, SequenceTriple>,
+    pub channel_counter: u32,
 }
 
 impl PrivateStorage {
@@ -381,6 +427,8 @@ pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
+
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
 
     pub fn transmute<U>(self) -> Serialised<U> {
         Serialised(self.0, core::marker::PhantomData)

@@ -120,13 +120,13 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         let key = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         self.borrow()
             .private
-            .channel_ends
+            .port_channel
             .get(&key)
+            .and_then(|store| store.channel_end().transpose())
             .ok_or_else(|| ibc::ChannelError::ChannelNotFound {
                 port_id: path.0.clone(),
                 channel_id: path.1.clone(),
             })?
-            .get()
             .map_err(Into::into)
     }
 
@@ -327,9 +327,9 @@ impl IbcStorage<'_, '_> {
         ) -> Option<ibc::Sequence> {
             this.borrow()
                 .private
-                .next_sequence
+                .port_channel
                 .get(port_channel)
-                .and_then(|triple| triple.get(index))
+                .and_then(|store| store.next_sequence.get(index))
         }
 
         let path = path.into();
