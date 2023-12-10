@@ -47,7 +47,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
                 client_id: path.client_id.clone(),
                 height,
             })
-            .and_then(|data| data.get())
+            .and_then(|data| data.state())
             .map_err(ibc::ContextError::from)
     }
 
@@ -274,9 +274,10 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
         store
             .private
             .client(client_id)?
-            .processed_times
+            .consensus_states
             .get(height)
-            .map(|ts| ibc::Timestamp::from_nanoseconds(*ts).unwrap())
+            .and_then(|state| state.processed_time())
+            .and_then(|ts| ibc::Timestamp::from_nanoseconds(ts.get()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
@@ -296,9 +297,10 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
         self.borrow()
             .private
             .client(client_id)?
-            .processed_heights
+            .consensus_states
             .get(height)
-            .copied()
+            .and_then(|state| state.processed_height())
+            .and_then(|height| ibc::Height::new(0, height.into()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(

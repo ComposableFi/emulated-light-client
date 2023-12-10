@@ -1,6 +1,7 @@
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use core::cell::{RefCell, RefMut};
+use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
 use borsh::maybestd::io;
@@ -11,8 +12,6 @@ type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
-
-pub(crate) type SolanaTimestamp = u64;
 
 /// A triple of send, receive and acknowledge sequences.
 #[derive(
@@ -71,11 +70,8 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientStore {
     pub client_id: ibc::ClientId,
-
     pub client_state: Serialised<AnyClientState>,
-    pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
-    pub processed_times: BTreeMap<ibc::Height, SolanaTimestamp>,
-    pub processed_heights: BTreeMap<ibc::Height, ibc::Height>,
+    pub consensus_states: BTreeMap<ibc::Height, ClientConsensusState>,
 }
 
 impl ClientStore {
@@ -84,9 +80,81 @@ impl ClientStore {
             client_id,
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
-            processed_times: Default::default(),
-            processed_heights: Default::default(),
         }
+    }
+}
+
+/// Per-client per-height private storage.
+///
+/// To reduce size of this type we’re using a single [`Serialised`] object where
+/// we’re storing processed time, processed height and the consensus state.
+/// This way, this type ends up being just a single vector with remaining
+/// information stored with the vector’s backing storage.
+///
+/// We’re essentially mimicking:
+///
+/// ```ignore
+/// struct Inner {
+///     processed_time: NonZeroU64,
+///     processed_height: HostHeight,
+///     serialised_state: [u8],
+/// }
+/// struct ClientConsensusState(Box<Inner>);
+/// ```
+///
+/// To make it possible to quickly access individual ‘fields’ getter methods are
+/// provided.
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct ClientConsensusState(
+    Serialised<(NonZeroU64, blockchain::HostHeight, AnyConsensusState)>,
+);
+
+impl ClientConsensusState {
+    /// Constructs new object with given processed time and height and consensus
+    /// state.
+    ///
+    /// Returns the constructed object alongside hash of the serialised
+    /// consensus state.
+    pub fn new(
+        processed_time: NonZeroU64,
+        processed_height: blockchain::HostHeight,
+        state: &AnyConsensusState,
+    ) -> Result<Self, ibc::ClientError> {
+        Serialised::new(&(processed_time, processed_height, state))
+            .map(Serialised::transmute)
+            .map(Self)
+    }
+
+    /// Returns processed time for this client consensus state.
+    pub fn processed_time(&self) -> Option<NonZeroU64> {
+        self.0
+            .as_bytes()
+            .get(..8)
+            .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
+            .and_then(|bytes| NonZeroU64::new(u64::from_le_bytes(bytes)))
+    }
+
+    /// Returns processed height for this client consensus state.
+    pub fn processed_height(&self) -> Option<blockchain::HostHeight> {
+        self.0
+            .as_bytes()
+            .get(8..16)
+            .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
+            .map(|bytes| u64::from_le_bytes(bytes).into())
+    }
+
+    /// Returns the consensus state.
+    pub fn state(&self) -> Result<AnyConsensusState, ibc::ClientError> {
+        let bytes = self.0.as_bytes().get(16..).unwrap_or(&[]);
+        AnyConsensusState::try_from_slice(bytes).map_err(make_err)
+    }
+
+    /// Returns digest of the consensus state.
+    pub fn digest(&self) -> Result<CryptoHash, ibc::ClientError> {
+        let err = || ibc::ClientError::ClientSpecific {
+            description: "Internal: Bad AnyConsensusState".into(),
+        };
+        self.0.as_bytes().get(16..).map(CryptoHash::digest).ok_or_else(err)
     }
 }
 
@@ -308,26 +376,26 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// prefix which means that the serialised representation of the held object
 /// must less than 64 KiB.  Solana’s heap is only half that so this limit isn’t
 /// an issue.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
 
+    pub fn transmute<U>(self) -> Serialised<U> {
+        Serialised(self.0, core::marker::PhantomData)
+    }
+
     pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
 
     pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
-
-    fn make_err(err: io::Error) -> ibc::ClientError {
-        ibc::ClientError::ClientSpecific { description: err.to_string() }
-    }
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {
     pub fn new(value: &T) -> Result<Self, ibc::ClientError> {
         borsh::to_vec(value)
             .map(|data| Self(data, core::marker::PhantomData))
-            .map_err(Self::make_err)
+            .map_err(make_err)
     }
 
     pub fn set(&mut self, value: &T) -> Result<&mut Self, ibc::ClientError> {
@@ -338,7 +406,7 @@ impl<T: borsh::BorshSerialize> Serialised<T> {
 
 impl<T: borsh::BorshDeserialize> Serialised<T> {
     pub fn get(&self) -> Result<T, ibc::ClientError> {
-        T::try_from_slice(self.0.as_slice()).map_err(Self::make_err)
+        T::try_from_slice(self.0.as_slice()).map_err(make_err)
     }
 }
 
@@ -358,4 +426,8 @@ impl<T> borsh::BorshDeserialize for Serialised<T> {
         rd.read_exact(data.as_mut_slice())?;
         Ok(Self(data, core::marker::PhantomData))
     }
+}
+
+fn make_err(err: io::Error) -> ibc::ClientError {
+    ibc::ClientError::ClientSpecific { description: err.to_string() }
 }

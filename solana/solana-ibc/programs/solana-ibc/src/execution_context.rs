@@ -43,11 +43,20 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         msg!("store_consensus_state({}, {:?})", path, state);
         let height =
             ibc::Height::new(path.revision_number, path.revision_height)?;
+
         let mut store = self.borrow_mut();
+        let processed_time = store.host_head.timestamp;
+        let processed_height = store.host_head.height;
+
         let mut client = store.private.client_mut(&path.client_id, false)?;
-        let serialised = storage::Serialised::new(&state)?;
-        let hash = serialised.digest();
-        client.consensus_states.insert(height, serialised);
+        let state = storage::ClientConsensusState::new(
+            processed_time,
+            processed_height,
+            &state,
+        )?;
+        let hash = state.digest()?;
+        client.consensus_states.insert(height, state);
+
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
         store.provable.set(&trie_key, &hash).map_err(error)?;
@@ -69,58 +78,54 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-
+    /// Does nothing in the current implementation.
+    ///
+    /// Instead, the update height is deleted when consensus state at given
+    /// height is deleted.
     fn delete_update_height(
         &mut self,
-        client_id: ibc::ClientId,
-        height: ibc::Height,
+        _client_id: ibc::ClientId,
+        _height: ibc::Height,
     ) -> Result {
-        self.borrow_mut()
-            .private
-            .client_mut(&client_id, false)?
-            .processed_heights
-            .remove(&height);
         Ok(())
     }
 
+    /// Does nothing in the current implementation.
+    ///
+    /// Instead, the update time is deleted when consensus state at given
+    /// height is deleted.
     fn delete_update_time(
         &mut self,
-        client_id: ibc::ClientId,
-        height: ibc::Height,
+        _client_id: ibc::ClientId,
+        _height: ibc::Height,
     ) -> Result {
-        self.borrow_mut()
-            .private
-            .client_mut(&client_id, false)?
-            .processed_times
-            .remove(&height);
         Ok(())
     }
 
+    /// Does nothing in the current implementation.
+    ///
+    /// Instead, the update time is set when storing consensus state to the host
+    /// time at the moment [`Self::store_consensus_state`] method is called.
     fn store_update_time(
         &mut self,
-        client_id: ibc::ClientId,
-        height: ibc::Height,
-        timestamp: ibc::Timestamp,
+        _client_id: ibc::ClientId,
+        _height: ibc::Height,
+        _host_timestamp: ibc::Timestamp,
     ) -> Result {
-        self.borrow_mut()
-            .private
-            .client_mut(&client_id, false)?
-            .processed_times
-            .insert(height, timestamp.nanoseconds());
         Ok(())
     }
 
+    /// Does nothing in the current implementation.
+    ///
+    /// Instead, the update height is set when storing consensus state to the
+    /// host height at the moment [`Self::store_consensus_state`] method is
+    /// called.
     fn store_update_height(
         &mut self,
-        client_id: ibc::ClientId,
-        height: ibc::Height,
-        host_height: ibc::Height,
+        _client_id: ibc::ClientId,
+        _height: ibc::Height,
+        _host_height: ibc::Height,
     ) -> Result {
-        self.borrow_mut()
-            .private
-            .client_mut(&client_id, false)?
-            .processed_heights
-            .insert(height, host_height);
         Ok(())
     }
 }
