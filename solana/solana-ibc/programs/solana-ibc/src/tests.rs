@@ -144,6 +144,7 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Chain {
             sender: authority.pubkey(),
+            storage,
             trie,
             chain,
             system_program: system_program::ID,
