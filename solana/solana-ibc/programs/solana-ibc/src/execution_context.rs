@@ -45,8 +45,10 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
             ibc::Height::new(path.revision_number, path.revision_height)?;
 
         let mut store = self.borrow_mut();
-        let processed_time = store.host_head.timestamp;
-        let processed_height = store.host_head.height;
+        let (processed_time, processed_height) = {
+            let head = store.chain.head()?;
+            (head.host_timestamp, head.block_height)
+        };
 
         let mut client = store.private.client_mut(&path.client_id, false)?;
         let state = storage::ClientConsensusState::new(

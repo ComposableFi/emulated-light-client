@@ -96,7 +96,7 @@ impl ClientStore {
 /// ```ignore
 /// struct Inner {
 ///     processed_time: NonZeroU64,
-///     processed_height: HostHeight,
+///     processed_height: BlockHeight,
 ///     serialised_state: [u8],
 /// }
 /// struct ClientConsensusState(Box<Inner>);
@@ -106,7 +106,7 @@ impl ClientStore {
 /// provided.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientConsensusState(
-    Serialised<(NonZeroU64, blockchain::HostHeight, AnyConsensusState)>,
+    Serialised<(NonZeroU64, blockchain::BlockHeight, AnyConsensusState)>,
 );
 
 impl ClientConsensusState {
@@ -117,7 +117,7 @@ impl ClientConsensusState {
     /// consensus state.
     pub fn new(
         processed_time: NonZeroU64,
-        processed_height: blockchain::HostHeight,
+        processed_height: blockchain::BlockHeight,
         state: &AnyConsensusState,
     ) -> Result<Self, ibc::ClientError> {
         Serialised::new(&(processed_time, processed_height, state))
@@ -135,7 +135,7 @@ impl ClientConsensusState {
     }
 
     /// Returns processed height for this client consensus state.
-    pub fn processed_height(&self) -> Option<blockchain::HostHeight> {
+    pub fn processed_height(&self) -> Option<blockchain::BlockHeight> {
         self.0
             .as_bytes()
             .get(8..16)
@@ -313,8 +313,8 @@ pub fn get_provable_from<'a, 'info>(
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
+    pub chain: &'a mut crate::chain::ChainData,
     pub accounts: &'a [AccountInfo<'b>],
-    pub host_head: crate::host::Head,
 }
 
 /// A reference-counted reference to the IBC storage.
