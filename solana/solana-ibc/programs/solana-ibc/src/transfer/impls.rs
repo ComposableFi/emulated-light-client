@@ -103,7 +103,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let (_token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (mint_authority_key, mint_authority_bump) =
+        let (mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -113,7 +113,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
 
         let authority = if matches!(from, AccountId::Escrow(_)) {
-            get_account_info_from_key(accounts, mint_authority_key)?
+            get_account_info_from_key(accounts, mint_auth_key)?
         } else {
             let sender_token_account =
                 TokenAccount::try_deserialize(&mut &sender.data.borrow()[..])
@@ -121,8 +121,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             get_account_info_from_key(accounts, sender_token_account.owner)?
         };
 
-        let bump_vector = mint_authority_bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -161,18 +160,16 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let (token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (mint_authority_key, mint_authority_bump) =
+        let (mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
         let receiver = get_account_info_from_key(accounts, receiver_id)?;
         let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
-        let mint_authority =
-            get_account_info_from_key(accounts, mint_authority_key)?;
+        let mint_auth = get_account_info_from_key(accounts, mint_auth_key)?;
 
-        let bump_vector = mint_authority_bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -180,7 +177,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let transfer_instruction = MintTo {
             mint: token_mint.clone(),
             to: receiver.clone(),
-            authority: mint_authority.clone(),
+            authority: mint_auth.clone(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),
@@ -210,18 +207,16 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
         let (token_mint_key, bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (mint_authority_key, _bump) =
+        let (mint_auth_key, _bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
         let burner = get_account_info_from_key(accounts, burner_id)?;
         let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
         let token_program = get_account_info_from_key(accounts, spl_token::ID)?;
-        let mint_authority =
-            get_account_info_from_key(accounts, mint_authority_key)?;
+        let mint_auth = get_account_info_from_key(accounts, mint_auth_key)?;
 
-        let bump_vector = bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -229,7 +224,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let transfer_instruction = Burn {
             mint: token_mint.clone(),
             from: burner.clone(),
-            authority: mint_authority.clone(),
+            authority: mint_auth.clone(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),

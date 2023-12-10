@@ -1,13 +1,22 @@
-extern crate alloc;
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
 
 use crate::ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
-use crate::{error, host, ibc, storage, MockDeliver, MINT_ESCROW_SEED};
+use crate::{
+    error, host, ibc, storage, MockDeliver, MockInitEscrow, MINT_ESCROW_SEED,
+};
 
 
-pub fn mock_deliver_impl<'a, 'info>(
+pub(crate) fn mock_init_escrow<'a, 'info>(
+    _ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
+    _port_id: ibc::PortId,
+    _channel_id: ibc::ChannelId,
+    _base_denom: String,
+) -> Result<()> {
+    Ok(())
+}
+
+pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
@@ -170,9 +179,10 @@ pub fn mock_deliver_impl<'a, 'info>(
         .unwrap();
 
     // Minting some tokens to the escrow so that he can do the transfer
-    let bump_vector = ctx.bumps.mint_authority.to_le_bytes();
-    let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
-    let outer = vec![inner.as_slice()];
+    let bump = ctx.bumps.mint_authority;
+    let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
+    let seeds = seeds.as_ref();
+    let seeds = core::slice::from_ref(&seeds);
 
     // Mint some tokens to escrow account
     let mint_instruction = MintTo {
@@ -183,7 +193,7 @@ pub fn mock_deliver_impl<'a, 'info>(
     let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         mint_instruction,
-        outer.as_slice(), //signer PDA
+        seeds, //signer PDA
     );
     anchor_spl::token::mint_to(cpi_ctx, 10000000)?;
     Ok(())
