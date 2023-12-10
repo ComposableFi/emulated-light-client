@@ -97,9 +97,6 @@ jobs:
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
 
-      - name: Anchor Build
-        run: anchor build
-
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks
 
