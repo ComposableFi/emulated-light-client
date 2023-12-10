@@ -126,23 +126,21 @@ impl ClientConsensusState {
     }
 
     /// Returns processed time for this client consensus state.
-    pub fn processed_time(&self) -> NonZeroU64 {
+    pub fn processed_time(&self) -> Option<NonZeroU64> {
         self.0
             .as_bytes()
             .get(..8)
             .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
             .and_then(|bytes| NonZeroU64::new(u64::from_le_bytes(bytes)))
-            .unwrap()
     }
 
     /// Returns processed height for this client consensus state.
-    pub fn processed_height(&self) -> blockchain::HostHeight {
+    pub fn processed_height(&self) -> Option<blockchain::HostHeight> {
         self.0
             .as_bytes()
             .get(8..16)
             .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
             .map(|bytes| u64::from_le_bytes(bytes).into())
-            .unwrap()
     }
 
     /// Returns the consensus state.

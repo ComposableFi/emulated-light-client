@@ -276,8 +276,8 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
             .client(client_id)?
             .consensus_states
             .get(height)
-            .map(|state| state.processed_time().get())
-            .and_then(|ts| ibc::Timestamp::from_nanoseconds(ts).ok())
+            .and_then(|state| state.processed_time())
+            .and_then(|ts| ibc::Timestamp::from_nanoseconds(ts.get()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
@@ -299,7 +299,7 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
             .client(client_id)?
             .consensus_states
             .get(height)
-            .map(|state| state.processed_height())
+            .and_then(|state| state.processed_height())
             .and_then(|height| ibc::Height::new(0, height.into()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
