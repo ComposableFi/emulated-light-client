@@ -9,12 +9,13 @@ type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
 pub type Epoch = blockchain::Epoch<PubKey>;
 pub type Block = blockchain::Block<PubKey>;
 pub type Manager = blockchain::ChainManager<PubKey>;
+pub type Validator = blockchain::Validator<PubKey>;
 pub use crate::ed25519::{PubKey, Signature, Verifier};
 
 /// Guest blockchain data held in Solana account.
 #[account]
 pub struct ChainData {
-    inner: Option<ChainInner>,
+    inner: Option<Box<ChainInner>>,
 }
 
 impl ChainData {
@@ -42,9 +43,8 @@ impl ChainData {
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
-        let last_check_height = manager.head().1.host_height;
-        let inner =
-            self.inner.insert(ChainInner { last_check_height, manager });
+        let inner = ChainInner { last_check_height: host_head.height, manager };
+        let inner = self.inner.insert(Box::new(inner));
 
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
@@ -83,10 +83,7 @@ impl ChainData {
         trie: &storage::AccountTrie,
         host_head: Option<crate::host::Head>,
     ) -> Result {
-        match self.get_mut() {
-            Ok(inner) => inner.generate_block(trie, host_head, false),
-            Err(_) => Ok(()),
-        }
+        self.get_mut()?.generate_block(trie, host_head, false)
     }
 
     /// Submits a signature for the pending block.
@@ -131,8 +128,8 @@ impl ChainData {
     }
 
     /// Returns mutable the inner chain data if it has been initialised.
-    fn get_mut(&mut self) -> Result<&mut ChainInner> {
-        self.inner.as_mut().ok_or_else(|| Error::ChainNotInitialised.into())
+    fn get_mut(&mut self) -> Result<&mut ChainInner, Error> {
+        self.inner.as_deref_mut().ok_or(Error::ChainNotInitialised)
     }
 }
 

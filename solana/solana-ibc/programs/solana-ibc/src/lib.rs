@@ -43,7 +43,7 @@ pub mod solana_ibc {
     /// Initialises the guest blockchain with given configuration and genesis
     /// epoch.
     pub fn initialise(
-        ctx: Context<Chain>,
+        ctx: Context<Initialise>,
         config: chain::Config,
         genesis_epoch: chain::Epoch,
     ) -> Result<()> {
@@ -192,13 +192,23 @@ pub mod solana_ibc {
     }
 }
 
+/// All the storage accounts are initialized here since it is only called once
+/// in the lifetime of the program.
 #[derive(Accounts)]
-pub struct Chain<'info> {
+pub struct Initialise<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    /// The account holding private IBC storage.
+    ///
+    /// This account isn’t used directly by the instruction.  It is however
+    /// initialised.
+    #[account(init, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
+              bump, space = 10240)]
+    storage: Account<'info, storage::PrivateStorage>,
+
     /// The guest blockchain data.
-    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10240)]
+    #[account(init, payer = sender, seeds = [CHAIN_SEED], bump, space = 10240)]
     chain: Account<'info, chain::ChainData>,
 
     /// The account holding the trie which corresponds to guest blockchain’s
@@ -206,7 +216,31 @@ pub struct Chain<'info> {
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
+    #[account(init, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
+    trie: UncheckedAccount<'info>,
+
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct Chain<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// The account holding the trie which corresponds to guest blockchain’s
+    /// state root.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
@@ -218,7 +252,7 @@ pub struct ChainWithVerifier<'info> {
     sender: Signer<'info>,
 
     /// The guest blockchain data.
-    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED], bump, space = 10240)]
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
 
     /// The account holding the trie which corresponds to guest blockchain’s
@@ -226,7 +260,7 @@ pub struct ChainWithVerifier<'info> {
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     #[account(address = solana_program::sysvar::instructions::ID)]
@@ -242,22 +276,23 @@ pub struct Deliver<'info> {
     sender: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(init_if_needed, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
-              bump, space = 10240)]
+    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
+              bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(init_if_needed, payer = sender, seeds = [TRIE_SEED],
-              bump, space = 10240)]
+    #[account(mut, seeds = [TRIE_SEED],
+              bump)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
-    #[account(init_if_needed, payer = sender, seeds = [CHAIN_SEED],
-              bump, space = 10240)]
-    chain: Box<Account<'info, chain::ChainData>>,
+    #[account(mut, seeds = [CHAIN_SEED],
+              bump)]
+    chain: Account<'info, chain::ChainData>,
+
     system_program: Program<'info, System>,
 }
 
@@ -329,7 +364,8 @@ pub struct SendPacket<'info> {
 
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
-    chain: Box<Account<'info, chain::ChainData>>,
+    chain: Account<'info, chain::ChainData>,
+
     system_program: Program<'info, System>,
 }
 
