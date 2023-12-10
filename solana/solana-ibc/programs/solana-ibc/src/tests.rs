@@ -142,7 +142,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("\nInitialising");
     let sig = program
         .request()
-        .accounts(accounts::Chain {
+        .accounts(accounts::Initialise {
             sender: authority.pubkey(),
             storage,
             trie,
