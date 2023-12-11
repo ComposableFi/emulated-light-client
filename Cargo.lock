@@ -2794,6 +2794,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "linear-map"
+version = "1.2.0"
+source = "git+https://github.com/contain-rs/linear-map?rev=57f1432e26ff902bc883b250a85e0b5716bd241c#57f1432e26ff902bc883b250a85e0b5716bd241c"
+
+[[package]]
 name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4364,6 +4369,7 @@ dependencies = [
  "ibc-testkit",
  "insta",
  "lib",
+ "linear-map",
  "memory",
  "primitive-types",
  "serde",
