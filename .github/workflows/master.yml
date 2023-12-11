@@ -54,7 +54,7 @@ jobs:
         run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor
 
   anchor-build:
-    name: Anchor Build
+    name: Anchor Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -97,11 +97,11 @@ jobs:
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
 
-      - name: Anchor Build
-        run: anchor build
-
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks
+
+      - name: Anchor Test
+        run: anchor test --skip-build
 
   tests:
     name: Rust tests
