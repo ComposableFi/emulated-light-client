@@ -252,7 +252,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
             .private
             .port_channel
             .entry(port_channel)
-            .or_insert_with(Default::default)
+            .or_default()
             .set_channel_end(&channel_end)
             .map_err(error)?;
         store.provable.set(&trie_key, &digest).map_err(error)?;
@@ -350,7 +350,7 @@ impl storage::IbcStorage<'_, '_> {
                 .private
                 .port_channel
                 .entry(key)
-                .or_insert_with(Default::default)
+                .or_default()
                 .next_sequence;
             triple.set(index, seq);
             triple.to_hash()
