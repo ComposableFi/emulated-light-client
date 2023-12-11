@@ -52,11 +52,16 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
-        self.borrow().host_head.ibc_height().map_err(Into::into)
+        let height = u64::from(self.borrow().chain.head()?.block_height);
+        let height = ibc::Height::new(0, height)?;
+        Ok(height)
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
-        self.borrow().host_head.ibc_timestamp().map_err(Into::into)
+        let timestamp = self.borrow().chain.head()?.host_timestamp.get();
+        ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+            ibc::ClientError::Other { description: err.to_string() }.into()
+        })
     }
 
     fn host_consensus_state(
@@ -95,9 +100,8 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         client_state_of_host_on_counterparty: ibc::Any,
     ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
-            .map_err(|e| ibc::ClientError::Other {
-                description: format!("Decode ClientState failed: {:?}", e)
-                    .to_string(),
+            .map_err(|err| ibc::ClientError::Other {
+                description: err.to_string(),
             })?;
         // todo: validate that the AnyClientState is Solomachine (for Solana protocol)
         Ok(())

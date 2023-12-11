@@ -20,20 +20,6 @@ impl Head {
         use solana_program::sysvar::Sysvar;
         Ok(solana_program::clock::Clock::get()?.into())
     }
-
-    /// Returns height as an IBC type.
-    #[inline]
-    pub fn ibc_height(&self) -> Result<ibc::Height, ibc::ClientError> {
-        ibc::Height::new(0, self.height.into())
-    }
-
-    /// Returns timestamp as an IBC type.
-    #[inline]
-    pub fn ibc_timestamp(&self) -> Result<ibc::Timestamp, ibc::ClientError> {
-        ibc::Timestamp::from_nanoseconds(self.timestamp.get()).map_err(|err| {
-            ibc::ClientError::Other { description: err.to_string() }
-        })
-    }
 }
 
 impl From<solana_program::clock::Clock> for Head {

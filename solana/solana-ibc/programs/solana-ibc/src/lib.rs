@@ -88,7 +88,7 @@ pub mod solana_ibc {
             &signature.into(),
             &verifier,
         )? {
-            ctx.accounts.chain.maybe_generate_block(&provable, None)?;
+            ctx.accounts.chain.maybe_generate_block(&provable)?;
         }
         Ok(())
     }
@@ -105,7 +105,7 @@ pub mod solana_ibc {
     /// and not intended for production use.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.maybe_generate_block(&provable, None)?;
+        ctx.accounts.chain.maybe_generate_block(&provable)?;
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
@@ -116,21 +116,20 @@ pub mod solana_ibc {
         // msg!("Called deliver method: {:?}", message);
         let _sender = ctx.accounts.sender.to_account_info();
 
-        let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        // msg!("This is private: {:?}", private);
+        let private = &mut ctx.accounts.storage;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let host_head = host::Head::get()?;
+        let chain = &mut ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        chain.maybe_generate_block(&provable)?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
+            chain,
             accounts: ctx.remaining_accounts,
-            host_head,
         });
 
         let mut router = store.clone();
@@ -177,20 +176,20 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
         packet: ibc::Packet,
     ) -> Result<()> {
-        let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
+        let private = &mut ctx.accounts.storage;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let host_head = host::Head::get()?;
+        let chain = &mut ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
-        ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
+        chain.maybe_generate_block(&provable)?;
 
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
+            chain,
             accounts: ctx.remaining_accounts,
-            host_head,
         });
 
         ::ibc::core::channel::handler::send_packet(&mut store, packet)
