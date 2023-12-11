@@ -1,5 +1,8 @@
+use core::num::NonZeroU64;
+
 use anchor_lang::prelude::*;
 pub use blockchain::Config;
+use lib::hash::CryptoHash;
 
 use crate::error::Error;
 use crate::{events, ibc, storage};
@@ -28,6 +31,19 @@ impl ChainData {
     /// initialised yet.
     pub fn head(&self) -> Result<&Block, ChainNotInitialised> {
         self.get().map(|inner| inner.manager.head().1)
+    }
+
+    /// Returns the consensus state (that is block hash and timestamp) at head.
+    ///
+    /// Currently fetching state from past blocks is not implemented.  Returns
+    /// `None` if `height` doesn’t equal height of the head block.
+    pub fn consensus_state(
+        &self,
+        height: blockchain::BlockHeight,
+    ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
+        let block = self.get()?.manager.head().1;
+        Ok((block.block_height == height)
+            .then(|| (block.calc_hash(), block.host_timestamp)))
     }
 
     /// Initialises a new guest blockchain with given configuration and genesis
@@ -135,12 +151,13 @@ impl ChainData {
             .map_err(into_error)
     }
 
-    /// Returns shared reference the inner chain data if it has been initialised.
+    /// Returns a shared reference the inner chain data if it has been
+    /// initialised.
     fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
         self.inner.as_deref().ok_or(ChainNotInitialised)
     }
 
-    /// Returns exclusive reference the inner chain data if it has been
+    /// Returns an exclusive reference the inner chain data if it has been
     /// initialised.
     fn get_mut(&mut self) -> Result<&mut ChainInner, ChainNotInitialised> {
         self.inner.as_deref_mut().ok_or(ChainNotInitialised)

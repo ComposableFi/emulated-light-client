@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package lightclients.guest.v1;
+
+// The consensus state of the guest blockchain.
+message ConsensusState {
+	// 32-byte block hash.
+	bytes block_hash = 1;
+	// Timestamp in nanoseconds.  Never zero.
+	uint64 timestamp = 2;
+}

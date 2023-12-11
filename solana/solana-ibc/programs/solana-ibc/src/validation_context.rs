@@ -66,12 +66,20 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn host_consensus_state(
         &self,
-        _height: &ibc::Height,
+        height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
-        Err(ibc::ContextError::ClientError(ibc::ClientError::ClientSpecific {
-            description: "The `host_consensus_state` is not supported on \
-                          Solana protocol."
-                .into(),
+        let store = self.borrow();
+        let state = if height.revision_number() == 0 {
+            store.chain.consensus_state(height.revision_height().into())?
+        } else {
+            None
+        }
+        .ok_or(ibc::ClientError::MissingLocalConsensusState {
+            height: *height,
+        })?;
+        Ok(Self::AnyConsensusState::from(blockchain::proto::ConsensusState {
+            block_hash: state.0.as_array().to_vec().into(),
+            timestamp: state.1,
         }))
     }
 

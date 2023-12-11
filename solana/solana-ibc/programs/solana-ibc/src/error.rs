@@ -128,6 +128,8 @@ impl From<ibc::ClientError> for Error {
 
 impl From<Error> for anchor_lang::error::AnchorError {
     fn from(err: Error) -> Self {
+        let error_msg = err.to_string();
+        anchor_lang::prelude::msg!("Error: {}", error_msg);
         Self {
             error_name: err.name(),
             error_code_number: err.code(),

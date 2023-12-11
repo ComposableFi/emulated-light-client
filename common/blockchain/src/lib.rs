@@ -11,6 +11,7 @@ pub mod config;
 pub mod epoch;
 pub mod height;
 pub mod manager;
+pub mod proto;
 pub mod validators;
 
 pub use block::Block;
