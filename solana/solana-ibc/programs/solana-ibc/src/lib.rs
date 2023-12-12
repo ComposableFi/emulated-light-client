@@ -11,7 +11,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use trie_ids::PortChannelPK;
-use ibc::SendPacketValidationContext;
+use crate::ibc::SendPacketValidationContext;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -164,8 +164,6 @@ pub mod solana_ibc {
         timeout_height: ibc::TimeoutHeight,
         timeout_timestamp: ibc::Timestamp,
     ) -> Result<()> {
-        let private = ctx.accounts.storage.clone();
-
         let mut store = storage::from_ctx!(ctx);
 
         let sequence = store
@@ -177,7 +175,8 @@ pub mod solana_ibc {
             PortChannelPK::try_from(&port_id, &channel_id)
                 .map_err(|e| error::Error::ContextError(e.into()))?;
 
-        let port_channel_store = private
+        let private_store = store.borrow();
+        let port_channel_store = private_store.private
             .port_channel
             .get(&port_channel_pk)
             .ok_or(error::Error::Internal("Port channel not found"))?;
@@ -199,6 +198,8 @@ pub mod solana_ibc {
             timeout_height_on_b: timeout_height,
             timeout_timestamp_on_b: timeout_timestamp,
         };
+
+        core::mem::drop(private_store);
 
         ::ibc::core::channel::handler::send_packet(&mut store, packet)
             .map_err(error::Error::ContextError)
