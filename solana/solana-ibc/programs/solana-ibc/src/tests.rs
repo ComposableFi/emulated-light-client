@@ -602,7 +602,13 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             system_program: system_program::ID,
         })
-        .args(instruction::SendPacket { port_id, channel_id: channel_id_on_a.clone(), data: packet.data, timeout_height: packet.timeout_height_on_b, timeout_timestamp: packet.timeout_timestamp_on_b  })
+        .args(instruction::SendPacket {
+            port_id,
+            channel_id: channel_id_on_a.clone(),
+            data: packet.data,
+            timeout_height: packet.timeout_height_on_b,
+            timeout_timestamp: packet.timeout_timestamp_on_b,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {

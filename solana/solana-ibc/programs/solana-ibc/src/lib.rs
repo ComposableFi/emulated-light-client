@@ -38,12 +38,9 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-    use ::ibc::core::{
-        channel::{
-            context::SendPacketValidationContext, types::packet::Packet,
-        },
-        host::types::path::SeqSendPath,
-    };
+    use ::ibc::core::channel::context::SendPacketValidationContext;
+    use ::ibc::core::channel::types::packet::Packet;
+    use ::ibc::core::host::types::path::SeqSendPath;
     use trie_ids::PortChannelPK;
 
     use super::*;
@@ -179,20 +176,28 @@ pub mod solana_ibc {
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))?;
 
-        let port_channel_pk = PortChannelPK::try_from(port_id.clone(), channel_id.clone()).map_err(|e| error::Error::ContextError(e.into()))?;
+        let port_channel_pk =
+            PortChannelPK::try_from(port_id.clone(), channel_id.clone())
+                .map_err(|e| error::Error::ContextError(e.into()))?;
 
         let port_channel_store = private
             .port_channel
-            .get(&port_channel_pk).ok_or(error::Error::Internal("Port channel not found"))?;
+            .get(&port_channel_pk)
+            .ok_or(error::Error::Internal("Port channel not found"))?;
 
-        let channel_end = port_channel_store.channel_end().map_err(|e| error::Error::ContextError(e.into()))?.ok_or(error::Error::Internal("Channel end doesnt exist"))?;
+        let channel_end = port_channel_store
+            .channel_end()
+            .map_err(|e| error::Error::ContextError(e.into()))?
+            .ok_or(error::Error::Internal("Channel end doesnt exist"))?;
 
         let packet = Packet {
             seq_on_a: sequence,
             port_id_on_a: port_id,
             chan_id_on_a: channel_id,
             port_id_on_b: channel_end.counterparty().port_id.clone(),
-            chan_id_on_b: channel_end.counterparty().channel_id.clone().ok_or(error::Error::Internal("Counterparty channel id doesnt exist"))?,
+            chan_id_on_b: channel_end.counterparty().channel_id.clone().ok_or(
+                error::Error::Internal("Counterparty channel id doesnt exist"),
+            )?,
             data,
             timeout_height_on_b: timeout_height,
             timeout_timestamp_on_b: timeout_timestamp,
