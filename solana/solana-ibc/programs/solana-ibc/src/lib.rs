@@ -38,6 +38,14 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use ::ibc::core::{
+        channel::{
+            context::SendPacketValidationContext, types::packet::Packet,
+        },
+        host::types::path::SeqSendPath,
+    };
+    use trie_ids::PortChannelPK;
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -174,9 +182,14 @@ pub mod solana_ibc {
     /// Should be called after setting up client, connection and channels.
     pub fn send_packet<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
-        packet: ibc::Packet,
+        port_id: ibc::PortId,
+        channel_id: ibc::ChannelId,
+        data: Vec<u8>,
+        timeout_height: ibc::TimeoutHeight,
+        timeout_timestamp: ibc::Timestamp,
     ) -> Result<()> {
         let private = &mut ctx.accounts.storage;
+        let cloned_private = private.clone();
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         let chain = &mut ctx.accounts.chain;
 
@@ -191,6 +204,30 @@ pub mod solana_ibc {
             chain,
             accounts: ctx.remaining_accounts,
         });
+
+        let sequence = store
+            .get_next_sequence_send(&SeqSendPath::new(&port_id, &channel_id))
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))?;
+
+        let port_channel_pk = PortChannelPK::try_from(port_id.clone(), channel_id.clone()).map_err(|e| error::Error::ContextError(e.into()))?;
+
+        let port_channel_store = cloned_private
+            .port_channel
+            .get(&port_channel_pk).ok_or(error::Error::Internal("Port channel not found"))?;
+
+        let channel_end = port_channel_store.channel_end().map_err(|e| error::Error::ContextError(e.into()))?.ok_or(error::Error::Internal("Channel end doesnt exist"))?;
+
+        let packet = Packet {
+            seq_on_a: sequence,
+            port_id_on_a: port_id,
+            chan_id_on_a: channel_id,
+            port_id_on_b: channel_end.counterparty().port_id.clone(),
+            chan_id_on_b: channel_end.counterparty().channel_id.clone().ok_or(error::Error::Internal("Counterparty channel id doesnt exist"))?,
+            data,
+            timeout_height_on_b: timeout_height,
+            timeout_timestamp_on_b: timeout_timestamp,
+        };
 
         ::ibc::core::channel::handler::send_packet(&mut store, packet)
             .map_err(error::Error::ContextError)
