@@ -15,9 +15,7 @@ use super::{ibc, ids};
 ///     ConsensusState   { client_id: u32, epoch: u64, height: u64 },
 ///     Connection       { connection_id: u32 },
 ///     ChannelEnd       { port_id: [u8; 9], channel_id: u32 },
-///     NextSequenceSend { port_id: [u8; 9], channel_id: u32 },
-///     NextSequenceRecv { port_id: [u8; 9], channel_id: u32 },
-///     NextSequenceAck  { port_id: [u8; 9], channel_id: u32 },
+///     NextSequence     { port_id: [u8; 9], channel_id: u32 },
 ///     Commitment       { port_id: [u8; 9], channel_id: u32, sequence: u64 },
 ///     Receipts         { port_id: [u8; 9], channel_id: u32, sequence: u64 },
 ///     Acks             { port_id: [u8; 9], channel_id: u32, sequence: u64 },
@@ -28,12 +26,30 @@ use super::{ibc, ids};
 /// consecutive keys (i.e. sequence 10 is immediately followed by 11 which would
 /// not be the case in little-endian encoding).  This is also one reason why we
 /// don’t just use Borsh encoding.
+#[derive(Clone, PartialEq, Eq)]
 pub struct TrieKey {
     // tag (1) + port_id (9) + channel_id (4) + sequence (8) = max 22 bytes
     bytes: [u8; 22],
     len: u8,
 }
 
+/// A discriminant used as the first byte of each trie key to create namespaces
+/// for different objects stored in the trie.
+#[repr(u8)]
+pub enum Tag {
+    ClientState = 0,
+    ConsensusState = 1,
+    Connection = 2,
+    ChannelEnd = 3,
+    NextSequence = 4,
+    Commitment = 5,
+    Receipt = 6,
+    Ack = 7,
+}
+
+impl From<Tag> for u8 {
+    fn from(tag: Tag) -> u8 { tag as u8 }
+}
 
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
@@ -120,6 +136,14 @@ impl TrieKey {
         key
     }
 
+    /// Creates a new key from given bytes.  Intended for tests only.
+    #[cfg(test)]
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Self {
+        let mut this = TrieKey { bytes: [0; 22], len: 0 };
+        this.extend(bytes);
+        this
+    }
+
     /// Internal function to append bytes into the internal buffer.
     #[inline]
     fn extend(&mut self, bytes: &[u8]) {
@@ -134,6 +158,54 @@ impl core::ops::Deref for TrieKey {
     type Target = [u8];
     fn deref(&self) -> &[u8] { &self.bytes[..usize::from(self.len)] }
 }
+
+
+impl core::fmt::Display for TrieKey {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        const DIGITS: [ascii::AsciiChar; 16] = [
+            ascii::AsciiChar::_0,
+            ascii::AsciiChar::_1,
+            ascii::AsciiChar::_2,
+            ascii::AsciiChar::_3,
+            ascii::AsciiChar::_4,
+            ascii::AsciiChar::_5,
+            ascii::AsciiChar::_6,
+            ascii::AsciiChar::_7,
+            ascii::AsciiChar::_8,
+            ascii::AsciiChar::_9,
+            ascii::AsciiChar::a,
+            ascii::AsciiChar::b,
+            ascii::AsciiChar::c,
+            ascii::AsciiChar::d,
+            ascii::AsciiChar::e,
+            ascii::AsciiChar::f,
+        ];
+
+        let mut out = [ascii::AsciiChar::Null; 44];
+        for (dst, byte) in out.chunks_exact_mut(2).zip(self.iter()) {
+            dst[0] = DIGITS[usize::from(byte >> 4)];
+            dst[1] = DIGITS[usize::from(byte & 15)];
+        }
+
+        let val = <&ascii::AsciiStr>::from(&out[..usize::from(self.len * 2)]);
+        fmtr.write_str(val.into())
+    }
+}
+
+impl core::fmt::Debug for TrieKey {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        core::fmt::Display::fmt(self, fmtr)
+    }
+}
+
+#[test]
+fn test_display() {
+    let want = "0123456789abcdef";
+    let key = TrieKey::from_bytes(&hex_literal::hex!("0123456789abcdef"));
+    assert_eq!(want, key.to_string());
+    assert_eq!(want, format!("{key:?}"));
+}
+
 
 impl TryFrom<SequencePath<'_>> for TrieKey {
     type Error = ibc::ChannelError;
@@ -180,23 +252,6 @@ impl TryFrom<&ibc::path::AckPath> for TrieKey {
     }
 }
 
-/// A discriminant used as the first byte of each trie key to create namespaces
-/// for different objects stored in the trie.
-#[repr(u8)]
-pub enum Tag {
-    ClientState = 0,
-    ConsensusState = 1,
-    Connection = 2,
-    ChannelEnd = 3,
-    NextSequence = 4,
-    Commitment = 5,
-    Receipt = 6,
-    Ack = 7,
-}
-
-impl From<Tag> for u8 {
-    fn from(tag: Tag) -> u8 { tag as u8 }
-}
 
 /// Component of a [`TrieKey`].
 ///
@@ -280,6 +335,7 @@ impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
         self.1.append_into(dest);
     }
 }
+
 
 #[test]
 fn test_encoding() {

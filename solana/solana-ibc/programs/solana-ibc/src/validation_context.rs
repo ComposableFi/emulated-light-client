@@ -148,7 +148,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ibc::Sequence> {
         self.get_next_sequence(
             path,
-            storage::SequenceTripleIdx::Send,
+            storage::SequenceKind::Send,
             |port_id, channel_id| ibc::PacketError::MissingNextSendSeq {
                 port_id,
                 channel_id,
@@ -162,7 +162,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ibc::Sequence> {
         self.get_next_sequence(
             path,
-            storage::SequenceTripleIdx::Recv,
+            storage::SequenceKind::Recv,
             |port_id, channel_id| ibc::PacketError::MissingNextRecvSeq {
                 port_id,
                 channel_id,
@@ -176,7 +176,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ibc::Sequence> {
         self.get_next_sequence(
             path,
-            storage::SequenceTripleIdx::Ack,
+            storage::SequenceKind::Ack,
             |port_id, channel_id| ibc::PacketError::MissingNextAckSeq {
                 port_id,
                 channel_id,
@@ -329,13 +329,13 @@ impl IbcStorage<'_, '_> {
     fn get_next_sequence<'a>(
         &self,
         path: impl Into<trie_ids::SequencePath<'a>>,
-        index: storage::SequenceTripleIdx,
+        index: storage::SequenceKind,
         make_err: impl FnOnce(ibc::PortId, ibc::ChannelId) -> ibc::PacketError,
     ) -> Result<ibc::Sequence> {
         fn get(
             this: &IbcStorage<'_, '_>,
             port_channel: &trie_ids::PortChannelPK,
-            index: storage::SequenceTripleIdx,
+            index: storage::SequenceKind,
         ) -> Option<ibc::Sequence> {
             this.borrow()
                 .private
