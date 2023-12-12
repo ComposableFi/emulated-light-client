@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 pub use ibc::apps;
+pub use ibc::core::channel::context::SendPacketValidationContext;
 pub use ibc::core::channel::types::acknowledgement::Acknowledgement;
 pub use ibc::core::channel::types::channel::ChannelEnd;
 pub use ibc::core::channel::types::commitment::{
@@ -10,7 +11,6 @@ pub use ibc::core::channel::types::error::{ChannelError, PacketError};
 pub use ibc::core::channel::types::msgs::{MsgRecvPacket, PacketMsg};
 pub use ibc::core::channel::types::packet::{Packet, Receipt};
 pub use ibc::core::channel::types::timeout::TimeoutHeight;
-pub use ibc::core::channel::context::SendPacketValidationContext;
 pub use ibc::core::channel::types::Version;
 pub use ibc::core::client::context::client_state::{
     ClientStateCommon, ClientStateExecution, ClientStateValidation,

@@ -11,6 +11,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use trie_ids::PortChannelPK;
+
 use crate::ibc::SendPacketValidationContext;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
@@ -167,16 +168,19 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx);
 
         let sequence = store
-            .get_next_sequence_send(&ibc::path::SeqSendPath::new(&port_id, &channel_id))
+            .get_next_sequence_send(&ibc::path::SeqSendPath::new(
+                &port_id,
+                &channel_id,
+            ))
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))?;
 
-        let port_channel_pk =
-            PortChannelPK::try_from(&port_id, &channel_id)
-                .map_err(|e| error::Error::ContextError(e.into()))?;
+        let port_channel_pk = PortChannelPK::try_from(&port_id, &channel_id)
+            .map_err(|e| error::Error::ContextError(e.into()))?;
 
         let private_store = store.borrow();
-        let port_channel_store = private_store.private
+        let port_channel_store = private_store
+            .private
             .port_channel
             .get(&port_channel_pk)
             .ok_or(error::Error::Internal("Port channel not found"))?;
