@@ -10,6 +10,8 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use trie_ids::PortChannelPK;
+use ibc::SendPacketValidationContext;
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -38,11 +40,6 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-    use ::ibc::core::channel::context::SendPacketValidationContext;
-    use ::ibc::core::channel::types::packet::Packet;
-    use ::ibc::core::host::types::path::SeqSendPath;
-    use trie_ids::PortChannelPK;
-
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -172,12 +169,12 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx);
 
         let sequence = store
-            .get_next_sequence_send(&SeqSendPath::new(&port_id, &channel_id))
+            .get_next_sequence_send(&ibc::path::SeqSendPath::new(&port_id, &channel_id))
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))?;
 
         let port_channel_pk =
-            PortChannelPK::try_from(port_id.clone(), channel_id.clone())
+            PortChannelPK::try_from(&port_id, &channel_id)
                 .map_err(|e| error::Error::ContextError(e.into()))?;
 
         let port_channel_store = private
@@ -190,7 +187,7 @@ pub mod solana_ibc {
             .map_err(|e| error::Error::ContextError(e.into()))?
             .ok_or(error::Error::Internal("Channel end doesnt exist"))?;
 
-        let packet = Packet {
+        let packet = ibc::Packet {
             seq_on_a: sequence,
             port_id_on_a: port_id,
             chan_id_on_a: channel_id,
