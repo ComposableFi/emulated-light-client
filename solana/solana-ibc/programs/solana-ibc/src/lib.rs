@@ -113,29 +113,22 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        // msg!("Called deliver method: {:?}", message);
-        let _sender = ctx.accounts.sender.to_account_info();
-
-        let private = &mut ctx.accounts.storage;
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let chain = &mut ctx.accounts.chain;
-
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        chain.maybe_generate_block(&provable)?;
-
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
-            provable,
-            chain,
-            accounts: ctx.remaining_accounts,
-        });
-
+        let mut store = storage::from_ctx!(ctx);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
+    }
+
+    /// Should be called after setting up client, connection and channels.
+    pub fn send_packet<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
+        packet: ibc::Packet,
+    ) -> Result<()> {
+        let mut store = storage::from_ctx!(ctx);
+        ::ibc::core::channel::handler::send_packet(&mut store, packet)
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))
     }
 
     /// Called to set up escrow and mint accounts for given channel and denom.
@@ -169,32 +162,6 @@ pub mod solana_ibc {
             client_id,
             counterparty_client_id,
         )
-    }
-
-    /// Should be called after setting up client, connection and channels.
-    pub fn send_packet<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
-        packet: ibc::Packet,
-    ) -> Result<()> {
-        let private = &mut ctx.accounts.storage;
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let chain = &mut ctx.accounts.chain;
-
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        chain.maybe_generate_block(&provable)?;
-
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
-            provable,
-            chain,
-            accounts: ctx.remaining_accounts,
-        });
-
-        ::ibc::core::channel::handler::send_packet(&mut store, packet)
-            .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))
     }
 }
 
