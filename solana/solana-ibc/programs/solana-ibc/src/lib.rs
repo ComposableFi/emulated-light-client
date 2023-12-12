@@ -194,8 +194,8 @@ pub mod solana_ibc {
             seq_on_a: sequence,
             port_id_on_a: port_id,
             chan_id_on_a: channel_id,
-            port_id_on_b: channel_end.counterparty().port_id.clone(),
-            chan_id_on_b: channel_end.counterparty().channel_id.clone().ok_or(
+            port_id_on_b: channel_end.remote.port_id,
+            chan_id_on_b: channel_end.remote.channel_id.ok_or(
                 error::Error::Internal("Counterparty channel id doesnt exist"),
             )?,
             data,
