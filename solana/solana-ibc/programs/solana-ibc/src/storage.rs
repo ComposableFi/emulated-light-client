@@ -410,6 +410,36 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     }
 }
 
+/// Constructs [`IbcStorage`] object from a `Context` structure.
+///
+/// The argument is expected to be a `Conetxt<T>` object which contains
+/// `storage`, `trie` and `chain` accounts corresponding to private IBC storage,
+/// trie storage and chain data respectively.
+///
+/// The macro calls `maybe_generate_block` on the chain and uses question mark
+/// operator to handle error returned from it (if any).
+macro_rules! from_ctx {
+    ($ctx:expr) => {{
+        let private = &mut $ctx.accounts.storage;
+        let provable = storage::get_provable_from(&$ctx.accounts.trie)?;
+        let chain = &mut $ctx.accounts.chain;
+        let accounts = $ctx.remaining_accounts;
+
+        // Before anything else, try generating a new guest block.  However, if
+        // that fails it’s not an error condition.  We do this at the beginning
+        // of any request.
+        chain.maybe_generate_block(&provable)?;
+
+        storage::IbcStorage::new(storage::IbcStorageInner {
+            private,
+            provable,
+            chain,
+            accounts,
+        })
+    }}
+}
+
+pub(crate) use from_ctx;
 
 /// A wrapper type for a Borsh-serialised object.
 ///

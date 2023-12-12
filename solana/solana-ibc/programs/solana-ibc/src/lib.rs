@@ -121,25 +121,7 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        // msg!("Called deliver method: {:?}", message);
-        let _sender = ctx.accounts.sender.to_account_info();
-
-        let private = &mut ctx.accounts.storage;
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let chain = &mut ctx.accounts.chain;
-
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        chain.maybe_generate_block(&provable)?;
-
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
-            provable,
-            chain,
-            accounts: ctx.remaining_accounts,
-        });
-
+        let mut store = storage::from_ctx!(ctx);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
@@ -188,22 +170,9 @@ pub mod solana_ibc {
         timeout_height: ibc::TimeoutHeight,
         timeout_timestamp: ibc::Timestamp,
     ) -> Result<()> {
-        let private = &mut ctx.accounts.storage;
-        let cloned_private = private.clone();
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let chain = &mut ctx.accounts.chain;
+        let private = ctx.accounts.storage.clone();
 
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        chain.maybe_generate_block(&provable)?;
-
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
-            provable,
-            chain,
-            accounts: ctx.remaining_accounts,
-        });
+        let mut store = storage::from_ctx!(ctx);
 
         let sequence = store
             .get_next_sequence_send(&SeqSendPath::new(&port_id, &channel_id))
@@ -212,7 +181,7 @@ pub mod solana_ibc {
 
         let port_channel_pk = PortChannelPK::try_from(port_id.clone(), channel_id.clone()).map_err(|e| error::Error::ContextError(e.into()))?;
 
-        let port_channel_store = cloned_private
+        let port_channel_store = private
             .port_channel
             .get(&port_channel_pk).ok_or(error::Error::Internal("Port channel not found"))?;
 
