@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 pub use ibc::apps;
+pub use ibc::core::channel::context::SendPacketValidationContext;
 pub use ibc::core::channel::types::acknowledgement::Acknowledgement;
 pub use ibc::core::channel::types::channel::ChannelEnd;
 pub use ibc::core::channel::types::commitment::{

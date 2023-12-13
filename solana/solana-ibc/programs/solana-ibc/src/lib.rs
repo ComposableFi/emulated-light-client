@@ -10,6 +10,9 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use trie_ids::PortChannelPK;
+
+use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -38,6 +41,9 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+
+    use ::ibc::core::client::types::error::ClientError;
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -120,17 +126,6 @@ pub mod solana_ibc {
             .map_err(move |err| error!((&err)))
     }
 
-    /// Should be called after setting up client, connection and channels.
-    pub fn send_packet<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
-        packet: ibc::Packet,
-    ) -> Result<()> {
-        let mut store = storage::from_ctx!(ctx);
-        ::ibc::core::channel::handler::send_packet(&mut store, packet)
-            .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))
-    }
-
     /// Called to set up escrow and mint accounts for given channel and denom.
     /// Panics if called without `mocks` feature.
     pub fn mock_init_escrow<'a, 'info>(
@@ -162,6 +157,93 @@ pub mod solana_ibc {
             client_id,
             counterparty_client_id,
         )
+    }
+
+    /// Should be called after setting up client, connection and channels.
+    pub fn send_packet<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
+        port_id: ibc::PortId,
+        channel_id: ibc::ChannelId,
+        data: Vec<u8>,
+        timeout_height: ibc::TimeoutHeight,
+        timeout_timestamp: ibc::Timestamp,
+    ) -> Result<()> {
+        let mut store = storage::from_ctx!(ctx);
+
+        let sequence = store
+            .get_next_sequence_send(&ibc::path::SeqSendPath::new(
+                &port_id,
+                &channel_id,
+            ))
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))?;
+
+        let port_channel_pk = PortChannelPK::try_from(&port_id, &channel_id)
+            .map_err(|e| error::Error::ContextError(e.into()))?;
+
+        let channel_end = store
+            .borrow()
+            .private
+            .port_channel
+            .get(&port_channel_pk)
+            .ok_or(error::Error::Internal("Port channel not found"))?
+            .channel_end()
+            .map_err(|e| error::Error::ContextError(e.into()))?
+            .ok_or(error::Error::Internal("Channel end doesnt exist"))?;
+
+        channel_end
+            .verify_not_closed()
+            .map_err(|e| error::Error::ContextError(e.into()))?;
+
+        let conn_id_on_a = &channel_end.connection_hops()[0];
+
+        let conn_end_on_a = store
+            .connection_end(conn_id_on_a)
+            .map_err(error::Error::ContextError)?;
+
+        let client_id_on_a = conn_end_on_a.client_id();
+
+        let client_state_of_b_on_a = store
+            .client_state(client_id_on_a)
+            .map_err(error::Error::ContextError)?;
+
+        let status = client_state_of_b_on_a
+            .status(store.get_client_validation_context(), client_id_on_a)
+            .map_err(|e| error::Error::ContextError(e.into()))?;
+        if !status.is_active() {
+            return Err(error::Error::ContextError(
+                ClientError::ClientNotActive { status }.into(),
+            )
+            .into());
+        }
+
+        let packet = ibc::Packet {
+            seq_on_a: sequence,
+            port_id_on_a: port_id,
+            chan_id_on_a: channel_id,
+            port_id_on_b: channel_end.remote.port_id,
+            chan_id_on_b: channel_end.remote.channel_id.ok_or(
+                error::Error::Internal("Counterparty channel id doesnt exist"),
+            )?,
+            data,
+            timeout_height_on_b: timeout_height,
+            timeout_timestamp_on_b: timeout_timestamp,
+        };
+
+        if cfg!(test) || cfg!(feature = "mocks") {
+            ::ibc::core::channel::handler::send_packet_validate(
+                &store, &packet,
+            )
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))?;
+        }
+
+        // Since we do all the checks present in validate above, there is no
+        // need to call validate again.  Hence validate is only called during
+        // tests.
+        ::ibc::core::channel::handler::send_packet_execute(&mut store, packet)
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))
     }
 }
 

@@ -126,6 +126,13 @@ impl From<ibc::ClientError> for Error {
     }
 }
 
+impl From<ibc::ChannelError> for Error {
+    #[inline]
+    fn from(err: ibc::ChannelError) -> Self {
+        ibc::ContextError::from(err).into()
+    }
+}
+
 impl From<Error> for anchor_lang::error::AnchorError {
     fn from(err: Error) -> Self {
         let error_msg = err.to_string();
