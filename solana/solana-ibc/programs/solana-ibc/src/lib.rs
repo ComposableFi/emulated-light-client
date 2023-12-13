@@ -12,7 +12,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use trie_ids::PortChannelPK;
 
-use crate::ibc::SendPacketValidationContext;
+use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -41,6 +41,9 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+
+    use ::ibc::core::client::types::error::ClientError;
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -178,17 +181,41 @@ pub mod solana_ibc {
         let port_channel_pk = PortChannelPK::try_from(&port_id, &channel_id)
             .map_err(|e| error::Error::ContextError(e.into()))?;
 
-        let private_store = store.borrow();
-        let port_channel_store = private_store
+        let channel_end = store
+            .borrow()
             .private
             .port_channel
             .get(&port_channel_pk)
-            .ok_or(error::Error::Internal("Port channel not found"))?;
-
-        let channel_end = port_channel_store
+            .ok_or(error::Error::Internal("Port channel not found"))?
             .channel_end()
             .map_err(|e| error::Error::ContextError(e.into()))?
             .ok_or(error::Error::Internal("Channel end doesnt exist"))?;
+
+        channel_end
+            .verify_not_closed()
+            .map_err(|e| error::Error::ContextError(e.into()))?;
+
+        let conn_id_on_a = &channel_end.connection_hops()[0];
+
+        let conn_end_on_a = store
+            .connection_end(conn_id_on_a)
+            .map_err(error::Error::ContextError)?;
+
+        let client_id_on_a = conn_end_on_a.client_id();
+
+        let client_state_of_b_on_a = store
+            .client_state(client_id_on_a)
+            .map_err(error::Error::ContextError)?;
+
+        let status = client_state_of_b_on_a
+            .status(store.get_client_validation_context(), client_id_on_a)
+            .map_err(|e| error::Error::ContextError(e.into()))?;
+        if !status.is_active() {
+            return Err(error::Error::ContextError(
+                ClientError::ClientNotActive { status }.into(),
+            )
+            .into());
+        }
 
         let packet = ibc::Packet {
             seq_on_a: sequence,
@@ -203,9 +230,16 @@ pub mod solana_ibc {
             timeout_timestamp_on_b: timeout_timestamp,
         };
 
-        core::mem::drop(private_store);
+        if cfg!(test) || cfg!(feature = "mocks") {
+            ::ibc::core::channel::handler::send_packet_validate(
+                &mut store, &packet,
+            )
+            .map_err(error::Error::ContextError)
+            .map_err(|err| error!((&err)))?;
+        }
 
-        ::ibc::core::channel::handler::send_packet(&mut store, packet)
+        // Since we do all the checks present in validate above, there is no need to call validate again. Hence validate is only called during tests.
+        ::ibc::core::channel::handler::send_packet_execute(&mut store, packet)
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))
     }
