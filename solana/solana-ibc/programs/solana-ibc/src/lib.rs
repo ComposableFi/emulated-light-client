@@ -232,7 +232,7 @@ pub mod solana_ibc {
 
         if cfg!(test) || cfg!(feature = "mocks") {
             ::ibc::core::channel::handler::send_packet_validate(
-                &mut store, &packet,
+                &store, &packet,
             )
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))?;
