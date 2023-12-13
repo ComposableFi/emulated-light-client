@@ -238,7 +238,9 @@ pub mod solana_ibc {
             .map_err(|err| error!((&err)))?;
         }
 
-        // Since we do all the checks present in validate above, there is no need to call validate again. Hence validate is only called during tests.
+        // Since we do all the checks present in validate above, there is no
+        // need to call validate again.  Hence validate is only called during
+        // tests.
         ::ibc::core::channel::handler::send_packet_execute(&mut store, packet)
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))
