@@ -1,11 +1,5 @@
-use std::io::Result;
-
-fn main() -> Result<()> {
-    let mut config = prost_build::Config::new();
-    if std::env::var_os("CARGO_FEATURE_std").is_none() {
-        config.btree_map(["."]);
-    }
-    config
+fn main() -> std::io::Result<()> {
+    prost_build::Config::new()
         .enable_type_names()
         .type_name_domain(["."], "composable.finance")
         .include_file("messages.rs")

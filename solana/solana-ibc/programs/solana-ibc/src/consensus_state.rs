@@ -46,7 +46,7 @@ impl AnyConsensusState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         crate::ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
-    /// Protobuf type URL for Guest client state used in Any message.
+    /// Protobuf type URL for Guest consensus state used in Any message.
     const GUEST_TYPE: &'static str =
         blockchain::proto::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
