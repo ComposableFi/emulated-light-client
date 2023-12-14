@@ -42,11 +42,8 @@ pub enum SequenceTripleIdx {
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
     pub fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
-        if self.mask & (1 << (idx as u32)) == 1 {
-            Some(ibc::Sequence::from(self.sequences[idx as usize]))
-        } else {
-            None
-        }
+        let idx = idx as usize;
+        (self.mask & (1 << idx) != 0).then_some(self.sequences[idx].into())
     }
 
     /// Sets sequence at given index.
@@ -508,4 +505,52 @@ impl<T> borsh::BorshDeserialize for Serialised<T> {
 
 fn make_err(err: io::Error) -> ibc::ClientError {
     ibc::ClientError::ClientSpecific { description: err.to_string() }
+}
+
+#[test]
+fn test_sequence_triple() {
+    use hex_literal::hex;
+    use SequenceTripleIdx::{Ack, Recv, Send};
+
+    let mut triple = SequenceTriple::default();
+    assert_eq!(None, triple.get(Send));
+    assert_eq!(None, triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(CryptoHash::default(), triple.to_hash());
+
+    triple.set(Send, 42.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(None, triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000000 0000000000000000 01 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
+
+    triple.set(Recv, 24.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(Some(24.into()), triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000018 0000000000000000 03 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
+
+    triple.set(Ack, 12.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(Some(24.into()), triple.get(Recv));
+    assert_eq!(Some(12.into()), triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000018 000000000000000C 07 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
 }
