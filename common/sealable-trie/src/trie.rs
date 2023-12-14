@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use core::num::NonZeroU16;
 
 use lib::hash::CryptoHash;
@@ -7,6 +8,7 @@ use crate::nodes::{Node, NodeRef, RawNode, Reference};
 use crate::{bits, proof};
 
 mod del;
+mod iter;
 mod seal;
 mod set;
 #[cfg(test)]
@@ -82,6 +84,8 @@ pub enum Error {
     KeyTooLong,
     #[display(fmt = "Tried to access sealed node")]
     Sealed,
+    #[display(fmt = "Tried to access value at a prefix of existing key")]
+    BadKeyPrefix,
     #[display(fmt = "Value not found")]
     NotFound,
     #[display(fmt = "Not enough space")]
@@ -206,19 +210,6 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                         return Ok((None, proof));
                     }
                 }
-
-                Node::Value { value, child } => {
-                    if key.is_empty() {
-                        proof!(proof push proof::Item::Value(child.hash.clone()));
-                        let proof = proof!(proof rev.build());
-                        return Ok((Some(value.hash.clone()), proof));
-                    } else {
-                        proof!(proof push proof::Item::Value(value.hash.clone()));
-                        node_ptr = child.ptr;
-                        node_hash = child.hash.clone();
-                        continue;
-                    }
-                }
             };
 
             match child {
@@ -238,6 +229,18 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
                     };
                 }
             };
+        }
+    }
+
+    /// Returns all keys and values in a given subtrie.
+    pub fn get_subtrie<'a>(
+        &'a self,
+        key: &'a [u8],
+    ) -> Result<Vec<iter::Entry>> {
+        if self.is_empty() {
+            Ok(Vec::new())
+        } else {
+            iter::get_entries(&self.alloc, self.root_ptr, key)
         }
     }
 
@@ -370,10 +373,6 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             Ok(Node::Extension { key, child }) => {
                 println!(" Extension {key}");
                 print_ref(child, depth + 2);
-            }
-            Ok(Node::Value { value, child }) => {
-                println!(" Value {}", value.hash);
-                print_ref(Reference::from(child), depth + 2);
             }
             Err(err) => {
                 println!(" BadRawNode: {err}: {node:?}");

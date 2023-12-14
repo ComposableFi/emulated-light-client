@@ -103,7 +103,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         // let (_token_mint_key, _bump) =
         //     Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (_mint_authority_key, mint_authority_bump) =
+        let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -130,8 +130,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             )?
         };
 
-        let bump_vector = mint_authority_bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -170,7 +169,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let (token_mint_key, _bump) =
             Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
-        let (_mint_authority_key, mint_authority_bump) =
+        let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -180,13 +179,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             accounts,
             discriminant(&TransferAccountNames::TokenProgram),
         )?;
-        let mint_authority = get_account_info_from_name(
+        let mint_auth = get_account_info_from_name(
             accounts,
             discriminant(&TransferAccountNames::MintAuthority),
         )?;
 
-        let bump_vector = mint_authority_bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -194,7 +192,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let transfer_instruction = MintTo {
             mint: token_mint.clone(),
             to: receiver.clone(),
-            authority: mint_authority.clone(),
+            authority: mint_auth.clone(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),
@@ -234,13 +232,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             accounts,
             discriminant(&TransferAccountNames::TokenProgram),
         )?;
-        let mint_authority = get_account_info_from_name(
+        let mint_auth = get_account_info_from_name(
             accounts,
             discriminant(&TransferAccountNames::MintAuthority),
         )?;
 
-        let bump_vector = bump.to_le_bytes();
-        let seeds = [MINT_ESCROW_SEED, bump_vector.as_ref()];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -248,7 +245,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let transfer_instruction = Burn {
             mint: token_mint.clone(),
             from: burner.clone(),
-            authority: mint_authority.clone(),
+            authority: mint_auth.clone(),
         };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),

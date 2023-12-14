@@ -1,23 +1,51 @@
+use core::num::NonZeroU64;
+
 use anchor_lang::prelude::*;
 pub use blockchain::Config;
+use lib::hash::CryptoHash;
 
 use crate::error::Error;
-use crate::{events, storage};
+use crate::{events, ibc, storage};
 
 type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 pub type Epoch = blockchain::Epoch<PubKey>;
 pub type Block = blockchain::Block<PubKey>;
 pub type Manager = blockchain::ChainManager<PubKey>;
+pub type Validator = blockchain::Validator<PubKey>;
 pub use crate::ed25519::{PubKey, Signature, Verifier};
 
 /// Guest blockchain data held in Solana account.
 #[account]
 pub struct ChainData {
-    inner: Option<ChainInner>,
+    inner: Option<Box<ChainInner>>,
 }
 
+/// Error indicating that the chain hasn’t been initialised yet, i.e. genesis
+/// block hasn’t been configured.
+#[derive(Debug)]
+pub struct ChainNotInitialised;
+
 impl ChainData {
+    /// Returns the head of the chain.  Returns error if chain hasn’t been
+    /// initialised yet.
+    pub fn head(&self) -> Result<&Block, ChainNotInitialised> {
+        self.get().map(|inner| inner.manager.head().1)
+    }
+
+    /// Returns the consensus state (that is block hash and timestamp) at head.
+    ///
+    /// Currently fetching state from past blocks is not implemented.  Returns
+    /// `None` if `height` doesn’t equal height of the head block.
+    pub fn consensus_state(
+        &self,
+        height: blockchain::BlockHeight,
+    ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
+        let block = self.get()?.manager.head().1;
+        Ok((block.block_height == height)
+            .then(|| (block.calc_hash(), block.host_timestamp)))
+    }
+
     /// Initialises a new guest blockchain with given configuration and genesis
     /// epoch.
     ///
@@ -37,15 +65,14 @@ impl ChainData {
             genesis_epoch,
         )
         .map_err(|err| Error::Internal(err.into()))?;
-        let manager =
-            Manager::new(config, genesis.clone()).map_err(Error::from)?;
+
+        let manager = Manager::new(config, genesis).map_err(Error::from)?;
+
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
-        let last_check_height = manager.head().1.host_height;
-        let inner =
-            self.inner.insert(ChainInner { last_check_height, manager });
-
+        let inner = ChainInner { last_check_height: host_head.height, manager };
+        let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
         events::emit(events::Initialised {
@@ -67,26 +94,20 @@ impl ChainData {
     /// create a new block opportunistically at the beginning of handling any
     /// smart contract request.
     pub fn generate_block(&mut self, trie: &storage::AccountTrie) -> Result {
-        self.get_mut()?.generate_block(trie, None, true)
+        self.get_mut()?.generate_block(trie, true)
     }
 
     /// Generates a new guest block if possible.
     ///
     /// Contrary to [`generate_block`] this function won’t fail if new block
-    /// could not be created (including because the blockchain hasn’t been
-    /// initialised yet).
-    ///
-    /// This is intended to create a new block opportunistically at the
-    /// beginning of handling any smart contract request.
+    /// wasn’t generated because conditions for creating it weren’t met.  This
+    /// is intended to create a new block opportunistically at the beginning of
+    /// handling any smart contract request.
     pub fn maybe_generate_block(
         &mut self,
         trie: &storage::AccountTrie,
-        host_head: Option<crate::host::Head>,
     ) -> Result {
-        match self.get_mut() {
-            Ok(inner) => inner.generate_block(trie, host_head, false),
-            Err(_) => Ok(()),
-        }
+        self.get_mut()?.generate_block(trie, false)
     }
 
     /// Submits a signature for the pending block.
@@ -130,9 +151,16 @@ impl ChainData {
             .map_err(into_error)
     }
 
-    /// Returns mutable the inner chain data if it has been initialised.
-    fn get_mut(&mut self) -> Result<&mut ChainInner> {
-        self.inner.as_mut().ok_or_else(|| Error::ChainNotInitialised.into())
+    /// Returns a shared reference the inner chain data if it has been
+    /// initialised.
+    fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
+        self.inner.as_deref().ok_or(ChainNotInitialised)
+    }
+
+    /// Returns an exclusive reference the inner chain data if it has been
+    /// initialised.
+    fn get_mut(&mut self) -> Result<&mut ChainInner, ChainNotInitialised> {
+        self.inner.as_deref_mut().ok_or(ChainNotInitialised)
     }
 }
 
@@ -158,10 +186,9 @@ impl ChainInner {
     fn generate_block(
         &mut self,
         trie: &storage::AccountTrie,
-        host_head: Option<crate::host::Head>,
         force: bool,
     ) -> Result {
-        let host_head = host_head.map_or_else(crate::host::Head::get, Ok)?;
+        let host_head = crate::host::Head::get()?;
 
         // We attempt generating guest blocks only once per host block.  This
         // has two reasons:
@@ -193,6 +220,40 @@ impl ChainInner {
             }
             Err(err) if force => Err(into_error(err)),
             Err(_) => Ok(()),
+        }
+    }
+}
+
+
+impl From<ChainNotInitialised> for Error {
+    fn from(_: ChainNotInitialised) -> Self { Error::ChainNotInitialised }
+}
+
+impl From<ChainNotInitialised> for anchor_lang::error::AnchorError {
+    fn from(_: ChainNotInitialised) -> Self {
+        Error::ChainNotInitialised.into()
+    }
+}
+
+impl From<ChainNotInitialised> for anchor_lang::error::Error {
+    fn from(_: ChainNotInitialised) -> Self {
+        Error::ChainNotInitialised.into()
+    }
+}
+
+impl From<ChainNotInitialised> for ibc::ContextError {
+    fn from(_: ChainNotInitialised) -> Self {
+        ibc::ClientError::Other { description: "ChainNotInitialised".into() }
+            .into()
+    }
+}
+
+
+impl core::fmt::Debug for ChainData {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        match &self.inner {
+            None => fmtr.write_str("None"),
+            Some(inner) => (**inner).fmt(fmtr),
         }
     }
 }

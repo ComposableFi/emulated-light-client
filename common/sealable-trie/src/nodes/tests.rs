@@ -4,7 +4,7 @@ use memory::Ptr;
 use pretty_assertions::assert_eq;
 
 use crate::bits;
-use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
+use crate::nodes::{Node, RawNode, Reference};
 
 const DEAD: Ptr = match Ptr::new(0xDEAD) {
     Ok(Some(ptr)) => ptr,
@@ -214,28 +214,4 @@ fn test_extension_encoding() {
         /* ptr:  */ 0x60, 0, 0, 0,
         /* hash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     ], "uU9GlH+fEQAnezn3HWuvo/ZSBIhuSkuE2IGjhUFdC04=");
-}
-
-#[test]
-#[rustfmt::skip]
-fn test_value_encoding() {
-    check_node_encoding(Node::Value {
-        value: ValueRef::new((), &ONE),
-        child: NodeRef::new(Some(BEEF), &TWO),
-    }, [
-        /* tag:   */ 0xC0, 0, 0, 0,
-        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0, 0, 0xBE, 0xEF,
-        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
-
-    check_node_encoding(Node::Value {
-        value: ValueRef::new((), &ONE),
-        child: NodeRef::new(None, &TWO),
-    }, [
-        /* tag:   */ 0xC0, 0, 0, 0,
-        /* vhash: */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-        /* ptr:   */ 0, 0, 0, 0,
-        /* chash: */ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
-    ], "1uLWUNQTQCTNVP3Wle2aK1vQlrOPXf9EC0J6TLl4hrY=");
 }

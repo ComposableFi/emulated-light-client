@@ -32,8 +32,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         if *root_hash == super::EMPTY_TRIE_ROOT {
             return Err(Error::NotFound);
         };
-        let action =
-            self.handle(NodeRef { ptr: root_ptr, hash: root_hash }, false)?;
+        let action = self.handle(NodeRef { ptr: root_ptr, hash: root_hash })?;
         let res = self.ref_from_action(action)?.map(|child| match child {
             OwnedRef::Node(ptr, hash) => (ptr, hash),
             _ => unreachable!(),
@@ -43,11 +42,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     }
 
     /// Processes a reference which may be either node or value reference.
-    fn handle_reference(
-        &mut self,
-        child: Reference,
-        from_ext: bool,
-    ) -> Result<Action> {
+    fn handle_reference(&mut self, child: Reference) -> Result<Action> {
         match child {
             Reference::Value(vref) => {
                 if vref.is_sealed {
@@ -58,12 +53,12 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                     Err(Error::NotFound)
                 }
             }
-            Reference::Node(nref) => self.handle(nref, from_ext),
+            Reference::Node(nref) => self.handle(nref),
         }
     }
 
     /// Processes a node.
-    fn handle(&mut self, nref: NodeRef, from_ext: bool) -> Result<Action> {
+    fn handle(&mut self, nref: NodeRef) -> Result<Action> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
         let node = RawNode(*self.wlog.allocator().get(ptr));
         let node = node.decode()?;
@@ -73,9 +68,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             Node::Branch { children } => self.handle_branch(ptr, children),
             Node::Extension { key, child } => {
                 self.handle_extension(ptr, key, child)
-            }
-            Node::Value { value, child } => {
-                self.handle_value(ptr, value, child, from_ext)
             }
         }
     }
@@ -89,7 +81,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let key_offset = self.key.offset;
 
         let side = usize::from(self.key.pop_front().ok_or(Error::NotFound)?);
-        let action = self.handle_reference(children[side], false)?;
+        let action = self.handle_reference(children[side])?;
 
         // If the branch changed but wasn’t deleted, we just need to replace the
         // reference.  Otherwise, we’ll need to convert the Branch into an
@@ -134,7 +126,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             return Err(Error::NotFound);
         }
         self.del_node(ptr);
-        Ok(match self.handle_reference(child, true)? {
+        Ok(match self.handle_reference(child)? {
             Action::Drop => Action::Drop,
             Action::Ref(child) => {
                 Action::Ext(bits::Slice::from(key).into(), child)
@@ -145,59 +137,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 Action::Ext(key.unwrap(), child)
             }
         })
-    }
-
-    /// Processes a Branch node.
-    fn handle_value(
-        &mut self,
-        ptr: Ptr,
-        value: ValueRef<'_, ()>,
-        child: NodeRef,
-        from_ext: bool,
-    ) -> Result<Action> {
-        // We’ve reached the value we want to delete.  Drop the Value node and
-        // replace parent’s reference with child we’re pointing at.  The one
-        // complication is that if our parent is an Extension, we need to fetch
-        // the child to check if it’s an Extension as well.
-        if self.key.is_empty() {
-            self.del_node(ptr);
-            if from_ext {
-                let action = self
-                    .maybe_pop_extension(Reference::Node(child), &|key| {
-                        key.into()
-                    })?;
-                if let Some(action) = action {
-                    return Ok(action);
-                }
-            }
-            return Ok(Action::Ref(child.into()));
-        }
-
-        // Traverse into the child and handle that.
-        let action = self.handle(child, false)?;
-        match self.ref_from_action(action)? {
-            None => {
-                // We’re deleting the child which means we need to delete the
-                // Value node and replace parent’s reference to ValueRef.
-                self.del_node(ptr);
-                let value = ValueRef::new(false, value.hash);
-                Ok(Action::Ref(value.into()))
-            }
-            Some(OwnedRef::Node(child_ptr, hash)) => {
-                let child = NodeRef::new(child_ptr, &hash);
-                let node = RawNode::value(value, child);
-                self.set_node(ptr, node).map(Action::Ref)
-            }
-            Some(OwnedRef::Value(..)) => {
-                // The only possible way we’ve reached here if the self.handle
-                // call above recursively called self.handle_value (since this
-                // method is the only one which may Value references).  But if
-                // that happens, it means that we had a Value node whose child
-                // was another Value node.  This is an invalid trie (since Value
-                // may only point at Branch or Extension) so we report an error.
-                Err(Error::BadRawNode(crate::nodes::DecodeError::BadValueNode))
-            }
-        }
     }
 
     /// If `child` is a node reference pointing at an Extension node, pops that

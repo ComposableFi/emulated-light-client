@@ -47,26 +47,39 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
                 client_id: path.client_id.clone(),
                 height,
             })
-            .and_then(|data| data.get())
+            .and_then(|data| data.state())
             .map_err(ibc::ContextError::from)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
-        self.borrow().host_head.ibc_height().map_err(Into::into)
+        let height = u64::from(self.borrow().chain.head()?.block_height);
+        let height = ibc::Height::new(0, height)?;
+        Ok(height)
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
-        self.borrow().host_head.ibc_timestamp().map_err(Into::into)
+        let timestamp = self.borrow().chain.head()?.host_timestamp.get();
+        ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+            ibc::ClientError::Other { description: err.to_string() }.into()
+        })
     }
 
     fn host_consensus_state(
         &self,
-        _height: &ibc::Height,
+        height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
-        Err(ibc::ContextError::ClientError(ibc::ClientError::ClientSpecific {
-            description: "The `host_consensus_state` is not supported on \
-                          Solana protocol."
-                .into(),
+        let store = self.borrow();
+        let state = if height.revision_number() == 0 {
+            store.chain.consensus_state(height.revision_height().into())?
+        } else {
+            None
+        }
+        .ok_or(ibc::ClientError::MissingLocalConsensusState {
+            height: *height,
+        })?;
+        Ok(Self::AnyConsensusState::from(blockchain::proto::ConsensusState {
+            block_hash: state.0.as_array().to_vec().into(),
+            timestamp: state.1,
         }))
     }
 
@@ -95,9 +108,8 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         client_state_of_host_on_counterparty: ibc::Any,
     ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
-            .map_err(|e| ibc::ClientError::Other {
-                description: format!("Decode ClientState failed: {:?}", e)
-                    .to_string(),
+            .map_err(|err| ibc::ClientError::Other {
+                description: err.to_string(),
             })?;
         // todo: validate that the AnyClientState is Solomachine (for Solana protocol)
         Ok(())
@@ -120,13 +132,13 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         let key = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         self.borrow()
             .private
-            .channel_ends
+            .port_channel
             .get(&key)
+            .and_then(|store| store.channel_end().transpose())
             .ok_or_else(|| ibc::ChannelError::ChannelNotFound {
                 port_id: path.0.clone(),
                 channel_id: path.1.clone(),
             })?
-            .get()
             .map_err(Into::into)
     }
 
@@ -274,9 +286,10 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
         store
             .private
             .client(client_id)?
-            .processed_times
+            .consensus_states
             .get(height)
-            .map(|ts| ibc::Timestamp::from_nanoseconds(*ts).unwrap())
+            .and_then(|state| state.processed_time())
+            .and_then(|ts| ibc::Timestamp::from_nanoseconds(ts.get()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
@@ -296,9 +309,10 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
         self.borrow()
             .private
             .client(client_id)?
-            .processed_heights
+            .consensus_states
             .get(height)
-            .copied()
+            .and_then(|state| state.processed_height())
+            .and_then(|height| ibc::Height::new(0, height.into()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
@@ -325,9 +339,9 @@ impl IbcStorage<'_, '_> {
         ) -> Option<ibc::Sequence> {
             this.borrow()
                 .private
-                .next_sequence
+                .port_channel
                 .get(port_channel)
-                .and_then(|triple| triple.get(index))
+                .and_then(|store| store.next_sequence.get(index))
         }
 
         let path = path.into();

@@ -1,3 +1,4 @@
+use core::num::{NonZeroU128, NonZeroU16};
 use std::rc::Rc;
 use std::str::FromStr;
 use std::thread::sleep;
@@ -18,7 +19,7 @@ use anyhow::Result;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{accounts, ibc, instruction, MINT_ESCROW_SEED};
+use crate::{accounts, chain, ibc, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const BASE_DENOM: &str = "PICA";
@@ -135,14 +136,52 @@ fn anchor_test_deliver() -> Result<()> {
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
     /*
-     *
-     * Create New Mock Client
-     *
+     * Initialise chain
      */
 
+    println!("\nInitialising");
+    let sig = program
+        .request()
+        .accounts(accounts::Initialise {
+            sender: authority.pubkey(),
+            storage,
+            trie,
+            chain,
+            system_program: system_program::ID,
+        })
+        .args(instruction::Initialise {
+            config: chain::Config {
+                min_validators: NonZeroU16::MIN,
+                max_validators: NonZeroU16::MAX,
+                min_validator_stake: NonZeroU128::new(1000).unwrap(),
+                min_total_stake: NonZeroU128::new(1000).unwrap(),
+                min_quorum_stake: NonZeroU128::new(1000).unwrap(),
+                min_block_length: 5.into(),
+                min_epoch_length: 200_000.into(),
+            },
+            genesis_epoch: chain::Epoch::new(
+                vec![chain::Validator::new(
+                    authority.pubkey().into(),
+                    NonZeroU128::new(2000).unwrap(),
+                )],
+                NonZeroU128::new(1000).unwrap(),
+            )
+            .unwrap(),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
+     * Create New Mock Client
+     */
+
+    println!("\nCreating Mock Client");
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let _client_id =
-        ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
     let message = make_message!(
         ibc::MsgCreateClient::new(
             ibc::Any::from(mock_client_state),
@@ -152,7 +191,6 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::ClientMsg::CreateClient,
         ibc::MsgEnvelope::Client,
     );
-
     let sig = program
         .request()
         .accounts(accounts::Deliver {
@@ -162,7 +200,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             chain,
             system_program: system_program::ID,
-            sender_token_account: None,
+            // sender_token_account: None,
             mint_authority: None,
             token_mint: None,
             escrow_account: None,
@@ -181,22 +219,23 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-
-    println!("signature for create client: {sig}");
+        })?;
+    println!("  Signature: {sig}");
 
     // Retrieve and validate state
     let solana_ibc_storage_account: PrivateStorage =
         program.account(storage).unwrap();
 
-    println!("This is solana storage account {:?}", solana_ibc_storage_account);
+    println!(
+        "  This is solana storage account {:?}",
+        solana_ibc_storage_account
+    );
 
     /*
-     *
      * Create New Mock Connection Open Init
-     *
      */
 
+    println!("\nIssuing Connection Open Init");
     let client_id =
         ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
 
@@ -235,7 +274,7 @@ fn anchor_test_deliver() -> Result<()> {
             trie,
             chain,
             system_program: system_program::ID,
-            sender_token_account: None,
+            // sender_token_account: None,
             mint_authority: None,
             token_mint: None,
             escrow_account: None,
@@ -254,24 +293,63 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-
-    println!("signature for connection open init: {sig}");
+        })?;
+    println!("  Signature: {sig}");
 
     /*
-    *
-    * Setup mock connection and channel
-       Steps before we proceed
-       - Create PDAs for the above keys,
-       - Create the token mint
-       - Get token account for receiver and sender
-    *
-    */
+     * Setup mock escrow.
+     */
 
+    println!("\nCreating mint and escrow accounts");
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+    let (escrow_account_key, _bump) =
+        Pubkey::find_program_address(&seeds, &crate::ID);
+    let (token_mint_key, _bump) =
+        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+    let (mint_authority_key, _bump) =
+        Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::MockInitEscrow {
+            sender: authority.pubkey(),
+            mint_authority: mint_authority_key,
+            escrow_account: escrow_account_key,
+            token_mint: token_mint_key,
+            system_program: system_program::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            token_program: anchor_spl::token::ID,
+        })
+        .args(instruction::MockInitEscrow {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
+            base_denom: BASE_DENOM.to_string(),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
+     * Setup mock connection and channel
+     *
+     * Steps before we proceed
+     *  - Create PDAs for the above keys,
+     *  - Get token account for receiver and sender
+     */
+
+    println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
     let seeds =
@@ -294,11 +372,11 @@ fn anchor_test_deliver() -> Result<()> {
         ))
         .accounts(accounts::MockDeliver {
             sender: authority.pubkey(),
-            sender_token_account: sender_token_address,
             receiver: receiver.pubkey(),
             receiver_token_account: receiver_token_address,
             storage,
             trie,
+            chain,
             mint_authority: mint_authority_key,
             escrow_account: escrow_account_key,
             token_mint: token_mint_key,
@@ -320,24 +398,51 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-
-    println!(
-        "signature for setting up channel and connection with next seq: {sig}"
-    );
+    println!("  Signature: {sig}");
 
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
-    println!("This is the mint information {:?}", mint_info);
+    println!("  This is the mint information {:?}", mint_info);
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
     /*
-     *
-     * On Source chain
-     *
+     * Setup deliver escrow.
      */
 
+    let sig = program
+    .request()
+    .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+        1_000_000u32,
+    ))
+    .accounts(accounts::DeliverInitEscrow {
+        sender: authority.pubkey(),
+        mint_authority: mint_authority_key,
+        escrow_account: escrow_account_key,
+        token_mint: token_mint_key,
+        system_program: system_program::ID,
+        associated_token_program: anchor_spl::associated_token::ID,
+        token_program: anchor_spl::token::ID,
+    })
+    .args(instruction::DeliverInitEscrow {
+        port_id: port_id.clone(),
+        channel_id_on_b: channel_id_on_b.clone(),
+        base_denom: BASE_DENOM.to_string(),
+    })
+    .payer(authority.clone())
+    .signer(&*authority)
+    .send_with_spinner_and_config(RpcSendTransactionConfig {
+        skip_preflight: true,
+        ..RpcSendTransactionConfig::default()
+    })?;
+println!("  Signature: {sig}");
+
+    /*
+     * On Source chain
+     */
+
+    println!("\nRecving on source chain");
     let packet = construct_packet_from_denom(
         port_id.clone(),
         channel_id_on_a.clone(),
@@ -365,8 +470,8 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::MsgEnvelope::Packet,
     );
 
-    println!("This is trie {:?}", trie);
-    println!("This is storage {:?}", storage);
+    println!("  This is trie {:?}", trie);
+    println!("  This is storage {:?}", storage);
 
     /*
         The remaining accounts consists of the following accounts
@@ -411,7 +516,7 @@ fn anchor_test_deliver() -> Result<()> {
         },
     ];
 
-    println!("These are remaining accounts {:?}", remaining_accounts);
+    println!("  These are remaining accounts {:?}", remaining_accounts);
 
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
@@ -424,13 +529,20 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(DeliverWithRemainingAccounts {
+        .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: Some(receiver.pubkey()),
             storage,
             trie,
-            system_program: system_program::ID,
             chain,
-            remaining_accounts: remaining_accounts.clone(),
+            system_program: system_program::ID,
+            // sender_token_account: None,
+            mint_authority: Some(mint_authority_key),
+            token_mint: Some(token_mint_key),
+            escrow_account: Some(escrow_account_key),
+            receiver_token_account: Some(receiver_token_address),
+            associated_token_program: Some(anchor_spl::associated_token::ID),
+            token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver {
             port_id: Some(port_id.clone()),
@@ -443,9 +555,8 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-
-    println!("signature for transfer packet on Source chain: {sig}");
+        })?;
+    println!("  Signature: {sig}");
 
     let escrow_account_balance_after =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
@@ -468,11 +579,10 @@ fn anchor_test_deliver() -> Result<()> {
     );
 
     /*
-     *
      * On Destination chain
-     *
      */
 
+    println!("\nRecving on destination chain");
     let account_balance_before = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
@@ -508,13 +618,20 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(DeliverWithRemainingAccounts {
+        .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: Some(receiver.pubkey()),
             storage,
             trie,
-            system_program: system_program::ID,
             chain,
-            remaining_accounts,
+            system_program: system_program::ID,
+            // sender_token_account: None,
+            mint_authority: Some(mint_authority_key),
+            token_mint: Some(token_mint_key),
+            escrow_account: Some(escrow_account_key),
+            receiver_token_account: Some(receiver_token_address),
+            associated_token_program: Some(anchor_spl::associated_token::ID),
+            token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver {
             port_id: Some(port_id.clone()),
@@ -527,9 +644,8 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-
-    println!("signature for transfer packet on destination chain: {sig}");
+        })?;
+    println!("  Signature: {sig}");
 
     let account_balance_after = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
@@ -543,11 +659,10 @@ fn anchor_test_deliver() -> Result<()> {
     );
 
     /*
-     *
      * Send Packets
-     *
      */
 
+    println!("\nSend packet");
     let packet = construct_packet_from_denom(
         port_id.clone(),
         channel_id_on_a.clone(),
@@ -565,18 +680,23 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
-            chain: chain.clone(),
+            chain,
             system_program: system_program::ID,
         })
-        .args(instruction::SendPacket { packet })
+        .args(instruction::SendPacket {
+            port_id,
+            channel_id: channel_id_on_a.clone(),
+            data: packet.data,
+            timeout_height: packet.timeout_height_on_b,
+            timeout_timestamp: packet.timeout_timestamp_on_b,
+        })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?; // ? gives us the log messages on the why the tx did fail ( better than unwrap )
-
-    println!("signature for sending packet: {sig}");
+        })?;
+    println!("  Signature: {sig}");
 
     Ok(())
 }

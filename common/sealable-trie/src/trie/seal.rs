@@ -1,7 +1,3 @@
-use alloc::vec::Vec;
-
-use memory::Ptr;
-
 use super::{Error, Result};
 use crate::bits;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
@@ -37,7 +33,6 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let result = match node {
             Node::Branch { children } => self.seal_branch(children),
             Node::Extension { key, child } => self.seal_extension(key, child),
-            Node::Value { value, child } => self.seal_value(value, child),
         }?;
 
         match result {
@@ -83,29 +78,13 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         }
     }
 
-    fn seal_value(
-        &mut self,
-        value: ValueRef<'_, ()>,
-        child: NodeRef,
-    ) -> Result<SealResult> {
-        if self.key.is_empty() {
-            prune(self.alloc, child.ptr).map(|()| SealResult::Free)
-        } else if self.seal(child)? {
-            let child = NodeRef::new(None, child.hash);
-            let node = RawNode::value(value, child);
-            Ok(SealResult::Replace(node))
-        } else {
-            Ok(SealResult::Done)
-        }
-    }
-
     fn seal_child<'b>(
         &mut self,
         child: Reference<'b>,
     ) -> Result<Option<Reference<'b>>> {
         match child {
             Reference::Node(node) => Ok(if self.seal(node)? {
-                Some(Reference::Node(node.sealed()))
+                Some(NodeRef::new(None, node.hash).into())
             } else {
                 None
             }),
@@ -113,7 +92,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 if value.is_sealed {
                     Err(Error::Sealed)
                 } else if self.key.is_empty() {
-                    Ok(Some(value.sealed().into()))
+                    Ok(Some(ValueRef::new(true, value.hash).into()))
                 } else {
                     Err(Error::NotFound)
                 }
@@ -126,46 +105,4 @@ enum SealResult {
     Free,
     Replace(RawNode),
     Done,
-}
-
-/// Frees node and all its descendants from the allocator.
-fn prune(
-    alloc: &mut impl memory::Allocator<Value = super::Value>,
-    ptr: Option<Ptr>,
-) -> Result<()> {
-    let mut ptr = match ptr {
-        Some(ptr) => ptr,
-        None => return Ok(()),
-    };
-    let mut queue = Vec::new();
-    loop {
-        let children = get_children(alloc.get(ptr).into())?;
-        alloc.free(ptr);
-        match children {
-            (None, None) => match queue.pop() {
-                Some(p) => ptr = p,
-                None => break Ok(()),
-            },
-            (Some(p), None) | (None, Some(p)) => ptr = p,
-            (Some(lhs), Some(rht)) => {
-                queue.push(lhs);
-                ptr = rht
-            }
-        }
-    }
-}
-
-fn get_children(node: &RawNode) -> Result<(Option<Ptr>, Option<Ptr>)> {
-    fn get_ptr(child: Reference) -> Option<Ptr> {
-        match child {
-            Reference::Node(node) => node.ptr,
-            Reference::Value { .. } => None,
-        }
-    }
-
-    Ok(match node.decode()? {
-        Node::Branch { children: [lft, rht] } => (get_ptr(lft), get_ptr(rht)),
-        Node::Extension { child, .. } => (get_ptr(child), None),
-        Node::Value { child, .. } => (child.ptr, None),
-    })
 }

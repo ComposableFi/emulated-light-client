@@ -1,6 +1,7 @@
 use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use core::cell::{RefCell, RefMut};
+use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
 use borsh::maybestd::io;
@@ -12,9 +13,11 @@ use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 
-pub(crate) type SolanaTimestamp = u64;
-
 /// A triple of send, receive and acknowledge sequences.
+///
+/// This is effectively a triple of `Option<Sequence>` values.  They are kept
+/// together so that they can be encoded in a single entry in the trie rather
+/// than having three separate locations for each of the values.
 #[derive(
     Clone,
     Debug,
@@ -39,11 +42,8 @@ pub enum SequenceTripleIdx {
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
     pub fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
-        if self.mask & (1 << (idx as u32)) == 1 {
-            Some(ibc::Sequence::from(self.sequences[idx as usize]))
-        } else {
-            None
-        }
+        let idx = idx as usize;
+        (self.mask & (1 << idx) != 0).then_some(self.sequences[idx].into())
     }
 
     /// Sets sequence at given index.
@@ -71,11 +71,8 @@ impl SequenceTriple {
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientStore {
     pub client_id: ibc::ClientId,
-
     pub client_state: Serialised<AnyClientState>,
-    pub consensus_states: BTreeMap<ibc::Height, Serialised<AnyConsensusState>>,
-    pub processed_times: BTreeMap<ibc::Height, SolanaTimestamp>,
-    pub processed_heights: BTreeMap<ibc::Height, ibc::Height>,
+    pub consensus_states: BTreeMap<ibc::Height, ClientConsensusState>,
 }
 
 impl ClientStore {
@@ -84,9 +81,81 @@ impl ClientStore {
             client_id,
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
-            processed_times: Default::default(),
-            processed_heights: Default::default(),
         }
+    }
+}
+
+/// Per-client per-height private storage.
+///
+/// To reduce size of this type we’re using a single [`Serialised`] object where
+/// we’re storing processed time, processed height and the consensus state.
+/// This way, this type ends up being just a single vector with remaining
+/// information stored with the vector’s backing storage.
+///
+/// We’re essentially mimicking:
+///
+/// ```ignore
+/// struct Inner {
+///     processed_time: NonZeroU64,
+///     processed_height: BlockHeight,
+///     serialised_state: [u8],
+/// }
+/// struct ClientConsensusState(Box<Inner>);
+/// ```
+///
+/// To make it possible to quickly access individual ‘fields’ getter methods are
+/// provided.
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct ClientConsensusState(
+    Serialised<(NonZeroU64, blockchain::BlockHeight, AnyConsensusState)>,
+);
+
+impl ClientConsensusState {
+    /// Constructs new object with given processed time and height and consensus
+    /// state.
+    ///
+    /// Returns the constructed object alongside hash of the serialised
+    /// consensus state.
+    pub fn new(
+        processed_time: NonZeroU64,
+        processed_height: blockchain::BlockHeight,
+        state: &AnyConsensusState,
+    ) -> Result<Self, ibc::ClientError> {
+        Serialised::new(&(processed_time, processed_height, state))
+            .map(Serialised::transmute)
+            .map(Self)
+    }
+
+    /// Returns processed time for this client consensus state.
+    pub fn processed_time(&self) -> Option<NonZeroU64> {
+        self.0
+            .as_bytes()
+            .get(..8)
+            .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
+            .and_then(|bytes| NonZeroU64::new(u64::from_le_bytes(bytes)))
+    }
+
+    /// Returns processed height for this client consensus state.
+    pub fn processed_height(&self) -> Option<blockchain::BlockHeight> {
+        self.0
+            .as_bytes()
+            .get(8..16)
+            .and_then(|slice| <[u8; 8]>::try_from(slice).ok())
+            .map(|bytes| u64::from_le_bytes(bytes).into())
+    }
+
+    /// Returns the consensus state.
+    pub fn state(&self) -> Result<AnyConsensusState, ibc::ClientError> {
+        let bytes = self.0.as_bytes().get(16..).unwrap_or(&[]);
+        AnyConsensusState::try_from_slice(bytes).map_err(make_err)
+    }
+
+    /// Returns digest of the consensus state.
+    pub fn digest(&self) -> Result<CryptoHash, ibc::ClientError> {
+        let err = || ibc::ClientError::ClientSpecific {
+            description: "Internal: Bad AnyConsensusState".into(),
+        };
+        self.0.as_bytes().get(16..).map(CryptoHash::digest).ok_or_else(err)
     }
 }
 
@@ -118,6 +187,54 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
 }
 
 
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// Information about a specific `(port, channel)`.
+pub struct PortChannelStore {
+    /// Serialised channel end or empty if not set.
+    channel_end: Serialised<ibc::ChannelEnd>,
+
+    /// Next send, receive and ack sequence for this `(port, channel)`.
+    ///
+    /// We’re storing all three sequences in a single object to reduce amount of
+    /// different maps we need to maintain.  This saves us on the amount of trie
+    /// nodes we need to maintain.
+    pub next_sequence: SequenceTriple,
+}
+
+impl PortChannelStore {
+    /// Returns channel end information or `None` if the object hasn’t been
+    /// stored.
+    pub fn channel_end(
+        &self,
+    ) -> Result<Option<ibc::ChannelEnd>, ibc::ClientError> {
+        if self.channel_end.is_empty() {
+            Ok(None)
+        } else {
+            Some(self.channel_end.get()).transpose()
+        }
+    }
+
+    /// Sets channel end information for this channel; returns hash of the
+    /// serialised value.
+    pub fn set_channel_end(
+        &mut self,
+        end: &ibc::ChannelEnd,
+    ) -> Result<CryptoHash, ibc::ClientError> {
+        self.channel_end.set(end)?;
+        Ok(self.channel_end.digest())
+    }
+}
+
+impl Default for PortChannelStore {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            channel_end: Serialised::empty(),
+            next_sequence: SequenceTriple::default(),
+        }
+    }
+}
+
 #[account]
 #[derive(Debug)]
 /// The private IBC storage, i.e. data which doesn’t require proofs.
@@ -134,16 +251,10 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    pub channel_ends:
-        BTreeMap<trie_ids::PortChannelPK, Serialised<ibc::ChannelEnd>>,
-    pub channel_counter: u32,
+    /// Information about a each `(part, channel)` endpoint.
+    pub port_channel: BTreeMap<trie_ids::PortChannelPK, PortChannelStore>,
 
-    /// Next send, receive and ack sequence for given (port, channel).
-    ///
-    /// We’re storing all three sequences in a single object to reduce amount of
-    /// different maps we need to maintain.  This saves us on the amount of
-    /// trie nodes we need to maintain.
-    pub next_sequence: BTreeMap<trie_ids::PortChannelPK, SequenceTriple>,
+    pub channel_counter: u32,
 }
 
 impl PrivateStorage {
@@ -268,7 +379,7 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
     pub accounts: &'a [TransferAccounts<'b>],
-    pub host_head: crate::host::Head,
+    pub chain: &'a mut crate::chain::ChainData,
 }
 
 /// A reference-counted reference to the IBC storage.
@@ -318,6 +429,37 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
     }
 }
 
+/// Constructs [`IbcStorage`] object from a `Context` structure.
+///
+/// The argument is expected to be a `Conetxt<T>` object which contains
+/// `storage`, `trie` and `chain` accounts corresponding to private IBC storage,
+/// trie storage and chain data respectively.
+///
+/// The macro calls `maybe_generate_block` on the chain and uses question mark
+/// operator to handle error returned from it (if any).
+macro_rules! from_ctx {
+    ($ctx:expr) => {{
+        let accounts = $ctx.accounts.clone();
+        let private = &mut $ctx.accounts.storage;
+        let provable = storage::get_provable_from(&$ctx.accounts.trie)?;
+        let chain = &mut $ctx.accounts.chain;
+        let transfer_accounts = accounts.to_transfer_accounts().clone();
+
+        // Before anything else, try generating a new guest block.  However, if
+        // that fails it’s not an error condition.  We do this at the beginning
+        // of any request.
+        chain.maybe_generate_block(&provable)?;
+
+        storage::IbcStorage::new(storage::IbcStorageInner {
+            private,
+            provable,
+            chain,
+            accounts: &transfer_accounts.clone(),
+        })
+    }}
+}
+
+pub(crate) use from_ctx;
 
 /// A wrapper type for a Borsh-serialised object.
 ///
@@ -330,26 +472,28 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// prefix which means that the serialised representation of the held object
 /// must less than 64 KiB.  Solana’s heap is only half that so this limit isn’t
 /// an issue.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
     pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
 
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+
+    pub fn transmute<U>(self) -> Serialised<U> {
+        Serialised(self.0, core::marker::PhantomData)
+    }
+
     pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
 
     pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
-
-    fn make_err(err: io::Error) -> ibc::ClientError {
-        ibc::ClientError::ClientSpecific { description: err.to_string() }
-    }
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {
     pub fn new(value: &T) -> Result<Self, ibc::ClientError> {
         borsh::to_vec(value)
             .map(|data| Self(data, core::marker::PhantomData))
-            .map_err(Self::make_err)
+            .map_err(make_err)
     }
 
     pub fn set(&mut self, value: &T) -> Result<&mut Self, ibc::ClientError> {
@@ -360,7 +504,7 @@ impl<T: borsh::BorshSerialize> Serialised<T> {
 
 impl<T: borsh::BorshDeserialize> Serialised<T> {
     pub fn get(&self) -> Result<T, ibc::ClientError> {
-        T::try_from_slice(self.0.as_slice()).map_err(Self::make_err)
+        T::try_from_slice(self.0.as_slice()).map_err(make_err)
     }
 }
 
@@ -380,4 +524,56 @@ impl<T> borsh::BorshDeserialize for Serialised<T> {
         rd.read_exact(data.as_mut_slice())?;
         Ok(Self(data, core::marker::PhantomData))
     }
+}
+
+fn make_err(err: io::Error) -> ibc::ClientError {
+    ibc::ClientError::ClientSpecific { description: err.to_string() }
+}
+
+#[test]
+fn test_sequence_triple() {
+    use hex_literal::hex;
+    use SequenceTripleIdx::{Ack, Recv, Send};
+
+    let mut triple = SequenceTriple::default();
+    assert_eq!(None, triple.get(Send));
+    assert_eq!(None, triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(CryptoHash::default(), triple.to_hash());
+
+    triple.set(Send, 42.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(None, triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000000 0000000000000000 01 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
+
+    triple.set(Recv, 24.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(Some(24.into()), triple.get(Recv));
+    assert_eq!(None, triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000018 0000000000000000 03 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
+
+    triple.set(Ack, 12.into());
+    assert_eq!(Some(42.into()), triple.get(Send));
+    assert_eq!(Some(24.into()), triple.get(Recv));
+    assert_eq!(Some(12.into()), triple.get(Ack));
+    assert_eq!(
+        &hex!(
+            "000000000000002A 0000000000000018 000000000000000C 07 \
+             00000000000000"
+        ),
+        triple.to_hash().as_array(),
+    );
 }

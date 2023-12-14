@@ -522,7 +522,7 @@ impl IbcStorage<'_, '_> {
         let client = store.private.client(client_id)?;
         let mut range = client.consensus_states.range(range);
         if dir == Direction::Next { range.next() } else { range.next_back() }
-            .map(|(_, data)| data.get())
+            .map(|(_, data)| data.state())
             .transpose()
             .map_err(|err| err.into())
     }

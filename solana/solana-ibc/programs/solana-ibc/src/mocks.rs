@@ -1,13 +1,20 @@
-extern crate alloc;
-
 use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
 
-use crate::ibc::{ClientExecutionContext, ExecutionContext, ValidationContext};
-use crate::{error, host, ibc, storage, MockDeliver, MINT_ESCROW_SEED};
+use crate::ibc::ExecutionContext;
+use crate::{ibc, storage, MockDeliver, MockInitEscrow, MINT_ESCROW_SEED};
 
 
-pub fn mock_deliver_impl<'a, 'info>(
+pub(crate) fn mock_init_escrow<'a, 'info>(
+    _ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
+    _port_id: ibc::PortId,
+    _channel_id: ibc::ChannelId,
+    _base_denom: String,
+) -> Result<()> {
+    Ok(())
+}
+
+pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
@@ -16,43 +23,13 @@ pub fn mock_deliver_impl<'a, 'info>(
     client_id: ibc::ClientId,
     counterparty_client_id: ibc::ClientId,
 ) -> Result<()> {
-    let private = &mut ctx.accounts.storage;
-    let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-
-    let host_head = host::Head::get()?;
-    let (host_timestamp, host_height) = host_head
-        .ibc_timestamp()
-        .and_then(|ts| host_head.ibc_height().map(|h| (ts, h)))
-        .map_err(error::Error::from)
-        .map_err(|err| error!((&err)))?;
-
     let binding = Vec::new();
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-        private,
-        provable,
-        accounts: &binding,
-        host_head,
+        private: &mut ctx.accounts.storage,
+        provable: storage::get_provable_from(&ctx.accounts.trie)?,
+        chain: &mut ctx.accounts.chain,
+        accounts: &binding, 
     });
-
-    let any_client_state = store.client_state(&client_id).unwrap();
-    let client_state =
-        ibc::mock::MockClientState::try_from(any_client_state).unwrap();
-
-    // Store update time since its not called during mocks
-    store
-        .store_update_time(
-            client_id.clone(),
-            client_state.latest_height(),
-            host_timestamp,
-        )
-        .unwrap();
-    store
-        .store_update_height(
-            client_id.clone(),
-            client_state.latest_height(),
-            host_height,
-        )
-        .unwrap();
 
     let connection_id_on_a = ibc::ConnectionId::new(0);
     let connection_id_on_b = ibc::ConnectionId::new(1);
@@ -171,9 +148,10 @@ pub fn mock_deliver_impl<'a, 'info>(
         .unwrap();
 
     // Minting some tokens to the escrow so that he can do the transfer
-    let bump_vector = ctx.bumps.mint_authority.to_le_bytes();
-    let inner = vec![MINT_ESCROW_SEED, bump_vector.as_ref()];
-    let outer = vec![inner.as_slice()];
+    let bump = ctx.bumps.mint_authority;
+    let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
+    let seeds = seeds.as_ref();
+    let seeds = core::slice::from_ref(&seeds);
 
     // Mint some tokens to escrow account
     let mint_instruction = MintTo {
@@ -184,7 +162,7 @@ pub fn mock_deliver_impl<'a, 'info>(
     let cpi_ctx = CpiContext::new_with_signer(
         ctx.accounts.token_program.to_account_info(),
         mint_instruction,
-        outer.as_slice(), //signer PDA
+        seeds, //signer PDA
     );
     anchor_spl::token::mint_to(cpi_ctx, 10000000)?;
     Ok(())

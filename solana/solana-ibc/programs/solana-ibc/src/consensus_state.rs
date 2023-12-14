@@ -7,6 +7,7 @@ use crate::ibc::{ConsensusState, Protobuf};
 #[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
+    Guest(blockchain::proto::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockConsensusState),
 }
@@ -16,6 +17,7 @@ pub enum AnyConsensusState {
 #[repr(u8)]
 enum AnyConsensusStateTag {
     Tendermint = 0,
+    Guest = 1,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -27,6 +29,7 @@ impl AnyConsensusStateTag {
     fn from_type_url(url: &str) -> Option<Self> {
         match url {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
+            AnyConsensusState::GUEST_TYPE => Some(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -38,6 +41,9 @@ impl AnyConsensusState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
+    /// Protobuf type URL for Guest client state used in Any message.
+    const GUEST_TYPE: &'static str =
+        blockchain::proto::msg::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
@@ -61,6 +67,11 @@ impl AnyConsensusState {
                 Self::TENDERMINT_TYPE,
                 Protobuf::<ibc::tm::ConsensusStatePB>::encode_vec(state),
             ),
+            AnyConsensusState::Guest(state) => (
+                AnyConsensusStateTag::Guest,
+                Self::GUEST_TYPE,
+                state.encode_to_vec(),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(state) => (
                 AnyConsensusStateTag::Mock,
@@ -74,15 +85,22 @@ impl AnyConsensusState {
     fn from_tagged(
         tag: AnyConsensusStateTag,
         value: Vec<u8>,
-    ) -> Result<Self, impl core::fmt::Display> {
+    ) -> Result<Self, String> {
         match tag {
             AnyConsensusStateTag::Tendermint => {
                 Protobuf::<ibc::tm::ConsensusStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
+            }
+            AnyConsensusStateTag::Guest => {
+                blockchain::proto::ConsensusState::decode(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Guest)
             }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusStateTag::Mock => {
                 Protobuf::<ibc::mock::ConsensusStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
                     .map(Self::Mock)
             }
         }
@@ -96,28 +114,13 @@ impl TryFrom<ibc::Any> for AnyConsensusState {
     type Error = ibc::ClientError;
 
     fn try_from(value: ibc::Any) -> Result<Self, Self::Error> {
-        match value.type_url.as_str() {
-            Self::TENDERMINT_TYPE => Ok(AnyConsensusState::Tendermint(
-                Protobuf::<ibc::tm::ConsensusStatePB>::decode_vec(&value.value)
-                    .map_err(|e| ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?,
-            )),
-            #[cfg(any(test, feature = "mocks"))]
-            Self::MOCK_TYPE => Ok(AnyConsensusState::Mock(
-                Protobuf::<ibc::mock::ConsensusStatePB>::decode_vec(
-                    &value.value,
-                )
-                .map_err(|e| {
-                    ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    }
-                })?,
-            )),
-            _ => Err(ibc::ClientError::UnknownConsensusStateType {
-                consensus_state_type: value.type_url.clone(),
-            }),
-        }
+        let tag = AnyConsensusStateTag::from_type_url(value.type_url.as_str())
+            .ok_or(ibc::ClientError::UnknownConsensusStateType {
+                consensus_state_type: value.type_url,
+            })?;
+        Self::from_tagged(tag, value.value).map_err(|description| {
+            ibc::ClientError::ClientSpecific { description }
+        })
     }
 }
 
@@ -155,6 +158,7 @@ impl ConsensusState for AnyConsensusState {
     fn root(&self) -> &ibc::CommitmentRoot {
         match self {
             AnyConsensusState::Tendermint(value) => value.root(),
+            AnyConsensusState::Guest(value) => &value.block_hash,
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => value.root(),
         }
@@ -163,6 +167,9 @@ impl ConsensusState for AnyConsensusState {
     fn timestamp(&self) -> ibc::Timestamp {
         match self {
             AnyConsensusState::Tendermint(value) => value.timestamp().into(),
+            AnyConsensusState::Guest(value) => {
+                ibc::Timestamp::from_nanoseconds(value.timestamp.get()).unwrap()
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => value.timestamp(),
         }
@@ -171,12 +178,11 @@ impl ConsensusState for AnyConsensusState {
     fn encode_vec(self) -> Vec<u8> {
         match self {
             AnyConsensusState::Tendermint(value) => {
-                ibc::ConsensusState::encode_vec(value)
+                ConsensusState::encode_vec(value)
             }
+            AnyConsensusState::Guest(value) => value.encode_to_vec(),
             #[cfg(any(test, feature = "mocks"))]
-            AnyConsensusState::Mock(value) => {
-                ibc::ConsensusState::encode_vec(value)
-            }
+            AnyConsensusState::Mock(value) => ConsensusState::encode_vec(value),
         }
     }
 }

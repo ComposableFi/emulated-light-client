@@ -9,24 +9,41 @@ on:
       - master
 
 env:
-  SOLANA_VERSION: v1.16.3
+  SOLANA_VERSION: v1.17.7
+  ANCHOR_VERSION: 0.29.0
 
 jobs:
   misc:
     name: Miscellaneous checks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install Rust
+        id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
-          components: clippy rustfmt
+          components: clippy rustfmt miri
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check formatting
         run: cargo fmt --all --check
 
+      - name: Cache cargo-deny
+        id: cache-cargo-deny
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-cargo-deny
+
       - name: Install cargo-deny
+        if: steps.cache-cargo-deny.outputs.cache-hit != 'true'
         run: cargo install --locked cargo-deny
 
       - name: Check bans
@@ -38,37 +55,81 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features -- -D warnings
 
-  solana-build: 
-    name: Build SBF
+      - name: Miri tests
+        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor
+
+  anchor-build:
+    name: Anchor Test
     runs-on: ubuntu-latest
-    steps: 
-      - uses: actions/checkout@v3
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install Rust
+        id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: rustfmt
 
-      - name: Install Solana CLI
-        run: | 
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Anchor
+        id: cache-anchor
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.avm
+            ~/.cargo/bin/avm
+            ~/.cargo/bin/anchor
+            ~/.config/solana/
+            ~/.local/share/solana/
+          key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-${{ env.SOLANA_VERSION }}-${{ env.ANCHOR_VERSION }}-anchor
+
+      - name: Install Solana
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: |
           set -eux
           curl -sSfL https://release.solana.com/$SOLANA_VERSION/install | sh
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           cp solana/solana-ibc/keypair.json ~/.config/solana/id.json
 
-      - name: Run build-sbf
-        run: cargo build-sbf
+      - name: Setup Solana PATH
+        run: echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-  stable:
+      - name: Install Anchor
+        if: steps.cache-anchor.outputs.cache-hit != 'true'
+        run: |
+          set -eux
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+          avm install $ANCHOR_VERSION
+          avm use $ANCHOR_VERSION
+
+      - name: Anchor Build (with mocks)
+        run: anchor build -- --features=mocks
+
+      - name: Anchor Test
+        run: anchor test --skip-build
+
+  tests:
     name: Rust tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
           components: rustfmt
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run tests (default features)
         run: cargo test
@@ -78,17 +139,3 @@ jobs:
 
       - name: Run tests (all features)
         run: cargo test --all-features
-
-  nightly:
-    name: Rust Miri tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly
-          components: miri
-
-      - name: Run tests with Miri
-        run: cargo miri test -- -Z unstable-options --report-time --skip ::anchor

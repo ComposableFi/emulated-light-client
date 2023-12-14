@@ -98,14 +98,12 @@ impl BorshDeserialize for Proof {
 //  - 0x00 <hash>  — Branch with node child
 //  - 0x10 <hash>  — Branch with value child
 //  - 0x2. 0x..    — Extension (starts with 0x20 or 0x21)
-//  - 0x30 <hash>  — Value
 impl BorshSerialize for Item {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
         match self {
             Self::Branch(child) => {
                 (u8::from(child.is_value) << 4, child.hash.as_array())
             }
-            Self::Value(hash) => (0x30, hash.as_array()),
             Self::Extension(key_len) => {
                 // to_be_bytes rather than borsh’s serialise because it’s part
                 // of tag so we need to keep most significant byte first.
@@ -143,7 +141,6 @@ fn deserialize_item_cont(
                 .ok_or_else(|| invalid_data("empty Item::Extension".into()))
                 .map(Item::Extension)
         }
-        0x30 => Ok(Item::Value(CryptoHash(<_>::deserialize_reader(rd)?))),
         _ => Err(invalid_data(format!("invalid Item tag: {first}"))),
     }
 }
@@ -321,12 +318,6 @@ fn test_item_borsh() {
     ]);
     test(Item::Extension(NonZeroU16::new(42).unwrap()), &[0x20, 42]);
     test(Item::Extension(NonZeroU16::new(34 * 8).unwrap()), &[0x21, 16]);
-    #[rustfmt::skip]
-    test(Item::Value(CryptoHash::test(42)), &[
-        /* tag: */ 0x30,
-        /* hash: */ 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42,
-                    0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42, 0, 0, 0, 42,
-    ]);
 }
 
 #[test]
