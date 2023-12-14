@@ -117,6 +117,7 @@ pub mod solana_ibc {
     }
 
     /// Called to set up escrow and mint accounts for given channel and denom.
+    #[allow(unused_variables)]
     pub fn deliver_init_escrow<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, DeliverInitEscrow<'info>>,
         port_id: ibc::PortId,
@@ -203,13 +204,7 @@ pub mod solana_ibc {
         timeout_height: ibc::TimeoutHeight,
         timeout_timestamp: ibc::Timestamp,
     ) -> Result<()> {
-        let binding = Vec::new();
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private: &mut ctx.accounts.storage,
-            provable: storage::get_provable_from(&ctx.accounts.trie)?,
-            chain: &mut ctx.accounts.chain,
-            accounts: &binding,
-        });
+        let mut store = crate::storage::from_ctx!(ctx);
 
         let sequence = store
             .get_next_sequence_send(&ibc::path::SeqSendPath::new(

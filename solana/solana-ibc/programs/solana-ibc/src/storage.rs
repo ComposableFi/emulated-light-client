@@ -439,11 +439,9 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// operator to handle error returned from it (if any).
 macro_rules! from_ctx {
     ($ctx:expr) => {{
-        let accounts = $ctx.accounts.clone();
         let private = &mut $ctx.accounts.storage;
         let provable = storage::get_provable_from(&$ctx.accounts.trie)?;
         let chain = &mut $ctx.accounts.chain;
-        let transfer_accounts = accounts.to_transfer_accounts().clone();
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
@@ -454,7 +452,7 @@ macro_rules! from_ctx {
             private,
             provable,
             chain,
-            accounts: &transfer_accounts.clone(),
+            accounts: &[],
         })
     }}
 }
