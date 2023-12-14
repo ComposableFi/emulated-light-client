@@ -412,31 +412,31 @@ fn anchor_test_deliver() -> Result<()> {
      */
 
     let sig = program
-    .request()
-    .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-        1_000_000u32,
-    ))
-    .accounts(accounts::DeliverInitEscrow {
-        sender: authority.pubkey(),
-        mint_authority: mint_authority_key,
-        escrow_account: escrow_account_key,
-        token_mint: token_mint_key,
-        system_program: system_program::ID,
-        associated_token_program: anchor_spl::associated_token::ID,
-        token_program: anchor_spl::token::ID,
-    })
-    .args(instruction::DeliverInitEscrow {
-        port_id: port_id.clone(),
-        channel_id_on_b: channel_id_on_b.clone(),
-        base_denom: BASE_DENOM.to_string(),
-    })
-    .payer(authority.clone())
-    .signer(&*authority)
-    .send_with_spinner_and_config(RpcSendTransactionConfig {
-        skip_preflight: true,
-        ..RpcSendTransactionConfig::default()
-    })?;
-println!("  Signature: {sig}");
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::DeliverInitEscrow {
+            sender: authority.pubkey(),
+            mint_authority: mint_authority_key,
+            escrow_account: escrow_account_key,
+            token_mint: token_mint_key,
+            system_program: system_program::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            token_program: anchor_spl::token::ID,
+        })
+        .args(instruction::DeliverInitEscrow {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
+            base_denom: BASE_DENOM.to_string(),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
 
     /*
      * On Source chain

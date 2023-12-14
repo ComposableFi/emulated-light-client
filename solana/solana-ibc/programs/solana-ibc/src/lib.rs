@@ -208,7 +208,7 @@ pub mod solana_ibc {
             private: &mut ctx.accounts.storage,
             provable: storage::get_provable_from(&ctx.accounts.trie)?,
             chain: &mut ctx.accounts.chain,
-            accounts: &binding, 
+            accounts: &binding,
         });
 
         let sequence = store
