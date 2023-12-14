@@ -38,6 +38,7 @@ ibc-core-channel-types = { version = "0.48.1", default-features = false }
 ibc-core-client-types = { version = "0.48.1", default-features = false }
 ibc-core-commitment-types = { version = "0.48.1", default-features = false }
 ibc-core-connection-types = { version = "0.48.1", default-features = false }
+ibc-core-host = { version = "0.48.1", default-features = false }
 ibc-core-host-types = { version = "0.48.1", default-features = false }
 ibc-proto = { version = "0.39.1", default-features = false }
 ibc-testkit = { version = "0.48.1", default-features = false }

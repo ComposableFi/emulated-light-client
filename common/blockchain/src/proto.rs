@@ -17,8 +17,8 @@ mod pb {
         /// An example test message.
         #[cfg(test)]
         pub fn test() -> Self {
-            let hash = lib::hash::CryptoHash::test(42);
-            Self { block_hash: hash.as_array().to_vec(), timestamp: 1 }
+            let block_hash = lib::hash::CryptoHash::test(42).to_vec();
+            Self { block_hash, timestamp: 1 }
         }
     }
 }

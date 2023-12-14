@@ -30,8 +30,7 @@ impl ConsensusState {
 
 impl ConsensusState {
     pub fn new(block_hash: &CryptoHash, timestamp: NonZeroU64) -> Self {
-        let block_hash = block_hash.as_array().to_vec().into();
-        Self { block_hash, timestamp }
+        Self { block_hash: block_hash.to_vec().into(), timestamp }
     }
 }
 

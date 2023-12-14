@@ -152,7 +152,11 @@ impl ClientConsensusState {
         client_id: &ibc::ClientId,
     ) -> Result<CryptoHash, ibc::ClientError> {
         match self.0.as_bytes().get(16..) {
-            Some(serialised) => Ok(digest_with_client(client_id, serialised)),
+            Some(serialised) => {
+                Ok(blockchain::ibc_state::digest_with_client_id(
+                    client_id, serialised,
+                ))
+            }
             None => Err(ibc::ClientError::ClientSpecific {
                 description: "Internal: Bad AnyConsensusState".into(),
             }),
@@ -520,22 +524,10 @@ impl<T> Serialised<T> {
     pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
 
     /// Returns digest of the serialised value with client id mixed in.
-    ///
-    /// Because we don’t store full client id in the trie key, for paths which
-    /// include client path, it’s important to reflect it somehow in the value
-    /// stored in the trie.  This therefore hash the id together with the
-    /// serialised values to get the final value hash.
-    ///
-    /// Specifically, calculates `digest(client_id || b'0' || serialised)`.
     #[inline]
     pub fn digest_with_client(&self, client_id: &ibc::ClientId) -> CryptoHash {
-        digest_with_client(client_id, self.as_bytes())
+        blockchain::ibc_state::digest_with_client_id(client_id, self.as_bytes())
     }
-}
-
-/// Returns digest of the bytes with client id mixed in.
-fn digest_with_client(client_id: &ibc::ClientId, bytes: &[u8]) -> CryptoHash {
-    CryptoHash::digestv(&[client_id.as_bytes(), b"\0", bytes])
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {

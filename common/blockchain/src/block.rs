@@ -155,6 +155,29 @@ pub enum GenerateError {
 }
 
 impl BlockHeader {
+    /// Constructs a new genesis block header.
+    ///
+    /// A genesis block is identified by previous block hash and epoch id both
+    /// being all-zero hash.
+    pub fn generate_genesis(
+        block_height: crate::BlockHeight,
+        host_height: crate::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: CryptoHash,
+        next_epoch_commitment: CryptoHash,
+    ) -> Self {
+        Self {
+            version: crate::common::VersionZero,
+            prev_block_hash: CryptoHash::DEFAULT,
+            block_height,
+            host_height,
+            host_timestamp,
+            state_root,
+            epoch_id: CryptoHash::DEFAULT,
+            next_epoch_commitment: Some(next_epoch_commitment),
+        }
+    }
+
     /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
         self.prev_block_hash == CryptoHash::DEFAULT &&
@@ -226,16 +249,13 @@ impl<PK: crate::PubKey> Block<PK> {
         next_epoch: crate::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
         Ok(Self {
-            header: BlockHeader {
-                version: crate::common::VersionZero,
-                prev_block_hash: CryptoHash::DEFAULT,
+            header: BlockHeader::generate_genesis(
                 block_height,
                 host_height,
                 host_timestamp,
                 state_root,
-                epoch_id: CryptoHash::DEFAULT,
-                next_epoch_commitment: Some(next_epoch.calc_commitment()),
-            },
+                next_epoch.calc_commitment(),
+            ),
             next_epoch: Some(next_epoch),
         })
     }

@@ -106,6 +106,10 @@ impl CryptoHash {
     /// Returns a shared reference to the hash as slice of bytes.
     #[inline]
     pub fn as_slice(&self) -> &[u8] { &self.0[..] }
+
+    /// Allocates vector with the contents of the hash.
+    #[inline]
+    pub fn to_vec(&self) -> alloc::vec::Vec<u8> { self.as_slice().to_vec() }
 }
 
 impl core::fmt::Display for CryptoHash {

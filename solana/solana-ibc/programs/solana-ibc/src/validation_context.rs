@@ -79,7 +79,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         })?;
         Ok(Self::AnyConsensusState::from(
             blockchain::ibc_state::ConsensusState {
-                block_hash: state.0.as_array().to_vec().into(),
+                block_hash: state.0.to_vec().into(),
                 timestamp: state.1,
             },
         ))
@@ -192,7 +192,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ibc::PacketCommitment> {
         let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
-            Some(hash) => Ok(hash.as_slice().to_vec().into()),
+            Some(hash) => Ok(hash.to_vec().into()),
             None => Err(ibc::ContextError::PacketError(
                 ibc::PacketError::PacketReceiptNotFound {
                     sequence: path.sequence,
@@ -222,7 +222,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<ibc::AcknowledgementCommitment> {
         let trie_key = trie_ids::TrieKey::try_from(path)?;
         match self.borrow().provable.get(&trie_key).ok().flatten() {
-            Some(hash) => Ok(hash.as_slice().to_vec().into()),
+            Some(hash) => Ok(hash.to_vec().into()),
             None => Err(ibc::ContextError::PacketError(
                 ibc::PacketError::PacketAcknowledgementNotFound {
                     sequence: path.sequence,
