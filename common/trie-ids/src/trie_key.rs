@@ -162,24 +162,9 @@ impl core::ops::Deref for TrieKey {
 
 impl core::fmt::Display for TrieKey {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        const DIGITS: [ascii::AsciiChar; 16] = [
-            ascii::AsciiChar::_0,
-            ascii::AsciiChar::_1,
-            ascii::AsciiChar::_2,
-            ascii::AsciiChar::_3,
-            ascii::AsciiChar::_4,
-            ascii::AsciiChar::_5,
-            ascii::AsciiChar::_6,
-            ascii::AsciiChar::_7,
-            ascii::AsciiChar::_8,
-            ascii::AsciiChar::_9,
-            ascii::AsciiChar::a,
-            ascii::AsciiChar::b,
-            ascii::AsciiChar::c,
-            ascii::AsciiChar::d,
-            ascii::AsciiChar::e,
-            ascii::AsciiChar::f,
-        ];
+        use ascii::AsciiChar::*;
+        const DIGITS: [ascii::AsciiChar; 16] =
+            [_0, _1, _2, _3, _4, _5, _6, _7, _8, _9, a, b, c, d, e, f];
 
         let mut out = [ascii::AsciiChar::Null; 44];
         for (dst, byte) in out.chunks_exact_mut(2).zip(self.iter()) {
