@@ -53,7 +53,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
             processed_height,
             &state,
         )?;
-        let hash = state.digest()?;
+        let hash = state.digest(&path.client_id)?;
         client.consensus_states.insert(height, state);
 
         let trie_key =

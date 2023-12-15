@@ -159,7 +159,6 @@ impl core::ops::Deref for TrieKey {
     fn deref(&self) -> &[u8] { &self.bytes[..usize::from(self.len)] }
 }
 
-
 impl core::fmt::Display for TrieKey {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
         use ascii::AsciiChar::*;
@@ -190,7 +189,6 @@ fn test_display() {
     assert_eq!(want, key.to_string());
     assert_eq!(want, format!("{key:?}"));
 }
-
 
 impl TryFrom<SequencePath<'_>> for TrieKey {
     type Error = ibc::ChannelError;
