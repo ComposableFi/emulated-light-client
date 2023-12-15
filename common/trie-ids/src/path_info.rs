@@ -11,16 +11,16 @@ pub struct PathInfo {
     /// The key in the trie path maps to.
     pub key: TrieKey,
 
-    /// Client the key has been at least partially derived from, if any.
+    /// Client id the key has been derived from, if any.
     ///
-    /// `ClientState` and `ConsensusState` paths are derived partially from the
-    /// client id.  However, the key doesn’t encode the entirety of the id and
-    /// different client ids may map to the same key.
+    /// `ClientState` and `ConsensusState` paths are derived from the client id.
+    /// However, the key doesn’t encode the entirety of the id and different
+    /// client ids may map to the same key.
     ///
     /// If this field is set, it’s caller’s responsibility to verify that the
     /// client id provided by the user corresponds to client id that the light
-    /// client expects at given index.
-    pub client: Option<(ibc::ClientId, crate::ClientIdx)>,
+    /// client expects.
+    pub client_id: Option<ibc::ClientId>,
 
     /// Sequence type if the path was for the next sequence number.
     ///
@@ -29,6 +29,37 @@ pub struct PathInfo {
     /// trie key.  This field is used to distinguish between the three sequence
     /// number applications.
     pub seq_kind: Option<SequenceKind>,
+}
+
+/// Client type of the client id used in path doesn’t match the one expected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BadClientType;
+
+impl PathInfo {
+    /// Verifies that if the path included a client id, it’s client type was the
+    /// one specified.
+    ///
+    /// In other words, checks that client id which was used in generating the
+    /// path (if any) follows `<client-type>-<unsigned>` format where
+    /// `<unsigned>` is a sequence of digits.
+    ///
+    /// Does nothing if the path didn’t include client id.
+    pub fn verify_client_type(
+        &self,
+        client_type: &str,
+    ) -> Result<(), BadClientType> {
+        let ok = self.client_id.as_ref().map_or(true, |id| {
+            id.as_bytes()
+                .strip_prefix(client_type.as_bytes())
+                .and_then(|suffix| suffix.strip_prefix(b"-"))
+                .map_or(false, |suffix| suffix.iter().all(u8::is_ascii_digit))
+        });
+        if ok {
+            Ok(())
+        } else {
+            Err(BadClientType)
+        }
+    }
 }
 
 /// Type of a sequence number referenced in a path; see [`PathInfo::seq_kind`].
@@ -98,7 +129,7 @@ try_from_impl! {
             .map_err(|_| path.0)?;
         Ok(Self {
             key: TrieKey::for_connection(connection),
-            client: None,
+            client_id: None,
             seq_kind: None,
         })
     }
@@ -151,12 +182,10 @@ impl PathInfo {
         client_id: ibc::ClientId,
         make: impl FnOnce(crate::ClientIdx) -> TrieKey,
     ) -> Result<Self, Error> {
-        match crate::ClientIdx::try_from(&client_id) {
-            Ok(client_idx) => Ok(Self {
-                key: make(client_idx),
-                client: Some((client_id, client_idx)),
-                seq_kind: None,
-            }),
+        match crate::ClientIdx::try_from(&client_id).map(make) {
+            Ok(key) => {
+                Ok(Self { key, client_id: Some(client_id), seq_kind: None })
+            }
             Err(_) => Err(client_id.into()),
         }
     }
@@ -172,7 +201,7 @@ impl PathInfo {
             crate::ChannelIdx::try_from(&channel_id).map_err(|_| channel_id)?;
         Ok(Self {
             key: TrieKey::new(tag, (port_key, channel_idx)),
-            client: None,
+            client_id: None,
             seq_kind: None,
         })
     }
@@ -198,9 +227,31 @@ impl PathInfo {
             crate::ChannelIdx::try_from(&channel_id).map_err(|_| channel_id)?;
         Ok(Self {
             key: TrieKey::new(tag, ((port_key, channel_idx), u64::from(seq))),
-            client: None,
+            client_id: None,
             seq_kind: None,
         })
+    }
+}
+
+
+#[test]
+fn test_verify_client_type() {
+    use core::str::FromStr;
+
+    for (ok, id, ct) in [
+        (true, None, "foo-bar"),
+        (true, Some("foo-bar-42"), "foo-bar"),
+        (false, Some("foo-bar-42"), "foo"),
+        (false, Some("foo-bar-42"), "bar-bar"),
+        (false, Some("foo-bar-baz-42"), "foo"),
+        (false, Some("foo-bar-baz-42"), "foo-bar"),
+    ] {
+        let info = PathInfo {
+            key: TrieKey::from_bytes(b""),
+            client_id: id.map(|id| ibc::ClientId::from_str(id).unwrap()),
+            seq_kind: None,
+        };
+        assert_eq!(ok, info.verify_client_type(ct).is_ok(), "id={id:?}");
     }
 }
 
@@ -216,11 +267,8 @@ fn test_try_from_path() {
     {
         let want = Ok(PathInfo {
             key: TrieKey::from_bytes(want_key),
-            client: want_client.then(|| {
-                let id = ibc::ClientId::from_str("foo-bar-1").unwrap();
-                let idx = crate::ClientIdx::try_from(&id).unwrap();
-                (id, idx)
-            }),
+            client_id: want_client
+                .then(|| ibc::ClientId::from_str("foo-bar-1").unwrap()),
             seq_kind: match want_seq {
                 0 => Some(SequenceKind::Send),
                 1 => Some(SequenceKind::Recv),
@@ -248,8 +296,8 @@ fn test_try_from_path() {
         (err, $path:expr) => {
             test_bad($path)
         };
-        ($want:literal, $client:expr, $seq:expr, $path:expr $(,)?) => {
-            test(&hex_literal::hex!($want), $client, $seq, $path)
+        ($want:literal, $client_id:expr, $seq:expr, $path:expr $(,)?) => {
+            test(&hex_literal::hex!($want), $client_id, $seq, $path)
         };
     }
 
