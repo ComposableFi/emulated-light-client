@@ -209,9 +209,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: None,
         })
         .args(instruction::Deliver {
-            port_id: None,
-            channel_id_on_b: None,
-            base_denom: None,
             message,
         })
         .payer(authority.clone())
@@ -283,9 +280,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: None,
         })
         .args(instruction::Deliver {
-            port_id: None,
-            channel_id_on_b: None,
-            base_denom: None,
             message,
         })
         .payer(authority.clone())
@@ -416,7 +410,7 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(accounts::DeliverInitEscrow {
+        .accounts(accounts::InitEscrow {
             sender: authority.pubkey(),
             mint_authority: mint_authority_key,
             escrow_account: escrow_account_key,
@@ -545,9 +539,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver {
-            port_id: Some(port_id.clone()),
-            channel_id_on_b: Some(channel_id_on_b.clone()),
-            base_denom: Some(BASE_DENOM.to_string()),
             message,
         })
         .payer(authority.clone())
@@ -634,9 +625,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver {
-            port_id: Some(port_id.clone()),
-            channel_id_on_b: Some(channel_id_on_b.clone()),
-            base_denom: Some(BASE_DENOM.to_string()),
             message,
         })
         .payer(authority.clone())

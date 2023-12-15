@@ -121,7 +121,7 @@ pub mod solana_ibc {
     /// Anchor initializes the accounts mentioned before the body of the method is called.
     #[allow(unused_variables)]
     pub fn init_escrow<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, DeliverInitEscrow<'info>>,
+        ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         base_denom: String,
@@ -132,9 +132,9 @@ pub mod solana_ibc {
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
-        port_id: Option<ibc::PortId>,
-        channel_id_on_b: Option<ibc::ChannelId>,
-        base_denom: Option<String>,
+        // port_id: Option<ibc::PortId>,
+        // channel_id_on_b: Option<ibc::ChannelId>,
+        // base_denom: Option<String>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let accounts = ctx.accounts.clone();
@@ -365,7 +365,7 @@ pub struct ChainWithVerifier<'info> {
 
 #[derive(Accounts)]
 #[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
-pub struct DeliverInitEscrow<'info> {
+pub struct InitEscrow<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
@@ -389,7 +389,7 @@ pub struct DeliverInitEscrow<'info> {
 }
 
 #[derive(Accounts, Clone)]
-#[instruction(port_id: Option<ibc::PortId>, channel_id_on_b: Option<ibc::ChannelId>, base_denom: Option<String>)]
+// #[instruction(port_id: Option<ibc::PortId>, channel_id_on_b: Option<ibc::ChannelId>, base_denom: Option<String>)]
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -415,12 +415,9 @@ pub struct Deliver<'info> {
     #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
-    #[account(mut, seeds = [base_denom.clone().unwrap().as_bytes()],
-        bump, mint::decimals = 6, mint::authority = mint_authority)]
+    #[account(mut, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    #[account(mut, seeds = [
-        port_id.clone().unwrap().as_bytes(), channel_id_on_b.clone().unwrap().as_bytes(), base_denom.clone().unwrap().as_bytes()
-    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     // #[account(mut,
     //     associated_token::mint = token_mint,
