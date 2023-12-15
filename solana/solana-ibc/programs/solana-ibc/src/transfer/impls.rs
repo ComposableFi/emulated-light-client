@@ -1,7 +1,6 @@
-use std::mem::{discriminant, Discriminant};
 use std::str::FromStr;
 
-use anchor_lang::prelude::{AccountInfo, CpiContext, Pubkey};
+use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
 
@@ -10,7 +9,7 @@ use crate::ibc::apps::transfer::context::{
 };
 use crate::ibc::apps::transfer::types::error::TokenTransferError;
 use crate::ibc::apps::transfer::types::{Amount, PrefixedCoin};
-use crate::storage::{IbcStorage, TransferAccountNames, TransferAccounts};
+use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
 /// Structure to identify if the account is escrow or not.
@@ -89,16 +88,6 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let base_denom = amt.denom.base_denom.as_str();
-        let sender_id = from
-            .try_into()
-            .or_else(|_| from.get_escrow_account(base_denom))
-            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-        let receiver_id = to
-            .try_into()
-            .or_else(|_| to.get_escrow_account(base_denom))
-            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
         // let (_token_mint_key, _bump) =
@@ -108,27 +97,43 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let accounts = &store.accounts;
 
-        let sender = get_account_info_from_key(accounts, sender_id)?;
-        let receiver = get_account_info_from_key(accounts, receiver_id)?;
-        let token_program = get_account_info_from_name(
-            accounts,
-            discriminant(&TransferAccountNames::TokenProgram),
-        )?;
 
-        let authority = if matches!(from, AccountId::Escrow(_)) {
-            get_account_info_from_name(
-                accounts,
-                discriminant(&TransferAccountNames::MintAuthority),
-            )?
-        } else {
-            // let sender_token_account =
-            //     TokenAccount::try_deserialize(&mut &sender.data.borrow()[..])
-            //         .unwrap();
-            get_account_info_from_name(
-                accounts,
-                discriminant(&TransferAccountNames::Sender),
-            )?
-        };
+        let token_program = accounts
+            .token_program
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let (sender, receiver, authority) =
+            if matches!(from, AccountId::Escrow(_)) {
+                let sender = accounts
+                    .escrow_account
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                let receiver = accounts
+                    .receiver_token_account
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                let auth = accounts
+                    .mint_authority
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                (sender, receiver, auth)
+            } else {
+                let sender = accounts
+                    .sender_token_account
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                let receiver = accounts
+                    .escrow_account
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                let auth = accounts
+                    .sender
+                    .clone()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?
+                    .clone();
+                (sender, receiver, auth)
+            };
 
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
@@ -161,28 +166,28 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let receiver_id = account
-            .try_into()
-            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-        let base_denom = amt.denom.base_denom.as_str();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
-        let (token_mint_key, _bump) =
-            Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
-        let receiver = get_account_info_from_key(accounts, receiver_id)?;
-        let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
-        let token_program = get_account_info_from_name(
-            accounts,
-            discriminant(&TransferAccountNames::TokenProgram),
-        )?;
-        let mint_auth = get_account_info_from_name(
-            accounts,
-            discriminant(&TransferAccountNames::MintAuthority),
-        )?;
+        let receiver = accounts
+            .receiver_token_account
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_program = accounts
+            .token_program
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_mint = accounts
+            .token_mint
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let mint_auth = accounts
+            .mint_authority
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
 
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
         let seeds = seeds.as_ref();
@@ -215,27 +220,27 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let burner_id = account
-            .try_into()
-            .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-        let base_denom = amt.denom.base_denom.as_str();
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
-        let (token_mint_key, _bump) =
-            Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (_mint_authority_key, bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
         let accounts = &store.accounts;
-        let burner = get_account_info_from_key(accounts, burner_id)?;
-        let token_mint = get_account_info_from_key(accounts, token_mint_key)?;
-        let token_program = get_account_info_from_name(
-            accounts,
-            discriminant(&TransferAccountNames::TokenProgram),
-        )?;
-        let mint_auth = get_account_info_from_name(
-            accounts,
-            discriminant(&TransferAccountNames::MintAuthority),
-        )?;
+        let burner = accounts
+            .receiver_token_account
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_program = accounts
+            .token_program
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_mint = accounts
+            .token_mint
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let mint_auth = accounts
+            .mint_authority
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
 
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
@@ -314,28 +319,6 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     ) -> Result<(), TokenTransferError> {
         Ok(())
     }
-}
-
-fn get_account_info_from_key<'a, 'b>(
-    accounts: &'a [TransferAccounts<'b>],
-    key: Pubkey,
-) -> Result<&'a AccountInfo<'b>, TokenTransferError> {
-    Ok(&accounts
-        .iter()
-        .find(|&transfer_account| transfer_account.account.key == &key)
-        .ok_or(TokenTransferError::ParseAccountFailure)?
-        .account)
-}
-
-fn get_account_info_from_name<'a, 'b>(
-    accounts: &'a [TransferAccounts<'b>],
-    name: Discriminant<TransferAccountNames>,
-) -> Result<&'a AccountInfo<'b>, TokenTransferError> {
-    Ok(&accounts
-        .iter()
-        .find(|&transfer_account| discriminant(&transfer_account.name) == name)
-        .ok_or(TokenTransferError::ParseAccountFailure)?
-        .account)
 }
 
 /// Verifies transfer amount.

@@ -10,7 +10,7 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
-use storage::{TransferAccountNames, TransferAccounts};
+use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
 use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
@@ -155,7 +155,7 @@ pub mod solana_ibc {
         let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
             private,
             provable,
-            accounts: &transfer_accounts,
+            accounts: transfer_accounts,
             chain,
         });
         let mut router = store.clone();
@@ -206,7 +206,7 @@ pub mod solana_ibc {
         timeout_height: ibc::TimeoutHeight,
         timeout_timestamp: ibc::Timestamp,
     ) -> Result<()> {
-        let mut store = crate::storage::from_ctx!(ctx);
+        let mut store = storage::from_ctx!(ctx);
 
         let sequence = store
             .get_next_sequence_send(&ibc::path::SeqSendPath::new(
@@ -534,65 +534,35 @@ pub struct SendPacket<'info> {
 }
 
 impl<'a> Deliver<'a> {
-    fn to_transfer_accounts(&self) -> Vec<TransferAccounts<'a>> {
-        let mut transfer_accounts = Vec::new();
-        transfer_accounts.push(TransferAccounts {
-            name: TransferAccountNames::Sender,
-            account: self.sender.as_ref().to_account_info(),
-        });
-        // if self.sender_token_account.is_some() {
-        //     transfer_accounts.push(TransferAccounts {
-        //         name: TransferAccountNames::SenderTokenAccount,
-        //         account: self
-        //             .sender_token_account
-        //             .as_ref()
-        //             .unwrap()
-        //             .to_account_info(),
-        //     });
-        // }
-        if self.receiver_token_account.is_some() {
-            transfer_accounts.push(TransferAccounts {
-                name: TransferAccountNames::ReceiverTokenAccount,
-                account: self
-                    .receiver_token_account
-                    .as_ref()
-                    .unwrap()
-                    .to_account_info(),
-            });
+    fn to_transfer_accounts(&self) -> TransferAccounts<'a> {
+        TransferAccounts {
+            sender: Some(self.sender.as_ref().to_account_info()),
+            receiver: self
+                .receiver
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
+            sender_token_account: None,
+            receiver_token_account: self
+                .receiver_token_account
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
+            token_mint: self
+                .token_mint
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
+            escrow_account: self
+                .escrow_account
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
+            mint_authority: self
+                .mint_authority
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
+            token_program: self
+                .token_program
+                .clone()
+                .and_then(|account| Some(account.to_account_info())),
         }
-        if self.token_mint.is_some() {
-            transfer_accounts.push(TransferAccounts {
-                name: TransferAccountNames::TokenMint,
-                account: self.token_mint.as_ref().unwrap().to_account_info(),
-            });
-        }
-        if self.escrow_account.is_some() {
-            transfer_accounts.push(TransferAccounts {
-                name: TransferAccountNames::EscrowAccount,
-                account: self
-                    .escrow_account
-                    .as_ref()
-                    .unwrap()
-                    .to_account_info(),
-            });
-        }
-        if self.mint_authority.is_some() {
-            transfer_accounts.push(TransferAccounts {
-                name: TransferAccountNames::MintAuthority,
-                account: self
-                    .mint_authority
-                    .as_ref()
-                    .unwrap()
-                    .to_account_info(),
-            });
-        }
-        if self.token_program.is_some() {
-            transfer_accounts.push(TransferAccounts {
-                name: TransferAccountNames::TokenProgram,
-                account: self.token_program.as_ref().unwrap().to_account_info(),
-            });
-        }
-        transfer_accounts
     }
 }
 

@@ -353,35 +353,41 @@ pub fn get_provable_from<'a, 'info>(
 }
 
 /// Used for finding the account info from the keys.
-/// 
+///
 /// Useful for finding the token mint on the source chain which cannot be
 /// derived from the denom. Would also save us some compute units to find
 /// authority and other accounts which used to be found by deriving from
 /// the seeds.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TransferAccounts<'a> {
-    pub name: TransferAccountNames,
-    pub account: AccountInfo<'a>,
+    pub sender: Option<AccountInfo<'a>>,
+    pub receiver: Option<AccountInfo<'a>>,
+    pub sender_token_account: Option<AccountInfo<'a>>,
+    pub receiver_token_account: Option<AccountInfo<'a>>,
+    pub token_mint: Option<AccountInfo<'a>>,
+    pub escrow_account: Option<AccountInfo<'a>>,
+    pub mint_authority: Option<AccountInfo<'a>>,
+    pub token_program: Option<AccountInfo<'a>>,
 }
 
-/// The various account names which are used for the transfers.
-#[derive(Debug, Clone, PartialEq)]
-pub enum TransferAccountNames {
-    /// Should be a signer
-    Sender,
-    SenderTokenAccount,
-    ReceiverTokenAccount,
-    TokenMint,
-    EscrowAccount,
-    MintAuthority,
-    TokenProgram,
-}
+// /// The various account names which are used for the transfers.
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum TransferAccountNames {
+//     /// Should be a signer
+//     Sender,
+//     SenderTokenAccount,
+//     ReceiverTokenAccount,
+//     TokenMint,
+//     EscrowAccount,
+//     MintAuthority,
+//     TokenProgram,
+// }
 
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
-    pub accounts: &'a [TransferAccounts<'b>],
+    pub accounts: TransferAccounts<'b>,
     pub chain: &'a mut crate::chain::ChainData,
 }
 
@@ -455,7 +461,7 @@ macro_rules! from_ctx {
             private,
             provable,
             chain,
-            accounts: &[],
+            accounts: Default::default(),
         })
     }}
 }
