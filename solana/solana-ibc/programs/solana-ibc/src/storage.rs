@@ -32,24 +32,20 @@ pub struct SequenceTriple {
     mask: u8,
 }
 
-#[derive(Clone, Copy)]
-pub enum SequenceTripleIdx {
-    Send = 0,
-    Recv = 1,
-    Ack = 2,
-}
+pub use trie_ids::path_info::SequenceKind;
 
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
-    pub fn get(&self, idx: SequenceTripleIdx) -> Option<ibc::Sequence> {
-        let idx = idx as usize;
-        (self.mask & (1 << idx) != 0).then_some(self.sequences[idx].into())
+    pub fn get(&self, idx: SequenceKind) -> Option<ibc::Sequence> {
+        let idx = usize::from(idx);
+        (self.mask & (1 << idx) != 0)
+            .then_some(ibc::Sequence::from(self.sequences[idx]))
     }
 
     /// Sets sequence at given index.
-    pub(crate) fn set(&mut self, idx: SequenceTripleIdx, seq: ibc::Sequence) {
-        self.sequences[idx as usize] = u64::from(seq);
-        self.mask |= 1 << (idx as u32)
+    pub(crate) fn set(&mut self, idx: SequenceKind, seq: ibc::Sequence) {
+        self.sequences[usize::from(idx)] = u64::from(seq);
+        self.mask |= 1 << usize::from(idx);
     }
 
     /// Encodes the object as a `CryptoHash` so it can be stored in the trie
@@ -541,7 +537,7 @@ fn make_err(err: io::Error) -> ibc::ClientError {
 #[test]
 fn test_sequence_triple() {
     use hex_literal::hex;
-    use SequenceTripleIdx::{Ack, Recv, Send};
+    use SequenceKind::{Ack, Recv, Send};
 
     let mut triple = SequenceTriple::default();
     assert_eq!(None, triple.get(Send));

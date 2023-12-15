@@ -267,11 +267,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_send: path: {}, seq: {}", path, seq);
-        self.store_next_sequence(
-            path.into(),
-            storage::SequenceTripleIdx::Send,
-            seq,
-        )
+        self.store_next_sequence(path.into(), storage::SequenceKind::Send, seq)
     }
 
     fn store_next_sequence_recv(
@@ -280,11 +276,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_recv: path: {}, seq: {}", path, seq);
-        self.store_next_sequence(
-            path.into(),
-            storage::SequenceTripleIdx::Recv,
-            seq,
-        )
+        self.store_next_sequence(path.into(), storage::SequenceKind::Recv, seq)
     }
 
     fn store_next_sequence_ack(
@@ -293,11 +285,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         seq: ibc::Sequence,
     ) -> Result {
         msg!("store_next_sequence_ack: path: {}, seq: {}", path, seq);
-        self.store_next_sequence(
-            path.into(),
-            storage::SequenceTripleIdx::Ack,
-            seq,
-        )
+        self.store_next_sequence(path.into(), storage::SequenceKind::Ack, seq)
     }
 
     fn increase_channel_counter(&mut self) -> Result {
@@ -340,7 +328,7 @@ impl storage::IbcStorage<'_, '_> {
     fn store_next_sequence(
         &mut self,
         path: trie_ids::SequencePath<'_>,
-        index: storage::SequenceTripleIdx,
+        index: storage::SequenceKind,
         seq: ibc::Sequence,
     ) -> Result {
         let key =

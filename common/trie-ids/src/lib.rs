@@ -1,5 +1,6 @@
 mod ids;
 mod path;
+pub mod path_info;
 mod trie_key;
 
 mod ibc {
@@ -14,4 +15,5 @@ mod ibc {
 
 pub use ids::{ChannelIdx, ClientIdx, ConnectionIdx, PortChannelPK, PortKey};
 pub use path::SequencePath;
+pub use path_info::PathInfo;
 pub use trie_key::{Tag, TrieKey};

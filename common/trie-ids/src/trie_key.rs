@@ -33,6 +33,23 @@ pub struct TrieKey {
     len: u8,
 }
 
+/// A discriminant used as the first byte of each trie key to create namespaces
+/// for different objects stored in the trie.
+#[repr(u8)]
+pub enum Tag {
+    ClientState = 0,
+    ConsensusState = 1,
+    Connection = 2,
+    ChannelEnd = 3,
+    NextSequence = 4,
+    Commitment = 5,
+    Receipt = 6,
+    Ack = 7,
+}
+
+impl From<Tag> for u8 {
+    fn from(tag: Tag) -> u8 { tag as u8 }
+}
 
 impl TrieKey {
     /// Constructs a new key for a client state path for client with given
@@ -218,23 +235,6 @@ impl TryFrom<&ibc::path::AckPath> for TrieKey {
     }
 }
 
-/// A discriminant used as the first byte of each trie key to create namespaces
-/// for different objects stored in the trie.
-#[repr(u8)]
-pub enum Tag {
-    ClientState = 0,
-    ConsensusState = 1,
-    Connection = 2,
-    ChannelEnd = 3,
-    NextSequence = 4,
-    Commitment = 5,
-    Receipt = 6,
-    Ack = 7,
-}
-
-impl From<Tag> for u8 {
-    fn from(tag: Tag) -> u8 { tag as u8 }
-}
 
 /// Component of a [`TrieKey`].
 ///
@@ -318,6 +318,7 @@ impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
         self.1.append_into(dest);
     }
 }
+
 
 #[test]
 fn test_encoding() {
