@@ -117,8 +117,10 @@ pub mod solana_ibc {
     }
 
     /// Called to set up escrow and mint accounts for given channel and denom.
+    /// The body of this method is empty since this method is only called for initializing the accounts.
+    /// Anchor initializes the accounts mentioned before the body of the method is called.
     #[allow(unused_variables)]
-    pub fn deliver_init_escrow<'a, 'info>(
+    pub fn init_escrow<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, DeliverInitEscrow<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
@@ -408,11 +410,9 @@ pub struct Deliver<'info> {
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
-    #[account(mut, seeds = [CHAIN_SEED],
-              bump)]
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Box<Account<'info, chain::ChainData>>,
-    #[account(mut, seeds = [MINT_ESCROW_SEED],
-        bump)]
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut, seeds = [base_denom.clone().unwrap().as_bytes()],

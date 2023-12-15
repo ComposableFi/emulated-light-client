@@ -353,8 +353,11 @@ pub fn get_provable_from<'a, 'info>(
 }
 
 /// Used for finding the account info from the keys.
-/// Useful for finding the token mint on the source chain which cannot be derived from the denom.
-/// Would also save us some compute units to find authority and other accounts which used to be found by deriving from the seeds.
+/// 
+/// Useful for finding the token mint on the source chain which cannot be
+/// derived from the denom. Would also save us some compute units to find
+/// authority and other accounts which used to be found by deriving from
+/// the seeds.
 #[derive(Debug, Clone)]
 pub struct TransferAccounts<'a> {
     pub name: TransferAccountNames,

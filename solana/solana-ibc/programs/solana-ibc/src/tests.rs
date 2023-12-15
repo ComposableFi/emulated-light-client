@@ -425,7 +425,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
         })
-        .args(instruction::DeliverInitEscrow {
+        .args(instruction::InitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
             base_denom: BASE_DENOM.to_string(),
