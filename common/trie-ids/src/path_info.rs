@@ -31,37 +31,6 @@ pub struct PathInfo {
     pub seq_kind: Option<SequenceKind>,
 }
 
-/// Client type of the client id used in path doesn’t match the one expected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct BadClientType;
-
-impl PathInfo {
-    /// Verifies that if the path included a client id, it’s client type was the
-    /// one specified.
-    ///
-    /// In other words, checks that client id which was used in generating the
-    /// path (if any) follows `<client-type>-<unsigned>` format where
-    /// `<unsigned>` is a sequence of digits.
-    ///
-    /// Does nothing if the path didn’t include client id.
-    pub fn verify_client_type(
-        &self,
-        client_type: &str,
-    ) -> Result<(), BadClientType> {
-        let ok = self.client_id.as_ref().map_or(true, |id| {
-            id.as_bytes()
-                .strip_prefix(client_type.as_bytes())
-                .and_then(|suffix| suffix.strip_prefix(b"-"))
-                .map_or(false, |suffix| suffix.iter().all(u8::is_ascii_digit))
-        });
-        if ok {
-            Ok(())
-        } else {
-            Err(BadClientType)
-        }
-    }
-}
-
 /// Type of a sequence number referenced in a path; see [`PathInfo::seq_kind`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SequenceKind {
@@ -230,28 +199,6 @@ impl PathInfo {
             client_id: None,
             seq_kind: None,
         })
-    }
-}
-
-
-#[test]
-fn test_verify_client_type() {
-    use core::str::FromStr;
-
-    for (ok, id, ct) in [
-        (true, None, "foo-bar"),
-        (true, Some("foo-bar-42"), "foo-bar"),
-        (false, Some("foo-bar-42"), "foo"),
-        (false, Some("foo-bar-42"), "bar-bar"),
-        (false, Some("foo-bar-baz-42"), "foo"),
-        (false, Some("foo-bar-baz-42"), "foo-bar"),
-    ] {
-        let info = PathInfo {
-            key: TrieKey::from_bytes(b""),
-            client_id: id.map(|id| ibc::ClientId::from_str(id).unwrap()),
-            seq_kind: None,
-        };
-        assert_eq!(ok, info.verify_client_type(ct).is_ok(), "id={id:?}");
     }
 }
 
