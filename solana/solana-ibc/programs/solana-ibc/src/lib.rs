@@ -29,7 +29,6 @@ mod ed25519;
 mod error;
 pub mod events;
 mod execution_context;
-mod host;
 mod ibc;
 #[cfg_attr(not(feature = "mocks"), path = "no-mocks.rs")]
 mod mocks;

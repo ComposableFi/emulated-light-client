@@ -56,11 +56,11 @@ impl ChainData {
         config: Config,
         genesis_epoch: Epoch,
     ) -> Result {
-        let host_head = crate::host::Head::get()?;
+        let (host_height, host_timestamp) = get_host_head()?;
         let genesis = Block::generate_genesis(
             1.into(),
-            host_head.height,
-            host_head.timestamp,
+            host_height,
+            host_timestamp,
             trie.hash().clone(),
             genesis_epoch,
         )
@@ -71,7 +71,7 @@ impl ChainData {
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
-        let inner = ChainInner { last_check_height: host_head.height, manager };
+        let inner = ChainInner { last_check_height: host_height, manager };
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
@@ -188,7 +188,7 @@ impl ChainInner {
         trie: &storage::AccountTrie,
         force: bool,
     ) -> Result {
-        let host_head = crate::host::Head::get()?;
+        let (host_height, host_timestamp) = get_host_head()?;
 
         // We attempt generating guest blocks only once per host block.  This
         // has two reasons:
@@ -196,17 +196,17 @@ impl ChainInner {
         // 2. We don’t want a situation where some IBC packets are created
         //    during a Solana block but only some of them end up in a guest
         //    block generated during that block.
-        if self.last_check_height == host_head.height {
+        if self.last_check_height == host_height {
             return if force {
                 Err(Error::GenerationAlreadyAttempted.into())
             } else {
                 Ok(())
             };
         }
-        self.last_check_height = host_head.height;
+        self.last_check_height = host_height;
         let res = self.manager.generate_next(
-            host_head.height,
-            host_head.timestamp,
+            host_height,
+            host_timestamp,
             trie.hash().clone(),
             false,
         );
@@ -222,6 +222,24 @@ impl ChainInner {
             Err(_) => Ok(()),
         }
     }
+}
+
+
+/// Returns Solana’s slot number (what we call host height) and timestamp.
+///
+/// Note that even though Solana has a concept of a block height, this is not
+/// what we use when returning host height.
+///
+/// Furthermore, keep in mind ‘host’ is wee bit ambiguous in our code base.  In
+/// this module and in context of the guest blockchain, it refers to the
+/// blockchain the guest blockchain is running on, i.e. Solana.  However, in
+/// context of IBC protocol and code implementing it, ‘host’ refers to our side
+/// of the IBC connection, i.e. the guest blockchain.
+fn get_host_head() -> Result<(blockchain::HostHeight, NonZeroU64)> {
+    let clock = Clock::get()?;
+    let timestamp = clock.unix_timestamp;
+    assert!(timestamp > 0);
+    Ok((clock.slot.into(), NonZeroU64::new(timestamp as u64).unwrap()))
 }
 
 

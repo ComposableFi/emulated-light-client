@@ -19,6 +19,11 @@ stdx.workspace = true
 [build-dependencies]
 prost-build.workspace = true
 
+# home 0.5.9 requires rustc 1.70 and `anchor build` uses 0.68 so we’re
+# pinning to earlier version.  Note that we’re not actually using the
+# crate ourselves.  It comes in through prost-build package.
+home = "=0.5.5"
+
 [dev-dependencies]
 lib = { workspace = true, features = ["test_utils"] }
 rand.workspace = true
