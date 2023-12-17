@@ -537,28 +537,28 @@ impl<'a> Deliver<'a> {
             receiver: self
                 .receiver
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
             sender_token_account: None,
             receiver_token_account: self
                 .receiver_token_account
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
             token_mint: self
                 .token_mint
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
             escrow_account: self
                 .escrow_account
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
             mint_authority: self
                 .mint_authority
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
             token_program: self
                 .token_program
                 .clone()
-                .and_then(|account| Some(account.to_account_info())),
+                .map(|account| account.to_account_info()),
         }
     }
 }
