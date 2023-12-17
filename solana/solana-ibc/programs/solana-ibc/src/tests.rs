@@ -208,9 +208,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: None,
             token_program: None,
         })
-        .args(instruction::Deliver {
-            message,
-        })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -279,9 +277,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: None,
             token_program: None,
         })
-        .args(instruction::Deliver {
-            message,
-        })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -538,9 +534,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
-        .args(instruction::Deliver {
-            message,
-        })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -624,9 +618,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
-        .args(instruction::Deliver {
-            message,
-        })
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
