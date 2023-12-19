@@ -14,7 +14,7 @@ pub mod manager;
 pub mod proto;
 pub mod validators;
 
-pub use block::Block;
+pub use block::{Block, BlockHeader};
 pub use candidates::Candidates;
 pub use config::Config;
 pub use epoch::Epoch;

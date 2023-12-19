@@ -26,6 +26,7 @@ home = "=0.5.5"
 
 [dev-dependencies]
 lib = { workspace = true, features = ["test_utils"] }
+insta.workspace = true
 rand.workspace = true
 
 [features]

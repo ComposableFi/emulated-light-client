@@ -17,13 +17,10 @@ pub struct ChainManager<PK> {
     genesis: CryptoHash,
 
     /// Current latest block which has been signed by quorum of validators.
-    block: crate::Block<PK>,
+    header: crate::BlockHeader,
 
-    /// Epoch of the next block.
-    ///
-    /// If `block` defines new epoch, this is copy of `block.next_epoch`
-    /// otherwise this is epoch of the current block.  In other words, this is
-    /// epoch which specifies validators set for `pending_block`.
+    /// Epoch of the next block.  In other words, epoch which specifies
+    /// validators set for `pending_block`.
     next_epoch: crate::Epoch<PK>,
 
     /// Next block which is waiting for quorum of validators to sign.
@@ -115,30 +112,35 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         if !genesis.is_genesis() {
             return Err(BadGenesis);
         }
-        let next_epoch = genesis.next_epoch.clone().ok_or(BadGenesis)?;
+        let header = genesis.header;
+        let next_epoch = genesis.next_epoch.ok_or(BadGenesis)?;
         let candidates = crate::Candidates::new(
             config.max_validators,
             next_epoch.validators(),
         );
-        let epoch_height = genesis.host_height;
         Ok(Self {
             config,
-            genesis: genesis.calc_hash(),
-            block: genesis,
+            genesis: header.calc_hash(),
             next_epoch,
             pending_block: None,
-            epoch_height,
+            epoch_height: header.host_height,
             candidates,
+            header,
         })
     }
 
-    /// Returns the head of the chain as a `(finalised, block)` pair where
-    /// `finalised` indicates whether the block has been finalised.
-    pub fn head(&self) -> (bool, &crate::Block<PK>) {
+    /// Returns the head of the chain as a `(finalised, block_header)` pair
+    /// where `finalised` indicates whether the block has been finalised.
+    pub fn head(&self) -> (bool, &crate::BlockHeader) {
         match self.pending_block {
-            None => (true, &self.block),
-            Some(ref pending) => (false, &pending.next_block),
+            None => (true, &self.header),
+            Some(ref pending) => (false, &pending.next_block.header),
         }
+    }
+
+    /// Returns the epoch of the current pending block.
+    pub fn pending_epoch(&self) -> Option<&crate::Epoch<PK>> {
+        self.pending_block.as_ref().map(|_| &self.next_epoch)
     }
 
     /// Generates a new block and sets it as pending.
@@ -147,30 +149,36 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// block must first be signed by quorum of validators before next block is
     /// generated) or conditions for creating a new block haven’t been met
     /// (current block needs to be old enough, state needs to change etc.).
+    ///
+    /// On success, returns whether the newly generated block is the first block
+    /// in a new epoch.
     pub fn generate_next(
         &mut self,
         host_height: crate::HostHeight,
         host_timestamp: NonZeroU64,
         state_root: CryptoHash,
         force: bool,
-    ) -> Result<(), GenerateError> {
+    ) -> Result<bool, GenerateError> {
         if self.pending_block.is_some() {
             return Err(GenerateError::HasPendingBlock);
         }
         if !host_height.check_delta_from(
-            self.block.host_height,
+            self.header.host_height,
             self.config.min_block_length,
         ) {
             return Err(GenerateError::BlockTooYoung);
         }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
-        if next_epoch.is_none() && !force && state_root == self.block.state_root
+        if next_epoch.is_none() &&
+            !force &&
+            state_root == self.header.state_root
         {
             return Err(GenerateError::UnchangedState);
         }
 
-        let next_block = self.block.generate_next(
+        let epoch_ends = self.header.next_epoch_commitment.is_some();
+        let next_block = self.header.generate_next(
             host_height,
             host_timestamp,
             state_root,
@@ -185,7 +193,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             signing_stake: 0,
         });
         self.candidates.clear_changed_flag();
-        Ok(())
+        Ok(epoch_ends)
     }
 
     /// Generates a new epoch with the top validators from the candidates set if
@@ -249,10 +257,11 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             return Ok(AddSignatureEffect::NoQuorumYet);
         }
 
-        self.block = self.pending_block.take().unwrap().next_block;
-        if let Some(ref epoch) = self.block.next_epoch {
-            self.next_epoch = epoch.clone();
-            self.epoch_height = self.block.host_height;
+        let block = self.pending_block.take().unwrap().next_block;
+        self.header = block.header;
+        if let Some(epoch) = block.next_epoch {
+            self.next_epoch = epoch;
+            self.epoch_height = self.header.host_height;
         }
         Ok(AddSignatureEffect::GotQuorum)
     }
