@@ -77,10 +77,12 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         .ok_or(ibc::ClientError::MissingLocalConsensusState {
             height: *height,
         })?;
-        Ok(Self::AnyConsensusState::from(blockchain::proto::ConsensusState {
-            block_hash: state.0.as_array().to_vec().into(),
-            timestamp: state.1,
-        }))
+        Ok(Self::AnyConsensusState::from(
+            blockchain::ibc_state::ConsensusState {
+                block_hash: state.0.as_array().to_vec().into(),
+                timestamp: state.1,
+            },
+        ))
     }
 
     fn client_counter(&self) -> Result<u64> {
