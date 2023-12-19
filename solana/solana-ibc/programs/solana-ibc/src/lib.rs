@@ -116,9 +116,13 @@ pub mod solana_ibc {
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
-    /// Called to set up escrow and mint accounts for given channel and denom.
-    /// The body of this method is empty since this method is only called for initializing the accounts.
-    /// Anchor initializes the accounts mentioned before the body of the method is called.
+    /// Called to set up escrow and mint accounts for given channel
+    /// and denom.
+    ///
+    /// The body of this method is empty since it is called to
+    /// initialise the accounts only.  Anchor sets up the accounts
+    /// given in this call’s context before the body of the method is
+    /// executed.
     #[allow(unused_variables)]
     pub fn init_escrow<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
