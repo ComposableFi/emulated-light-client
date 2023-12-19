@@ -136,9 +136,6 @@ pub mod solana_ibc {
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
-        // port_id: Option<ibc::PortId>,
-        // channel_id_on_b: Option<ibc::ChannelId>,
-        // base_denom: Option<String>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
@@ -373,7 +370,6 @@ pub struct InitEscrow<'info> {
 }
 
 #[derive(Accounts, Clone)]
-// #[instruction(port_id: Option<ibc::PortId>, channel_id_on_b: Option<ibc::ChannelId>, base_denom: Option<String>)]
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -403,10 +399,6 @@ pub struct Deliver<'info> {
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
-    // #[account(mut,
-    //     associated_token::mint = token_mint,
-    //     associated_token::authority = sender)]
-    // sender_token_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(init_if_needed, payer = sender,
         associated_token::mint = token_mint,
         associated_token::authority = receiver)]

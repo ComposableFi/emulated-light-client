@@ -370,19 +370,6 @@ pub struct TransferAccounts<'a> {
     pub token_program: Option<AccountInfo<'a>>,
 }
 
-// /// The various account names which are used for the transfers.
-// #[derive(Debug, Clone, PartialEq)]
-// pub enum TransferAccountNames {
-//     /// Should be a signer
-//     Sender,
-//     SenderTokenAccount,
-//     ReceiverTokenAccount,
-//     TokenMint,
-//     EscrowAccount,
-//     MintAuthority,
-//     TokenProgram,
-// }
-
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
