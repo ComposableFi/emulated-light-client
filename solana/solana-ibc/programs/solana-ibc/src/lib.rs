@@ -141,27 +141,7 @@ pub mod solana_ibc {
         // base_denom: Option<String>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        let accounts = ctx.accounts.clone();
-        let _sender = ctx.accounts.sender.to_account_info();
-
-        let private: &mut storage::PrivateStorage = &mut ctx.accounts.storage;
-        // msg!("This is private: {:?}", private);
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let chain = &mut ctx.accounts.chain;
-
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        // ctx.accounts.chain.maybe_generate_block(&provable, Some(host_head))?;
-
-        let transfer_accounts = accounts.to_transfer_accounts();
-
-        let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
-            provable,
-            accounts: transfer_accounts,
-            chain,
-        });
+        let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
@@ -532,39 +512,6 @@ pub struct SendPacket<'info> {
     chain: Account<'info, chain::ChainData>,
 
     system_program: Program<'info, System>,
-}
-
-impl<'a> Deliver<'a> {
-    fn to_transfer_accounts(&self) -> TransferAccounts<'a> {
-        TransferAccounts {
-            sender: Some(self.sender.as_ref().to_account_info()),
-            receiver: self
-                .receiver
-                .as_ref()
-                .map(ToAccountInfo::to_account_info),
-            sender_token_account: None,
-            receiver_token_account: self
-                .receiver_token_account
-                .as_deref()
-                .map(ToAccountInfo::to_account_info),
-            token_mint: self
-                .token_mint
-                .as_deref()
-                .map(ToAccountInfo::to_account_info),
-            escrow_account: self
-                .escrow_account
-                .as_deref()
-                .map(ToAccountInfo::to_account_info),
-            mint_authority: self
-                .mint_authority
-                .as_deref()
-                .map(ToAccountInfo::to_account_info),
-            token_program: self
-                .token_program
-                .as_deref()
-                .map(ToAccountInfo::to_account_info),
-        }
-    }
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
