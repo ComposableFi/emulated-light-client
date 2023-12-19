@@ -112,8 +112,6 @@ impl TryFrom<&Any> for ConsensusState {
 
 #[test]
 fn test_consensus_state() {
-    use alloc::format;
-
     use prost::Name;
 
     // Make sure TYPE_URL we set by hand matches type_url which is derived.
@@ -129,5 +127,9 @@ fn test_consensus_state() {
     assert_eq!(Err(DecodeError::BadType), ConsensusState::try_from(&any));
 
     // Check ProtoBuf encoding.
-    insta::assert_debug_snapshot!(any.value);
+    #[cfg(not(miri))]
+    {
+        use alloc::format;
+        insta::assert_debug_snapshot!(any.value);
+    }
 }
