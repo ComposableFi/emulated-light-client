@@ -540,29 +540,29 @@ impl<'a> Deliver<'a> {
             sender: Some(self.sender.as_ref().to_account_info()),
             receiver: self
                 .receiver
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_ref()
+                .map(ToAccountInfo::to_account_info),
             sender_token_account: None,
             receiver_token_account: self
                 .receiver_token_account
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
             token_mint: self
                 .token_mint
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
             escrow_account: self
                 .escrow_account
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
             mint_authority: self
                 .mint_authority
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
             token_program: self
                 .token_program
-                .clone()
-                .map(|account| account.to_account_info()),
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
         }
     }
 }
