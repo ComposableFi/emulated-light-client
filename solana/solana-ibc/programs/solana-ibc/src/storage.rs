@@ -471,6 +471,7 @@ macro_rules! from_ctx {
     }};
     ($ctx:expr, accounts = $accounts:expr) => {{
         let provable = $crate::storage::get_provable_from(&$ctx.accounts.trie)?;
+        let chain = &mut $ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
@@ -480,7 +481,7 @@ macro_rules! from_ctx {
         $crate::storage::IbcStorage::new($crate::storage::IbcStorageInner {
             private: &mut $ctx.accounts.storage,
             provable,
-            chain: &mut $ctx.accounts.chain,
+            chain,
             accounts: $accounts,
         })
     }};
