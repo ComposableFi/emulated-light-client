@@ -90,8 +90,6 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         );
         let amount_in_u64 = check_amount_overflow(amt.amount)?;
 
-        // let (_token_mint_key, _bump) =
-        //     Pubkey::find_program_address(&[base_denom.as_ref()], &crate::ID);
         let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
         let store = self.borrow();
