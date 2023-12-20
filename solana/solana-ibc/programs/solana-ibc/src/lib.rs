@@ -10,6 +10,7 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
 use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
@@ -114,11 +115,29 @@ pub mod solana_ibc {
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
+    /// Called to set up escrow and mint accounts for given channel
+    /// and denom.
+    ///
+    /// The body of this method is empty since it is called to
+    /// initialise the accounts only.  Anchor sets up the accounts
+    /// given in this call’s context before the body of the method is
+    /// executed.
+    #[allow(unused_variables)]
+    pub fn init_escrow<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
+        port_id: ibc::PortId,
+        channel_id_on_b: ibc::ChannelId,
+        base_denom: String,
+    ) -> Result<()> {
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        let mut store = storage::from_ctx!(ctx);
+        let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
@@ -325,9 +344,36 @@ pub struct ChainWithVerifier<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+pub struct InitEscrow<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// CHECK:
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
+              bump, space = 100)]
+    mint_authority: UncheckedAccount<'info>,
+
+    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+              bump, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Account<'info, Mint>,
+
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Box<Account<'info, TokenAccount>>,
+
+    associated_token_program: Program<'info, AssociatedToken>,
+    token_program: Program<'info, Token>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts, Clone)]
 pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
+
+    receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
     #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
@@ -344,8 +390,21 @@ pub struct Deliver<'info> {
 
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
-    chain: Account<'info, chain::ChainData>,
+    chain: Box<Account<'info, chain::ChainData>>,
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
+    /// CHECK:
+    mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Option<Box<Account<'info, Mint>>>,
+    #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(init_if_needed, payer = sender,
+        associated_token::mint = token_mint,
+        associated_token::authority = receiver)]
+    receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
+    associated_token_program: Option<Program<'info, AssociatedToken>>,
+    token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
 }
 
@@ -373,7 +432,6 @@ pub struct MockInitEscrow<'info> {
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
 }
-
 #[derive(Accounts)]
 #[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
 pub struct MockDeliver<'info> {

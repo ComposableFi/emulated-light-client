@@ -195,10 +195,17 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: None,
             storage,
             trie,
             chain,
             system_program: system_program::ID,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -256,10 +263,17 @@ fn anchor_test_deliver() -> Result<()> {
         .request()
         .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: None,
             storage,
             trie,
             chain,
             system_program: system_program::ID,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -382,6 +396,37 @@ fn anchor_test_deliver() -> Result<()> {
     // Pass the instruction for transfer
 
     /*
+     * Setup deliver escrow.
+     */
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::InitEscrow {
+            sender: authority.pubkey(),
+            mint_authority: mint_authority_key,
+            escrow_account: escrow_account_key,
+            token_mint: token_mint_key,
+            system_program: system_program::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            token_program: anchor_spl::token::ID,
+        })
+        .args(instruction::InitEscrow {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
+            base_denom: BASE_DENOM.to_string(),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
      * On Source chain
      */
 
@@ -472,13 +517,19 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(DeliverWithRemainingAccounts {
+        .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: Some(receiver.pubkey()),
             storage,
             trie,
-            system_program: system_program::ID,
             chain,
-            remaining_accounts: remaining_accounts.clone(),
+            system_program: system_program::ID,
+            mint_authority: Some(mint_authority_key),
+            token_mint: Some(token_mint_key),
+            escrow_account: Some(escrow_account_key),
+            receiver_token_account: Some(receiver_token_address),
+            associated_token_program: Some(anchor_spl::associated_token::ID),
+            token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -549,13 +600,19 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(DeliverWithRemainingAccounts {
+        .accounts(accounts::Deliver {
             sender: authority.pubkey(),
+            receiver: Some(receiver.pubkey()),
             storage,
             trie,
-            system_program: system_program::ID,
             chain,
-            remaining_accounts,
+            system_program: system_program::ID,
+            mint_authority: Some(mint_authority_key),
+            token_mint: Some(token_mint_key),
+            escrow_account: Some(escrow_account_key),
+            receiver_token_account: Some(receiver_token_address),
+            associated_token_program: Some(anchor_spl::associated_token::ID),
+            token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())

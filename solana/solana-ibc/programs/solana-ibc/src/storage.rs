@@ -359,12 +359,30 @@ pub fn get_provable_from<'a, 'info>(
     get(info).map_err(|err| err.with_account_name("trie"))
 }
 
+/// Used for finding the account info from the keys.
+///
+/// Useful for finding the token mint on the source chain which cannot be
+/// derived from the denom. Would also save us some compute units to find
+/// authority and other accounts which used to be found by deriving from
+/// the seeds.
+#[derive(Debug, Clone, Default)]
+pub struct TransferAccounts<'a> {
+    pub sender: Option<AccountInfo<'a>>,
+    pub receiver: Option<AccountInfo<'a>>,
+    pub sender_token_account: Option<AccountInfo<'a>>,
+    pub receiver_token_account: Option<AccountInfo<'a>>,
+    pub token_mint: Option<AccountInfo<'a>>,
+    pub escrow_account: Option<AccountInfo<'a>>,
+    pub mint_authority: Option<AccountInfo<'a>>,
+    pub token_program: Option<AccountInfo<'a>>,
+}
+
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
     pub provable: AccountTrie<'a, 'b>,
+    pub accounts: TransferAccounts<'b>,
     pub chain: &'a mut crate::chain::ChainData,
-    pub accounts: &'a [AccountInfo<'b>],
 }
 
 /// A reference-counted reference to the IBC storage.
@@ -423,24 +441,57 @@ impl<'a, 'b> IbcStorage<'a, 'b> {
 /// The macro calls `maybe_generate_block` on the chain and uses question mark
 /// operator to handle error returned from it (if any).
 macro_rules! from_ctx {
-    ($ctx:expr) => {{
-        let private = &mut $ctx.accounts.storage;
-        let provable = storage::get_provable_from(&$ctx.accounts.trie)?;
+    ($ctx:expr) => {
+        $crate::storage::from_ctx!($ctx, accounts = Default::default())
+    };
+    ($ctx:expr, with accounts) => {{
+        let accounts = &$ctx.accounts;
+        let accounts = TransferAccounts {
+            sender: Some(accounts.sender.as_ref().to_account_info()),
+            receiver: accounts
+                .receiver
+                .as_ref()
+                .map(ToAccountInfo::to_account_info),
+            sender_token_account: None,
+            receiver_token_account: accounts
+                .receiver_token_account
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+            token_mint: accounts
+                .token_mint
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+            escrow_account: accounts
+                .escrow_account
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+            mint_authority: accounts
+                .mint_authority
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+            token_program: accounts
+                .token_program
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+        };
+        $crate::storage::from_ctx!($ctx, accounts = accounts)
+    }};
+    ($ctx:expr, accounts = $accounts:expr) => {{
+        let provable = $crate::storage::get_provable_from(&$ctx.accounts.trie)?;
         let chain = &mut $ctx.accounts.chain;
-        let accounts = $ctx.remaining_accounts;
 
         // Before anything else, try generating a new guest block.  However, if
         // that fails it’s not an error condition.  We do this at the beginning
         // of any request.
         chain.maybe_generate_block(&provable)?;
 
-        storage::IbcStorage::new(storage::IbcStorageInner {
-            private,
+        $crate::storage::IbcStorage::new($crate::storage::IbcStorageInner {
+            private: &mut $ctx.accounts.storage,
             provable,
             chain,
-            accounts,
+            accounts: $accounts,
         })
-    }}
+    }};
 }
 
 pub(crate) use from_ctx;
