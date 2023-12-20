@@ -7,7 +7,7 @@ mod ibc {
     pub use ibc_core_commitment_types::commitment::{
         CommitmentPrefix, CommitmentProofBytes, CommitmentRoot,
     };
-    pub use ibc_core_host::types::{identifiers, path};
+    pub use ibc_core_host::types::path;
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -231,6 +231,7 @@ pub fn verify(
 fn test_proofs() {
     use alloc::vec;
     use core::str::FromStr;
+    use ibc_core_host::types::identifiers;
 
     struct Trie {
         trie: sealable_trie::Trie<memory::test_utils::TestAllocator<[u8; 72]>>,
@@ -361,11 +362,11 @@ fn test_proofs() {
         );
     }
 
-    let client_id = ibc::identifiers::ClientId::from_str("foo-bar-1").unwrap();
-    let connection_id = ibc::identifiers::ConnectionId::new(4);
-    let port_id = ibc::identifiers::PortId::transfer();
-    let channel_id = ibc::identifiers::ChannelId::new(5);
-    let sequence = ibc::identifiers::Sequence::from(6);
+    let client_id = identifiers::ClientId::from_str("foo-bar-1").unwrap();
+    let connection_id = identifiers::ConnectionId::new(4);
+    let port_id = identifiers::PortId::transfer();
+    let channel_id = identifiers::ChannelId::new(5);
+    let sequence = identifiers::Sequence::from(6);
 
     let value = b"foo";
     let value_hash = CryptoHash::digest(value);
@@ -398,11 +399,7 @@ fn test_proofs() {
     }; having client);
 
     check!(ibc::path::ConnectionPath(connection_id));
-
-    check!(ibc::path::ChannelEndPath(
-        ibc::identifiers::PortId::transfer(),
-        ibc::identifiers::ChannelId::new(5),
-    ));
+    check!(ibc::path::ChannelEndPath(port_id.clone(), channel_id.clone()));
 
     check!(
         ibc::path::SeqSendPath(port_id.clone(), channel_id.clone()),
