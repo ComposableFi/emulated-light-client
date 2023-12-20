@@ -2,7 +2,7 @@ use super::{Error, Result};
 use crate::bits;
 use crate::nodes::{Node, NodeRef, RawNode, Reference, ValueRef};
 
-/// Context for [`Trie::seal`] operation.
+/// Context for [`super::Trie::seal`] operation.
 pub(super) struct Context<'a, A> {
     /// Part of the key yet to be traversed.
     ///

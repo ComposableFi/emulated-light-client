@@ -5,7 +5,7 @@ use super::{Error, Result};
 use crate::bits::{self, ExtKey};
 use crate::nodes::{Node, NodeRef, RawNode, Reference};
 
-/// Context for [`Trie::set`] operation.
+/// Context for [`super::Trie::set`] operation.
 pub(super) struct Context<'a, A: memory::Allocator<Value = super::Value>> {
     /// Part of the key yet to be traversed.
     ///

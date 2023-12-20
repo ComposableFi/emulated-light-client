@@ -5,7 +5,7 @@ use borsh::maybestd::io;
 /// Block height.
 ///
 /// The generic argument allows the value to be tagged to distinguish it from
-/// host blockchain height and emulated blockchain height.
+/// host blockchain height and guest blockchain height.
 pub struct Height<T>(u64, core::marker::PhantomData<T>);
 
 /// Delta between two host heights.
@@ -13,15 +13,15 @@ pub struct Height<T>(u64, core::marker::PhantomData<T>);
 /// Always expressed as positive value.
 ///
 /// The generic argument allows the value to be tagged to distinguish it from
-/// host blockchain height and emulated blockchain height.
+/// host blockchain height and guest blockchain height.
 pub struct Delta<T>(u64, core::marker::PhantomData<T>);
 
 /// Tag for use with [`Height`] and [`Delta`] to indicate it’s host blockchain
 /// height.
 pub enum Host {}
 
-/// Tag for use with [`Height`] and [`Delta`] to indicate it’s emulated
-/// blockchain height.
+/// Tag for use with [`Height`] and [`Delta`] to indicate it’s guest blockchain
+/// height.
 pub enum Block {}
 
 pub type HostHeight = Height<Host>;

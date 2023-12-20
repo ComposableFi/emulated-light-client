@@ -27,7 +27,7 @@ pub(crate) fn mock_deliver<'a, 'info>(
         private: &mut ctx.accounts.storage,
         provable: storage::get_provable_from(&ctx.accounts.trie)?,
         chain: &mut ctx.accounts.chain,
-        accounts: ctx.remaining_accounts,
+        accounts: Default::default(),
     });
 
     let connection_id_on_a = ibc::ConnectionId::new(0);

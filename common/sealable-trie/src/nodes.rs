@@ -9,7 +9,12 @@ mod stress_tests;
 #[cfg(test)]
 mod tests;
 
-pub(crate) const MAX_EXTENSION_KEY_SIZE: usize = 34;
+/// Maximum length in bytes of a key in Extension node.
+///
+/// Partial bytes as counted as full bytes.  For example, a key with offset four
+/// and length six counts as two bytes.  If key’s backing bytes are longer, the
+/// Extension node is split into two.
+pub const MAX_EXTENSION_KEY_SIZE: usize = 34;
 
 type Result<T, E = ()> = core::result::Result<T, E>;
 

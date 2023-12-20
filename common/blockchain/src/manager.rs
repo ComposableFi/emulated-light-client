@@ -66,7 +66,7 @@ pub struct BadGenesis;
 pub enum GenerateError {
     /// Last block hasn’t been signed by enough validators yet.
     HasPendingBlock,
-    /// Block isn’t old enough (see [`chain::config::min_block_length`] field).
+    /// Block isn’t old enough (see [`crate::Config::min_block_length`] field).
     BlockTooYoung,
     /// Block’s state root hasen’t changed and thus there’s no need to create
     /// a new block.

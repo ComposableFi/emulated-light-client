@@ -10,6 +10,7 @@ mod common;
 pub mod config;
 pub mod epoch;
 pub mod height;
+pub mod ibc_state;
 pub mod manager;
 pub mod proto;
 pub mod validators;

@@ -89,7 +89,7 @@ impl ChainData {
     /// changed).
     ///
     /// This is intended as handling an explicit contract call for generating
-    /// a new block.  In contrast, [`maybe_generate_block`] is intended to
+    /// a new block.  In contrast, [`Self::maybe_generate_block`] is intended to
     /// create a new block opportunistically at the beginning of handling any
     /// smart contract request.
     pub fn generate_block(&mut self, trie: &storage::AccountTrie) -> Result {
@@ -98,10 +98,10 @@ impl ChainData {
 
     /// Generates a new guest block if possible.
     ///
-    /// Contrary to [`generate_block`] this function won’t fail if new block
-    /// wasn’t generated because conditions for creating it weren’t met.  This
-    /// is intended to create a new block opportunistically at the beginning of
-    /// handling any smart contract request.
+    /// Contrary to [`Self::generate_block`] this function won’t fail if a new
+    /// block wasn’t generated because conditions for creating it weren’t met.
+    /// This is intended to create a new block opportunistically at the
+    /// beginning of handling any smart contract request.
     pub fn maybe_generate_block(
         &mut self,
         trie: &storage::AccountTrie,

@@ -181,7 +181,6 @@ macro_rules! impl_cow {
 impl_cow!(header: BlockHeader, CowHeader, BoxedHeader);
 impl_cow!(epoch: Epoch, CowEpoch, BoxedEpoch);
 
-
 #[cfg(test)]
 // insta uses open to read the snapshot file which is not available when running
 // through Miri.

@@ -7,7 +7,7 @@ use crate::ibc::{ConsensusState, Protobuf};
 #[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
-    Guest(blockchain::proto::ConsensusState),
+    Guest(blockchain::ibc_state::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockConsensusState),
 }
@@ -25,7 +25,6 @@ enum AnyConsensusStateTag {
 impl AnyConsensusStateTag {
     /// Returns tag from protobuf type URL.  Returns `None` if the type URL is
     /// not recognised.
-    #[allow(dead_code)]
     fn from_type_url(url: &str) -> Option<Self> {
         match url {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
@@ -43,7 +42,7 @@ impl AnyConsensusState {
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest client state used in Any message.
     const GUEST_TYPE: &'static str =
-        blockchain::proto::msg::ConsensusState::TYPE_URL;
+        blockchain::proto::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
@@ -93,7 +92,7 @@ impl AnyConsensusState {
                     .map(Self::Tendermint)
             }
             AnyConsensusStateTag::Guest => {
-                blockchain::proto::ConsensusState::decode(&value)
+                blockchain::ibc_state::ConsensusState::decode(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Guest)
             }

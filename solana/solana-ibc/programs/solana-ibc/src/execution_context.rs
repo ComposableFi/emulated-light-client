@@ -104,7 +104,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///
     /// Instead, the update time is set when storing consensus state to the host
-    /// time at the moment [`Self::store_consensus_state`] method is called.
+    /// time at the moment `store_consensus_state` method is called.
     fn store_update_time(
         &mut self,
         _client_id: ibc::ClientId,
@@ -117,8 +117,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///
     /// Instead, the update height is set when storing consensus state to the
-    /// host height at the moment [`Self::store_consensus_state`] method is
-    /// called.
+    /// host height at the moment `store_consensus_state` method is called.
     fn store_update_height(
         &mut self,
         _client_id: ibc::ClientId,

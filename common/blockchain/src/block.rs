@@ -24,13 +24,15 @@ pub struct BlockHeader {
     /// Hash of the previous block.
     pub prev_block_hash: CryptoHash,
     /// Height of the guest blockchain’s block.
+    ///
+    /// This is sequential, always increasing by one.
     pub block_height: crate::BlockHeight,
     /// Height of the host blockchain’s block in which this block was created.
     pub host_height: crate::HostHeight,
-    /// Timestamp of the host blockchani’s block in which this block was created.
+    /// Timestamp when the block was created.
     pub host_timestamp: NonZeroU64,
-    /// Hash of the root node of the state trie, i.e. the commitment
-    /// of the state.
+    /// Hash of the root node of the state trie, i.e. the commitment of the
+    /// state.
     pub state_root: CryptoHash,
 
     /// Hash of the block in which current epoch has been defined.
@@ -129,10 +131,9 @@ where
 /// block.  It consists of a) chain’s genesis block hash, b) block height and c)
 /// block hash.
 ///
-/// Inclusion of the genesis hash means that signatures for blocks with the
-/// same height but on different chains won’t be confused as malicious.
-///
-/// Inclusion of block height and hash mean that
+/// Inclusion of the genesis hash allows signatures made for different chains to
+/// be distinguished from each other so a validator can use the same key for
+/// multiple chains without risking being accused of misbehaviour.
 #[derive(
     Clone,
     PartialEq,

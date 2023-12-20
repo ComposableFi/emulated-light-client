@@ -145,8 +145,8 @@ fn verify_impl(
 
 /// SignatureOffsets used by the Ed25519 native program in its instruction data.
 ///
-/// This is copied from Solana SDK.  See
-/// https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs
+/// This is copied from Solana SDK; see
+/// <https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs>.
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 struct SignatureOffsets {
