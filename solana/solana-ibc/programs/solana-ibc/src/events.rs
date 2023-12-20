@@ -36,7 +36,7 @@ pub enum Event<'a> {
 )]
 pub struct Initialised<'a> {
     /// Genesis block of the chain.
-    pub genesis: NewBlock<'a>,
+    pub genesis: CowHeader<'a>,
 }
 
 /// Event emitted once a new block is generated.
@@ -51,7 +51,9 @@ pub struct Initialised<'a> {
 )]
 pub struct NewBlock<'a> {
     /// The new block.
-    pub block: CowBlock<'a>,
+    pub block_header: CowHeader<'a>,
+    /// If `block` is at start of an epoch, the new epoch.
+    pub epoch: Option<CowEpoch<'a>>,
 }
 
 /// Event emitted once a new block is generated.
@@ -99,74 +101,85 @@ pub fn emit<'a>(event: impl Into<Event<'a>>) -> Result<(), String> {
 }
 
 
-/// A Copy-on-Write wrapper for [`crate::chain::Block`].
+/// Defines Copy-on-Write wrapper for specified type.
 ///
 /// Due to limited interface of the [`alloc::borrow::Cow`] type, we need
 /// a rather noisy wrapper types for borrowed and owned block.  Fundamentally
-/// what this type represents is either a `&'a Block` or `Box<Block>`.
-pub type CowBlock<'a> = alloc::borrow::Cow<'a, Block>;
+/// what this type represents is either a `&'a T` or `Box<T>`.
+macro_rules! impl_cow {
+    ($fn:ident : $Type:ident, $CowType:ident, $Boxed:ident) => {
+        pub type $CowType<'a> = alloc::borrow::Cow<'a, $Type>;
 
-#[inline]
-pub fn block(block: &crate::chain::Block) -> CowBlock {
-    CowBlock::Borrowed(bytemuck::TransparentWrapper::wrap_ref(block))
+        #[inline]
+        pub fn $fn(value: &$crate::chain::$Type) -> $CowType {
+            $CowType::Borrowed(bytemuck::TransparentWrapper::wrap_ref(value))
+        }
+
+        #[derive(
+            PartialEq,
+            Eq,
+            borsh::BorshSerialize,
+            borsh::BorshDeserialize,
+            bytemuck::TransparentWrapper,
+            derive_more::From,
+            derive_more::Into,
+        )]
+        #[repr(transparent)]
+        pub struct $Type(pub $crate::chain::$Type);
+
+        #[derive(
+            Clone,
+            PartialEq,
+            Eq,
+            borsh::BorshSerialize,
+            borsh::BorshDeserialize,
+            bytemuck::TransparentWrapper,
+            derive_more::From,
+            derive_more::Into,
+        )]
+        #[repr(transparent)]
+        pub struct $Boxed(pub alloc::boxed::Box<$crate::chain::$Type>);
+
+        impl alloc::borrow::ToOwned for $Type {
+            type Owned = $Boxed;
+
+            #[inline]
+            fn to_owned(&self) -> Self::Owned {
+                $Boxed(Box::new(self.0.clone()))
+            }
+        }
+
+        impl alloc::borrow::Borrow<$Type> for $Boxed {
+            #[inline]
+            fn borrow(&self) -> &$Type {
+                bytemuck::TransparentWrapper::wrap_ref(&*self.0)
+            }
+        }
+
+        impl core::fmt::Debug for $Type {
+            #[inline]
+            fn fmt(
+                &self,
+                fmtr: &mut core::fmt::Formatter,
+            ) -> core::fmt::Result {
+                self.0.fmt(fmtr)
+            }
+        }
+
+        impl core::fmt::Debug for $Boxed {
+            #[inline]
+            fn fmt(
+                &self,
+                fmtr: &mut core::fmt::Formatter,
+            ) -> core::fmt::Result {
+                self.0.fmt(fmtr)
+            }
+        }
+    };
 }
 
-/// A wrapper around [`crate::chain::Block`] which can be used with
-/// a [`alloc::borrow::Cow`].
-#[derive(
-    PartialEq,
-    Eq,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    bytemuck::TransparentWrapper,
-    derive_more::From,
-    derive_more::Into,
-)]
-#[repr(transparent)]
-pub struct Block(pub crate::chain::Block);
-
-/// A wrapper around `Box<crate::chain::Block`> which can be used with
-/// a [`alloc::borrow::Cow`].
-#[derive(
-    Clone,
-    PartialEq,
-    Eq,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    bytemuck::TransparentWrapper,
-    derive_more::From,
-    derive_more::Into,
-)]
-#[repr(transparent)]
-pub struct BoxedBlock(pub alloc::boxed::Box<crate::chain::Block>);
-
-impl alloc::borrow::ToOwned for Block {
-    type Owned = BoxedBlock;
-
-    #[inline]
-    fn to_owned(&self) -> Self::Owned { BoxedBlock(Box::new(self.0.clone())) }
-}
-
-impl alloc::borrow::Borrow<Block> for BoxedBlock {
-    #[inline]
-    fn borrow(&self) -> &Block {
-        bytemuck::TransparentWrapper::wrap_ref(&*self.0)
-    }
-}
-
-impl core::fmt::Debug for Block {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
-
-impl core::fmt::Debug for BoxedBlock {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        self.0.fmt(fmtr)
-    }
-}
+impl_cow!(header: BlockHeader, CowHeader, BoxedHeader);
+impl_cow!(epoch: Epoch, CowEpoch, BoxedEpoch);
 
 #[cfg(test)]
 // insta uses open to read the snapshot file which is not available when running
@@ -199,8 +212,15 @@ mod snapshot_tests {
         ],
     }));
 
-    test!(borsh_initialised Initialised { genesis: make_new_block() });
-    test!(borsh_new_block make_new_block());
+    test!(borsh_initialised Initialised { genesis: make_header() });
+    test!(borsh_new_block NewBlock {
+        block_header: make_header(),
+        epoch: None,
+    });
+    test!(borsh_new_block_with_epoch NewBlock {
+        block_header: make_header(),
+        epoch: Some(CowEpoch::Owned(BoxedEpoch(make_epoch().into()))),
+    });
     test!(borsh_block_signed BlockSigned {
         block_hash: CryptoHash::test(42),
         pubkey: make_pub_key(24),
@@ -209,7 +229,7 @@ mod snapshot_tests {
         block_hash: CryptoHash::test(42),
     });
 
-    fn make_new_block() -> NewBlock<'static> {
+    fn make_epoch() -> crate::chain::Epoch {
         let validators = [(80, 10), (81, 10)]
             .into_iter()
             .map(|(num, stake)| {
@@ -218,17 +238,21 @@ mod snapshot_tests {
                 blockchain::Validator::new(pubkey, stake)
             })
             .collect();
+        blockchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap()
+    }
 
+    fn make_header() -> CowHeader<'static> {
         let block = crate::chain::Block::generate_genesis(
             blockchain::BlockHeight::from(0),
             blockchain::HostHeight::from(42),
             core::num::NonZeroU64::new(24).unwrap(),
             CryptoHash::test(66),
-            blockchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap(),
+            make_epoch(),
         )
-        .unwrap();
+        .unwrap()
+        .header;
 
-        NewBlock { block: CowBlock::Owned(BoxedBlock(block.into())) }
+        CowHeader::Owned(BoxedHeader(block.into()))
     }
 
     fn make_pub_key(num: usize) -> crate::chain::PubKey {

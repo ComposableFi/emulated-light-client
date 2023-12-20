@@ -2,6 +2,7 @@ use alloc::vec::Vec;
 use core::num::NonZeroU128;
 
 use borsh::maybestd::io;
+use lib::hash::CryptoHash;
 
 /// An epoch describing configuration applying to all blocks within an epoch.
 ///
@@ -77,6 +78,16 @@ impl<PK> Epoch<PK> {
         } else {
             None
         }
+    }
+
+    /// Calculates commitment (i.e. hash) of the epoch.
+    pub fn calc_commitment(&self) -> CryptoHash
+    where
+        PK: borsh::BorshSerialize,
+    {
+        let mut builder = CryptoHash::builder();
+        borsh::to_writer(&mut builder, self).unwrap();
+        builder.build()
     }
 
     /// Returns list of all validators in the epoch.

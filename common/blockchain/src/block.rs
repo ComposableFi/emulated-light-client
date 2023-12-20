@@ -1,13 +1,14 @@
 use core::num::NonZeroU64;
 
+use borsh::maybestd::io;
 use lib::hash::CryptoHash;
 
 type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 
-/// A single block of the guest blockchain.
+/// A single block header of the guest blockchain.
 ///
-/// A block is uniquely identified by its hash which can be obtained via
-/// [`Block::calc_hash`].
+/// Guest blocks are uniquely identified by their hash which can be calculated
+/// using the [`BlockHeader::calc_hash`] method.
 ///
 /// Each block belongs to an epoch (identifier by `epoch_id`) which describes
 /// set of validators which can sign the block.  A new epoch is introduced by
@@ -16,7 +17,7 @@ type Result<T, E = borsh::maybestd::io::Error> = core::result::Result<T, E>;
 #[derive(
     Clone, Debug, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
 )]
-pub struct Block<PK> {
+pub struct BlockHeader {
     /// Version of the structure.  At the moment always zero byte.
     version: crate::common::VersionZero,
 
@@ -36,13 +37,92 @@ pub struct Block<PK> {
 
     /// Hash of the block in which current epoch has been defined.
     ///
-    /// Epoch determines validators set signing each block.  If epoch is about
-    /// to change, the new epoch is defined in `next_epoch` field.  Then, the
-    /// very next block will use current’s block hash as `epoch_id`.
+    /// Epoch determines validators set signing each block.  The last block of
+    /// the blockchain will have `next_epoch_commitment` set and that field
+    /// defines the epoch of the next block.  `epoch_id` is the hash of the
+    /// block where the epoch was defined.
+    ///
+    /// Corollary of this patter is that the first block of an epoch will have
+    /// `epoch_id == prev_block_hash` and the last block of an epoch will have
+    /// `next_epoch_commitment.is_some()`.
     pub epoch_id: CryptoHash,
+
+    /// If present, hash of the serialised epoch *the next* block will belong
+    /// to.
+    ///
+    /// It is present on the last block of an epoch to define epoch that is
+    /// about to start.  All other blocks have this set to `None`.
+    ///
+    /// Note that this hash is not the same as the one that’s going to be used
+    /// in `epoch_id` field of the following block.  Epochs are identified by
+    /// the block hash they were introduced in.
+    pub next_epoch_commitment: Option<CryptoHash>,
+}
+
+/// A single block of the guest blockchain.
+///
+/// This is the block header bundled together with the next epoch if any.
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::Deref, derive_more::DerefMut,
+)]
+pub struct Block<PK> {
+    /// The block header.
+    #[deref]
+    #[deref_mut]
+    pub header: BlockHeader,
 
     /// If present, epoch *the next* block will belong to.
     pub next_epoch: Option<crate::Epoch<PK>>,
+}
+
+impl<PK: borsh::BorshSerialize> borsh::BorshSerialize for Block<PK> {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        // We don’t serialise next_epoch_commitment because we calculate it when
+        // deserializing to make sure that it’s always a correct value.
+        (
+            &self.header.version,
+            &self.header.prev_block_hash,
+            &self.header.block_height,
+            &self.header.host_height,
+            &self.header.host_timestamp,
+            &self.header.state_root,
+            &self.header.epoch_id,
+            &self.next_epoch,
+        )
+            .serialize(writer)
+    }
+}
+
+impl<PK> borsh::BorshDeserialize for Block<PK>
+where
+    PK: borsh::BorshSerialize + borsh::BorshDeserialize,
+{
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        let version = crate::common::VersionZero::deserialize_reader(reader)?;
+        let prev_block_hash = CryptoHash::deserialize_reader(reader)?;
+        let block_height = crate::BlockHeight::deserialize_reader(reader)?;
+        let host_height = crate::HostHeight::deserialize_reader(reader)?;
+        let host_timestamp = NonZeroU64::deserialize_reader(reader)?;
+        let state_root = CryptoHash::deserialize_reader(reader)?;
+        let epoch_id = CryptoHash::deserialize_reader(reader)?;
+        let next_epoch =
+            Option::<crate::Epoch<PK>>::deserialize_reader(reader)?;
+        let next_epoch_commitment =
+            next_epoch.as_ref().map(crate::Epoch::calc_commitment);
+        Ok(Self {
+            header: BlockHeader {
+                version,
+                prev_block_hash,
+                block_height,
+                host_height,
+                host_timestamp,
+                state_root,
+                next_epoch_commitment,
+                epoch_id,
+            },
+            next_epoch,
+        })
+    }
 }
 
 /// Block’s fingerprint which is used when signing.
@@ -74,7 +154,7 @@ pub enum GenerateError {
     BadHostTimestamp,
 }
 
-impl<PK: crate::PubKey> Block<PK> {
+impl BlockHeader {
     /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
         self.prev_block_hash == CryptoHash::DEFAULT &&
@@ -94,13 +174,13 @@ impl<PK: crate::PubKey> Block<PK> {
     /// `host_height` and `host_timestamp` don’t go backwards but otherwise they
     /// can increase by any amount.  The new block will have `block_height`
     /// incremented by one.
-    pub fn generate_next(
+    pub fn generate_next<PK: crate::PubKey>(
         &self,
         host_height: crate::HostHeight,
         host_timestamp: NonZeroU64,
         state_root: CryptoHash,
         next_epoch: Option<crate::Epoch<PK>>,
-    ) -> Result<Self, GenerateError> {
+    ) -> Result<Block<PK>, GenerateError> {
         if host_height <= self.host_height {
             return Err(GenerateError::BadHostHeight);
         } else if host_timestamp <= self.host_timestamp {
@@ -111,22 +191,29 @@ impl<PK: crate::PubKey> Block<PK> {
         // If self defines a new epoch than the new block starts a new epoch
         // with epoch id equal to self’s block hash.  Otherwise, epoch doesn’t
         // change and the new block uses the same epoch id as self.
-        let epoch_id = match self.next_epoch.is_some() {
+        let epoch_id = match self.next_epoch_commitment.is_some() {
             false => self.epoch_id.clone(),
             true => prev_block_hash.clone(),
         };
-        Ok(Self {
-            version: crate::common::VersionZero,
-            prev_block_hash,
-            block_height: self.block_height.next(),
-            host_height,
-            host_timestamp,
-            state_root,
-            epoch_id,
+        let next_epoch_commitment =
+            next_epoch.as_ref().map(crate::Epoch::calc_commitment);
+        Ok(Block {
+            header: Self {
+                version: crate::common::VersionZero,
+                prev_block_hash,
+                block_height: self.block_height.next(),
+                host_height,
+                host_timestamp,
+                state_root,
+                epoch_id,
+                next_epoch_commitment,
+            },
             next_epoch,
         })
     }
+}
 
+impl<PK: crate::PubKey> Block<PK> {
     /// Constructs a new genesis block.
     ///
     /// A genesis block is identified by previous block hash and epoch id both
@@ -139,13 +226,16 @@ impl<PK: crate::PubKey> Block<PK> {
         next_epoch: crate::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
         Ok(Self {
-            version: crate::common::VersionZero,
-            prev_block_hash: CryptoHash::DEFAULT,
-            block_height,
-            host_height,
-            host_timestamp,
-            state_root,
-            epoch_id: CryptoHash::DEFAULT,
+            header: BlockHeader {
+                version: crate::common::VersionZero,
+                prev_block_hash: CryptoHash::DEFAULT,
+                block_height,
+                host_height,
+                host_timestamp,
+                state_root,
+                epoch_id: CryptoHash::DEFAULT,
+                next_epoch_commitment: Some(next_epoch.calc_commitment()),
+            },
             next_epoch: Some(next_epoch),
         })
     }
@@ -157,11 +247,8 @@ impl Default for Fingerprint {
 
 impl Fingerprint {
     /// Calculates the fingerprint of the given block.
-    pub fn new<PK: crate::PubKey>(
-        genesis_hash: &CryptoHash,
-        block: &Block<PK>,
-    ) -> Self {
-        Self::from_hash(genesis_hash, block.block_height, &block.calc_hash())
+    pub fn new(genesis_hash: &CryptoHash, header: &BlockHeader) -> Self {
+        Self::from_hash(genesis_hash, header.block_height, &header.calc_hash())
     }
 
     /// Constructs the fingerprint of a block at given height and with given
@@ -222,8 +309,10 @@ impl core::fmt::Debug for Fingerprint {
 
 #[test]
 fn test_block_generation() {
+    use crate::validators::MockPubKey;
+
     // Generate a genesis block and test it’s behaviour.
-    let genesis_hash = "Zq3s+b7x6R8tKV1iQtByAWqlDMXVVD9tSDOlmuLH7wI=";
+    let genesis_hash = "flrJCrLPVb1QDaNw62lOj7zpm5n4yqw4D3JfZXzGxe8=";
     let genesis_hash = CryptoHash::from_base64(genesis_hash).unwrap();
 
     let genesis = Block::generate_genesis(
@@ -251,7 +340,7 @@ fn test_block_generation() {
     // Try creating invalid next block.
     assert_eq!(
         Err(GenerateError::BadHostHeight),
-        genesis.generate_next(
+        genesis.generate_next::<MockPubKey>(
             crate::HostHeight::from(42),
             NonZeroU64::new(100).unwrap(),
             CryptoHash::test(99),
@@ -260,7 +349,7 @@ fn test_block_generation() {
     );
     assert_eq!(
         Err(GenerateError::BadHostTimestamp),
-        genesis.generate_next(
+        genesis.generate_next::<MockPubKey>(
             crate::HostHeight::from(43),
             NonZeroU64::new(24).unwrap(),
             CryptoHash::test(99),
@@ -270,7 +359,7 @@ fn test_block_generation() {
 
     // Create next block and test its behaviour.
     let block = genesis
-        .generate_next(
+        .generate_next::<MockPubKey>(
             crate::HostHeight::from(50),
             NonZeroU64::new(50).unwrap(),
             CryptoHash::test(99),
@@ -281,14 +370,14 @@ fn test_block_generation() {
     assert_eq!(crate::BlockHeight::from(1), block.block_height);
     assert_eq!(genesis_hash, block.prev_block_hash);
     assert_eq!(genesis_hash, block.epoch_id);
-    let hash = "uv7IaNMkac36VYAD/RNtDF14wY/DXxlxzsS2Qi+d4uw=";
+    let hash = "TCsK6A4O0a82t3z+gdev+Fn0RUWSyeCMp3Y14rrlwcg=";
     let hash = CryptoHash::from_base64(hash).unwrap();
     assert_eq!(hash, block.calc_hash());
 
     // Create next block within and introduce a new epoch.
     let epoch = Some(crate::Epoch::test(&[(0, 20), (1, 10)]));
     let block = block
-        .generate_next(
+        .generate_next::<MockPubKey>(
             crate::HostHeight::from(60),
             NonZeroU64::new(60).unwrap(),
             CryptoHash::test(99),
@@ -297,13 +386,13 @@ fn test_block_generation() {
         .unwrap();
     assert_eq!(hash, block.prev_block_hash);
     assert_eq!(genesis_hash, block.epoch_id);
-    let hash = "JWVBe5GotaDzyClzBuArPLjcAQTRElMCxvstyZ0bMtM=";
+    let hash = "CD8+vN9X4orTzC9w3F3JNGEwdcigW0nS+Mh9Zcd70Ok=";
     let hash = CryptoHash::from_base64(hash).unwrap();
     assert_eq!(hash, block.calc_hash());
 
     // Create next block which belongs to the new epoch.
     let block = block
-        .generate_next(
+        .generate_next::<MockPubKey>(
             crate::HostHeight::from(65),
             NonZeroU64::new(65).unwrap(),
             CryptoHash::test(99),
@@ -345,4 +434,48 @@ fn test_signatures() {
     let fingerprint =
         Fingerprint::from_hash(&genesis, height, &CryptoHash::test(66));
     assert!(!fingerprint.verify(&pk, &signature, &()));
+}
+
+#[test]
+#[cfg(not(miri))]
+fn test_borsh() {
+    use alloc::format;
+
+    use crate::validators::MockPubKey;
+
+    fn check<T>(obj: &T) -> alloc::vec::Vec<u8>
+    where
+        T: core::fmt::Debug
+            + PartialEq
+            + borsh::BorshSerialize
+            + borsh::BorshDeserialize,
+    {
+        let serialised = borsh::to_vec(obj).unwrap();
+        assert_eq!(obj, &T::try_from_slice(&serialised).unwrap());
+        serialised
+    }
+
+    let genesis = Block::generate_genesis(
+        crate::BlockHeight::from(0),
+        crate::HostHeight::from(42),
+        NonZeroU64::new(24).unwrap(),
+        CryptoHash::test(66),
+        crate::Epoch::test(&[(0, 10), (1, 10)]),
+    )
+    .unwrap();
+
+    insta::assert_debug_snapshot!("genesis-header", check(&genesis.header));
+    insta::assert_debug_snapshot!("genesis-block", check(&genesis));
+
+    let block = genesis
+        .generate_next::<MockPubKey>(
+            crate::HostHeight::from(50),
+            NonZeroU64::new(50).unwrap(),
+            CryptoHash::test(99),
+            None,
+        )
+        .unwrap();
+
+    insta::assert_debug_snapshot!("block-header", check(&block.header));
+    insta::assert_debug_snapshot!("block-block", check(&block));
 }

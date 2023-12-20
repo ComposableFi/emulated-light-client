@@ -11,6 +11,7 @@ type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
 pub type Epoch = blockchain::Epoch<PubKey>;
 pub type Block = blockchain::Block<PubKey>;
+pub type BlockHeader = blockchain::BlockHeader;
 pub type Manager = blockchain::ChainManager<PubKey>;
 pub type Validator = blockchain::Validator<PubKey>;
 pub use crate::ed25519::{PubKey, Signature, Verifier};
@@ -29,7 +30,7 @@ pub struct ChainNotInitialised;
 impl ChainData {
     /// Returns the head of the chain.  Returns error if chain hasn’t been
     /// initialised yet.
-    pub fn head(&self) -> Result<&Block, ChainNotInitialised> {
+    pub fn head(&self) -> Result<&BlockHeader, ChainNotInitialised> {
         self.get().map(|inner| inner.manager.head().1)
     }
 
@@ -75,10 +76,8 @@ impl ChainData {
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
-        events::emit(events::Initialised {
-            genesis: events::NewBlock { block: events::block(head) },
-        })
-        .map_err(ProgramError::BorshIoError)?;
+        events::emit(events::Initialised { genesis: events::header(head) })
+            .map_err(ProgramError::BorshIoError)?;
         Ok(())
     }
 
@@ -211,10 +210,16 @@ impl ChainInner {
             false,
         );
         match res {
-            Ok(()) => {
+            Ok(new_epoch) => {
                 let (finalised, head) = self.manager.head();
                 assert!(!finalised);
-                events::emit(events::NewBlock { block: events::block(head) })
+                let block_header = events::header(head);
+                let epoch = self
+                    .manager
+                    .pending_epoch()
+                    .filter(|_| new_epoch)
+                    .map(events::epoch);
+                events::emit(events::NewBlock { block_header, epoch })
                     .map_err(ProgramError::BorshIoError)?;
                 Ok(())
             }
