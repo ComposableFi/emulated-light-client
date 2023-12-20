@@ -266,8 +266,8 @@ impl PrivateStorage {
 
     /// Returns state for an existing client.
     ///
-    /// Client ids use `<client-type>-<counter>` format where <counter> is
-    /// sequential.  We take advantage of that by extracting the <counter> and
+    /// Client ids use `<client-type>-<counter>` format where `<counter>` is
+    /// sequential.  We take advantage of that by extracting the `<counter>` and
     /// using it as index in client states.
     pub fn client(
         &self,
@@ -288,8 +288,8 @@ impl PrivateStorage {
 
     /// Returns state for an existing client.
     ///
-    /// Client ids use `<client-type>-<counter>` format where <counter> is
-    /// sequential.  We take advantage of that by extracting the <counter> and
+    /// Client ids use `<client-type>-<counter>` format where `<counter>` is
+    /// sequential.  We take advantage of that by extracting the `<counter>` and
     /// using it as index in client states.
     ///
     /// If `create` argument is true, creates a new client if the index equals

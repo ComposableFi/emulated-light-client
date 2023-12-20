@@ -57,10 +57,10 @@ pub struct Config {
     /// not necessary, this may be set to `1`.
     pub min_quorum_stake: NonZeroU128,
 
-    /// Minimum number of host blocks before new emulated block can be created.
+    /// Minimum number of host blocks before new guest block can be created.
     ///
-    /// The purpose of the minimum is to limit speed in which emulated blocks
-    /// are generated.  Typically generating them as fast as host block’s isn’t
+    /// The purpose of the minimum is to limit speed in which guest blocks are
+    /// generated.  Typically generating them as fast as host block’s isn’t
     /// necessary and may even degrade performance when many blocks with small
     /// changes are introduced rather bundling them together.
     pub min_block_length: crate::height::HostDelta,

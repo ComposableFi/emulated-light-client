@@ -111,7 +111,8 @@ pub fn block(block: &crate::chain::Block) -> CowBlock {
     CowBlock::Borrowed(bytemuck::TransparentWrapper::wrap_ref(block))
 }
 
-/// A wrapper around [`crate::chain::Block`] which can be used with a [`Cow`].
+/// A wrapper around [`crate::chain::Block`] which can be used with
+/// a [`alloc::borrow::Cow`].
 #[derive(
     PartialEq,
     Eq,
@@ -124,7 +125,8 @@ pub fn block(block: &crate::chain::Block) -> CowBlock {
 #[repr(transparent)]
 pub struct Block(pub crate::chain::Block);
 
-/// A wrapper around `Box<crate::chain::Block`> which can be used with a [`Cow`].
+/// A wrapper around `Box<crate::chain::Block`> which can be used with
+/// a [`alloc::borrow::Cow`].
 #[derive(
     Clone,
     PartialEq,
