@@ -35,13 +35,21 @@ pub struct BlockHeader {
 
     /// Hash of the block in which current epoch has been defined.
     ///
-    /// Epoch determines validators set signing each block.  If epoch is about
-    /// to change, the new epoch is defined in `next_epoch` field.  Then, the
-    /// very next block will use current’s block hash as `epoch_id`.
+    /// Epoch determines validators set signing each block.  The last block of
+    /// the blockchain will have `next_epoch_commitment` set and that field
+    /// defines the epoch of the next block.  `epoch_id` is the hash of the
+    /// block where the epoch was defined.
+    ///
+    /// Corollary of this patter is that the first block of an epoch will have
+    /// `epoch_id == prev_block_hash` and the last block of an epoch will have
+    /// `next_epoch_commitment.is_some()`.
     pub epoch_id: CryptoHash,
 
     /// If present, hash of the serialised epoch *the next* block will belong
     /// to.
+    ///
+    /// It is present on the last block of an epoch to define epoch that is
+    /// about to start.  All other blocks have this set to `None`.
     ///
     /// Note that this hash is not the same as the one that’s going to be used
     /// in `epoch_id` field of the following block.  Epochs are identified by
