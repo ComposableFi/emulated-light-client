@@ -231,6 +231,7 @@ pub fn verify(
 fn test_proofs() {
     use alloc::vec;
     use core::str::FromStr;
+
     use ibc_core_host::types::identifiers;
 
     struct Trie {
