@@ -177,7 +177,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
 
         match <&RawNode>::from(self.alloc.get(ptr)).decode()? {
             Node::Branch { children } => {
-                self.prefix.extend(false).unwrap();
+                self.prefix.push_back(false).unwrap();
                 self.handle_ref(children[0], self.prefix.len())?;
                 self.prefix.set_last(true);
                 self.handle_ref(children[1], len)

@@ -7,8 +7,7 @@ use super::{Owned, Slice};
 
 /// Trying to concatenate slices which result in slice whose size is too large.
 ///
-/// Slice’s total underlying bits length (that is length plus offset) must not
-/// overflow u16.
+/// Slice’s length must not overflow u16.
 ///
 /// ## Example
 ///
@@ -17,20 +16,16 @@ use super::{Owned, Slice};
 /// empty if its offset is non-zero.
 ///
 /// ```
-/// # use sealable_trie::bits::{MisalignedSlice, Slice, Owned, concat};
+/// # use sealable_trie::bits::{Error, MisalignedSlice, Slice, Owned};
 /// # use lib::u3::U3;
 ///
 /// let buf = [255; 4096];
 /// let slice = Slice::from_bytes(&buf[..]).unwrap();
-/// assert_eq!(Err(concat::Error::SliceTooLong), Owned::concat(slice, slice));
+/// assert_eq!(Err(Error::SliceTooLong), Owned::concat(slice, slice));
 ///
 /// let (suffix, _) = slice.split_at(slice.len() - 1).unwrap();
 /// Owned::concat(slice, suffix).unwrap();
 /// ```
-// TODO(mina86): Review code and weaken the requirement.  In reality we don’t
-// care if offset + length overflows u16.  Usually when we add those numbers we
-// either i) do it module eight or ii) do it to calculate underlying bytes
-// length in which case we can do intermediate calculation in u32.
 #[derive(Debug, PartialEq, Eq)]
 pub struct SliceTooLong;
 
@@ -44,7 +39,7 @@ pub struct SliceTooLong;
 /// empty if its offset is non-zero.
 ///
 /// ```
-/// # use sealable_trie::bits::{MisalignedSlice, Slice, Owned, concat};
+/// # use sealable_trie::bits::{Error, MisalignedSlice, Slice, Owned};
 /// # use lib::u3::U3;
 ///
 /// // Converting slices into Vec<u8>.
@@ -66,13 +61,13 @@ pub struct SliceTooLong;
 /// Alas, in those cases the error is returned through a [`Error`] enum.
 ///
 /// ```
-/// # use sealable_trie::bits::{MisalignedSlice, Slice, Owned, concat};
+/// # use sealable_trie::bits::{Error, MisalignedSlice, Slice, Owned};
 /// # use lib::u3::U3;
 ///
 /// // Failure when concatenating misaligned slices.
 /// let prefix = Slice::new(&[255], U3::_1, 5).unwrap();
 /// let suffix = Slice::new(&[255], U3::_3, 2).unwrap();
-/// assert_eq!(Err(concat::Error::Misaligned), Owned::concat(prefix, suffix));
+/// assert_eq!(Err(Error::Misaligned), Owned::concat(prefix, suffix));
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct MisalignedSlice;
@@ -94,18 +89,13 @@ impl From<MisalignedSlice> for Error {
 
 
 pub trait Concat<Rhs> {
-    type Output;
     type Error: Into<Error>;
 
-    fn concat_impl(
-        prefix: Self,
-        suffix: Rhs,
-    ) -> Result<Self::Output, Self::Error>;
+    fn concat_impl(prefix: Self, suffix: Rhs) -> Result<Owned, Self::Error>;
 }
 
 
 impl<'a> Concat<Slice<'a>> for bool {
-    type Output = Owned;
     type Error = SliceTooLong;
 
     /// Prepends given slice by a specified bit.
@@ -131,10 +121,7 @@ impl<'a> Concat<Slice<'a>> for bool {
     /// let got = Owned::concat(true, suffix).unwrap();
     /// assert_eq!(Slice::new(&[255, 255], U3::_7, 6).unwrap(), got);
     /// ```
-    fn concat_impl(
-        bit: bool,
-        suffix: Slice<'a>,
-    ) -> Result<Self::Output, Self::Error> {
+    fn concat_impl(bit: bool, suffix: Slice<'a>) -> Result<Owned, Self::Error> {
         let offset = suffix.offset.wrapping_dec();
         let length = check_length(1, suffix.length)?;
         let bytes = if suffix.is_empty() {
@@ -153,7 +140,6 @@ impl<'a> Concat<Slice<'a>> for bool {
 }
 
 impl<'a, 'b> Concat<Slice<'b>> for Slice<'a> {
-    type Output = Owned;
     type Error = Error;
 
     /// Concatenates two slices.
@@ -177,156 +163,37 @@ impl<'a, 'b> Concat<Slice<'b>> for Slice<'a> {
     fn concat_impl(
         prefix: Slice<'a>,
         suffix: Slice<'b>,
-    ) -> Result<Self::Output, Self::Error> {
+    ) -> Result<Owned, Self::Error> {
         let length = check_alignment_and_length(
             prefix.offset,
             prefix.length,
             suffix.offset,
             suffix.length,
         )?;
-        if length == 0 {
-            return Ok(if prefix.is_empty() { suffix } else { prefix }.into());
-        }
-
+        // Convert prefix to Owned but with enough spare capacity so that we can
+        // append suffix without reallocation.
         let capacity = (u32::from(prefix.offset) + u32::from(length) + 7) / 8;
         let mut bytes = Vec::with_capacity(capacity as usize);
         bytes.extend_from_slice(prefix.bytes());
         let mut slice =
             Owned { offset: prefix.offset, length: prefix.length, bytes };
-        // SAFETY: We’ve checked aligned using check_alignment and length when
-        // calculating total_bits.
-        unsafe { extend_impl(&mut slice, suffix) };
+        // Now that we have Owned, delegate work to extend implementation.
+        extend_impl(&mut slice, suffix)?;
         Ok(slice)
     }
 }
 
-impl<'a> Concat<Slice<'a>> for Owned {
-    type Output = Self;
-    type Error = Error;
-
-    /// Appends suffix to given owned slice and returns the slice after
-    /// modification.
-    fn concat_impl(
-        mut this: Self,
-        suffix: Slice<'a>,
-    ) -> Result<Self, Self::Error> {
-        <&mut Owned>::concat_impl(&mut this, suffix)?;
-        Ok(this)
-    }
-}
-
-impl<'a, 's> Concat<Slice<'a>> for &'s mut Owned {
-    type Output = ();
-    type Error = Error;
-
-    /// Appends suffix to given owned slice in place.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// # use sealable_trie::bits::{Owned, Slice};
-    /// # use lib::u3::U3;
-    ///
-    /// let mut this = Owned::from(Slice::new(&[255], U3::_1, 5).unwrap());
-    /// this.extend(Slice::new(&[255], U3::_6, 1).unwrap()).unwrap();
-    /// assert_eq!(Slice::new(&[126], U3::_1, 6).unwrap(), this);
-    ///
-    /// this.extend(Slice::new(&[255], U3::_7, 1).unwrap()).unwrap();
-    /// assert_eq!(Slice::new(&[127], U3::_1, 7).unwrap(), this);
-    /// ```
-    fn concat_impl(
-        prefix: &'s mut Owned,
-        suffix: Slice<'a>,
-    ) -> Result<Self::Output, Self::Error> {
-        check_alignment_and_length(
-            prefix.offset,
-            prefix.length,
-            suffix.offset,
-            suffix.length,
-        )?;
-        // SAFETY: We’ve just checked aligned and length.
-        unsafe { extend_impl(prefix, suffix) };
-        Ok(())
-    }
-}
-
-impl Concat<bool> for Owned {
-    type Output = Self;
-    type Error = SliceTooLong;
-
-    fn concat_impl(mut this: Self, suffix: bool) -> Result<Self, Self::Error> {
-        <&mut Owned>::concat_impl(&mut this, suffix)?;
-        Ok(this)
-    }
-}
-
-impl<'s> Concat<bool> for &'s mut Owned {
-    type Output = ();
-    type Error = SliceTooLong;
-
-    /// Append given bit to the slice.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// # use sealable_trie::bits::{Owned, Slice};
-    /// # use lib::u3::U3;
-    ///
-    /// let bits = Slice::new(&[0b_0100_1101], U3::_1, 5).unwrap();
-    /// let mut bits = Owned::from(bits);
-    ///
-    /// bits.extend(true);
-    /// assert_eq!(Slice::new(&[0b_0100_1110], U3::_1, 6).unwrap(), bits);
-    ///
-    /// bits.extend(false);
-    /// assert_eq!(Slice::new(&[0b_0100_1110], U3::_1, 7).unwrap(), bits);
-    ///
-    /// bits.extend(true);
-    /// assert_eq!(Slice::new(&[0b_0100_1110, 0x80], U3::_1, 8).unwrap(), bits);
-    /// ```
-    fn concat_impl(
-        this: &'s mut Owned,
-        bit: bool,
-    ) -> Result<Self::Output, Self::Error> {
-        check_length(this.length, 1)?;
-        let off = this.offset.wrapping_add(this.length);
-        let mask: u8 = 0x80u8 >> off;
-        match this.bytes.last_mut() {
-            Some(byte) if off != 0 => {
-                // If this.bytes is non-empty and we’re not adding msb of
-                // a new byte (i.e. off != 0), modify the last byte.
-                *byte = (*byte & !mask) | (mask * u8::from(bit));
-            }
-            _ => {
-                // Otherwise, either this.bytes is empty (and thus we’re
-                // adding a new byte with given bit set) or we’re aligned at the
-                // byte boundary (and we’re adding a new byte with msb set).
-                this.bytes.push(mask * u8::from(bit));
-            }
-        }
-        this.length += 1;
-        Ok(())
-    }
-}
-
-
 /// Extends owned slice with given suffix.
-///
-/// ## Safety
-///
-/// It’s caller’s responsibility to check i) alignment of the two slices (see
-/// [`check_alignment`])) and ii) length of the resulting slice (see
-/// [`check_length`]).
-unsafe fn extend_impl(this: &mut Owned, suffix: Slice) {
-    if cfg!(debug_assertions) {
-        check_alignment_and_length(
-            this.offset,
-            this.length,
-            suffix.offset,
-            suffix.length,
-        )
-        .unwrap();
-    }
+pub(super) fn extend_impl(
+    this: &mut Owned,
+    suffix: Slice,
+) -> Result<(), Error> {
+    check_alignment_and_length(
+        this.offset,
+        this.length,
+        suffix.offset,
+        suffix.length,
+    )?;
 
     let bytes = match (this.bytes.last_mut(), suffix.bytes()) {
         (Some(last), &[first, ref rest @ ..]) if suffix.offset != 0 => {
@@ -345,12 +212,16 @@ unsafe fn extend_impl(this: &mut Owned, suffix: Slice) {
     };
     this.bytes.extend_from_slice(bytes);
     this.length += suffix.length;
+    Ok(())
 }
 
 
 /// Checks that concatenating two slices produces slice whose length doesn’t
 /// overflow `u16`.
-fn check_length(pre_len: u16, suf_len: u16) -> Result<u16, SliceTooLong> {
+pub(super) fn check_length(
+    pre_len: u16,
+    suf_len: u16,
+) -> Result<u16, SliceTooLong> {
     pre_len.checked_add(suf_len).ok_or(SliceTooLong)
 }
 
@@ -402,12 +273,12 @@ fn test_unshift() {
 }
 
 #[test]
-fn test_push() {
+fn test_push_back() {
     let mut bits = Owned::from(Slice::new(&[255], U3::_1, 1).unwrap());
 
     let mut push = |bit, want| {
         let want = Slice::new(want, U3::_1, bits.length + 1).unwrap();
-        bits.extend(bit != 0).unwrap();
+        bits.push_back(bit != 0).unwrap();
         assert_eq!(want, bits);
     };
 
@@ -421,12 +292,12 @@ fn test_push() {
 }
 
 #[test]
-fn test_push_from_empty() {
+fn test_push_back_from_empty() {
     for offset in U3::all() {
         let mut bits = Owned::from(Slice::new(&[], offset, 0).unwrap());
         for length in 1..=16 {
             let want = Slice::new(&[255, 255, 255], offset, length).unwrap();
-            bits.extend(true).unwrap();
+            bits.push_back(true).unwrap();
             assert_eq!(want, bits);
         }
     }

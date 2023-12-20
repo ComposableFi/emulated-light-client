@@ -3,10 +3,10 @@ use core::fmt;
 
 use lib::u3::U3;
 
-pub mod concat;
+mod concat;
 pub mod ext_key;
 
-pub use concat::MisalignedSlice;
+pub use concat::{Error, MisalignedSlice, SliceTooLong};
 pub use ext_key::{Chunks, ExtKey};
 #[cfg(test)]
 use pretty_assertions::assert_eq;
@@ -533,7 +533,10 @@ impl Owned {
         }
     }
 
-    /// Concatenates two slice-like objects.
+    /// Concatenates two bit slices.
+    ///
+    /// A ‘bit slice’ here means either [`Slice`] object or a `bool` value
+    /// representing a single bit.
     ///
     /// ## Example
     ///
@@ -552,7 +555,7 @@ impl Owned {
     /// assert_eq!(Slice::new(&[0, 192], U3::_3, 7).unwrap(),
     ///            Owned::concat(prefix, suffix).unwrap());
     /// ```
-    pub fn concat<T: concat::Concat<U, Output = Owned>, U>(
+    pub fn concat<T: concat::Concat<U>, U>(
         prefix: T,
         suffix: U,
     ) -> Result<Owned, T::Error> {
@@ -567,24 +570,60 @@ impl Owned {
     /// # use sealable_trie::bits::{Owned, Slice};
     /// # use lib::u3::U3;
     ///
-    /// // Append a slice.
     /// let mut this = Owned::from(Slice::new(&[255, 255], U3::_7, 3).unwrap());
     /// this.extend(Slice::new(&[0], U3::_2, 2).unwrap()).unwrap();
     /// assert_eq!(Slice::new(&[1, 192], U3::_7, 5).unwrap(), this);
     ///
-    /// /// Append a single bit.
-    /// let mut slice = Owned::from(Slice::new(&[77], U3::_1, 5).unwrap());
-    /// slice.extend(true);
-    /// assert_eq!(Slice::new(&[78], U3::_1, 6).unwrap(), slice);
+    /// let mut this = Owned::from(Slice::new(&[255], U3::_1, 5).unwrap());
+    /// this.extend(Slice::new(&[255], U3::_6, 1).unwrap()).unwrap();
+    /// assert_eq!(Slice::new(&[126], U3::_1, 6).unwrap(), this);
+    ///
+    /// this.extend(Slice::new(&[255], U3::_7, 1).unwrap()).unwrap();
+    /// assert_eq!(Slice::new(&[127], U3::_1, 7).unwrap(), this);
     /// ```
-    pub fn extend<'s, Rhs>(
-        &'s mut self,
-        suffix: Rhs,
-    ) -> Result<(), <&'s mut Owned as concat::Concat<Rhs>>::Error>
-    where
-        &'s mut Owned: concat::Concat<Rhs, Output = ()>,
-    {
-        <&'s mut Owned as concat::Concat<Rhs>>::concat_impl(self, suffix)
+    pub fn extend(&mut self, suffix: Slice) -> Result<(), concat::Error> {
+        concat::extend_impl(self, suffix)
+    }
+
+    /// Append the given bit to the slice.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// # use sealable_trie::bits::{Owned, Slice};
+    /// # use lib::u3::U3;
+    ///
+    /// let bits = Slice::new(&[0b_0100_1101], U3::_1, 5).unwrap();
+    /// let mut bits = Owned::from(bits);
+    ///
+    /// bits.push_back(true);
+    /// assert_eq!(Slice::new(&[0b_0100_1110], U3::_1, 6).unwrap(), bits);
+    ///
+    /// bits.push_back(false);
+    /// assert_eq!(Slice::new(&[0b_0100_1110], U3::_1, 7).unwrap(), bits);
+    ///
+    /// bits.push_back(true);
+    /// assert_eq!(Slice::new(&[0b_0100_1110, 0x80], U3::_1, 8).unwrap(), bits);
+    /// ```
+    pub fn push_back(&mut self, bit: bool) -> Result<(), concat::SliceTooLong> {
+        concat::check_length(self.length, 1)?;
+        let off = self.offset.wrapping_add(self.length);
+        let mask: u8 = 0x80u8 >> off;
+        match self.bytes.last_mut() {
+            Some(byte) if off != 0 => {
+                // If this.bytes is non-empty and we’re not adding msb of
+                // a new byte (i.e. off != 0), modify the last byte.
+                *byte = (*byte & !mask) | (mask * u8::from(bit));
+            }
+            _ => {
+                // Otherwise, either this.bytes is empty (and thus we’re
+                // adding a new byte with given bit set) or we’re aligned at the
+                // byte boundary (and we’re adding a new byte with msb set).
+                self.bytes.push(mask * u8::from(bit));
+            }
+        }
+        self.length += 1;
+        Ok(())
     }
 
     /// Returns the last bit in the slice shrinking the slice by one bit.
