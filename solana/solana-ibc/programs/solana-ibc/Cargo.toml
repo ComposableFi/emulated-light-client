@@ -19,7 +19,7 @@ mocks = ["ibc-testkit"]
 anchor-lang.workspace = true
 anchor-spl.workspace = true
 base64.workspace = true
-bytemuck.workspace = true
+bytemuck = { workspace = true, features = ["must_cast"] }
 derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true

@@ -28,8 +28,7 @@ use crate::ibc;
     borsh::BorshDeserialize,
 )]
 pub struct SequenceTriple {
-    sequences: [u64; 3],
-    mask: u8,
+    sequences: [Option<NonZeroU64>; 3],
 }
 
 pub use trie_ids::path_info::SequenceKind;
@@ -37,29 +36,24 @@ pub use trie_ids::path_info::SequenceKind;
 impl SequenceTriple {
     /// Returns sequence at given index or `None` if it wasn’t set yet.
     pub fn get(&self, idx: SequenceKind) -> Option<ibc::Sequence> {
-        let idx = usize::from(idx);
-        (self.mask & (1 << idx) != 0)
-            .then_some(ibc::Sequence::from(self.sequences[idx]))
+        self.sequences[usize::from(idx)].map(|seq| seq.get().into())
     }
 
     /// Sets sequence at given index.
+    ///
+    /// **Note** that setting sequence to zero is equivalent to removing the
+    /// value.  Next sequence is initialised to one and never increased.
     pub(crate) fn set(&mut self, idx: SequenceKind, seq: ibc::Sequence) {
-        self.sequences[usize::from(idx)] = u64::from(seq);
-        self.mask |= 1 << usize::from(idx);
+        self.sequences[usize::from(idx)] = NonZeroU64::new(u64::from(seq));
     }
 
     /// Encodes the object as a `CryptoHash` so it can be stored in the trie
     /// directly.
     pub(crate) fn to_hash(&self) -> CryptoHash {
-        let mut hash = CryptoHash::default();
-        let (first, tail) = stdx::split_array_mut::<8, 24, 32>(&mut hash.0);
-        let (second, tail) = stdx::split_array_mut::<8, 16, 24>(tail);
-        let (third, tail) = stdx::split_array_mut::<8, 8, 16>(tail);
-        *first = self.sequences[0].to_be_bytes();
-        *second = self.sequences[1].to_be_bytes();
-        *third = self.sequences[2].to_be_bytes();
-        tail[0] = self.mask;
-        hash
+        let get = |idx: usize| {
+            self.sequences[idx].map_or(0, NonZeroU64::get).to_be_bytes()
+        };
+        CryptoHash(bytemuck::must_cast([get(0), get(1), get(2), [0u8; 8]]))
     }
 }
 
@@ -551,8 +545,8 @@ fn test_sequence_triple() {
     assert_eq!(None, triple.get(Ack));
     assert_eq!(
         &hex!(
-            "000000000000002A 0000000000000000 0000000000000000 01 \
-             00000000000000"
+            "000000000000002A 0000000000000000 0000000000000000 \
+             0000000000000000"
         ),
         triple.to_hash().as_array(),
     );
@@ -563,8 +557,8 @@ fn test_sequence_triple() {
     assert_eq!(None, triple.get(Ack));
     assert_eq!(
         &hex!(
-            "000000000000002A 0000000000000018 0000000000000000 03 \
-             00000000000000"
+            "000000000000002A 0000000000000018 0000000000000000 \
+             0000000000000000"
         ),
         triple.to_hash().as_array(),
     );
@@ -575,8 +569,8 @@ fn test_sequence_triple() {
     assert_eq!(Some(12.into()), triple.get(Ack));
     assert_eq!(
         &hex!(
-            "000000000000002A 0000000000000018 000000000000000C 07 \
-             00000000000000"
+            "000000000000002A 0000000000000018 000000000000000C \
+             0000000000000000"
         ),
         triple.to_hash().as_array(),
     );
