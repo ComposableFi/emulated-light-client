@@ -207,7 +207,7 @@ pub fn verify(
         } else if let Some(id) = path.client_id.as_ref() {
             // If path includes client id, hash stored in the trie is calculated
             // with the id mixed in.
-            super::digest_with_client_id(&id, value)
+            super::digest_with_client_id(id, value)
         } else {
             // Otherwise, simply hash the value.
             CryptoHash::digest(value)
