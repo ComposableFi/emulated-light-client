@@ -145,6 +145,18 @@ pub mod solana_ibc {
             .map_err(move |err| error!((&err)))
     }
 
+    pub fn deliver_with_chunks<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, DeliverWithChunks<'info>>,
+    ) -> Result<()> {
+        let msg_chunks = &ctx.accounts.msg_chunks;
+        let mut store = storage::from_ctx!(ctx, with accounts);
+        let mut router = store.clone();
+        let message = ibc::MsgEnvelope::try_from_slice(&msg_chunks.msg).unwrap();
+        ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
+            .map_err(error::Error::ContextError)
+            .map_err(move |err| error!((&err)))
+    } 
+
     /// Called to set up escrow and mint accounts for given channel and denom.
     /// Panics if called without `mocks` feature.
     pub fn mock_init_escrow<'a, 'info>(
@@ -400,6 +412,49 @@ pub struct Deliver<'info> {
     #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
               bump)]
     storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED],
+              bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Box<Account<'info, chain::ChainData>>,
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
+    /// CHECK:
+    mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut, mint::decimals = 6, mint::authority = mint_authority)]
+    token_mint: Option<Box<Account<'info, Mint>>>,
+    #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(init_if_needed, payer = sender,
+        associated_token::mint = token_mint,
+        associated_token::authority = receiver)]
+    receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    associated_token_program: Option<Program<'info, AssociatedToken>>,
+    token_program: Option<Program<'info, Token>>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts, Clone)]
+pub struct DeliverWithChunks<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    receiver: Option<AccountInfo<'info>>,
+
+    /// The account holding private IBC storage.
+    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
+              bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    #[account(mut, seeds = [MSG_CHUNKS], bump)]
+    msg_chunks: Account<'info, MsgChunks>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
