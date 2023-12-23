@@ -392,7 +392,7 @@ pub struct MsgChunks {
 impl MsgChunks {
     /// Creates a new msg vector of size `total_length + 4` with 0s where the
     /// first 4 bytes are allocated for the total size of the message
-    pub fn new(&mut self, total_len: usize) {
+    pub fn new_alloc(&mut self, total_len: usize) {
         let msg = vec![0; total_len + 4];
         self.msg = msg;
         let total_len_in_bytes = (total_len as u32).to_be_bytes();

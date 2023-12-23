@@ -292,7 +292,7 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let store = &mut ctx.accounts.msg_chunks;
         if store.msg.is_empty() {
-            store.new(total_len as usize);
+            store.new_alloc(total_len as usize);
         }
         store.copy_into(offset.try_into().unwrap(), &bytes);
         Ok(())
