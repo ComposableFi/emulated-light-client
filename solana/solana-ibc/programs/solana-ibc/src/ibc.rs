@@ -18,7 +18,9 @@ pub use ibc::core::client::context::client_state::{
 pub use ibc::core::client::context::consensus_state::ConsensusState;
 pub use ibc::core::client::context::types::error::ClientError;
 #[cfg(test)]
-pub use ibc::core::client::context::types::msgs::{ClientMsg, MsgCreateClient};
+pub use ibc::core::client::context::types::msgs::{
+    ClientMsg, MsgCreateClient, MsgUpdateClient,
+};
 pub use ibc::core::client::context::{
     ClientExecutionContext, ClientValidationContext,
 };

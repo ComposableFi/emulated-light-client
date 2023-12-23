@@ -13,13 +13,16 @@ use borsh::BorshDeserialize;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
-use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
+use crate::ibc::{
+    ClientError, ClientStateValidation, SendPacketValidationContext,
+};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
 pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
+pub const MSG_CHUNKS: &[u8] = b"msg_chunks";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
@@ -41,8 +44,6 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-    use ::ibc::core::client::types::error::ClientError;
 
     use super::*;
 
@@ -262,6 +263,26 @@ pub mod solana_ibc {
         ::ibc::core::channel::handler::send_packet_execute(&mut store, packet)
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))
+    }
+
+    /// Store messages which are divided into chunk in an account which can be accessed later
+    /// from the deliver method.
+    ///
+    /// Since solana programs have an instruction limit of 1232 bytes, we cannot send arguments
+    /// with large data. So we divide the data into chunks, call the method below and add it to
+    /// the account at the specified offset.
+    pub fn form_msg_chunks(
+        ctx: Context<FormMessageChunks>,
+        total_len: u32,
+        offset: u32,
+        bytes: Vec<u8>,
+    ) -> Result<()> {
+        let store = &mut ctx.accounts.msg_chunks;
+        if store.msg.is_empty() {
+            store.new(total_len as usize);
+        }
+        store.copy_into(offset.try_into().unwrap(), &bytes);
+        Ok(())
     }
 }
 
@@ -503,6 +524,41 @@ pub struct SendPacket<'info> {
     chain: Account<'info, chain::ChainData>,
 
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct FormMessageChunks<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    #[account(init_if_needed, payer = sender, seeds = [MSG_CHUNKS], bump, space = 10240)]
+    pub msg_chunks: Account<'info, MsgChunks>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[account]
+#[derive(Debug)]
+pub struct MsgChunks {
+    /// The vector consists of chunks of message data having the first 4 bytes
+    /// indicating the total size of the message
+    pub msg: Vec<u8>,
+}
+
+impl MsgChunks {
+    /// Creates a new msg vector of size `total_length + 4` with 0s where the
+    /// first 4 bytes are allocated for the total size of the message
+    fn new(&mut self, total_len: usize) {
+        let msg = vec![0; total_len + 4];
+        self.msg = msg;
+        let total_len_in_bytes = (total_len as u32).to_be_bytes();
+        self.copy_into(0, &total_len_in_bytes);
+    }
+
+    fn copy_into(&mut self, position: usize, data: &[u8]) {
+        msg!("data size -> {} {}", data.len(), self.msg.len());
+        self.msg[position..position + data.len()].copy_from_slice(data);
+    }
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
