@@ -799,7 +799,8 @@ fn anchor_test_deliver_chunks() -> Result<()> {
         offset += chunk_size;
     }
 
-    let final_msg: crate::MsgChunks = program.account(msg_chunks).unwrap();
+    let final_msg: crate::storage::MsgChunks =
+        program.account(msg_chunks).unwrap();
 
     let serialized_msg_envelope = &final_msg.msg[4..];
     let unserialized_msg =

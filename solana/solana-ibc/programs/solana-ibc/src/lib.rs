@@ -151,11 +151,12 @@ pub mod solana_ibc {
         let msg_chunks = &ctx.accounts.msg_chunks;
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
-        let message = ibc::MsgEnvelope::try_from_slice(&msg_chunks.msg).unwrap();
+        let message =
+            ibc::MsgEnvelope::try_from_slice(&msg_chunks.msg).unwrap();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
-    } 
+    }
 
     /// Called to set up escrow and mint accounts for given channel and denom.
     /// Panics if called without `mocks` feature.
@@ -454,7 +455,7 @@ pub struct DeliverWithChunks<'info> {
     storage: Account<'info, storage::PrivateStorage>,
 
     #[account(mut, seeds = [MSG_CHUNKS], bump)]
-    msg_chunks: Account<'info, MsgChunks>,
+    msg_chunks: Account<'info, storage::MsgChunks>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
@@ -587,34 +588,12 @@ pub struct FormMessageChunks<'info> {
     sender: Signer<'info>,
 
     #[account(init_if_needed, payer = sender, seeds = [MSG_CHUNKS], bump, space = 10240)]
-    pub msg_chunks: Account<'info, MsgChunks>,
+    pub msg_chunks: Account<'info, storage::MsgChunks>,
 
     pub system_program: Program<'info, System>,
 }
 
-#[account]
-#[derive(Debug)]
-pub struct MsgChunks {
-    /// The vector consists of chunks of message data having the first 4 bytes
-    /// indicating the total size of the message
-    pub msg: Vec<u8>,
-}
 
-impl MsgChunks {
-    /// Creates a new msg vector of size `total_length + 4` with 0s where the
-    /// first 4 bytes are allocated for the total size of the message
-    fn new(&mut self, total_len: usize) {
-        let msg = vec![0; total_len + 4];
-        self.msg = msg;
-        let total_len_in_bytes = (total_len as u32).to_be_bytes();
-        self.copy_into(0, &total_len_in_bytes);
-    }
-
-    fn copy_into(&mut self, position: usize, data: &[u8]) {
-        msg!("data size -> {} {}", data.len(), self.msg.len());
-        self.msg[position..position + data.len()].copy_from_slice(data);
-    }
-}
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
     //

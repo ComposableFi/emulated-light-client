@@ -379,6 +379,32 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
     pub chain: &'a mut crate::chain::ChainData,
 }
 
+/// Struct containing message chunks
+///
+/// The struct consists of chunks of message data having the first 4 bytes
+/// indicating the total size of the message
+#[account]
+#[derive(Debug)]
+pub struct MsgChunks {
+    pub msg: Vec<u8>,
+}
+
+impl MsgChunks {
+    /// Creates a new msg vector of size `total_length + 4` with 0s where the
+    /// first 4 bytes are allocated for the total size of the message
+    pub fn new(&mut self, total_len: usize) {
+        let msg = vec![0; total_len + 4];
+        self.msg = msg;
+        let total_len_in_bytes = (total_len as u32).to_be_bytes();
+        self.copy_into(0, &total_len_in_bytes);
+    }
+
+    pub fn copy_into(&mut self, position: usize, data: &[u8]) {
+        msg!("data size -> {} {}", data.len(), self.msg.len());
+        self.msg[position..position + data.len()].copy_from_slice(data);
+    }
+}
+
 /// A reference-counted reference to the IBC storage.
 ///
 /// Uses inner-mutability via [`RefCell`] to allow modifications to the storage.
