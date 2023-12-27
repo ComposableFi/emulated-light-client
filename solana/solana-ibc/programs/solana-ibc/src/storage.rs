@@ -386,22 +386,30 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
 #[account]
 #[derive(Debug)]
 pub struct MsgChunks {
-    pub msg: Vec<u8>,
+    pub type_url: String,
+    pub value: Vec<u8>,
 }
 
 impl MsgChunks {
     /// Creates a new msg vector of size `total_length + 4` with 0s where the
     /// first 4 bytes are allocated for the total size of the message
-    pub fn new_alloc(&mut self, total_len: usize) {
+    pub fn new_alloc(&mut self, total_len: usize, type_url: String) {
         let msg = vec![0; total_len + 4];
-        self.msg = msg;
+        self.value = msg;
+        self.type_url = type_url;
         let total_len_in_bytes = (total_len as u32).to_be_bytes();
         self.copy_into(0, &total_len_in_bytes);
     }
 
     pub fn copy_into(&mut self, position: usize, data: &[u8]) {
-        msg!("data size -> {} {}", data.len(), self.msg.len());
-        self.msg[position..position + data.len()].copy_from_slice(data);
+        msg!("data size -> {} {}", data.len(), self.value.len());
+        self.value[position..position + data.len()].copy_from_slice(data);
+    }
+}
+
+impl From<MsgChunks> for ibc::Any {
+    fn from(value: MsgChunks) -> Self {
+        ibc::Any { type_url: value.type_url, value: value.value[4..].to_vec() }
     }
 }
 

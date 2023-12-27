@@ -46,6 +46,7 @@ mod validation_context;
 pub mod solana_ibc {
 
     use super::*;
+    use crate::storage::MsgChunks;
 
     /// Initialises the guest blockchain with given configuration and genesis
     /// epoch.
@@ -149,10 +150,14 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, DeliverWithChunks<'info>>,
     ) -> Result<()> {
         let msg_chunks = &ctx.accounts.msg_chunks;
+        let cloned_msg_chunks: &mut MsgChunks = &mut msg_chunks.clone();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
-        let message =
-            ibc::MsgEnvelope::try_from_slice(&msg_chunks.msg).unwrap();
+
+        let message = ibc::MsgEnvelope::try_from(ibc::Any::from(
+            cloned_msg_chunks.clone(),
+        ))
+        .unwrap();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
@@ -286,13 +291,14 @@ pub mod solana_ibc {
     /// the account at the specified offset.
     pub fn form_msg_chunks(
         ctx: Context<FormMessageChunks>,
+        type_url: String,
         total_len: u32,
         offset: u32,
         bytes: Vec<u8>,
     ) -> Result<()> {
         let store = &mut ctx.accounts.msg_chunks;
-        if store.msg.is_empty() {
-            store.new_alloc(total_len as usize);
+        if store.value.is_empty() {
+            store.new_alloc(total_len as usize, type_url);
         }
         store.copy_into(offset.try_into().unwrap(), &bytes);
         Ok(())
@@ -454,7 +460,7 @@ pub struct DeliverWithChunks<'info> {
               bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
-    #[account(mut, seeds = [MSG_CHUNKS], bump)]
+    #[account(mut)]
     msg_chunks: Account<'info, storage::MsgChunks>,
 
     /// The account holding provable IBC storage, i.e. the trie.

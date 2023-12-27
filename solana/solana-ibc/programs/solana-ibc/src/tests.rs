@@ -4,6 +4,8 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
+use ::ibc::primitives::proto::Protobuf;
+use ::ibc::primitives::Msg;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -130,6 +132,8 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
+    let msg_chunks =
+        Pubkey::find_program_address(&[crate::MSG_CHUNKS], &crate::ID).0;
 
     /*
      * Initialise chain
@@ -178,18 +182,55 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("\nCreating Mock Client");
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let message = make_message!(
-        ibc::MsgCreateClient::new(
-            ibc::Any::from(mock_client_state),
-            ibc::Any::from(mock_cs_state),
-            ibc::Signer::from(authority.pubkey().to_string()),
-        ),
-        ibc::ClientMsg::CreateClient,
-        ibc::MsgEnvelope::Client,
+    // let message = make_message!(
+    //     ibc::MsgCreateClient::new(
+    //         ibc::Any::from(mock_client_state),
+    //         ibc::Any::from(mock_cs_state.clone()),
+    //         ibc::Signer::from(authority.pubkey().to_string()),
+    //     ),
+    //     ibc::ClientMsg::CreateClient,
+    //     ibc::MsgEnvelope::Client,
+    // );
+
+    let test_msg = ibc::MsgCreateClient::new(
+        ibc::Any::from(mock_client_state),
+        ibc::Any::from(mock_cs_state),
+        ibc::Signer::from(authority.pubkey().to_string()),
     );
+
+    let serialized_message = test_msg.clone().encode_vec();
+
+    let length = serialized_message.len();
+    let chunk_size = 100;
+    let mut offset = 4;
+
+    for i in serialized_message.chunks(chunk_size) {
+        let sig = program
+            .request()
+            .accounts(accounts::FormMessageChunks {
+                sender: authority.pubkey(),
+                msg_chunks,
+                system_program: system_program::ID,
+            })
+            .args(instruction::FormMsgChunks {
+                total_len: length as u32,
+                offset: offset as u32,
+                bytes: i.to_vec(),
+                type_url: test_msg.type_url(),
+            })
+            .payer(authority.clone())
+            .signer(&*authority)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..RpcSendTransactionConfig::default()
+            })?;
+        println!("  Signature for message chunks : {sig}");
+        offset += chunk_size;
+    }
+
     let sig = program
         .request()
-        .accounts(accounts::Deliver {
+        .accounts(accounts::DeliverWithChunks {
             sender: authority.pubkey(),
             receiver: None,
             storage,
@@ -202,8 +243,9 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: None,
             associated_token_program: None,
             token_program: None,
+            msg_chunks,
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::DeliverWithChunks {})
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -675,7 +717,7 @@ fn anchor_test_deliver() -> Result<()> {
 
 #[test]
 #[ignore = "Requires local validator to run"]
-fn anchor_test_deliver_chunks() -> Result<()> {
+fn test_deliver_chunks() -> Result<()> {
     let (authority, _client, program, _airdrop_signature) =
         setup_client_program(
             Keypair::new(),
@@ -766,7 +808,8 @@ fn anchor_test_deliver_chunks() -> Result<()> {
             .into(),
     };
 
-    let msg_envelope = MsgEnvelope::Client(ibc::ClientMsg::UpdateClient(msg));
+    let msg_envelope =
+        MsgEnvelope::Client(ibc::ClientMsg::UpdateClient(msg.clone()));
 
     let serialized_message = borsh::to_vec(&msg_envelope).unwrap();
 
@@ -788,6 +831,7 @@ fn anchor_test_deliver_chunks() -> Result<()> {
                 total_len: length as u32,
                 offset: offset as u32,
                 bytes: i.to_vec(),
+                type_url: msg.type_url(),
             })
             .payer(authority.clone())
             .signer(&*authority)
@@ -802,7 +846,7 @@ fn anchor_test_deliver_chunks() -> Result<()> {
     let final_msg: crate::storage::MsgChunks =
         program.account(msg_chunks).unwrap();
 
-    let serialized_msg_envelope = &final_msg.msg[4..];
+    let serialized_msg_envelope = &final_msg.value[4..];
     let unserialized_msg =
         MsgEnvelope::try_from_slice(serialized_msg_envelope).unwrap();
     assert_eq!(unserialized_msg, msg_envelope);
