@@ -460,8 +460,8 @@ pub struct DeliverWithChunks<'info> {
               bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
-    #[account(mut)]
-    msg_chunks: Account<'info, storage::MsgChunks>,
+    #[account(mut, close = sender)]
+    msg_chunks: Box<Account<'info, storage::MsgChunks>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
