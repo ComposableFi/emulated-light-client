@@ -59,7 +59,8 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
         let timestamp = self.borrow().chain.head()?.host_timestamp.get();
-        ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+        // Since timestamp is in seconds, converting it into nanoseconds.
+        ibc::Timestamp::from_nanoseconds(timestamp * 10_u64.pow(9)).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
         })
     }
