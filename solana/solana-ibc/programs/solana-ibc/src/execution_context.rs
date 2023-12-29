@@ -58,8 +58,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.set(&trie_key, &hash).map_err(error)?;
-        Ok(())
+        store.provable.set(&trie_key, &hash).map_err(error)
     }
 
     fn delete_consensus_state(
@@ -73,8 +72,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut client = store.private.client_mut(&path.client_id, false)?;
         client.consensus_states.remove(&height);
         let key = trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.del(&key).map_err(error)?;
-        Ok(())
+        store.provable.del(&key).map(|_| ()).map_err(error)
     }
 
     /// Does nothing in the current implementation.
@@ -165,9 +163,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         store
             .provable
             .set(&trie_ids::TrieKey::for_connection(connection), &hash)
-            .map_err(error)?;
-
-        Ok(())
+            .map_err(error)
     }
 
     /// Does nothing in the current implementation.
@@ -256,8 +252,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
             .or_default()
             .set_channel_end(&channel_end)
             .map_err(error)?;
-        store.provable.set(&trie_key, &digest).map_err(error)?;
-        Ok(())
+        store.provable.set(&trie_key, &digest).map_err(error)
     }
 
     fn store_next_sequence_send(
