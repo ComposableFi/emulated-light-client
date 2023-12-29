@@ -332,10 +332,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             let from = from_account
                 .get_escrow_account(coin.denom.base_denom.as_str())
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-            let to = match to_account {
-                AccountId::Escrow(_) => panic!("Infallibe"),
-                AccountId::Signer(pk) => pk,
-            };
+            let to: Pubkey = to_account.try_into().unwrap(); // Infallible
             if accounts.mint_authority.is_none() {
                 return Err(TokenTransferError::ParseAccountFailure);
             }
@@ -343,10 +340,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
                 return Err(TokenTransferError::ParseAccountFailure);
             }
         } else {
-            let from = match to_account {
-                AccountId::Escrow(_) => panic!("Infallibe"),
-                AccountId::Signer(pk) => pk,
-            };
+            let from: Pubkey = from_account.try_into().unwrap(); // Infallible
             let to = from_account
                 .get_escrow_account(coin.denom.base_denom.as_str())
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
@@ -365,7 +359,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
     fn mint_coins_validate(
         &self,
-        _account: &Self::AccountId,
+        account: &Self::AccountId,
         _coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         /*
@@ -384,12 +378,17 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
+        let account: Pubkey = account.try_into().unwrap();
+        let token_account = accounts.token_account.clone().unwrap();
+        if !account.eq(token_account.key) {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
         Ok(())
     }
 
     fn burn_coins_validate(
         &self,
-        _account: &Self::AccountId,
+        account: &Self::AccountId,
         _coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         /*
@@ -406,6 +405,11 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             accounts.mint_authority.is_none() ||
             accounts.token_account.is_none()
         {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        let account: Pubkey = account.try_into().unwrap();
+        let token_account = accounts.token_account.clone().unwrap();
+        if !account.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
