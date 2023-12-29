@@ -108,7 +108,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
                     .clone()
                     .ok_or(TokenTransferError::ParseAccountFailure)?;
                 let receiver = accounts
-                    .receiver_token_account
+                    .token_account
                     .clone()
                     .ok_or(TokenTransferError::ParseAccountFailure)?;
                 let auth = accounts
@@ -118,7 +118,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
                 (sender, receiver, auth)
             } else {
                 let sender = accounts
-                    .sender_token_account
+                    .token_account
                     .clone()
                     .ok_or(TokenTransferError::ParseAccountFailure)?;
                 let receiver = accounts
@@ -171,7 +171,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let accounts = &store.accounts;
         let receiver = accounts
-            .receiver_token_account
+            .token_account
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = accounts
@@ -224,7 +224,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let accounts = &store.accounts;
         let burner = accounts
-            .receiver_token_account
+            .token_account
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = accounts
@@ -295,10 +295,71 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
     fn send_coins_validate(
         &self,
-        _from_account: &Self::AccountId,
-        _to_account: &Self::AccountId,
-        _coin: &PrefixedCoin,
+        from_account: &Self::AccountId,
+        to_account: &Self::AccountId,
+        coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
+        /*
+           Should have the following accounts
+           - token program
+           - token account
+           - escrow account ( with seeds as portId, channelId and denom )
+           - token mint
+
+           If sending tokens from escrow then,
+           - mint authority should be present
+           - from account should match escrow
+           - to account should match token account
+
+          If sending tokens to escrow then,
+           - sender should be present
+           - sender should be signer
+           - to account should match escrow
+           - from account should match token account
+        */
+        let store = self.borrow();
+        let accounts = &store.accounts;
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.escrow_account.is_none() ||
+            accounts.token_account.is_none()
+        {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        let escrow_account = &accounts.escrow_account.clone().unwrap(); // we check before if it exists so the unwrap is infallible
+        let token_account = &accounts.token_account.clone().unwrap(); // we check before if it exists so the unwrap is infallible
+        if matches!(from_account, AccountId::Escrow(_)) {
+            let from = from_account
+                .get_escrow_account(coin.denom.base_denom.as_str())
+                .map_err(|_| TokenTransferError::ParseAccountFailure)?;
+            let to = match to_account {
+                AccountId::Escrow(_) => panic!("Infallibe"),
+                AccountId::Signer(pk) => pk,
+            };
+            if accounts.mint_authority.is_none() {
+                return Err(TokenTransferError::ParseAccountFailure);
+            }
+            if !from.eq(escrow_account.key) || !to.eq(token_account.key) {
+                return Err(TokenTransferError::ParseAccountFailure);
+            }
+        } else {
+            let from = match to_account {
+                AccountId::Escrow(_) => panic!("Infallibe"),
+                AccountId::Signer(pk) => pk,
+            };
+            let to = from_account
+                .get_escrow_account(coin.denom.base_denom.as_str())
+                .map_err(|_| TokenTransferError::ParseAccountFailure)?;
+            if accounts.sender.is_none() {
+                return Err(TokenTransferError::ParseAccountFailure);
+            }
+            if !accounts.sender.clone().unwrap().is_signer {
+                return Err(TokenTransferError::ParseAccountFailure);
+            }
+            if !from.eq(escrow_account.key) || !to.eq(token_account.key) {
+                return Err(TokenTransferError::ParseAccountFailure);
+            }
+        }
         Ok(())
     }
 
@@ -307,6 +368,22 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         _account: &Self::AccountId,
         _coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
+        /*
+           Should have the following accounts
+           - token program
+           - token account
+           - token mint
+           - mint authority
+        */
+        let store = self.borrow();
+        let accounts = &store.accounts;
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none() ||
+            accounts.token_account.is_none()
+        {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
         Ok(())
     }
 
@@ -315,6 +392,22 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         _account: &Self::AccountId,
         _coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
+        /*
+           Should have the following accounts
+           - token program
+           - token account
+           - token mint
+           - mint authority
+        */
+        let store = self.borrow();
+        let accounts = &store.accounts;
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none() ||
+            accounts.token_account.is_none()
+        {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
         Ok(())
     }
 }
