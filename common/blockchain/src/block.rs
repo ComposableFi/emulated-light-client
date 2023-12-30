@@ -28,9 +28,16 @@ pub struct BlockHeader {
     /// This is sequential, always increasing by one.
     pub block_height: crate::BlockHeight,
     /// Height of the host blockchain’s block in which this block was created.
+    ///
+    /// Note that while this is strictly increasing, usually host heights won’t
+    /// be sequential.
     pub host_height: crate::HostHeight,
-    /// Timestamp when the block was created.
-    pub host_timestamp: NonZeroU64,
+    /// Unix timestamp in nanoseconds when the block was created.
+    ///
+    /// Note that even though the timestamp has nanosecond precision, it’s
+    /// unlikely to be accurate to within nanosecond.  Actual accuracy is in the
+    /// order of seconds.
+    pub timestamp_ns: NonZeroU64,
     /// Hash of the root node of the state trie, i.e. the commitment of the
     /// state.
     pub state_root: CryptoHash,
@@ -84,7 +91,7 @@ impl<PK: borsh::BorshSerialize> borsh::BorshSerialize for Block<PK> {
             &self.header.prev_block_hash,
             &self.header.block_height,
             &self.header.host_height,
-            &self.header.host_timestamp,
+            &self.header.timestamp_ns,
             &self.header.state_root,
             &self.header.epoch_id,
             &self.next_epoch,
@@ -102,7 +109,7 @@ where
         let prev_block_hash = CryptoHash::deserialize_reader(reader)?;
         let block_height = crate::BlockHeight::deserialize_reader(reader)?;
         let host_height = crate::HostHeight::deserialize_reader(reader)?;
-        let host_timestamp = NonZeroU64::deserialize_reader(reader)?;
+        let timestamp_ns = NonZeroU64::deserialize_reader(reader)?;
         let state_root = CryptoHash::deserialize_reader(reader)?;
         let epoch_id = CryptoHash::deserialize_reader(reader)?;
         let next_epoch =
@@ -115,7 +122,7 @@ where
                 prev_block_hash,
                 block_height,
                 host_height,
-                host_timestamp,
+                timestamp_ns,
                 state_root,
                 next_epoch_commitment,
                 epoch_id,
@@ -171,19 +178,18 @@ impl BlockHeader {
     /// Constructs next block.
     ///
     /// Returns a new block with `self` as the previous block.  Verifies that
-    /// `host_height` and `host_timestamp` don’t go backwards but otherwise they
-    /// can increase by any amount.  The new block will have `block_height`
-    /// incremented by one.
+    /// `host_height` and `timestamp_ns` are strictly increasing.  The new block
+    /// will have `block_height` incremented by one.
     pub fn generate_next<PK: crate::PubKey>(
         &self,
         host_height: crate::HostHeight,
-        host_timestamp: NonZeroU64,
+        timestamp_ns: NonZeroU64,
         state_root: CryptoHash,
         next_epoch: Option<crate::Epoch<PK>>,
     ) -> Result<Block<PK>, GenerateError> {
         if host_height <= self.host_height {
             return Err(GenerateError::BadHostHeight);
-        } else if host_timestamp <= self.host_timestamp {
+        } else if timestamp_ns <= self.timestamp_ns {
             return Err(GenerateError::BadHostTimestamp);
         }
 
@@ -203,7 +209,7 @@ impl BlockHeader {
                 prev_block_hash,
                 block_height: self.block_height.next(),
                 host_height,
-                host_timestamp,
+                timestamp_ns,
                 state_root,
                 epoch_id,
                 next_epoch_commitment,
@@ -221,7 +227,7 @@ impl<PK: crate::PubKey> Block<PK> {
     pub fn generate_genesis(
         block_height: crate::BlockHeight,
         host_height: crate::HostHeight,
-        host_timestamp: NonZeroU64,
+        timestamp_ns: NonZeroU64,
         state_root: CryptoHash,
         next_epoch: crate::Epoch<PK>,
     ) -> Result<Self, GenerateError> {
@@ -231,7 +237,7 @@ impl<PK: crate::PubKey> Block<PK> {
                 prev_block_hash: CryptoHash::DEFAULT,
                 block_height,
                 host_height,
-                host_timestamp,
+                timestamp_ns,
                 state_root,
                 epoch_id: CryptoHash::DEFAULT,
                 next_epoch_commitment: Some(next_epoch.calc_commitment()),
@@ -351,7 +357,7 @@ fn test_block_generation() {
         Err(GenerateError::BadHostTimestamp),
         genesis.generate_next::<MockPubKey>(
             crate::HostHeight::from(43),
-            NonZeroU64::new(24).unwrap(),
+            NonZeroU64::new(23).unwrap(),
             CryptoHash::test(99),
             None
         )

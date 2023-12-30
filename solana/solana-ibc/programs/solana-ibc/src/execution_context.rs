@@ -44,7 +44,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let (processed_time, processed_height) = {
             let head = store.chain.head()?;
-            (head.host_timestamp, head.block_height)
+            (head.timestamp_ns, head.block_height)
         };
 
         let mut client = store.private.client_mut(&path.client_id, false)?;

@@ -13,7 +13,7 @@ use crate::proto;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConsensusState {
     pub block_hash: ibc_core_commitment_types::commitment::CommitmentRoot,
-    pub timestamp: NonZeroU64,
+    pub timestamp_ns: NonZeroU64,
 }
 
 impl ConsensusState {
@@ -29,9 +29,9 @@ impl ConsensusState {
 }
 
 impl ConsensusState {
-    pub fn new(block_hash: &CryptoHash, timestamp: NonZeroU64) -> Self {
+    pub fn new(block_hash: &CryptoHash, timestamp_ns: NonZeroU64) -> Self {
         let block_hash = block_hash.as_array().to_vec().into();
-        Self { block_hash, timestamp }
+        Self { block_hash, timestamp_ns }
     }
 }
 
@@ -39,7 +39,7 @@ impl From<ConsensusState> for proto::ConsensusState {
     fn from(state: ConsensusState) -> Self {
         Self {
             block_hash: state.block_hash.into_vec(),
-            timestamp: state.timestamp.get(),
+            timestamp_ns: state.timestamp_ns.get(),
         }
     }
 }
@@ -48,7 +48,7 @@ impl From<&ConsensusState> for proto::ConsensusState {
     fn from(state: &ConsensusState) -> Self {
         Self {
             block_hash: state.block_hash.as_bytes().to_vec(),
-            timestamp: state.timestamp.get(),
+            timestamp_ns: state.timestamp_ns.get(),
         }
     }
 }
@@ -59,10 +59,10 @@ impl TryFrom<proto::ConsensusState> for ConsensusState {
         if msg.block_hash.as_slice().len() != CryptoHash::LENGTH {
             return Err(proto::BadMessage);
         }
-        let timestamp =
-            NonZeroU64::new(msg.timestamp).ok_or(proto::BadMessage)?;
+        let timestamp_ns =
+            NonZeroU64::new(msg.timestamp_ns).ok_or(proto::BadMessage)?;
         let block_hash = msg.block_hash.into();
-        Ok(ConsensusState { block_hash, timestamp })
+        Ok(ConsensusState { block_hash, timestamp_ns })
     }
 }
 
@@ -72,10 +72,10 @@ impl TryFrom<&proto::ConsensusState> for ConsensusState {
         if msg.block_hash.as_slice().len() != CryptoHash::LENGTH {
             return Err(proto::BadMessage);
         }
-        let timestamp =
-            NonZeroU64::new(msg.timestamp).ok_or(proto::BadMessage)?;
+        let timestamp_ns =
+            NonZeroU64::new(msg.timestamp_ns).ok_or(proto::BadMessage)?;
         let block_hash = msg.block_hash.clone().into();
-        Ok(ConsensusState { block_hash, timestamp })
+        Ok(ConsensusState { block_hash, timestamp_ns })
     }
 }
 
@@ -116,6 +116,6 @@ fn test_consensus_state() {
 
     // Check failure on invalid proto
     let bad_state =
-        proto::ConsensusState { block_hash: [0; 32].to_vec(), timestamp: 0 };
+        proto::ConsensusState { block_hash: [0; 32].to_vec(), timestamp_ns: 0 };
     assert_eq!(Err(proto::BadMessage), ConsensusState::try_from(bad_state));
 }

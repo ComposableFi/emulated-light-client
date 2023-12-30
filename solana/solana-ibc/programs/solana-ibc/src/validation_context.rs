@@ -58,7 +58,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
-        let timestamp = self.borrow().chain.head()?.host_timestamp.get();
+        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
         ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
         })
@@ -80,7 +80,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         Ok(Self::AnyConsensusState::from(
             blockchain::ibc_state::ConsensusState {
                 block_hash: state.0.as_array().to_vec().into(),
-                timestamp: state.1,
+                timestamp_ns: state.1,
             },
         ))
     }

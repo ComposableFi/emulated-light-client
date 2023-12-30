@@ -44,7 +44,7 @@ impl ChainData {
     ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
         let block = self.get()?.manager.head().1;
         Ok((block.block_height == height)
-            .then(|| (block.calc_hash(), block.host_timestamp)))
+            .then(|| (block.calc_hash(), block.timestamp_ns)))
     }
 
     /// Initialises a new guest blockchain with given configuration and genesis
@@ -242,9 +242,14 @@ impl ChainInner {
 /// of the IBC connection, i.e. the guest blockchain.
 fn get_host_head() -> Result<(blockchain::HostHeight, NonZeroU64)> {
     let clock = Clock::get()?;
-    let timestamp = clock.unix_timestamp;
-    assert!(timestamp > 0);
-    Ok((clock.slot.into(), NonZeroU64::new(timestamp as u64).unwrap()))
+    // Convert Solana Unix timestamp which is in second to timestamp guest block
+    // is using which is in nanoseconds.
+    let timestamp = u64::try_from(clock.unix_timestamp)
+        .ok()
+        .and_then(|timestamp| timestamp.checked_mul(1_000_000_000))
+        .and_then(NonZeroU64::new)
+        .unwrap();
+    Ok((clock.slot.into(), timestamp))
 }
 
 
