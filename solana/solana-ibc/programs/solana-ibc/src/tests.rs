@@ -454,16 +454,16 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap()
-            - escrow_account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((escrow_account_balance_before.ui_amount.unwrap() -
+            escrow_account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap()
-            - receiver_account_balance_before.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((receiver_account_balance_after.ui_amount.unwrap() -
+            receiver_account_balance_before.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -535,9 +535,9 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap()
-            - account_balance_before.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() -
+            account_balance_before.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -659,8 +659,12 @@ fn anchor_test_deliver() -> Result<()> {
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
-    let seeds =
-        [port_id.as_bytes(), channel_id_on_b.as_bytes(), send_denom[..18].as_bytes(), send_denom[18..].as_bytes()];
+    let seeds = [
+        port_id.as_bytes(),
+        channel_id_on_b.as_bytes(),
+        send_denom[..18].as_bytes(),
+        send_denom[18..].as_bytes(),
+    ];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
 
@@ -706,9 +710,9 @@ fn anchor_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap()
-            - account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap() -
+            account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );

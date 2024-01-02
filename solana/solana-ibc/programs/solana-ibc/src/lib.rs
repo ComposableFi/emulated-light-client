@@ -265,13 +265,23 @@ pub mod solana_ibc {
     }
 
     #[allow(unused_variables)]
-    pub fn send_transfer(ctx: Context<SendTransfer>, port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String, msg: ibc::MsgTransfer) -> Result<()> {
+    pub fn send_transfer(
+        ctx: Context<SendTransfer>,
+        port_id: ibc::PortId,
+        channel_id_on_b: ibc::ChannelId,
+        base_denom: String,
+        msg: ibc::MsgTransfer,
+    ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
-        ::ibc::apps::transfer::handler::send_transfer(&mut store, &mut token_ctx, msg)
-            .map_err(error::Error::TokenTransferError)
-            .map_err(|err| error!((&err)))
+        ::ibc::apps::transfer::handler::send_transfer(
+            &mut store,
+            &mut token_ctx,
+            msg,
+        )
+        .map_err(error::Error::TokenTransferError)
+        .map_err(|err| error!((&err)))
     }
 }
 
@@ -553,7 +563,7 @@ pub struct SendTransfer<'info> {
 
     associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
-    system_program: Program<'info, System>, 
+    system_program: Program<'info, System>,
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
