@@ -7,5 +7,5 @@ message ConsensusState {
 	// 32-byte block hash.
 	bytes block_hash = 1;
 	// Timestamp in nanoseconds.  Never zero.
-	uint64 timestamp = 2;
+	uint64 timestamp_ns = 2;
 }

@@ -167,7 +167,8 @@ impl ConsensusState for AnyConsensusState {
         match self {
             AnyConsensusState::Tendermint(value) => value.timestamp().into(),
             AnyConsensusState::Guest(value) => {
-                ibc::Timestamp::from_nanoseconds(value.timestamp.get()).unwrap()
+                ibc::Timestamp::from_nanoseconds(value.timestamp_ns.get())
+                    .unwrap()
             }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(value) => value.timestamp(),

@@ -18,7 +18,7 @@ mod pb {
         #[cfg(test)]
         pub fn test() -> Self {
             let hash = lib::hash::CryptoHash::test(42);
-            Self { block_hash: hash.as_array().to_vec(), timestamp: 1 }
+            Self { block_hash: hash.as_array().to_vec(), timestamp_ns: 1 }
         }
     }
 }
