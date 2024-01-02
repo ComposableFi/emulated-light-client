@@ -326,35 +326,37 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let escrow_account = &accounts.escrow_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_account = &accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
-        if matches!(from_account, AccountId::Escrow(_)) {
+        let escrow_account = &accounts
+            .escrow_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_account = &accounts
+            .token_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let ok = if let AccountId::Signer(ref to) = to_account {
             let from = from_account
                 .get_escrow_account(coin.denom.base_denom.as_str())
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-            let to: Pubkey = to_account.try_into().unwrap(); // Infallible
-            if accounts.mint_authority.is_none() {
-                return Err(TokenTransferError::ParseAccountFailure);
-            }
-            if !from.eq(escrow_account.key) || !to.eq(token_account.key) {
-                return Err(TokenTransferError::ParseAccountFailure);
-            }
-        } else {
-            let from: Pubkey = from_account.try_into().unwrap(); // Infallible
+            accounts.mint_authority.is_some() &&
+                from.eq(escrow_account.key) &&
+                to.eq(token_account.key)
+        } else if let AccountId::Signer(ref from) = from_account {
             let to = from_account
                 .get_escrow_account(coin.denom.base_denom.as_str())
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-            if accounts.sender.is_none() {
-                return Err(TokenTransferError::ParseAccountFailure);
-            }
-            if !accounts.sender.clone().unwrap().is_signer {
-                return Err(TokenTransferError::ParseAccountFailure);
-            }
-            if !from.eq(escrow_account.key) || !to.eq(token_account.key) {
-                return Err(TokenTransferError::ParseAccountFailure);
-            }
+            accounts.sender.is_some() &&
+                accounts.sender.as_ref().map_or(false, |acc| acc.is_signer) &&
+                from.eq(escrow_account.key) &&
+                to.eq(token_account.key)
+        } else {
+            false
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(TokenTransferError::ParseAccountFailure)
         }
-        Ok(())
     }
 
     fn mint_coins_validate(
@@ -379,7 +381,10 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         let account: Pubkey = account.try_into().unwrap();
-        let token_account = accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_account = accounts
+            .token_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -408,7 +413,10 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         let account: Pubkey = account.try_into().unwrap();
-        let token_account = accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_account = accounts
+            .token_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
