@@ -26,9 +26,9 @@ solana_program::entrypoint!(process_instruction);
 /// if the account is too small (i.e. it’s length is less than `offset +
 /// data.len()`).
 ///
-/// # Unpack
+/// # Copy
 ///
-/// Instruction with discriminant one is Unpack and its format is as follows:
+/// Instruction with discriminant one is Copy and its format is as follows:
 ///
 /// ```ignore,text
 /// +-----+----------+-------------+------------+----------+
@@ -36,13 +36,15 @@ solana_program::entrypoint!(process_instruction);
 /// +-----+----------+-------------+------------+----------+
 /// ```
 ///
-/// It expects two accounts.  It decompresses data from the second one and
-/// writes them at specified offset in the first.  The first account must be
-/// writable.  Returns an error if the account is too small (i.e. it’s length is
-/// less than `offset + data.len()`).
+/// It expects two accounts where the first must be writeable.  It copies data
+/// from the second one to the first one at specified offset.  Returns an error
+/// if the account is too small (i.e. it’s length is less than `offset + end -
+/// start`)..
 ///
-/// `algo` specifies algorithm to use:
-/// - `0` → null compression, i.e. the data is simply copied over.
+/// `algo` is a future-proof flag specifies decoding to perform when copying.
+/// Idea being that in the future the contract will be able to decompress data.
+/// Currently only one algorithm is defined:
+/// - `0` → null compression, i.e. the data is copied over verbatim.
 ///
 /// Starting from the end, each argument of the instruction can be omitted.
 /// Default value for each is as follows:
@@ -57,7 +59,7 @@ pub fn process_instruction(
 ) -> Result {
     match instruction.unshift().ok_or(ProgramError::InvalidInstructionData)? {
         0 => handle_write(accounts, instruction),
-        1 => handle_unpack(accounts, instruction),
+        1 => handle_copy(accounts, instruction),
         _ => Err(ProgramError::InvalidInstructionData),
     }
 }
@@ -88,8 +90,8 @@ fn handle_write(accounts: &[AccountInfo], mut data: &[u8]) -> Result {
 }
 
 
-/// Handles an Unpack operation.  See [`process_instruction`].
-fn handle_unpack(accounts: &[AccountInfo], mut data: &[u8]) -> Result {
+/// Handles an Copy operation.  See [`process_instruction`].
+fn handle_copy(accounts: &[AccountInfo], mut data: &[u8]) -> Result {
     let (wr, rd) = match accounts {
         [wr, rd, ..] if wr.is_writable => Ok((wr, rd)),
         [_, _, ..] => Err(ProgramError::InvalidAccountData),
@@ -106,17 +108,17 @@ fn handle_unpack(accounts: &[AccountInfo], mut data: &[u8]) -> Result {
 
     let mut dst = wr.try_borrow_mut_data()?;
     let dst = dst.get_mut(offset..).ok_or(ProgramError::AccountDataTooSmall)?;
-    let end = end.map_or_else(|| rd.try_data_len(), |end| Ok(end))?;
+    let end = end.map_or_else(|| rd.try_data_len(), Ok)?;
     let src = rd.try_borrow_data()?;
     let src = src.get(start..end).ok_or(ProgramError::AccountDataTooSmall)?;
 
     match algo {
-        0 => handle_unpack_null(dst, src),
+        0 => handle_copy_null(dst, src),
         _ => Err(ProgramError::InvalidInstructionData),
     }
 }
 
-fn handle_unpack_null(dst: &mut [u8], src: &[u8]) -> Result {
+fn handle_copy_null(dst: &mut [u8], src: &[u8]) -> Result {
     dst.get_mut(..src.len())
         .map(|dst| dst.copy_from_slice(src))
         .ok_or(ProgramError::AccountDataTooSmall)
@@ -144,7 +146,7 @@ trait Unshift<T> {
 
 impl<T> Unshift<T> for &[T] {
     fn unshift_n<const N: usize>(&mut self) -> Option<&[T; N]> {
-        let (head, tail) = stdx::split_at(*self)?;
+        let (head, tail) = stdx::split_at(self)?;
         *self = tail;
         Some(head)
     }
