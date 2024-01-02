@@ -12,8 +12,6 @@ use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
-use anchor_lang::solana_program::instruction::AccountMeta;
-use anchor_lang::ToAccountMetas;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 
@@ -56,55 +54,6 @@ macro_rules! make_message {
         $( let message = $variant(message); )*
         message
     }}
-}
-
-pub struct DeliverWithRemainingAccounts {
-    sender: Pubkey,
-    storage: Pubkey,
-    trie: Pubkey,
-    chain: Pubkey,
-    system_program: Pubkey,
-    remaining_accounts: Vec<AccountMeta>,
-}
-
-impl ToAccountMetas for DeliverWithRemainingAccounts {
-    fn to_account_metas(
-        &self,
-        _is_signer: Option<bool>,
-    ) -> Vec<anchor_lang::prelude::AccountMeta> {
-        let accounts = [
-            AccountMeta {
-                pubkey: self.sender,
-                is_signer: true,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.storage,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.trie,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.chain,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.system_program,
-                is_signer: false,
-                is_writable: false,
-            },
-        ];
-
-        let remaining =
-            self.remaining_accounts.iter().map(|account| account.clone());
-
-        accounts.into_iter().chain(remaining).collect::<Vec<_>>()
-    }
 }
 
 #[test]
@@ -460,51 +409,6 @@ fn anchor_test_deliver() -> Result<()> {
 
     println!("  This is trie {:?}", trie);
     println!("  This is storage {:?}", storage);
-
-    /*
-        The remaining accounts consists of the following accounts
-        - sender token account
-        - receiver token account
-        - token mint
-        - escrow account ( token account )
-        - mint authority
-        - token program
-    */
-
-    let remaining_accounts = vec![
-        AccountMeta {
-            pubkey: sender_token_address,
-            is_signer: false,
-            is_writable: true,
-        },
-        AccountMeta {
-            pubkey: receiver_token_address,
-            is_signer: false,
-            is_writable: true,
-        },
-        AccountMeta {
-            pubkey: token_mint_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        AccountMeta {
-            pubkey: escrow_account_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        AccountMeta {
-            pubkey: mint_authority_key,
-            is_signer: false,
-            is_writable: true,
-        },
-        AccountMeta {
-            pubkey: anchor_spl::token::ID,
-            is_signer: false,
-            is_writable: true,
-        },
-    ];
-
-    println!("  These are remaining accounts {:?}", remaining_accounts);
 
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
