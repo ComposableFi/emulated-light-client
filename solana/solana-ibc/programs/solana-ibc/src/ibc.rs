@@ -45,6 +45,8 @@ pub use ibc::core::router::router::Router;
 pub use ibc::core::router::types::event::{ModuleEvent, ModuleEventAttribute};
 pub use ibc::core::router::types::module::{ModuleExtras, ModuleId};
 pub use ibc::primitives::{Signer, Timestamp};
+pub use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
+pub use ibc::apps::transfer::types::error::TokenTransferError;
 
 pub mod conn {
     pub use ibc::core::connection::types::version::{

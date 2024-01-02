@@ -4,6 +4,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
+use ::ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -12,8 +13,10 @@ use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
+use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
@@ -293,6 +296,7 @@ fn anchor_test_deliver() -> Result<()> {
         [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
+
     let (token_mint_key, _bump) =
         Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
@@ -450,16 +454,16 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap() -
-            escrow_account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((escrow_account_balance_before.ui_amount.unwrap()
+            - escrow_account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap() -
-            receiver_account_balance_before.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((receiver_account_balance_after.ui_amount.unwrap()
+            - receiver_account_balance_before.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -531,9 +535,9 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() -
-            account_balance_before.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap()
+            - account_balance_before.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -564,7 +568,7 @@ fn anchor_test_deliver() -> Result<()> {
             system_program: system_program::ID,
         })
         .args(instruction::SendPacket {
-            port_id,
+            port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
             data: packet.data,
             timeout_height: packet.timeout_height_on_b,
@@ -577,6 +581,137 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
     println!("  Signature: {sig}");
+
+    // Mint a new token to send a transfer
+
+    let mint_keypair = Keypair::new();
+
+    let create_account_ix = create_account(
+        &authority.pubkey(),
+        &mint_keypair.pubkey(),
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+        82,
+        &anchor_spl::token::ID,
+    );
+
+    let create_mint_ix = initialize_mint2(
+        &anchor_spl::token::ID,
+        &mint_keypair.pubkey(),
+        &authority.pubkey(),
+        Some(&authority.pubkey()),
+        6,
+    )
+    .expect("invalid mint instruction");
+
+    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &mint_keypair.pubkey(), &anchor_spl::token::ID);
+    let associated_token_addr = get_associated_token_address(
+        &authority.pubkey(),
+        &mint_keypair.pubkey(),
+    );
+    let mint_ix = spl_token::instruction::mint_to(
+        &anchor_spl::token::ID,
+        &mint_keypair.pubkey(),
+        &associated_token_addr,
+        &authority.pubkey(),
+        &[&authority.pubkey()],
+        1000000000,
+    )
+    .unwrap();
+
+    let tx = program
+        .request()
+        .instruction(create_account_ix)
+        .instruction(create_mint_ix)
+        .instruction(create_token_acc_ix)
+        .instruction(mint_ix)
+        .payer(authority.clone())
+        .signer(&*authority)
+        .signer(&mint_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+
+    println!("  Sig for mint creation {}", tx);
+
+    let send_denom = mint_keypair.pubkey().to_string();
+
+    let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
+    let base_denom =
+        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+    let token = ibc::apps::transfer::types::Coin {
+        denom: base_denom,
+        amount: TRANSFER_AMOUNT.into(),
+    };
+
+    let packet_data = ibc::apps::transfer::types::packet::PacketData {
+        token: token.into(),
+        sender: ibc::Signer::from(associated_token_addr.to_string()), // Should be a token account
+        receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
+        memo: String::from("Sending a transfer").into(),
+    };
+
+    let msg_transfer = MsgTransfer {
+        port_id_on_a: port_id.clone(),
+        chan_id_on_a: channel_id_on_a,
+        packet_data,
+        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_timestamp_on_b: ibc::Timestamp::none(),
+    };
+
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), send_denom[..18].as_bytes(), send_denom[18..].as_bytes()];
+    let (escrow_account_key, _bump) =
+        Pubkey::find_program_address(&seeds, &crate::ID);
+
+    let account_balance_before = sol_rpc_client
+        .get_token_account_balance(&associated_token_addr)
+        .unwrap();
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::SendTransfer {
+            sender: authority.pubkey(),
+            receiver: Some(receiver.pubkey()),
+            storage,
+            trie,
+            chain,
+            system_program: system_program::ID,
+            mint_authority: Some(mint_authority_key),
+            token_mint: Some(mint_keypair.pubkey()),
+            escrow_account: Some(escrow_account_key),
+            receiver_token_account: Some(associated_token_addr),
+            associated_token_program: Some(anchor_spl::associated_token::ID),
+            token_program: Some(anchor_spl::token::ID),
+        })
+        .args(instruction::SendTransfer {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_b.clone(),
+            base_denom: send_denom,
+            msg: msg_transfer,
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    let account_balance_after = sol_rpc_client
+        .get_token_account_balance(&associated_token_addr)
+        .unwrap();
+
+    assert_eq!(
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
+        .round() as u64,
+        TRANSFER_AMOUNT
+    );
 
     Ok(())
 }
@@ -598,7 +733,7 @@ fn construct_packet_from_denom(
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
         denom: base_denom,
-        amount: 1000000.into(),
+        amount: TRANSFER_AMOUNT.into(),
     };
 
     let packet_data = ibc::apps::transfer::types::packet::PacketData {
