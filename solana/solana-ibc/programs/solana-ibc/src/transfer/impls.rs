@@ -326,8 +326,8 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let escrow_account = &accounts.escrow_account.clone().unwrap(); // we check before if it exists so the unwrap is infallible
-        let token_account = &accounts.token_account.clone().unwrap(); // we check before if it exists so the unwrap is infallible
+        let escrow_account = &accounts.escrow_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_account = &accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
         if matches!(from_account, AccountId::Escrow(_)) {
             let from = from_account
                 .get_escrow_account(coin.denom.base_denom.as_str())
@@ -379,7 +379,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         let account: Pubkey = account.try_into().unwrap();
-        let token_account = accounts.token_account.clone().unwrap();
+        let token_account = accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -408,7 +408,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         let account: Pubkey = account.try_into().unwrap();
-        let token_account = accounts.token_account.clone().unwrap();
+        let token_account = accounts.token_account.as_ref().ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
