@@ -110,11 +110,10 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         client_state_of_host_on_counterparty: ibc::Any,
     ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
-            .map_err(|err| ibc::ClientError::Other {
-                description: err.to_string(),
-            })?;
-        // todo: validate that the AnyClientState is Solomachine (for Solana protocol)
-        Ok(())
+            .map(|_| ())
+            .map_err(|err| {
+                ibc::ClientError::Other { description: err.to_string() }.into()
+            })
     }
 
     fn commitment_prefix(&self) -> ibc::CommitmentPrefix {
