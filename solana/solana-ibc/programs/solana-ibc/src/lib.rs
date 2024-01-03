@@ -552,8 +552,9 @@ pub struct SendTransfer<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
+    /// Splitting the denom since we can have a max of only 32 bytes
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom[..22].as_bytes(), base_denom[22..].as_bytes()
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]
