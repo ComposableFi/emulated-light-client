@@ -320,9 +320,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let accounts = &store.accounts;
         if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.escrow_account.is_none() ||
-            accounts.token_account.is_none()
+            accounts.token_mint.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
