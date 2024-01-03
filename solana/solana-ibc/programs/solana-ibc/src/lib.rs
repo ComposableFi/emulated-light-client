@@ -541,8 +541,7 @@ pub struct SendTransfer<'info> {
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(mut, seeds = [TRIE_SEED],
-              bump)]
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
