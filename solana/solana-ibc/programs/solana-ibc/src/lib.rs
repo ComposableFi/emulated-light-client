@@ -268,7 +268,7 @@ pub mod solana_ibc {
     pub fn send_transfer(
         ctx: Context<SendTransfer>,
         port_id: ibc::PortId,
-        channel_id_on_b: ibc::ChannelId,
+        channel_id: ibc::ChannelId,
         base_denom: String,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
@@ -280,8 +280,10 @@ pub mod solana_ibc {
             &mut token_ctx,
             msg,
         )
-        .map_err(error::Error::TokenTransferError)
-        .map_err(|err| error!((&err)))
+        .unwrap();
+        // .map_err(|e| { msg!("{:?}", e)}).unwrap();
+        Ok(())
+        // .map_err(|err| error!((&err)))
     }
 }
 
@@ -526,7 +528,7 @@ pub struct SendPacket<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, base_denom: String)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -554,7 +556,7 @@ pub struct SendTransfer<'info> {
     token_mint: Option<Box<Account<'info, Mint>>>,
     /// Splitting the denom since we can have a max of only 32 bytes
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
+        port_id.as_bytes(), channel_id.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]

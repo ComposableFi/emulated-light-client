@@ -582,8 +582,11 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
-    // Mint a new token to send a transfer
+    /*
+     * Creating Token Mint
+     */
 
+    println!("\nCreating a token mint");
     let mint_keypair = Keypair::new();
 
     let create_account_ix = create_account(
@@ -632,7 +635,13 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
 
-    println!("  Sig for mint creation {}", tx);
+    println!("  Signature: {}", tx);
+
+    /*
+     * Creating Token Mint
+     */
+
+    println!("\nSend Transfer");
 
     let send_denom = mint_keypair.pubkey().to_string();
 
@@ -640,7 +649,7 @@ fn anchor_test_deliver() -> Result<()> {
     let base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: base_denom,
+        denom: base_denom.clone(),
         amount: TRANSFER_AMOUNT.into(),
     };
 
@@ -653,17 +662,15 @@ fn anchor_test_deliver() -> Result<()> {
 
     let msg_transfer = MsgTransfer {
         port_id_on_a: port_id.clone(),
-        chan_id_on_a: channel_id_on_a,
+        chan_id_on_a: channel_id_on_a.clone(),
         packet_data,
         timeout_height_on_b: ibc::TimeoutHeight::Never,
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
-    println!("Send denom length {}", send_denom.len());
-
     let seeds = [
         port_id.as_bytes(),
-        channel_id_on_b.as_bytes(),
+        channel_id_on_a.as_bytes(),
         send_denom[..32].as_bytes(),
         send_denom[32..].as_bytes(),
     ];
@@ -695,7 +702,7 @@ fn anchor_test_deliver() -> Result<()> {
         })
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
-            channel_id_on_b: channel_id_on_b.clone(),
+            channel_id: channel_id_on_a.clone(),
             base_denom: send_denom,
             msg: msg_transfer,
         })
