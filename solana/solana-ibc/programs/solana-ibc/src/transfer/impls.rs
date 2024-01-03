@@ -332,7 +332,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let accounts = &store.accounts;
         let denom = coin.denom.to_string();
         // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
-        let split_denom: Vec<&str> = denom.split("/").collect();
+        let split_denom: Vec<&str> = denom.split('/').collect();
         let denom =
             split_denom.last().ok_or(TokenTransferError::EmptyBaseDenom)?;
         if accounts.token_program.is_none() || accounts.token_mint.is_none() {
