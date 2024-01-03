@@ -363,8 +363,7 @@ pub fn get_provable_from<'a, 'info>(
 pub struct TransferAccounts<'a> {
     pub sender: Option<AccountInfo<'a>>,
     pub receiver: Option<AccountInfo<'a>>,
-    pub sender_token_account: Option<AccountInfo<'a>>,
-    pub receiver_token_account: Option<AccountInfo<'a>>,
+    pub token_account: Option<AccountInfo<'a>>,
     pub token_mint: Option<AccountInfo<'a>>,
     pub escrow_account: Option<AccountInfo<'a>>,
     pub mint_authority: Option<AccountInfo<'a>>,
@@ -446,8 +445,7 @@ macro_rules! from_ctx {
                 .receiver
                 .as_ref()
                 .map(ToAccountInfo::to_account_info),
-            sender_token_account: None,
-            receiver_token_account: accounts
+            token_account: accounts
                 .receiver_token_account
                 .as_deref()
                 .map(ToAccountInfo::to_account_info),
