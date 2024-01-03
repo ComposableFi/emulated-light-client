@@ -44,7 +44,7 @@ impl From<SequenceKind> for usize {
 }
 
 /// Error when converting IBC path into a trie key.
-#[derive(Debug, PartialEq, Eq, derive_more::From)]
+#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
 pub enum Error {
     BadChannel(ibc::ChannelId),
     BadClient(ibc::ClientId),
