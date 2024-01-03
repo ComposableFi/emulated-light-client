@@ -4,7 +4,7 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use ::ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
+use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
