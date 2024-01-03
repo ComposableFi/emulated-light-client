@@ -534,16 +534,14 @@ pub struct SendTransfer<'info> {
     receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
-    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
-              bump)]
+    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(mut, seeds = [TRIE_SEED],
-              bump)]
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
