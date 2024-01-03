@@ -324,11 +324,11 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let escrow_account = &accounts
+        let escrow_account = accounts
             .escrow_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_account = &accounts
+        let token_account = accounts
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
