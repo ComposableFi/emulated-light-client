@@ -1,4 +1,3 @@
-use alloc::collections::BTreeMap;
 use alloc::rc::Rc;
 use core::cell::{RefCell, RefMut};
 use core::num::NonZeroU64;
@@ -12,6 +11,8 @@ type Result<T, E = anchor_lang::error::Error> = core::result::Result<T, E>;
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
+
+pub mod map;
 
 /// A triple of send, receive and acknowledge sequences.
 ///
@@ -62,7 +63,7 @@ impl SequenceTriple {
 pub struct ClientStore {
     pub client_id: ibc::ClientId,
     pub client_state: Serialised<AnyClientState>,
-    pub consensus_states: BTreeMap<ibc::Height, ClientConsensusState>,
+    pub consensus_states: map::Map<ibc::Height, ClientConsensusState>,
 }
 
 impl ClientStore {
@@ -253,7 +254,7 @@ pub struct PrivateStorage {
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
     /// Information about a each `(part, channel)` endpoint.
-    pub port_channel: BTreeMap<trie_ids::PortChannelPK, PortChannelStore>,
+    pub port_channel: map::Map<trie_ids::PortChannelPK, PortChannelStore>,
 
     pub channel_counter: u32,
 }

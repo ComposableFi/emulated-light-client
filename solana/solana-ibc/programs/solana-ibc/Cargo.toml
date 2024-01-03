@@ -23,6 +23,7 @@ bytemuck = { workspace = true, features = ["must_cast"] }
 derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
+linear-map.workspace = true
 primitive-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
