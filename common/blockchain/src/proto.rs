@@ -1,4 +1,4 @@
-use ibc_proto::google::protobuf::Any;
+use ibc_primitives::proto::Any;
 use prost::Message as _;
 
 mod pb {

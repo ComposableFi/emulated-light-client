@@ -1,6 +1,6 @@
 use core::num::NonZeroU64;
 
-use ibc_proto::google::protobuf::Any;
+use ibc_primitives::proto::Any;
 use lib::hash::CryptoHash;
 use prost::Message as _;
 
@@ -17,9 +17,9 @@ pub struct ConsensusState {
 }
 
 impl ConsensusState {
-    /// Encodes the state into a vector as protocol buffer message.
-    pub fn encode_to_vec(&self) -> alloc::vec::Vec<u8> {
-        proto::ConsensusState::from(self).encode_to_vec()
+    pub fn new(block_hash: &CryptoHash, timestamp_ns: NonZeroU64) -> Self {
+        let block_hash = block_hash.as_array().to_vec().into();
+        Self { block_hash, timestamp_ns }
     }
 
     /// Decodes the state from a protocol buffer message.
@@ -28,12 +28,23 @@ impl ConsensusState {
     }
 }
 
-impl ConsensusState {
-    pub fn new(block_hash: &CryptoHash, timestamp_ns: NonZeroU64) -> Self {
-        let block_hash = block_hash.as_array().to_vec().into();
-        Self { block_hash, timestamp_ns }
+impl ibc_core_client_context::consensus_state::ConsensusState
+    for ConsensusState
+{
+    fn root(&self) -> &ibc_core_commitment_types::commitment::CommitmentRoot {
+        &self.block_hash
+    }
+
+    fn timestamp(&self) -> ibc_primitives::Timestamp {
+        ibc_primitives::Timestamp::from_nanoseconds(self.timestamp_ns.get())
+            .unwrap()
+    }
+
+    fn encode_vec(self) -> alloc::vec::Vec<u8> {
+        proto::ConsensusState::from(self).encode_to_vec()
     }
 }
+
 
 impl From<ConsensusState> for proto::ConsensusState {
     fn from(state: ConsensusState) -> Self {
@@ -103,6 +114,11 @@ impl TryFrom<&Any> for ConsensusState {
     fn try_from(any: &Any) -> Result<Self, Self::Error> {
         proto::ConsensusState::try_from(any).and_then(|msg| Ok(msg.try_into()?))
     }
+}
+
+impl ibc_primitives::proto::Protobuf<crate::proto::ConsensusState>
+    for ConsensusState
+{
 }
 
 
