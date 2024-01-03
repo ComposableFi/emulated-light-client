@@ -7,8 +7,8 @@ use anchor_spl::token::{Burn, MintTo, Transfer};
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
-use crate::ibc::apps::transfer::types::error::TokenTransferError;
 use crate::ibc::apps::transfer::types::{Amount, PrefixedCoin};
+use crate::ibc::TokenTransferError;
 use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
@@ -52,10 +52,20 @@ impl AccountId {
         };
         let channel_id = port_channel.channel_id();
         let port_id = port_channel.port_id();
-        let seeds =
-            [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
-        let (escrow_account_key, _bump) =
-            Pubkey::find_program_address(&seeds, &crate::ID);
+
+        let (escrow_account_key, _bump) = if denom.len() > 32 {
+            let seeds = [
+                port_id.as_bytes(),
+                channel_id.as_bytes(),
+                denom[..32].as_bytes(),
+                denom[32..].as_bytes(),
+            ];
+            Pubkey::find_program_address(&seeds, &crate::ID)
+        } else {
+            let seeds =
+                [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
+            Pubkey::find_program_address(&seeds, &crate::ID)
+        };
         Ok(escrow_account_key)
     }
 }
@@ -117,6 +127,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
                     .ok_or(TokenTransferError::ParseAccountFailure)?;
                 (sender, receiver, auth)
             } else {
+                msg!("These are accounts {:?}", accounts);
                 let sender = accounts
                     .token_account
                     .clone()
@@ -319,6 +330,11 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         */
         let store = self.borrow();
         let accounts = &store.accounts;
+        let denom = coin.denom.to_string();
+        // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
+        let split_denom: Vec<&str> = denom.split('/').collect();
+        let denom =
+            split_denom.last().ok_or(TokenTransferError::EmptyBaseDenom)?;
         if accounts.token_program.is_none() || accounts.token_mint.is_none() {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -332,19 +348,19 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let ok = if let AccountId::Signer(ref to) = to_account {
             let from = from_account
-                .get_escrow_account(coin.denom.base_denom.as_str())
+                .get_escrow_account(denom)
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
             accounts.mint_authority.is_some() &&
                 from.eq(escrow_account.key) &&
                 to.eq(token_account.key)
         } else if let AccountId::Signer(ref from) = from_account {
-            let to = from_account
-                .get_escrow_account(coin.denom.base_denom.as_str())
+            let to = to_account
+                .get_escrow_account(denom)
                 .map_err(|_| TokenTransferError::ParseAccountFailure)?;
             accounts.sender.is_some() &&
                 accounts.sender.as_ref().map_or(false, |acc| acc.is_signer) &&
-                from.eq(escrow_account.key) &&
-                to.eq(token_account.key)
+                from.eq(token_account.key) &&
+                to.eq(escrow_account.key)
         } else {
             false
         };

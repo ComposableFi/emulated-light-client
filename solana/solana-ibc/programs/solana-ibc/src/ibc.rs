@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 
 pub use ibc::apps;
+pub use ibc::apps::transfer::types::error::TokenTransferError;
+pub use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 pub use ibc::core::channel::context::SendPacketValidationContext;
 pub use ibc::core::channel::types::acknowledgement::Acknowledgement;
 pub use ibc::core::channel::types::channel::ChannelEnd;

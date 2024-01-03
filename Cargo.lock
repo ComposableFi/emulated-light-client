@@ -4356,6 +4356,7 @@ dependencies = [
  "serde_json",
  "solana-trie",
  "spl-associated-token-account",
+ "spl-token",
  "stdx",
  "strum",
  "trie-ids",
