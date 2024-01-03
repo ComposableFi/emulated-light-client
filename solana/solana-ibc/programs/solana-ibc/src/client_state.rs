@@ -509,21 +509,16 @@ impl IbcStorage<'_, '_> {
         height: &ibc::Height,
         dir: Direction,
     ) -> Result<Option<AnyConsensusState>, ibc::ContextError> {
-        use core::ops::Bound;
-
-        let pivot = Bound::Excluded(*height);
-        let range = if dir == Direction::Next {
-            (pivot, Bound::Unbounded)
-        } else {
-            (Bound::Unbounded, pivot)
-        };
-
         let store = self.borrow();
         let client = store.private.client(client_id)?;
-        let mut range = client.consensus_states.range(range);
-        if dir == Direction::Next { range.next() } else { range.next_back() }
-            .map(|(_, data)| data.state())
-            .transpose()
-            .map_err(|err| err.into())
+        let states = client.consensus_states.iter();
+        if dir == Direction::Next {
+            states.filter(|(k, _)| k > &height).min_by_key(|(k, _)| *k)
+        } else {
+            states.filter(|(k, _)| k < &height).max_by_key(|(k, _)| *k)
+        }
+        .map(|(_, v)| v.state())
+        .transpose()
+        .map_err(Into::into)
     }
 }

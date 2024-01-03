@@ -263,6 +263,28 @@ pub mod solana_ibc {
             .map_err(error::Error::ContextError)
             .map_err(|err| error!((&err)))
     }
+
+    #[allow(unused_variables)]
+    pub fn send_transfer(
+        ctx: Context<SendTransfer>,
+        port_id: ibc::PortId,
+        channel_id: ibc::ChannelId,
+        base_denom: String,
+        msg: ibc::MsgTransfer,
+    ) -> Result<()> {
+        let mut store = storage::from_ctx!(ctx, with accounts);
+        let mut token_ctx = store.clone();
+
+        ibc::apps::transfer::handler::send_transfer(
+            &mut store,
+            &mut token_ctx,
+            msg,
+        )
+        .unwrap();
+        // .map_err(|e| { msg!("{:?}", e)}).unwrap();
+        Ok(())
+        // .map_err(|err| error!((&err)))
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -502,6 +524,46 @@ pub struct SendPacket<'info> {
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
 
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, base_denom: String)]
+pub struct SendTransfer<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    receiver: Option<AccountInfo<'info>>,
+
+    /// The account holding private IBC storage.
+    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Box<Account<'info, chain::ChainData>>,
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
+    /// CHECK:
+    mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    token_mint: Option<Box<Account<'info, Mint>>>,
+    // Splitting `base_denom` since each seed can be at most 32 byte long.
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.as_bytes(), channel_id.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut)]
+    receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    associated_token_program: Option<Program<'info, AssociatedToken>>,
+    token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
 }
 

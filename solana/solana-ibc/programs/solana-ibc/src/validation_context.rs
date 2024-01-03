@@ -58,7 +58,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
-        let timestamp = self.borrow().chain.head()?.host_timestamp.get();
+        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
         ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
         })
@@ -79,8 +79,8 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         })?;
         Ok(Self::AnyConsensusState::from(
             blockchain::ibc_state::ConsensusState {
-                block_hash: state.0.to_vec().into(),
-                timestamp: state.1,
+                block_hash: state.0.as_array().to_vec().into(),
+                timestamp_ns: state.1,
             },
         ))
     }
@@ -110,11 +110,10 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         client_state_of_host_on_counterparty: ibc::Any,
     ) -> Result {
         Self::AnyClientState::try_from(client_state_of_host_on_counterparty)
-            .map_err(|err| ibc::ClientError::Other {
-                description: err.to_string(),
-            })?;
-        // todo: validate that the AnyClientState is Solomachine (for Solana protocol)
-        Ok(())
+            .map(|_| ())
+            .map_err(|err| {
+                ibc::ClientError::Other { description: err.to_string() }.into()
+            })
     }
 
     fn commitment_prefix(&self) -> ibc::CommitmentPrefix {

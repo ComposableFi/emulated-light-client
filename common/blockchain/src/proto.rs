@@ -1,4 +1,4 @@
-use ibc_proto::google::protobuf::Any;
+use ibc_primitives::proto::Any;
 use prost::Message as _;
 
 mod pb {
@@ -17,8 +17,8 @@ mod pb {
         /// An example test message.
         #[cfg(test)]
         pub fn test() -> Self {
-            let block_hash = lib::hash::CryptoHash::test(42).to_vec();
-            Self { block_hash, timestamp: 1 }
+            let hash = lib::hash::CryptoHash::test(42);
+            Self { block_hash: hash.as_array().to_vec(), timestamp_ns: 1 }
         }
     }
 }
