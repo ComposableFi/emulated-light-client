@@ -4,7 +4,6 @@ use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use anchor_client::anchor_lang::system_program;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -16,6 +15,7 @@ use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
+use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
