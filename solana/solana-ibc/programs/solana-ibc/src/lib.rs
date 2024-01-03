@@ -553,7 +553,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom[..18].as_bytes(), base_denom[18..].as_bytes()
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom[..22].as_bytes(), base_denom[22..].as_bytes()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]

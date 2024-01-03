@@ -659,11 +659,13 @@ fn anchor_test_deliver() -> Result<()> {
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
+    println!("Send denom length {}", send_denom.len());
+
     let seeds = [
         port_id.as_bytes(),
         channel_id_on_b.as_bytes(),
-        send_denom[..18].as_bytes(),
-        send_denom[18..].as_bytes(),
+        send_denom[..22].as_bytes(),
+        send_denom[22..].as_bytes(),
     ];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
