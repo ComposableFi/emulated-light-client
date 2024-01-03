@@ -373,8 +373,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let accounts = &store.accounts;
         if accounts.token_program.is_none() ||
             accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none() ||
-            accounts.token_account.is_none()
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
