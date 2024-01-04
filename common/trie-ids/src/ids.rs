@@ -496,10 +496,10 @@ fn test_client() {
     let client_type =
         ibc_core_host_types::identifiers::ClientType::new("foobarbaz").unwrap();
 
-    let id = ibc::ClientId::new(client_type.clone(), 42).unwrap();
+    let id = client_type.build_client_id(42);
     assert_eq!(Ok(ClientIdx(Counter(42))), ClientIdx::try_from(id));
 
-    let id = ibc::ClientId::new(client_type.clone(), u64::MAX).unwrap();
+    let id = client_type.build_client_id(u64::MAX);
     assert_eq!(Err(BadClientId), ClientIdx::try_from(id));
 
     let id = ibc::ClientId::from_str("foobarbaz").unwrap();
