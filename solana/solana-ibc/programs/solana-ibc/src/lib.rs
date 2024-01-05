@@ -280,10 +280,8 @@ pub mod solana_ibc {
             &mut token_ctx,
             msg,
         )
-        .unwrap();
-        // .map_err(|e| { msg!("{:?}", e)}).unwrap();
-        Ok(())
-        // .map_err(|err| error!((&err)))
+        .map_err(error::Error::TokenTransferError)
+        .map_err(|err| error!((&err)))
     }
 }
 

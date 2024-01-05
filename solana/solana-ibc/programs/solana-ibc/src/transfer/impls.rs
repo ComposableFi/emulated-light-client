@@ -44,6 +44,7 @@ fn get_escrow_account(
         .unwrap_or((denom.as_bytes(), &b""[..]));
     let seeds = [port_id.as_bytes(), channel_id.as_bytes(), head, tail];
     let seeds = if tail.is_empty() { &seeds[..3] } else { &seeds[..] };
+    msg!("denom {:?} portid {:?} channelId {:?}", denom, port_id, channel_id);
     Pubkey::find_program_address(seeds, &crate::ID).0
 }
 
@@ -333,13 +334,17 @@ impl IbcStorage<'_, '_> {
         // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
         let denom = coin.denom.to_string();
         let denom =
-            denom.rsplit_once('/').ok_or(TokenTransferError::EmptyBaseDenom)?.1;
+            denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
         let escrow = get_escrow_account(port_id, channel_id, denom);
+        
+        msg!("This is escrow account {:?}", escrow);
+        msg!("This is escrow account {:?}", accounts.escrow_account);
         accounts
             .escrow_account
             .as_ref()
             .filter(|escrow_account| escrow.eq(escrow_account.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
+
 
         accounts
             .token_account
@@ -385,6 +390,8 @@ impl IbcStorage<'_, '_> {
             .escrow_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+       
 
         let (sender, receiver, authority) = match op {
             EscrowOp::Escrow => {
