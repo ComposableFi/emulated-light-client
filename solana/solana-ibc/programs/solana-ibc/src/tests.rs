@@ -182,22 +182,16 @@ fn anchor_test_deliver() -> Result<()> {
      */
 
     println!("\nIssuing Connection Open Init");
-    let client_id =
-        ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
-
+    let client_id = mock_client_state.client_type().build_client_id(0);
     let counter_party_client_id =
-        ibc::ClientId::new(mock_client_state.client_type(), 1).unwrap();
+        mock_client_state.client_type().build_client_id(1);
 
     let commitment_prefix: ibc::CommitmentPrefix =
         IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
     let message = make_message!(
         ibc::MsgConnectionOpenInit {
-            client_id_on_a: ibc::ClientId::new(
-                mock_client_state.client_type(),
-                0
-            )
-            .unwrap(),
+            client_id_on_a: mock_client_state.client_type().build_client_id(0),
             version: Some(Default::default()),
             counterparty: ibc::conn::Counterparty::new(
                 counter_party_client_id.clone(),
