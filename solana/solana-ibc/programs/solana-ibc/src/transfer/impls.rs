@@ -332,16 +332,14 @@ impl IbcStorage<'_, '_> {
 
         // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
         let denom = coin.denom.to_string();
-        let denom =
-            denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
+        let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
         let escrow = get_escrow_account(port_id, channel_id, denom);
-        
+
         accounts
             .escrow_account
             .as_ref()
             .filter(|escrow_account| escrow.eq(escrow_account.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-
 
         accounts
             .token_account
@@ -387,8 +385,6 @@ impl IbcStorage<'_, '_> {
             .escrow_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-
-       
 
         let (sender, receiver, authority) = match op {
             EscrowOp::Escrow => {
