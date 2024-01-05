@@ -58,9 +58,9 @@ macro_rules! try_from_impl {
         $(
             impl TryFrom<ibc::path::$Path> for PathInfo {
                 type Error = Error;
-                fn try_from($path: ibc::path::$Path) -> Result<Self, Self::Error> {
+                fn try_from($path: ibc::path::$Path) -> Result<Self, Self::Error>
                     $body
-                }
+
             }
         )*
 
