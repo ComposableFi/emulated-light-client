@@ -60,7 +60,6 @@ macro_rules! try_from_impl {
                 type Error = Error;
                 fn try_from($path: ibc::path::$Path) -> Result<Self, Self::Error>
                     $body
-
             }
         )*
 
@@ -68,9 +67,7 @@ macro_rules! try_from_impl {
             type Error = Error;
             fn try_from(path: ibc::path::Path) -> Result<Self, Self::Error> {
                 match path {
-                    $(
-                        ibc::path::Path::$Variant(path) => path.try_into(),
-                    )*
+                    $( ibc::path::Path::$Variant(path) => path.try_into(), )*
                 }
             }
         }
