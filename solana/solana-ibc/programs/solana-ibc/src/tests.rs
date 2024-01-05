@@ -12,7 +12,6 @@ use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
-use anchor_lang::solana_program::hash;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
@@ -21,7 +20,7 @@ use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{accounts, chain, ibc, instruction, MINT_ESCROW_SEED};
+use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const BASE_DENOM: &str = "PICA";
@@ -88,7 +87,7 @@ fn anchor_test_deliver() -> Result<()> {
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
-    let hashed_denom = hash::hash(BASE_DENOM.as_bytes()).to_bytes().to_vec();
+    let hashed_denom = CryptoHash::digest(BASE_DENOM.as_bytes());
 
     /*
      * Initialise chain
@@ -644,7 +643,7 @@ fn anchor_test_deliver() -> Result<()> {
     let send_denom = mint_keypair.pubkey().to_string();
 
     let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
-    let hashed_denom = hash::hash(denom.as_bytes()).to_bytes().to_vec();
+    let hashed_denom = CryptoHash::digest(denom.as_bytes());
     let hashed_base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
@@ -667,12 +666,8 @@ fn anchor_test_deliver() -> Result<()> {
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
-    let seeds = [
-        port_id.as_bytes(),
-        channel_id_on_a.as_bytes(),
-        hashed_denom[..32].as_ref(),
-        hashed_denom[32..].as_ref(),
-    ];
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_a.as_bytes(), hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
 

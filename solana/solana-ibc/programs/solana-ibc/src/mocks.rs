@@ -2,14 +2,16 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::MintTo;
 
 use crate::ibc::ExecutionContext;
-use crate::{ibc, storage, MockDeliver, MockInitEscrow, MINT_ESCROW_SEED};
+use crate::{
+    ibc, storage, CryptoHash, MockDeliver, MockInitEscrow, MINT_ESCROW_SEED,
+};
 
 
 pub(crate) fn mock_init_escrow<'a, 'info>(
     _ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
     _port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
-    _hashed_base_denom: Vec<u8>,
+    _hashed_base_denom: CryptoHash,
 ) -> Result<()> {
     Ok(())
 }
@@ -18,7 +20,7 @@ pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
-    _hashed_base_denom: Vec<u8>,
+    _hashed_base_denom: CryptoHash,
     commitment_prefix: ibc::CommitmentPrefix,
     client_id: ibc::ClientId,
     counterparty_client_id: ibc::ClientId,
