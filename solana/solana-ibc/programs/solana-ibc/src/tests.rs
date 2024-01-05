@@ -12,6 +12,7 @@ use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::hash;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
@@ -86,6 +87,8 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
+
+    let hashed_denom = hash::hash(BASE_DENOM.as_bytes()).to_bytes().to_vec();
 
     /*
      * Initialise chain
@@ -240,11 +243,11 @@ fn anchor_test_deliver() -> Result<()> {
     let channel_id_on_b = ibc::ChannelId::new(1);
 
     let seeds =
-        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+        Pubkey::find_program_address(&[hashed_denom.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
@@ -265,7 +268,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockInitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone()
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -286,13 +289,14 @@ fn anchor_test_deliver() -> Result<()> {
     println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
+    let binding = hashed_denom.clone();
     let seeds =
-        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), binding.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
 
     let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+        Pubkey::find_program_address(&[hashed_denom.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
     let sender_token_address =
@@ -322,7 +326,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone(),
             commitment_prefix,
             client_id: client_id.clone(),
             counterparty_client_id: counter_party_client_id,
@@ -363,7 +367,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::InitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone(),
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -640,10 +644,11 @@ fn anchor_test_deliver() -> Result<()> {
     let send_denom = mint_keypair.pubkey().to_string();
 
     let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
-    let base_denom =
+    let hashed_denom = hash::hash(denom.as_bytes()).to_bytes().to_vec();
+    let hashed_base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: base_denom.clone(),
+        denom: hashed_base_denom.clone(),
         amount: TRANSFER_AMOUNT.into(),
     };
 
@@ -665,8 +670,8 @@ fn anchor_test_deliver() -> Result<()> {
     let seeds = [
         port_id.as_bytes(),
         channel_id_on_a.as_bytes(),
-        send_denom[..32].as_bytes(),
-        send_denom[32..].as_bytes(),
+        hashed_denom[..32].as_ref(),
+        hashed_denom[32..].as_ref(),
     ];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
@@ -697,7 +702,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
-            base_denom: send_denom,
+            hashed_base_denom: hashed_denom,
             msg: msg_transfer,
         })
         .payer(authority.clone())
@@ -736,10 +741,10 @@ fn construct_packet_from_denom(
     memo: String,
 ) -> ibc::Packet {
     let denom = format!("{port_id}/{denom_channel_id}/{BASE_DENOM}");
-    let base_denom =
+    let hashed_base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: base_denom,
+        denom: hashed_base_denom,
         amount: TRANSFER_AMOUNT.into(),
     };
 

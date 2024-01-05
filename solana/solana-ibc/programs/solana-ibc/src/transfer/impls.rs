@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anchor_lang::prelude::{CpiContext, Pubkey};
-use anchor_lang::solana_program::msg;
+use anchor_lang::solana_program::{msg, hash};
 use anchor_spl::token::{Burn, MintTo, Transfer};
 
 use crate::ibc::apps::transfer::context::{
@@ -39,9 +39,10 @@ fn get_escrow_account(
     channel_id: &ChannelId,
     denom: &str,
 ) -> Pubkey {
-    let (head, tail) = stdx::split_at::<32>(denom.as_bytes())
+    let denom = hash::hash(denom.as_bytes()).to_bytes();
+    let (head, tail) = stdx::split_at::<32>(&denom)
         .map(|(head, tail)| (&head[..], tail))
-        .unwrap_or((denom.as_bytes(), &b""[..]));
+        .unwrap_or((&denom, &b""[..]));
     let seeds = [port_id.as_bytes(), channel_id.as_bytes(), head, tail];
     let seeds = if tail.is_empty() { &seeds[..3] } else { &seeds[..] };
     Pubkey::find_program_address(seeds, &crate::ID).0
@@ -332,8 +333,9 @@ impl IbcStorage<'_, '_> {
 
         // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
         let denom = coin.denom.to_string();
-        let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
-        let escrow = get_escrow_account(port_id, channel_id, denom);
+        // let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
+        
+        let escrow = get_escrow_account(port_id, channel_id, &denom);
 
         accounts
             .escrow_account

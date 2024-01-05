@@ -9,7 +9,7 @@ pub(crate) fn mock_init_escrow<'a, 'info>(
     _ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
     _port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
-    _base_denom: String,
+    _hashed_base_denom: Vec<u8>,
 ) -> Result<()> {
     Ok(())
 }
@@ -18,7 +18,7 @@ pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
     _channel_id: ibc::ChannelId,
-    _base_denom: String,
+    _hashed_base_denom: Vec<u8>,
     commitment_prefix: ibc::CommitmentPrefix,
     client_id: ibc::ClientId,
     counterparty_client_id: ibc::ClientId,
