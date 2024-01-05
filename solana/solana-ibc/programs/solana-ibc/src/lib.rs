@@ -152,7 +152,12 @@ pub mod solana_ibc {
         channel_id_on_b: ibc::ChannelId,
         hashed_base_denom: Vec<u8>,
     ) -> Result<()> {
-        mocks::mock_init_escrow(ctx, port_id, channel_id_on_b, hashed_base_denom)
+        mocks::mock_init_escrow(
+            ctx,
+            port_id,
+            channel_id_on_b,
+            hashed_base_denom,
+        )
     }
 
     /// Called to set up a connection, channel and store the next
@@ -444,7 +449,7 @@ pub struct MockInitEscrow<'info> {
     token_mint: Account<'info, Mint>,
 
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref() 
+        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
 
@@ -487,7 +492,7 @@ pub struct MockDeliver<'info> {
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
     #[account(mut, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref() 
+        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
 

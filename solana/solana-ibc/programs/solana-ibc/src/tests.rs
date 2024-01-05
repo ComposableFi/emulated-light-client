@@ -268,7 +268,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockInitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            hashed_base_denom: hashed_denom.clone()
+            hashed_base_denom: hashed_denom.clone(),
         })
         .payer(authority.clone())
         .signer(&*authority)
