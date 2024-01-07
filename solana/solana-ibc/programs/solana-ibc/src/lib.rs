@@ -23,6 +23,7 @@ pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
+mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;

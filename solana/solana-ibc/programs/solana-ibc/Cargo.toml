@@ -9,11 +9,13 @@ crate-type = ["cdylib", "lib"]
 name = "solana_ibc"
 
 [features]
+default = ["custom-heap"]
+cpi = ["no-entrypoint"]
+custom-heap = []
+mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-cpi = ["no-entrypoint"]
-mocks = ["ibc-testkit"]
 
 [dependencies]
 anchor-lang.workspace = true
