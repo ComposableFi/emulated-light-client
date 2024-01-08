@@ -73,6 +73,7 @@ impl core::fmt::Display for Error {
         match self {
             Self::Internal(msg) => fmtr.write_str(msg.as_ref()),
             Self::ContextError(err) => err.fmt(fmtr),
+            Self::TokenTransferError(err) => err.fmt(fmtr),
             err => fmtr.write_str(&err.name()),
         }
     }
