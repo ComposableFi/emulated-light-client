@@ -643,10 +643,10 @@ fn anchor_test_deliver() -> Result<()> {
 
     let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
     let hashed_denom = CryptoHash::digest(send_denom.as_bytes());
-    let hashed_base_denom =
+    let base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: hashed_base_denom.clone(),
+        denom: base_denom.clone(),
         amount: TRANSFER_AMOUNT.into(),
     };
 
