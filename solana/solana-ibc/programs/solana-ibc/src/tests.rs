@@ -86,7 +86,6 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
-
     let hashed_denom = CryptoHash::digest(BASE_DENOM.as_bytes());
 
     /*
@@ -643,7 +642,7 @@ fn anchor_test_deliver() -> Result<()> {
     let send_denom = mint_keypair.pubkey().to_string();
 
     let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
-    let hashed_denom = CryptoHash::digest(denom.as_bytes());
+    let hashed_denom = CryptoHash::digest(send_denom.as_bytes());
     let hashed_base_denom =
         ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {

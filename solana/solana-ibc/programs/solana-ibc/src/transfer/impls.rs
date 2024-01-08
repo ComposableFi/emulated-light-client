@@ -39,8 +39,8 @@ fn get_escrow_account(
     channel_id: &ChannelId,
     denom: &str,
 ) -> Pubkey {
-    let denom = hash::hash(denom.as_bytes()).to_bytes();
-    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), &denom];
+    let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
+    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), denom.as_slice()];
     Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
@@ -328,6 +328,7 @@ impl IbcStorage<'_, '_> {
         }
 
         let denom = coin.denom.to_string();
+        let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
         let escrow = get_escrow_account(port_id, channel_id, &denom);
 
         accounts
