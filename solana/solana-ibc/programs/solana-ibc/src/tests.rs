@@ -641,7 +641,7 @@ fn anchor_test_deliver() -> Result<()> {
 
     let send_denom = mint_keypair.pubkey().to_string();
 
-    let denom = format!("{}/{channel_id_on_b}/{send_denom}", port_id.clone());
+    let denom = format!("{port_id}/{channel_id_on_b}/{send_denom}");
     let hashed_denom = CryptoHash::digest(send_denom.as_bytes());
     let denom =
         ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
