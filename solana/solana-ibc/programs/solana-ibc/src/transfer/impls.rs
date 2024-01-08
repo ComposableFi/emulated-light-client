@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anchor_lang::prelude::{CpiContext, Pubkey};
-use anchor_lang::solana_program::{hash, msg};
+use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
 
 use crate::ibc::apps::transfer::context::{
@@ -328,8 +328,8 @@ impl IbcStorage<'_, '_> {
         }
 
         let denom = coin.denom.to_string();
-        let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
-        let escrow = get_escrow_account(port_id, channel_id, &denom);
+        let denom = denom.rsplit_once('/').unwrap_or(("", &denom)).1;
+        let escrow = get_escrow_account(port_id, channel_id, denom);
 
         accounts
             .escrow_account
