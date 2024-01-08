@@ -39,12 +39,9 @@ fn get_escrow_account(
     channel_id: &ChannelId,
     denom: &str,
 ) -> Pubkey {
-    let (head, tail) = stdx::split_at::<32>(denom.as_bytes())
-        .map(|(head, tail)| (&head[..], tail))
-        .unwrap_or((denom.as_bytes(), &b""[..]));
-    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), head, tail];
-    let seeds = if tail.is_empty() { &seeds[..3] } else { &seeds[..] };
-    Pubkey::find_program_address(seeds, &crate::ID).0
+    let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
+    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), denom.as_slice()];
+    Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
 /// Direction of an escrow operation.
@@ -330,9 +327,8 @@ impl IbcStorage<'_, '_> {
             return Err(TokenTransferError::ParseAccountFailure);
         }
 
-        // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
         let denom = coin.denom.to_string();
-        let denom = denom.rsplit_once('/').unwrap_or((&denom, &denom)).1;
+        let denom = denom.rsplit_once('/').unwrap_or(("", &denom)).1;
         let escrow = get_escrow_account(port_id, channel_id, denom);
 
         accounts

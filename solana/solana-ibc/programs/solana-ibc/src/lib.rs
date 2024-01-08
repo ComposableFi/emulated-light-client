@@ -10,6 +10,7 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use lib::hash::CryptoHash;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -128,7 +129,7 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
     ) -> Result<()> {
         Ok(())
     }
@@ -151,9 +152,14 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
     ) -> Result<()> {
-        mocks::mock_init_escrow(ctx, port_id, channel_id_on_b, base_denom)
+        mocks::mock_init_escrow(
+            ctx,
+            port_id,
+            channel_id_on_b,
+            hashed_base_denom,
+        )
     }
 
     /// Called to set up a connection, channel and store the next
@@ -162,7 +168,7 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
         commitment_prefix: ibc::CommitmentPrefix,
         client_id: ibc::ClientId,
         counterparty_client_id: ibc::ClientId,
@@ -171,7 +177,7 @@ pub mod solana_ibc {
             ctx,
             port_id,
             channel_id_on_b,
-            base_denom,
+            hashed_base_denom,
             commitment_prefix,
             client_id,
             counterparty_client_id,
@@ -270,7 +276,7 @@ pub mod solana_ibc {
         ctx: Context<SendTransfer>,
         port_id: ibc::PortId,
         channel_id: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
@@ -365,7 +371,7 @@ pub struct ChainWithVerifier<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct InitEscrow<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -375,12 +381,12 @@ pub struct InitEscrow<'info> {
               bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+    #[account(init_if_needed, payer = sender, seeds = [hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+        port_id.as_bytes(), channel_id_on_b.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
 
@@ -430,7 +436,7 @@ pub struct Deliver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct MockInitEscrow<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -440,12 +446,12 @@ pub struct MockInitEscrow<'info> {
               bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+    #[account(init_if_needed, payer = sender, seeds = [hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
 
@@ -454,7 +460,7 @@ pub struct MockInitEscrow<'info> {
     system_program: Program<'info, System>,
 }
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct MockDeliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -484,11 +490,11 @@ pub struct MockDeliver<'info> {
     #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: UncheckedAccount<'info>,
-    #[account(mut, seeds = [base_denom.as_bytes()],
+    #[account(mut, seeds = [hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Box<Account<'info, Mint>>,
     #[account(mut, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
+        port_id.as_bytes(), channel_id_on_b.as_bytes(),hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Box<Account<'info, TokenAccount>>,
 
@@ -527,7 +533,7 @@ pub struct SendPacket<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -553,9 +559,8 @@ pub struct SendTransfer<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    // Splitting `base_denom` since each seed can be at most 32 byte long.
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
+        port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]

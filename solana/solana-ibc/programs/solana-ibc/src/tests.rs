@@ -20,7 +20,7 @@ use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{accounts, chain, ibc, instruction, MINT_ESCROW_SEED};
+use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 const BASE_DENOM: &str = "PICA";
@@ -86,6 +86,7 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
+    let hashed_denom = CryptoHash::digest(BASE_DENOM.as_bytes());
 
     /*
      * Initialise chain
@@ -240,11 +241,11 @@ fn anchor_test_deliver() -> Result<()> {
     let channel_id_on_b = ibc::ChannelId::new(1);
 
     let seeds =
-        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+        Pubkey::find_program_address(&[hashed_denom.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
@@ -265,7 +266,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockInitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone(),
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -286,13 +287,14 @@ fn anchor_test_deliver() -> Result<()> {
     println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
+    let binding = hashed_denom.clone();
     let seeds =
-        [port_id.as_bytes(), channel_id_on_b.as_bytes(), BASE_DENOM.as_bytes()];
+        [port_id.as_bytes(), channel_id_on_b.as_bytes(), binding.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
 
     let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[BASE_DENOM.as_ref()], &crate::ID);
+        Pubkey::find_program_address(&[hashed_denom.as_ref()], &crate::ID);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
     let sender_token_address =
@@ -322,7 +324,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::MockDeliver {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone(),
             commitment_prefix,
             client_id: client_id.clone(),
             counterparty_client_id: counter_party_client_id,
@@ -363,7 +365,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::InitEscrow {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_b.clone(),
-            base_denom: BASE_DENOM.to_string(),
+            hashed_base_denom: hashed_denom.clone(),
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -635,15 +637,16 @@ fn anchor_test_deliver() -> Result<()> {
      * Creating Token Mint
      */
 
-    println!("\nSend Transfer");
+    println!("\nSend Transfer On Source Chain");
 
     let send_denom = mint_keypair.pubkey().to_string();
 
-    let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
-    let base_denom =
-        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+    let denom = format!("{port_id}/{channel_id_on_b}/{send_denom}");
+    let hashed_denom = CryptoHash::digest(send_denom.as_bytes());
+    let denom =
+        ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: base_denom.clone(),
+        denom,
         amount: TRANSFER_AMOUNT.into(),
     };
 
@@ -662,12 +665,8 @@ fn anchor_test_deliver() -> Result<()> {
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
-    let seeds = [
-        port_id.as_bytes(),
-        channel_id_on_a.as_bytes(),
-        send_denom[..32].as_bytes(),
-        send_denom[32..].as_bytes(),
-    ];
+    let seeds =
+        [port_id.as_bytes(), channel_id_on_a.as_bytes(), hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
 
@@ -697,7 +696,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
-            base_denom: send_denom,
+            hashed_base_denom: hashed_denom,
             msg: msg_transfer,
         })
         .payer(authority.clone())
@@ -736,10 +735,10 @@ fn construct_packet_from_denom(
     memo: String,
 ) -> ibc::Packet {
     let denom = format!("{port_id}/{denom_channel_id}/{BASE_DENOM}");
-    let base_denom =
-        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+    let denom =
+        ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
-        denom: base_denom,
+        denom,
         amount: TRANSFER_AMOUNT.into(),
     };
 
