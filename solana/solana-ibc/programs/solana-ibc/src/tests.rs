@@ -637,14 +637,14 @@ fn anchor_test_deliver() -> Result<()> {
      * Creating Token Mint
      */
 
-    println!("\nSend Transfer");
+    println!("\nSend Transfer On Source Chain");
 
     let send_denom = mint_keypair.pubkey().to_string();
 
-    let denom = format!("{}/{channel_id_on_a}/{send_denom}", port_id.clone());
+    let denom = format!("{}/{channel_id_on_b}/{send_denom}", port_id.clone());
     let hashed_denom = CryptoHash::digest(send_denom.as_bytes());
     let base_denom =
-        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+        ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
         denom: base_denom.clone(),
         amount: TRANSFER_AMOUNT.into(),
@@ -736,7 +736,7 @@ fn construct_packet_from_denom(
 ) -> ibc::Packet {
     let denom = format!("{port_id}/{denom_channel_id}/{BASE_DENOM}");
     let hashed_base_denom =
-        ibc::apps::transfer::types::BaseDenom::from_str(&denom).unwrap();
+        ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
         denom: hashed_base_denom,
         amount: TRANSFER_AMOUNT.into(),
