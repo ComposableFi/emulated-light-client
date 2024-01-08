@@ -53,6 +53,7 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          toolchain: nightly
           args: --all-features -- -D warnings
 
       - name: Miri tests
