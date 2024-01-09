@@ -451,9 +451,9 @@ fn anchor_test_deliver() -> Result<()> {
      */
 
     println!("\nRecving on destination chain");
-    let account_balance_before =
-        sol_rpc_client.get_token_account_balance(&receiver_token_address);
-    // .unwrap();
+    let account_balance_before = sol_rpc_client
+        .get_token_account_balance(&receiver_token_address)
+        .map_or(0f64, |balance| balance.ui_amount.unwrap());
 
     let packet = construct_packet_from_denom(
         &base_denom,
@@ -513,12 +513,8 @@ fn anchor_test_deliver() -> Result<()> {
     let account_balance_after = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
-    let previous_balance = match account_balance_before {
-        Ok(balance) => balance.ui_amount.unwrap(),
-        Err(_) => 0f64,
-    };
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - previous_balance) *
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
@@ -633,7 +629,8 @@ fn anchor_test_deliver() -> Result<()> {
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
     let receiver_account_balance_before = sol_rpc_client
-        .get_token_account_balance(&receiver_native_token_address);
+        .get_token_account_balance(&receiver_native_token_address)
+        .map_or(0f64, |balance| balance.ui_amount.unwrap());
 
     let sig = program
         .request()
@@ -675,13 +672,9 @@ fn anchor_test_deliver() -> Result<()> {
         .round() as u64,
         TRANSFER_AMOUNT
     );
-    let previous_receiver_balance = match receiver_account_balance_before {
-        Ok(balance) => balance.ui_amount.unwrap(),
-        Err(_) => 0f64,
-    };
     assert_eq!(
         ((receiver_account_balance_after.ui_amount.unwrap() -
-            previous_receiver_balance) *
+            receiver_account_balance_before) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
