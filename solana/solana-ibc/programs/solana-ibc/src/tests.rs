@@ -302,7 +302,7 @@ fn anchor_test_deliver() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(accounts::InitEscrow {
+        .accounts(accounts::InitMint {
             sender: authority.pubkey(),
             mint_authority: mint_authority_key,
             // escrow_account: escrow_account_key,
@@ -311,7 +311,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
         })
-        .args(instruction::InitEscrow {
+        .args(instruction::InitMint {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_a.clone(),
             hashed_base_denom: hashed_denom.clone(),

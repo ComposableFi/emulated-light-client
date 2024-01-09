@@ -125,8 +125,8 @@ pub mod solana_ibc {
     /// given in this call’s context before the body of the method is
     /// executed.
     #[allow(unused_variables)]
-    pub fn init_escrow<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
+    pub fn init_mint<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         hashed_base_denom: CryptoHash,
@@ -352,7 +352,7 @@ pub struct ChainWithVerifier<'info> {
 
 #[derive(Accounts)]
 #[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
-pub struct InitEscrow<'info> {
+pub struct InitMint<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
