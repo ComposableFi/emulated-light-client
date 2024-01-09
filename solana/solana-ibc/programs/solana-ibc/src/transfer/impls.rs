@@ -155,8 +155,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             .token_mint
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let mint_auth = accounts
-            .mint_authority
+        let authority = accounts
+            .sender
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
@@ -165,11 +165,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let seeds = core::slice::from_ref(&seeds);
 
         // Below is the actual instruction that we are going to send to the Token program.
-        let transfer_instruction = Burn {
-            mint: token_mint.clone(),
-            from: burner.clone(),
-            authority: mint_auth.clone(),
-        };
+        let transfer_instruction =
+            Burn { mint: token_mint.clone(), from: burner.clone(), authority };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),
             transfer_instruction,
@@ -322,14 +319,13 @@ impl IbcStorage<'_, '_> {
         */
         let store = self.borrow();
         let accounts = &store.accounts;
-
         if accounts.token_program.is_none() || accounts.token_mint.is_none() {
             return Err(TokenTransferError::ParseAccountFailure);
         }
 
-        let denom = coin.denom.to_string();
-        let denom = denom.rsplit_once('/').unwrap_or(("", &denom)).1;
-        let escrow = get_escrow_account(port_id, channel_id, denom);
+        // TODO(#180): Should we use full denom including prefix?
+        let denom = coin.denom.base_denom.to_string();
+        let escrow = get_escrow_account(port_id, channel_id, &denom);
 
         accounts
             .escrow_account
