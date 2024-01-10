@@ -39,7 +39,7 @@ pub struct Candidate<PK> {
     pub pubkey: PK,
 
     /// Candidate’s stake.
-    stake: NonZeroU128,
+    pub stake: NonZeroU128,
 }
 
 /// Error while updating candidate.
