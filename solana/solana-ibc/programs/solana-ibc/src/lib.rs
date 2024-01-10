@@ -7,6 +7,7 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
+use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
@@ -22,7 +23,9 @@ pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
-declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
+pub const STAKING_PROGRAM_ID: &str = "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG";
+
+declare_id!("32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh");
 
 mod allocator;
 pub mod chain;
@@ -111,7 +114,18 @@ pub mod solana_ibc {
     /// TODO(mina86): At the moment we’re operating on pretend tokens and each
     /// validator can set whatever stake they want.  This is purely for testing
     /// and not intended for production use.
+    /// 
+    /// Can only be called through CPI from our staking program
+    /// (Program ID: 4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG)
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
+        let ixns = ctx.accounts.instruction.to_account_info();
+        let current_index = tx_instructions::load_current_index_checked(&ixns)? as usize;
+        let current_ixn = tx_instructions::load_instruction_at_checked(current_index, &ixns)?;
+
+        msg!(" staking program ID: {} Current program ID: {}", current_ixn.program_id, *ctx.program_id);
+        if current_ixn.program_id.to_string() != STAKING_PROGRAM_ID {
+            return Err(error!(error::Error::InvalidCPICall));
+        }
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         ctx.accounts.chain.maybe_generate_block(&provable)?;
         ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
@@ -324,6 +338,10 @@ pub struct Chain<'info> {
     trie: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
+
+    ///CHECK:
+    // Used for getting the caller program id to verify if the right program is calling the method.
+    instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]

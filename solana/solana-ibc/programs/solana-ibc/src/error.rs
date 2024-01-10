@@ -58,6 +58,9 @@ pub(crate) enum Error {
     /// After removing a candidate, the total number of validators would fall
     /// below required minimum.
     NotEnoughValidators,
+
+    // CPI call from an unidentified program
+    InvalidCPICall,
 }
 
 impl Error {

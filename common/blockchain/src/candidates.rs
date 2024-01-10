@@ -34,9 +34,9 @@ pub struct Candidates<PK> {
 #[derive(
     Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
 )]
-struct Candidate<PK> {
+pub struct Candidate<PK> {
     /// Public key of the candidate.
-    pubkey: PK,
+    pub pubkey: PK,
 
     /// Candidate’s stake.
     stake: NonZeroU128,
@@ -90,6 +90,10 @@ impl<PK: crate::PubKey> Candidates<PK> {
         let this = Self { max_validators, candidates, changed, head_stake };
         this.debug_verify_state();
         this
+    }
+
+    pub fn get_candidates(&self) -> Vec<Candidate<PK>> {
+        self.candidates.clone()
     }
 
     /// Sums stake of the first `count` candidates.

@@ -150,6 +150,12 @@ impl ChainData {
             .map_err(into_error)
     }
 
+    /// Returns the validator data with stake and rewards
+    pub fn get_validator(&self, validator: Pubkey) -> Result<Option<blockchain::candidates::Candidate<PubKey>>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.get_candidates().iter().find(|&c| c.pubkey == validator.into()).cloned())
+    }
+
     /// Returns a shared reference the inner chain data if it has been
     /// initialised.
     fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
