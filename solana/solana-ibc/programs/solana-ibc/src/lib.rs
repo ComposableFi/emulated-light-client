@@ -10,6 +10,7 @@ use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use lib::hash::CryptoHash;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -23,6 +24,7 @@ pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
 declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
 
+mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;
@@ -123,11 +125,11 @@ pub mod solana_ibc {
     /// given in this call’s context before the body of the method is
     /// executed.
     #[allow(unused_variables)]
-    pub fn init_escrow<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, InitEscrow<'info>>,
+    pub fn init_mint<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
     ) -> Result<()> {
         Ok(())
     }
@@ -144,24 +146,11 @@ pub mod solana_ibc {
             .map_err(move |err| error!((&err)))
     }
 
-    /// Called to set up escrow and mint accounts for given channel and denom.
-    /// Panics if called without `mocks` feature.
-    pub fn mock_init_escrow<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, MockInitEscrow<'info>>,
-        port_id: ibc::PortId,
-        channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
-    ) -> Result<()> {
-        mocks::mock_init_escrow(ctx, port_id, channel_id_on_b, base_denom)
-    }
-
     /// Called to set up a connection, channel and store the next
     /// sequence.  Will panic if called without `mocks` feature.
     pub fn mock_deliver<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
         port_id: ibc::PortId,
-        channel_id_on_b: ibc::ChannelId,
-        base_denom: String,
         commitment_prefix: ibc::CommitmentPrefix,
         client_id: ibc::ClientId,
         counterparty_client_id: ibc::ClientId,
@@ -169,8 +158,6 @@ pub mod solana_ibc {
         mocks::mock_deliver(
             ctx,
             port_id,
-            channel_id_on_b,
-            base_denom,
             commitment_prefix,
             client_id,
             counterparty_client_id,
@@ -269,7 +256,7 @@ pub mod solana_ibc {
         ctx: Context<SendTransfer>,
         port_id: ibc::PortId,
         channel_id: ibc::ChannelId,
-        base_denom: String,
+        hashed_base_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
@@ -280,10 +267,8 @@ pub mod solana_ibc {
             &mut token_ctx,
             msg,
         )
-        .unwrap();
-        // .map_err(|e| { msg!("{:?}", e)}).unwrap();
-        Ok(())
-        // .map_err(|err| error!((&err)))
+        .map_err(error::Error::TokenTransferError)
+        .map_err(|err| error!((&err)))
     }
 }
 
@@ -366,8 +351,8 @@ pub struct ChainWithVerifier<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
-pub struct InitEscrow<'info> {
+#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
+pub struct InitMint<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
@@ -376,14 +361,9 @@ pub struct InitEscrow<'info> {
               bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
+    #[account(init_if_needed, payer = sender, seeds = [hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
-
-    #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
-    ], bump, token::mint = token_mint, token::authority = mint_authority)]
-    escrow_account: Box<Account<'info, TokenAccount>>,
 
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,
@@ -416,7 +396,7 @@ pub struct Deliver<'info> {
     #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
-    #[account(mut, mint::decimals = 6, mint::authority = mint_authority)]
+    #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
@@ -431,37 +411,9 @@ pub struct Deliver<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
-pub struct MockInitEscrow<'info> {
-    #[account(mut)]
-    sender: Signer<'info>,
-
-    /// CHECK:
-    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
-              bump, space = 100)]
-    mint_authority: UncheckedAccount<'info>,
-
-    #[account(init_if_needed, payer = sender, seeds = [base_denom.as_bytes()],
-              bump, mint::decimals = 6, mint::authority = mint_authority)]
-    token_mint: Account<'info, Mint>,
-
-    #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
-    ], bump, token::mint = token_mint, token::authority = mint_authority)]
-    escrow_account: Box<Account<'info, TokenAccount>>,
-
-    associated_token_program: Program<'info, AssociatedToken>,
-    token_program: Program<'info, Token>,
-    system_program: Program<'info, System>,
-}
-#[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, base_denom: String)]
 pub struct MockDeliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
-
-    /// CHECK:
-    receiver: AccountInfo<'info>,
 
     /// The account holding private IBC storage.
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump)]
@@ -478,28 +430,6 @@ pub struct MockDeliver<'info> {
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
 
-    /// The below accounts are being created for testing purposes only.  In
-    /// real, we would run conditionally create an escrow account when the
-    /// channel is created.  And we could have another method that can create
-    /// a mint given the denom.
-    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
-    /// CHECK:
-    mint_authority: UncheckedAccount<'info>,
-    #[account(mut, seeds = [base_denom.as_bytes()],
-              bump, mint::decimals = 6, mint::authority = mint_authority)]
-    token_mint: Box<Account<'info, Mint>>,
-    #[account(mut, seeds = [
-        port_id.as_bytes(), channel_id_on_b.as_bytes(), base_denom.as_bytes()
-    ], bump, token::mint = token_mint, token::authority = mint_authority)]
-    escrow_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(init_if_needed, payer = sender,
-              associated_token::mint = token_mint,
-              associated_token::authority = receiver)]
-    receiver_token_account: Box<Account<'info, TokenAccount>>,
-
-    associated_token_program: Program<'info, AssociatedToken>,
-    token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
 }
 
@@ -528,7 +458,7 @@ pub struct SendPacket<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, base_denom: String)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -554,9 +484,8 @@ pub struct SendTransfer<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    // Splitting `base_denom` since each seed can be at most 32 byte long.
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
+        port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]

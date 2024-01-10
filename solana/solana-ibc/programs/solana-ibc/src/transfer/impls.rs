@@ -7,161 +7,69 @@ use anchor_spl::token::{Burn, MintTo, Transfer};
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
 };
-use crate::ibc::apps::transfer::types::{Amount, PrefixedCoin};
-use crate::ibc::TokenTransferError;
+use crate::ibc::apps::transfer::types::{Amount, Memo, PrefixedCoin};
+use crate::ibc::{ChannelId, PortId, TokenTransferError};
 use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
-/// Structure to identify if the account is escrow or not.
-///
-/// If it is escrow account, we derive the escrow account address using port-id,
-/// channel-id (stored in this type) and denom (provided in call to
-/// [`Self::get_escrow_account`]).
+
+/// Account identifier on Solana, i.e. account’s public key.
 #[derive(
     Clone,
-    derive_more::Display,
     PartialEq,
     Eq,
+    derive_more::Display,
     derive_more::From,
-    derive_more::TryInto,
+    derive_more::Into,
 )]
-pub enum AccountId {
-    #[display(fmt = "{}", _0)]
-    Signer(Pubkey),
-    #[display(fmt = "{}", _0)]
-    Escrow(trie_ids::PortChannelPK),
-}
+#[display(fmt = "{}", _0)]
+pub struct AccountId(Pubkey);
 
 impl TryFrom<ibc::Signer> for AccountId {
     type Error = <Pubkey as FromStr>::Err;
 
     fn try_from(value: ibc::Signer) -> Result<Self, Self::Error> {
-        Pubkey::from_str(value.as_ref()).map(Self::Signer)
+        Pubkey::from_str(value.as_ref()).map(Self)
     }
 }
 
-impl AccountId {
-    pub fn get_escrow_account(&self, denom: &str) -> Result<Pubkey, &str> {
-        let port_channel = match self {
-            AccountId::Escrow(pk) => pk,
-            AccountId::Signer(_) => {
-                return Err(
-                    "Expected Escrow account, instead found Signer account"
-                )
-            }
-        };
-        let channel_id = port_channel.channel_id();
-        let port_id = port_channel.port_id();
-
-        let (escrow_account_key, _bump) = if denom.len() > 32 {
-            let seeds = [
-                port_id.as_bytes(),
-                channel_id.as_bytes(),
-                denom[..32].as_bytes(),
-                denom[32..].as_bytes(),
-            ];
-            Pubkey::find_program_address(&seeds, &crate::ID)
-        } else {
-            let seeds =
-                [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
-            Pubkey::find_program_address(&seeds, &crate::ID)
-        };
-        Ok(escrow_account_key)
-    }
+/// Returns escrow account corresponding to given (port, channel, denom) triple.
+fn get_escrow_account(
+    port_id: &PortId,
+    channel_id: &ChannelId,
+    denom: &str,
+) -> Pubkey {
+    let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
+    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), denom.as_slice()];
+    Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
-impl TryFrom<&AccountId> for Pubkey {
-    type Error = <Self as TryFrom<AccountId>>::Error;
-
-    fn try_from(value: &AccountId) -> Result<Self, Self::Error> {
-        match value {
-            AccountId::Signer(signer) => Ok(*signer),
-            AccountId::Escrow(_) => {
-                Err("Expected Signer account, instead found Escrow account")
-            }
-        }
-    }
+/// Direction of an escrow operation.
+enum EscrowOp {
+    Escrow,
+    Unescrow,
 }
 
 impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
-    fn send_coins_execute(
+    fn escrow_coins_execute(
         &mut self,
-        from: &Self::AccountId,
-        to: &Self::AccountId,
-        amt: &PrefixedCoin,
+        _from_account: &Self::AccountId,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+        coin: &PrefixedCoin,
+        _memo: &Memo,
     ) -> Result<(), TokenTransferError> {
-        msg!(
-            "Sending coins from account {} to account {}, trace path {}, base \
-             denom {}",
-            from,
-            to,
-            amt.denom.trace_path,
-            amt.denom.base_denom
-        );
-        let amount_in_u64 = check_amount_overflow(amt.amount)?;
+        self.escrow_coins_execute_impl(EscrowOp::Escrow, coin)
+    }
 
-        let (_mint_auth_key, mint_auth_bump) =
-            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-        let store = self.borrow();
-        let accounts = &store.accounts;
-
-
-        let token_program = accounts
-            .token_program
-            .clone()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-
-        let (sender, receiver, authority) =
-            if matches!(from, AccountId::Escrow(_)) {
-                let sender = accounts
-                    .escrow_account
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?;
-                let receiver = accounts
-                    .token_account
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?;
-                let auth = accounts
-                    .mint_authority
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?;
-                (sender, receiver, auth)
-            } else {
-                msg!("These are accounts {:?}", accounts);
-                let sender = accounts
-                    .token_account
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?;
-                let receiver = accounts
-                    .escrow_account
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?;
-                let auth = accounts
-                    .sender
-                    .clone()
-                    .ok_or(TokenTransferError::ParseAccountFailure)?
-                    .clone();
-                (sender, receiver, auth)
-            };
-
-        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
-        let seeds = seeds.as_ref();
-        let seeds = core::slice::from_ref(&seeds);
-
-        // Below is the actual instruction that we are going to send to the Token program.
-        let transfer_instruction = Transfer {
-            from: sender.clone(),
-            to: receiver.clone(),
-            authority: authority.clone(),
-        };
-        let cpi_ctx = CpiContext::new_with_signer(
-            token_program.clone(),
-            transfer_instruction,
-            seeds, //signer PDA
-        );
-
-        anchor_spl::token::transfer(cpi_ctx, amount_in_u64).unwrap();
-        Ok(())
+    fn unescrow_coins_execute(
+        &mut self,
+        _to_account: &Self::AccountId,
+        _port_id: &PortId,
+        _channel_id: &ChannelId,
+        coin: &PrefixedCoin,
+    ) -> Result<(), TokenTransferError> {
+        self.escrow_coins_execute_impl(EscrowOp::Unescrow, coin)
     }
 
     fn mint_coins_execute(
@@ -222,6 +130,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         &mut self,
         account: &Self::AccountId,
         amt: &PrefixedCoin,
+        _memo: &Memo,
     ) -> Result<(), TokenTransferError> {
         msg!(
             "Burning coins for account {}, trace path {}, base denom {}",
@@ -246,8 +155,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             .token_mint
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let mint_auth = accounts
-            .mint_authority
+        let authority = accounts
+            .sender
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
@@ -256,11 +165,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let seeds = core::slice::from_ref(&seeds);
 
         // Below is the actual instruction that we are going to send to the Token program.
-        let transfer_instruction = Burn {
-            mint: token_mint.clone(),
-            from: burner.clone(),
-            authority: mint_auth.clone(),
-        };
+        let transfer_instruction =
+            Burn { mint: token_mint.clone(), from: burner.clone(), authority };
         let cpi_ctx = CpiContext::new_with_signer(
             token_program.clone(),
             transfer_instruction,
@@ -279,21 +185,6 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         Ok(ibc::PortId::transfer())
     }
 
-    fn get_escrow_account(
-        &self,
-        port_id: &ibc::PortId,
-        channel_id: &ibc::ChannelId,
-    ) -> Result<Self::AccountId, TokenTransferError> {
-        let port_channel =
-            trie_ids::PortChannelPK::try_from(port_id, channel_id).map_err(
-                |_| TokenTransferError::DestinationChannelNotFound {
-                    port_id: port_id.clone(),
-                    channel_id: channel_id.clone(),
-                },
-            )?;
-        Ok(AccountId::Escrow(port_channel))
-    }
-
     fn can_send_coins(&self) -> Result<(), TokenTransferError> {
         // TODO: check if this is correct
         Ok(())
@@ -304,71 +195,37 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn send_coins_validate(
+    fn escrow_coins_validate(
         &self,
         from_account: &Self::AccountId,
+        port_id: &PortId,
+        channel_id: &ChannelId,
+        coin: &PrefixedCoin,
+        _memo: &Memo,
+    ) -> Result<(), TokenTransferError> {
+        self.escrow_coins_validate_impl(
+            EscrowOp::Escrow,
+            from_account,
+            port_id,
+            channel_id,
+            coin,
+        )
+    }
+
+    fn unescrow_coins_validate(
+        &self,
         to_account: &Self::AccountId,
+        port_id: &PortId,
+        channel_id: &ChannelId,
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
-        /*
-           Should have the following accounts
-           - token program
-           - token account
-           - escrow account ( with seeds as portId, channelId and denom )
-           - token mint
-
-           If sending tokens from escrow then,
-           - mint authority should be present
-           - from account should match escrow
-           - to account should match token account
-
-          If sending tokens to escrow then,
-           - sender should be present
-           - sender should be signer
-           - to account should match escrow
-           - from account should match token account
-        */
-        let store = self.borrow();
-        let accounts = &store.accounts;
-        let denom = coin.denom.to_string();
-        // Splitting the denom because the trace prefix is not stripped during `send_transfer`.
-        let split_denom: Vec<&str> = denom.split('/').collect();
-        let denom =
-            split_denom.last().ok_or(TokenTransferError::EmptyBaseDenom)?;
-        if accounts.token_program.is_none() || accounts.token_mint.is_none() {
-            return Err(TokenTransferError::ParseAccountFailure);
-        }
-        let escrow_account = accounts
-            .escrow_account
-            .as_ref()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let token_account = accounts
-            .token_account
-            .as_ref()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let ok = if let AccountId::Signer(ref to) = to_account {
-            let from = from_account
-                .get_escrow_account(denom)
-                .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-            accounts.mint_authority.is_some() &&
-                from.eq(escrow_account.key) &&
-                to.eq(token_account.key)
-        } else if let AccountId::Signer(ref from) = from_account {
-            let to = to_account
-                .get_escrow_account(denom)
-                .map_err(|_| TokenTransferError::ParseAccountFailure)?;
-            accounts.sender.is_some() &&
-                accounts.sender.as_ref().map_or(false, |acc| acc.is_signer) &&
-                from.eq(token_account.key) &&
-                to.eq(escrow_account.key)
-        } else {
-            false
-        };
-        if ok {
-            Ok(())
-        } else {
-            Err(TokenTransferError::ParseAccountFailure)
-        }
+        self.escrow_coins_validate_impl(
+            EscrowOp::Escrow,
+            to_account,
+            port_id,
+            channel_id,
+            coin,
+        )
     }
 
     fn mint_coins_validate(
@@ -391,12 +248,11 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let account: Pubkey = account.try_into().unwrap();
         let token_account = accounts
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.eq(token_account.key) {
+        if !account.0.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -406,6 +262,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         &self,
         account: &Self::AccountId,
         _coin: &PrefixedCoin,
+        _memo: &Memo,
     ) -> Result<(), TokenTransferError> {
         /*
            Should have the following accounts
@@ -422,14 +279,139 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let account: Pubkey = account.try_into().unwrap();
         let token_account = accounts
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.eq(token_account.key) {
+        if !account.0.eq(token_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
+        Ok(())
+    }
+}
+
+impl IbcStorage<'_, '_> {
+    fn escrow_coins_validate_impl(
+        &self,
+        op: EscrowOp,
+        account: &AccountId,
+        port_id: &PortId,
+        channel_id: &ChannelId,
+        coin: &PrefixedCoin,
+    ) -> Result<(), TokenTransferError> {
+        /*
+           Should have the following accounts
+           - token program
+           - token account
+           - escrow account ( with seeds as portId, channelId and denom )
+           - token mint
+
+           If sending tokens from escrow then,
+           - mint authority should be present
+           - from account should match escrow
+           - to account should match token account
+
+          If sending tokens to escrow then,
+           - sender should be present
+           - sender should be signer
+           - to account should match escrow
+           - from account should match token account
+        */
+        let store = self.borrow();
+        let accounts = &store.accounts;
+        if accounts.token_program.is_none() || accounts.token_mint.is_none() {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+
+        // TODO(#180): Should we use full denom including prefix?
+        let denom = coin.denom.base_denom.to_string();
+        let escrow = get_escrow_account(port_id, channel_id, &denom);
+
+        accounts
+            .escrow_account
+            .as_ref()
+            .filter(|escrow_account| escrow.eq(escrow_account.key))
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        accounts
+            .token_account
+            .as_ref()
+            .filter(|token_account| account.0.eq(token_account.key))
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let ok = match op {
+            EscrowOp::Escrow => {
+                accounts.sender.as_ref().map_or(false, |acc| acc.is_signer)
+            }
+            EscrowOp::Unescrow => accounts.mint_authority.is_some(),
+        };
+        if ok {
+            Ok(())
+        } else {
+            Err(TokenTransferError::ParseAccountFailure)
+        }
+    }
+
+    fn escrow_coins_execute_impl(
+        &mut self,
+        op: EscrowOp,
+        coin: &PrefixedCoin,
+    ) -> Result<(), TokenTransferError> {
+        let amount = check_amount_overflow(coin.amount)?;
+
+        let (_mint_auth_key, mint_auth_bump) =
+            Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+        let store = self.borrow();
+        let accounts = &store.accounts;
+
+        let token_program = accounts
+            .token_program
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let token_account = accounts
+            .token_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let escrow_account = accounts
+            .escrow_account
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let (sender, receiver, authority) = match op {
+            EscrowOp::Escrow => {
+                let auth = accounts
+                    .sender
+                    .as_ref()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                (token_account, escrow_account, auth)
+            }
+            EscrowOp::Unescrow => {
+                let auth = accounts
+                    .mint_authority
+                    .as_ref()
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                (escrow_account, token_account, auth)
+            }
+        };
+
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&mint_auth_bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+
+        // Below is the actual instruction that we are going to send to the Token program.
+        let transfer_instruction = Transfer {
+            from: sender.clone(),
+            to: receiver.clone(),
+            authority: authority.clone(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            token_program.clone(),
+            transfer_instruction,
+            seeds, //signer PDA
+        );
+
+        anchor_spl::token::transfer(cpi_ctx, amount).unwrap();
         Ok(())
     }
 }
