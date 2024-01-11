@@ -170,10 +170,15 @@ impl ChainData {
     }
 
     /// Gets the rewards from the mentioned epoch height for the validator with specified stake
-    /// 
+    ///
     /// Right now, returning 0 for rewards until calculating rewards is implemented.
-    pub fn calculate_rewards(&self, _last_claimed_epoch_height: u64, _validator: Pubkey, _stake: u64) -> Result<u64, ChainNotInitialised> {
-        let _inner = self.get()?; 
+    pub fn calculate_rewards(
+        &self,
+        _last_claimed_epoch_height: u64,
+        _validator: Pubkey,
+        _stake: u64,
+    ) -> Result<u64, ChainNotInitialised> {
+        let _inner = self.get()?;
         // Call the method to get the rewards
         Ok(0)
     }
