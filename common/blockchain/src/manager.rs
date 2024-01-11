@@ -1,13 +1,12 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use alloc::vec::Vec;
 use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
 
 use lib::hash::CryptoHash;
 
-use crate::candidates::Candidate;
+use crate::Validator;
 pub use crate::candidates::UpdateCandidateError;
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
@@ -285,8 +284,8 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.candidates.update(&self.config, pubkey, stake)
     }
 
-    pub fn get_candidates(&self) -> Vec<Candidate<PK>> {
-        self.candidates.get_candidates()
+    pub fn get_validators(&self) -> &[Validator<PK>] {
+        self.next_epoch.validators()
     }
 }
 

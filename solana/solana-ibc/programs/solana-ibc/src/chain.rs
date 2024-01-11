@@ -155,13 +155,13 @@ impl ChainData {
         &self,
         validator: Pubkey,
     ) -> Result<
-        Option<blockchain::candidates::Candidate<PubKey>>,
+        Option<Validator>,
         ChainNotInitialised,
     > {
         let inner = self.get()?;
         Ok(inner
             .manager
-            .get_candidates()
+            .get_validators()
             .iter()
             .find(|&c| c.pubkey == validator.into())
             .cloned())

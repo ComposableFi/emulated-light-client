@@ -5,7 +5,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod block;
-pub mod candidates;
+mod candidates;
 mod common;
 pub mod config;
 pub mod epoch;
