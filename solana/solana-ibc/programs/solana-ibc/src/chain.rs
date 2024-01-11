@@ -163,17 +163,26 @@ impl ChainData {
         let inner = self.get()?;
         Ok(inner
             .manager
-            .get_validators()
+            .validators()
             .iter()
             .find(|c| c.pubkey == validator)
             .cloned())
     }
 
-    pub fn get_staking_program_id(
+    /// Checks whether given `program_id` matches expected staking program id.
+    ///
+    /// The staking program id is stored within the chain account.  Various
+    /// CPI calls which affect stake and rewards can only be made from that
+    /// program.  This method checks whether program id given as argument
+    /// matches the one we expect.  If it doesn’t, returns `InvalidCPICall`.
+    pub fn check_staking_program(
         &self,
-    ) -> Result<Pubkey, ChainNotInitialised> {
-        let chain_inner = self.get()?;
-        Ok(*chain_inner.staking_program_id)
+        program_id: &Pubkey
+    ) -> Result<(), Error> {
+        match program_id == &*self.get()?.staking_program_id {
+            false => Err(Error::InvalidCPICall),
+            true => Ok(()),
+        }
     }
 
     /// Returns a shared reference the inner chain data if it has been

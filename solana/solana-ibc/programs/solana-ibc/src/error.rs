@@ -8,7 +8,7 @@ use crate::ibc;
 // keeping them consistent makes things easier.
 #[derive(strum::EnumDiscriminants, strum::IntoStaticStr, derive_more::From)]
 #[strum_discriminants(repr(u32))]
-pub(crate) enum Error {
+pub enum Error {
     /// Internal error which ‘should never happen’.
     Internal(&'static str),
 

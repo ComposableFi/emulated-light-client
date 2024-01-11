@@ -134,10 +134,7 @@ pub mod solana_ibc {
             current_ixn.program_id,
             *ctx.program_id
         );
-        let staking_program_id = chain.get_staking_program_id()?;
-        if current_ixn.program_id != staking_program_id {
-            return Err(error!(error::Error::InvalidCPICall));
-        }
+        chain.check_staking_program(&current_ixn.program_id)?; 
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((*ctx.accounts.sender.key).into(), amount)
