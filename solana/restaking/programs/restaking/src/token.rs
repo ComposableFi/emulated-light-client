@@ -28,7 +28,7 @@ pub fn transfer<'info>(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)] 
+#[allow(clippy::too_many_arguments)]
 pub fn mint_nft<'info>(
     token_mint: AccountInfo<'info>,
     payer: AccountInfo<'info>,
