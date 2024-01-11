@@ -18,11 +18,14 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [workspace]
-members = ["solana/solana-ibc/programs/solana-ibc", "solana/restaking/programs/restaking"]
+members = [
+  "solana/solana-ibc/programs/solana-ibc",
+  "solana/restaking/programs/restaking"
+]
 
 [scripts]
-test = "cargo test --lib -- --nocapture --include-ignored ::anchor"
-# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+tests = "cargo test --lib -- --nocapture --include-ignored ::anchor"
+# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 solana/restaking/tests/**/*.ts"
 
 ## Necessary for test validator
 [test.validator]

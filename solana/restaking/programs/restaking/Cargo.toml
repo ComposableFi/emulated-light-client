@@ -9,6 +9,8 @@ crate-type = ["cdylib", "lib"]
 name = "restaking"
 
 [features]
+# added so that we can compile this along with `solana-ibc` with mocks features. Currently unused.
+mocks = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []

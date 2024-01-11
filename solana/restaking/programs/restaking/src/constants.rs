@@ -5,4 +5,5 @@ pub const TEST_SEED: &[u8] = b"abcdefg1";
 
 pub const TOKEN_NAME: &str = "Restaking Position";
 pub const TOKEN_SYMBOL: &str = "RST";
-pub const TOKEN_URI: &str = "https://arweave.net/E19ZNY2sqMqddm1Wx7mrXPUZ0ZZ5ISizhebb0UsVEws";
+pub const TOKEN_URI: &str =
+    "https://arweave.net/E19ZNY2sqMqddm1Wx7mrXPUZ0ZZ5ISizhebb0UsVEws";

@@ -1,12 +1,12 @@
-use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 use anchor_lang::prelude::*;
-use anchor_spl::{
-    metadata::{
-        create_master_edition_v3, create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
-        CreateMasterEditionV3, CreateMetadataAccountsV3,
-    },
-    token::{mint_to, MintTo, Transfer},
+use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
+use anchor_spl::metadata::{
+    create_master_edition_v3, create_metadata_accounts_v3,
+    CreateMasterEditionV3, CreateMetadataAccountsV3,
 };
+use anchor_spl::token::{mint_to, MintTo, Transfer};
+
+use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 
 pub fn transfer<'info>(
     from: AccountInfo<'info>,
@@ -16,11 +16,7 @@ pub fn transfer<'info>(
     seeds: &[&[&[u8]]],
     amount: u64,
 ) -> Result<()> {
-    let transfer_instruction = Transfer {
-        from,
-        to,
-        authority,
-    };
+    let transfer_instruction = Transfer { from, to, authority };
 
     let cpi_ctx = CpiContext::new_with_signer(
         token_program,

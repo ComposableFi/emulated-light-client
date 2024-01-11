@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { Program } from "@coral-xyz/anchor";
-import { Restaking } from "../target/types/restaking";
+import { Restaking, IDL } from "../../../target/types/restaking";
 import assert from "assert";
 import bs58 from "bs58";
 
@@ -11,7 +11,11 @@ describe("restaking", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.Restaking as Program<Restaking>;
+  const program = new Program(
+    IDL,
+    "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG",
+    provider
+  );
 
   let depositor: anchor.web3.Keypair; // Just another Keypair
   let admin: anchor.web3.Keypair; // This is the authority which is responsible for setting up the staking parameters

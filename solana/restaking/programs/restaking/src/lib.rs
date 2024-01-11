@@ -1,22 +1,22 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
 use anchor_spl::metadata::{
-    create_master_edition_v3, create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
+    burn_nft, create_master_edition_v3, create_metadata_accounts_v3, BurnNft,
     CreateMasterEditionV3, CreateMetadataAccountsV3, Metadata,
 };
-use anchor_spl::{
-    associated_token::AssociatedToken,
-    token::{Mint, Token, TokenAccount},
-};
-use anchor_spl::{
-    metadata::{burn_nft, BurnNft},
-    token::{mint_to, MintTo, Transfer},
-};
-use solana_ibc::{chain::ChainData, cpi::accounts::Chain, program::SolanaIbc, CHAIN_SEED};
+use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount, Transfer};
+use solana_ibc::chain::ChainData;
+use solana_ibc::cpi::accounts::Chain;
+use solana_ibc::program::SolanaIbc;
+use solana_ibc::CHAIN_SEED;
 
 pub mod constants;
 mod token;
 
-use constants::{STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED};
+use constants::{
+    STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED,
+};
 
 declare_id!("4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG");
 
@@ -39,12 +39,12 @@ pub mod restaking {
         Ok(())
     }
 
-    /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`] 
+    /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
     /// since we were running out of stack memory. Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
-    /// - SolanaIBCStorage 
+    /// - SolanaIBCStorage
     /// - Chain Data
-    /// - trie 
+    /// - trie
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
@@ -74,7 +74,8 @@ pub mod restaking {
         // Transfer tokens to escrow
 
         let bump = ctx.bumps.staking_params;
-        let seeds = [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -114,7 +115,8 @@ pub mod restaking {
             // instruction: ctx.accounts.instruction.to_account_info(),
         };
         let cpi_program = ctx.remaining_accounts[3].clone();
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        let cpi_ctx =
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
         solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
 
         Ok(())
@@ -146,7 +148,8 @@ pub mod restaking {
         // Transfer tokens from escrow
 
         let bump = ctx.bumps.staking_params;
-        let seeds = [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
@@ -174,7 +177,10 @@ pub mod restaking {
                     spl_token: ctx.accounts.token_program.to_account_info(),
                     mint: ctx.accounts.receipt_token_mint.to_account_info(),
                     token: ctx.accounts.receipt_token_account.to_account_info(),
-                    edition: ctx.accounts.master_edition_account.to_account_info(),
+                    edition: ctx
+                        .accounts
+                        .master_edition_account
+                        .to_account_info(),
                 },
                 &seeds[..],
             ),
@@ -190,9 +196,9 @@ pub mod restaking {
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
-        let contains_mint = new_token_mints
-            .iter()
-            .any(|token_mint| staking_params.whitelisted_tokens.contains(token_mint));
+        let contains_mint = new_token_mints.iter().any(|token_mint| {
+            staking_params.whitelisted_tokens.contains(token_mint)
+        });
 
         if contains_mint {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
@@ -201,9 +207,7 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn claim_rewards(ctx: Context<Withdraw>) -> Result<()> {
-        Ok(())
-    }
+    pub fn claim_rewards(ctx: Context<Withdraw>) -> Result<()> { Ok(()) }
 }
 
 #[derive(Accounts)]
