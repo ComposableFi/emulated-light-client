@@ -165,7 +165,7 @@ impl ChainData {
             .manager
             .get_validators()
             .iter()
-            .find(|&c| c.pubkey == validator.into())
+            .find(|c| c.pubkey == validator)
             .cloned())
     }
 
