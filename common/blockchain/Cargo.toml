@@ -10,11 +10,15 @@ bytemuck.workspace = true
 derive_more.workspace = true
 ibc-core-client-context.workspace = true
 ibc-core-commitment-types.workspace = true
+ibc-core-host.workspace = true
 ibc-primitives.workspace = true
+ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
 strum.workspace = true
 
 lib = { workspace = true, features = ["borsh"] }
+trie-ids.workspace = true
+sealable-trie = { workspace = true, features = ["borsh"] }
 stdx.workspace = true
 
 [build-dependencies]
@@ -22,8 +26,10 @@ prost-build.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
-lib = { workspace = true, features = ["test_utils"] }
 rand.workspace = true
+
+lib = { workspace = true, features = ["test_utils"] }
+memory = { workspace = true, features = ["test_utils"] }
 
 [features]
 std = []

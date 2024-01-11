@@ -2,7 +2,7 @@
 
 use anchor_lang::prelude::*;
 
-use crate::{ibc, CryptoHash, MockDeliver};
+use crate::{ibc, MockDeliver};
 
 pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,

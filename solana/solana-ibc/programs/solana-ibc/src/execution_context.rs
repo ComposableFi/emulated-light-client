@@ -21,13 +21,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         msg!("store_client_state({}, {:?})", path, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
-        let serialised = client.client_state.set(&state)?;
-        let client_id = path.0.as_bytes();
-        let hash = CryptoHash::digestv(&[
-            &(client_id.len() as u32).to_le_bytes()[..],
-            client_id,
-            serialised.as_bytes(),
-        ]);
+        let hash = client.client_state.set(&state)?.digest_with_client(&path.0);
         let key = trie_ids::TrieKey::for_client_state(client.index);
         store.provable.set(&key, &hash).map_err(error)
     }
