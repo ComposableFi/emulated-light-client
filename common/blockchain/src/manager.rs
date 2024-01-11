@@ -284,7 +284,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.candidates.update(&self.config, pubkey, stake)
     }
 
-    pub fn get_validators(&self) -> &[Validator<PK>] {
+    pub fn validators(&self) -> &[Validator<PK>] {
         self.next_epoch.validators()
     }
 }
