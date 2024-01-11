@@ -351,8 +351,8 @@ pub struct Chain<'info> {
 
     system_program: Program<'info, System>,
 
-    ///CHECK:
-    // Used for getting the caller program id to verify if the right program is calling the method.
+    /// CHECK: Used for getting the caller program id to verify if the right
+    /// program is calling the method.
     instruction: AccountInfo<'info>,
 }
 
