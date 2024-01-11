@@ -1,11 +1,9 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
 use anchor_spl::metadata::{
-    burn_nft, create_master_edition_v3, create_metadata_accounts_v3, BurnNft,
-    CreateMasterEditionV3, CreateMetadataAccountsV3, Metadata,
+    burn_nft, BurnNft, Metadata,
 };
-use anchor_spl::token::{mint_to, Mint, MintTo, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::Chain;
 use solana_ibc::program::SolanaIbc;
@@ -70,6 +68,7 @@ pub mod restaking {
         vault_params.stake_timestamp = Clock::get()?.unix_timestamp as u64;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
+        vault_params.last_received_rewards_height = 0;
 
         // Transfer tokens to escrow
 
@@ -379,6 +378,8 @@ pub struct Vault {
     pub service: Service,
     pub stake_amount: u64,
     pub stake_mint: Pubkey,
+    /// is 0 initially
+    pub last_received_rewards_height: u64,
 }
 
 #[error_code]
