@@ -76,7 +76,7 @@ impl ChainData {
         let inner = ChainInner {
             last_check_height: host_height,
             manager,
-            staking_program_id,
+            staking_program_id: Box::new(staking_program_id),
         };
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
@@ -173,7 +173,7 @@ impl ChainData {
         &self,
     ) -> Result<Pubkey, ChainNotInitialised> {
         let chain_inner = self.get()?;
-        Ok(chain_inner.staking_program_id)
+        Ok(*chain_inner.staking_program_id)
     }
 
     /// Returns a shared reference the inner chain data if it has been
@@ -200,7 +200,7 @@ struct ChainInner {
     manager: Manager,
 
     /// Staking Contract program ID. The program which would make CPI calls to set the stake
-    staking_program_id: Pubkey,
+    staking_program_id: Box<Pubkey>,
 }
 
 impl ChainInner {
