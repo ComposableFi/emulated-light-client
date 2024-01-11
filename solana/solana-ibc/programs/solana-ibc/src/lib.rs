@@ -23,9 +23,6 @@ pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
-pub const STAKING_PROGRAM_ID: &str =
-    "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG";
-
 declare_id!("32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh");
 
 mod allocator;
@@ -58,9 +55,15 @@ pub mod solana_ibc {
         ctx: Context<Initialise>,
         config: chain::Config,
         genesis_epoch: chain::Epoch,
+        staking_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.initialise(&mut provable, config, genesis_epoch)
+        ctx.accounts.chain.initialise(
+            &mut provable,
+            config,
+            genesis_epoch,
+            staking_program_id,
+        )
     }
 
     /// Attempts to generate a new guest block.
@@ -119,6 +122,7 @@ pub mod solana_ibc {
     /// Can only be called through CPI from our staking program
     /// (Program ID: 4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG)
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
+        let chain = &mut ctx.accounts.chain;
         let ixns = ctx.accounts.instruction.to_account_info();
         let current_index =
             tx_instructions::load_current_index_checked(&ixns)? as usize;
@@ -130,12 +134,13 @@ pub mod solana_ibc {
             current_ixn.program_id,
             *ctx.program_id
         );
-        if current_ixn.program_id.to_string() != STAKING_PROGRAM_ID {
+        let staking_program_id = chain.get_staking_program_id()?;
+        if current_ixn.program_id != staking_program_id {
             return Err(error!(error::Error::InvalidCPICall));
         }
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.maybe_generate_block(&provable)?;
-        ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+        chain.maybe_generate_block(&provable)?;
+        chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
     /// Called to set up escrow and mint accounts for given channel

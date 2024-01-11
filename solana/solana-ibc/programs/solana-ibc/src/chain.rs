@@ -56,6 +56,7 @@ impl ChainData {
         trie: &mut storage::AccountTrie,
         config: Config,
         genesis_epoch: Epoch,
+        staking_program_id: Pubkey,
     ) -> Result {
         let (host_height, host_timestamp) = get_host_head()?;
         let genesis = Block::generate_genesis(
@@ -72,7 +73,11 @@ impl ChainData {
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
-        let inner = ChainInner { last_check_height: host_height, manager };
+        let inner = ChainInner {
+            last_check_height: host_height,
+            manager,
+            staking_program_id,
+        };
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
@@ -154,10 +159,7 @@ impl ChainData {
     pub fn get_validator(
         &self,
         validator: Pubkey,
-    ) -> Result<
-        Option<Validator>,
-        ChainNotInitialised,
-    > {
+    ) -> Result<Option<Validator>, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner
             .manager
@@ -165,6 +167,13 @@ impl ChainData {
             .iter()
             .find(|&c| c.pubkey == validator.into())
             .cloned())
+    }
+
+    pub fn get_staking_program_id(
+        &self,
+    ) -> Result<Pubkey, ChainNotInitialised> {
+        let chain_inner = self.get()?;
+        Ok(chain_inner.staking_program_id)
     }
 
     /// Returns a shared reference the inner chain data if it has been
@@ -189,6 +198,9 @@ struct ChainInner {
 
     /// The guest blockchain manager handling generation of new guest blocks.
     manager: Manager,
+
+    /// Staking Contract program ID. The program which would make CPI calls to set the stake
+    staking_program_id: Pubkey,
 }
 
 impl ChainInner {

@@ -6,8 +6,8 @@ use std::collections::HashSet as Set;
 
 use lib::hash::CryptoHash;
 
-use crate::Validator;
 pub use crate::candidates::UpdateCandidateError;
+use crate::Validator;
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ChainManager<PK> {
