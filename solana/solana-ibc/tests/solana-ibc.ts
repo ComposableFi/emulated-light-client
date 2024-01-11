@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { SolanaIbc } from "../target/types/solana_ibc";
+import { SolanaIbc } from "../../../target/types/solana_ibc";
 
 describe("solana-ibc", () => {
   // Configure the client to use the local cluster.
