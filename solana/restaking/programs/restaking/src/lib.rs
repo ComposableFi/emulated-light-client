@@ -184,7 +184,7 @@ pub mod restaking {
                         .master_edition_account
                         .to_account_info(),
                 },
-                &seeds[..],
+                seeds,
             ),
             None,
         )?;

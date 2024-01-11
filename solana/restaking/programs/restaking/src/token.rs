@@ -28,6 +28,7 @@ pub fn transfer<'info>(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] 
 pub fn mint_nft<'info>(
     token_mint: AccountInfo<'info>,
     payer: AccountInfo<'info>,
@@ -50,7 +51,7 @@ pub fn mint_nft<'info>(
                 to,
                 mint: token_mint.clone(),
             },
-            &seeds[..],
+            seeds,
         ),
         1, // 1 token
     )?;
@@ -67,7 +68,7 @@ pub fn mint_nft<'info>(
                 system_program: system_program.clone(),
                 rent: rent.clone(),
             },
-            &seeds[..],
+            seeds,
         ),
         DataV2 {
             name: TOKEN_NAME.to_string(),
@@ -99,7 +100,7 @@ pub fn mint_nft<'info>(
                 system_program,
                 rent,
             },
-            &seeds[..],
+            seeds,
         ),
         Some(1),
     )?;
