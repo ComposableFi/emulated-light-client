@@ -119,8 +119,8 @@ pub mod solana_ibc {
     /// validator can set whatever stake they want.  This is purely for testing
     /// and not intended for production use.
     ///
-    /// Can only be called through CPI from our staking program
-    /// (Program ID: 4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG)
+    /// Can only be called through CPI from our staking program whose
+    /// id is stored in chain account.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
         let ixns = ctx.accounts.instruction.to_account_info();
