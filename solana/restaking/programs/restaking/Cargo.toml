@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
-
 [lib]
 crate-type = ["cdylib", "lib"]
 name = "restaking"
@@ -17,15 +16,11 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
-anchor-spl = { version = "0.29.0", features = ["metadata"] }
+ahash.workspace = true
+anchor-lang = { workspace = true, features = ["init-if-needed"] }
+anchor-spl = { workspace = true, features = ["metadata"] }
+solana-ibc = { workspace = true, features = ["cpi"] }
 solana-program.workspace = true
-# solana-ibc = { git="https://github.com/composableFi/emulated-light-client", features = ["cpi"] }
-solana-ibc = { path = "../../../solana-ibc/programs/solana-ibc" }
-ahash = "=0.8.6"
 
 [dev-dependencies]
 home = "=0.5.5"
-
-
-
