@@ -177,7 +177,7 @@ impl ChainData {
     /// matches the one we expect.  If it doesn’t, returns `InvalidCPICall`.
     pub fn check_staking_program(
         &self,
-        program_id: &Pubkey
+        program_id: &Pubkey,
     ) -> Result<(), Error> {
         match program_id == &*self.get()?.staking_program_id {
             false => Err(Error::InvalidCPICall),
