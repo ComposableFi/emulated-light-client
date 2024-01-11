@@ -7,7 +7,7 @@ solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
 restaking = "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG"
 
 [programs.localnet]
-solana_ibc = "EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81"
+solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
 restaking = "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG"
 
 [registry]
