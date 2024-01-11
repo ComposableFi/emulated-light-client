@@ -387,9 +387,7 @@ describe("restaking", () => {
 
     try {
       const tx = await program.methods
-        .withdraw(
-          new anchor.BN(depositAmount)
-        )
+        .withdraw()
         .preInstructions([
           anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
             units: 1000000,

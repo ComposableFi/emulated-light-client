@@ -1,8 +1,6 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::metadata::{
-    burn_nft, BurnNft, Metadata,
-};
+use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
 use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::Chain;
@@ -121,9 +119,10 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
+    pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
+        let stake_token_mint = ctx.accounts.token_mint.key();
 
         let current_time = Clock::get()?.unix_timestamp as u64;
         msg!(
@@ -135,8 +134,12 @@ pub mod restaking {
         //     return Err(error!(ErrorCodes::CannotWithdrawDuringBoundingPeriod));
         // };
 
-        let chain = &ctx.accounts.guest_chain;
-        let validator_key = match vault_params.service {
+        if stake_token_mint != vault_params.stake_mint {
+            return Err(error!(ErrorCodes::InvalidTokenMint));
+        }
+
+        let _chain = &ctx.accounts.guest_chain;
+        let _validator_key = match vault_params.service {
             Service::GuestChain { validator } => validator,
         };
 
@@ -164,7 +167,7 @@ pub mod restaking {
             seeds, //signer PDA
         );
 
-        anchor_spl::token::transfer(cpi_ctx, amount)?;
+        anchor_spl::token::transfer(cpi_ctx, vault_params.stake_amount)?;
 
         // Burn receipt tokens
         burn_nft(
@@ -186,6 +189,8 @@ pub mod restaking {
             None,
         )?;
 
+        // Call Guest chain to update the stake
+
         Ok(())
     }
 
@@ -206,7 +211,7 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn claim_rewards(ctx: Context<Withdraw>) -> Result<()> { Ok(()) }
+    pub fn claim_rewards(_ctx: Context<Withdraw>) -> Result<()> { Ok(()) }
 }
 
 #[derive(Accounts)]
@@ -390,4 +395,8 @@ pub enum ErrorCodes {
     TokenNotWhitelisted,
     #[msg("Cannot withdraw during bounding period")]
     CannotWithdrawDuringBoundingPeriod,
+    #[msg("Subtraction overflow")]
+    SubtractionOverflow,
+    #[msg("Invalid Token Mint")]
+    InvalidTokenMint,
 }
