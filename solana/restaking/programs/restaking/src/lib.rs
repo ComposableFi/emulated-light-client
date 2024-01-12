@@ -25,13 +25,13 @@ pub mod restaking {
     pub fn initialize(
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<Pubkey>,
-        bounding_timestamp: u64,
+        bounding_timestamp: i64,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
-        staking_params.bounding_timestamp = bounding_timestamp;
+        staking_params.bounding_timestamp_sec = bounding_timestamp;
         staking_params.rewards_token_mint =
             ctx.accounts.rewards_token_mint.key();
 
@@ -66,7 +66,7 @@ pub mod restaking {
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
 
         vault_params.service = service;
-        vault_params.stake_timestamp = Clock::get()?.unix_timestamp as u64;
+        vault_params.stake_timestamp_sec = Clock::get()?.unix_timestamp;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
         vault_params.last_received_rewards_height = 0;
@@ -131,7 +131,7 @@ pub mod restaking {
         msg!(
             "current {} bounding_timestamp {}",
             current_time,
-            staking_params.bounding_timestamp
+            staking_params.bounding_timestamp_sec
         );
         // if current_time < staking_params.bounding_timestamp {
         //     return Err(error!(ErrorCodes::CannotWithdrawDuringBoundingPeriod));
@@ -449,7 +449,7 @@ pub struct StakingParams {
     pub admin: Pubkey,
     #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
-    pub bounding_timestamp: u64,
+    pub bounding_timestamp_sec: i64,
     pub rewards_token_mint: Pubkey,
 }
 
@@ -461,7 +461,7 @@ pub enum Service {
 
 #[account]
 pub struct Vault {
-    pub stake_timestamp: u64,
+    pub stake_timestamp_sec: i64,
     // Program to which the amount is staked
     // unused for now
     pub service: Service,
