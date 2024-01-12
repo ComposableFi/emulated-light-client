@@ -7,7 +7,7 @@ use anchor_spl::metadata::{
 use anchor_spl::token::{mint_to, MintTo, Transfer};
 
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
-use crate::{Claim, Deposit, Withdraw};
+use crate::{Claim, Deposit, Withdraw, WithdrawRewardFunds};
 
 pub fn transfer(
     accounts: TransferAccounts<'_>,
@@ -146,6 +146,17 @@ impl<'a> From<&mut Withdraw<'a>> for TransferAccounts<'a> {
         Self {
             from: accounts.vault_token_account.to_account_info(),
             to: accounts.withdrawer_token_account.to_account_info(),
+            authority: accounts.staking_params.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        }
+    }
+}
+
+impl<'a> From<&mut WithdrawRewardFunds<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut WithdrawRewardFunds<'a>) -> Self {
+        Self {
+            from: accounts.rewards_token_account.to_account_info(),
+            to: accounts.admin_rewards_token_account.to_account_info(),
             authority: accounts.staking_params.to_account_info(),
             token_program: accounts.token_program.to_account_info(),
         }

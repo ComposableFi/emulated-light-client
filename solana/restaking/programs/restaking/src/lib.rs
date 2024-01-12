@@ -221,6 +221,27 @@ pub mod restaking {
 
         Ok(())
     }
+
+    /// This method would only be called by `Admin` to withdraw all the funds from the rewards account
+    /// 
+    /// This would usually be called when a wrong amount of funds are transferred in the rewards account.
+    /// This is a safety measure and should only be called on emergency.
+    pub fn withdraw_reward_funds(ctx: Context<WithdrawRewardFunds>) -> Result<()> {
+
+        msg!("Transferring all the funds from rewards token account to admin account");
+        
+        let rewards_balance = ctx.accounts.rewards_token_account.amount;
+
+        let bump = ctx.bumps.staking_params;
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+
+        token::transfer(ctx.accounts.into(), seeds, rewards_balance)?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -403,6 +424,23 @@ pub struct Claim<'info> {
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawRewardFunds<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = rewards_token_mint, has_one = admin)]
+    pub staking_params: Box<Account<'info, StakingParams>>,
+
+    pub rewards_token_mint: Account<'info, Mint>,
+    #[account(mut, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    pub rewards_token_account: Account<'info, TokenAccount>,
+
+    pub admin_rewards_token_account: Account<'info, TokenAccount>,
+
+    token_program: Program<'info, Token>,
 }
 
 #[account]
