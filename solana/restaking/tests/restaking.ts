@@ -2,9 +2,9 @@ import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { Program } from "@coral-xyz/anchor";
-import { Restaking, IDL } from "../../../target/types/restaking";
+import { Restaking, IDL } from "../../../target/types/restaking.js";
 import assert from "assert";
-import bs58 from "bs58";
+import bs58 from "bs58"
 
 describe("restaking", () => {
   // Configure the client to use the local cluster.
