@@ -7,10 +7,10 @@ rust-version = "1.71.0"
 [workspace]
 members = [
     "common/*",
+    "solana/restaking/programs/*",
     "solana/trie",
     "solana/trie-example",
     "solana/solana-ibc/programs/*",
-    "solana/restaking/programs/*"
 ]
 resolver = "2"
 
