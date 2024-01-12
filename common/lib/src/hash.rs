@@ -181,7 +181,7 @@ impl<'a> TryFrom<&'a [u8]> for CryptoHash {
 
     #[inline]
     fn try_from(hash: &'a [u8]) -> Result<Self, Self::Error> {
-        <&CryptoHash>::try_from(hash).map(Clone::clone)
+        <&CryptoHash>::try_from(hash).cloned()
     }
 }
 

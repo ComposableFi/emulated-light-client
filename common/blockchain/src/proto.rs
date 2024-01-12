@@ -81,55 +81,63 @@ impl core::fmt::Display for BadMessage {
 }
 
 
-impl From<ConsensusState> for Any {
-    fn from(msg: ConsensusState) -> Self { Self::from(&msg) }
-}
-
-impl From<&ConsensusState> for Any {
-    fn from(msg: &ConsensusState) -> Self {
-        Self {
-            type_url: ConsensusState::TYPE_URL.into(),
-            value: msg.encode_to_vec(),
+macro_rules! impl_proto {
+    ($Msg:ident; $test:ident) => {
+        impl From<$Msg> for Any {
+            fn from(msg: $Msg) -> Self { Self::from(&msg) }
         }
-    }
-}
 
-impl TryFrom<Any> for ConsensusState {
-    type Error = DecodeError;
-    fn try_from(any: Any) -> Result<Self, Self::Error> { Self::try_from(&any) }
-}
-
-impl TryFrom<&Any> for ConsensusState {
-    type Error = DecodeError;
-    fn try_from(any: &Any) -> Result<Self, Self::Error> {
-        if Self::TYPE_URL == any.type_url {
-            Ok(ConsensusState::decode(any.value.as_slice())?)
-        } else {
-            Err(DecodeError::BadType)
+        impl From<&$Msg> for Any {
+            fn from(msg: &$Msg) -> Self {
+                Self {
+                    type_url: $Msg::TYPE_URL.into(),
+                    value: msg.encode_to_vec(),
+                }
+            }
         }
-    }
+
+        impl TryFrom<Any> for $Msg {
+            type Error = DecodeError;
+            fn try_from(any: Any) -> Result<Self, Self::Error> {
+                Self::try_from(&any)
+            }
+        }
+
+        impl TryFrom<&Any> for $Msg {
+            type Error = DecodeError;
+            fn try_from(any: &Any) -> Result<Self, Self::Error> {
+                if Self::TYPE_URL == any.type_url {
+                    Ok($Msg::decode(any.value.as_slice())?)
+                } else {
+                    Err(DecodeError::BadType)
+                }
+            }
+        }
+
+        #[test]
+        fn $test() {
+            use alloc::format;
+
+            use prost::Name;
+
+            // Make sure TYPE_URL we set by hand matches type_url which is derived.
+            assert_eq!($Msg::type_url(), $Msg::TYPE_URL);
+
+            // Check round-trip conversion through Any.
+            let state = $Msg::test();
+            let mut any = Any::try_from(&state).unwrap();
+            assert_eq!(Ok(state), $Msg::try_from(&any));
+
+            // Check type verifyication
+            any.type_url = "bogus".into();
+            assert_eq!(Err(DecodeError::BadType), $Msg::try_from(&any));
+
+            // Check ProtoBuf encoding.
+            if !cfg!(miri) {
+                insta::assert_debug_snapshot!(any.value);
+            }
+        }
+    };
 }
 
-#[test]
-fn test_consensus_state() {
-    use alloc::format;
-
-    use prost::Name;
-
-    // Make sure TYPE_URL we set by hand matches type_url which is derived.
-    assert_eq!(ConsensusState::type_url(), ConsensusState::TYPE_URL);
-
-    // Check round-trip conversion through Any.
-    let state = ConsensusState::test();
-    let mut any = Any::try_from(&state).unwrap();
-    assert_eq!(Ok(state), ConsensusState::try_from(&any));
-
-    // Check type verifyication
-    any.type_url = "bogus".into();
-    assert_eq!(Err(DecodeError::BadType), ConsensusState::try_from(&any));
-
-    // Check ProtoBuf encoding.
-    if !cfg!(miri) {
-        insta::assert_debug_snapshot!(any.value);
-    }
-}
+impl_proto!(ConsensusState; test_consensus_state);
