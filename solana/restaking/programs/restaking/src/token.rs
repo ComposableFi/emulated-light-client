@@ -6,21 +6,21 @@ use anchor_spl::metadata::{
 };
 use anchor_spl::token::{mint_to, MintTo, Transfer};
 
-use crate::{Deposit, Claim, Withdraw};
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
+use crate::{Claim, Deposit, Withdraw};
 
 pub fn transfer<'a>(
     accounts: TransferAccounts<'a>,
     seeds: &[&[&[u8]]],
     amount: u64,
 ) -> Result<()> {
-    let transfer_instruction = Transfer { 
-        from: accounts.from, 
-        to: accounts.to, 
-        authority: accounts.authority, 
+    let transfer_instruction = Transfer {
+        from: accounts.from,
+        to: accounts.to,
+        authority: accounts.authority,
     };
 
-    let cpi_ctx = CpiContext::new_with_signer( 
+    let cpi_ctx = CpiContext::new_with_signer(
         accounts.token_program,
         transfer_instruction,
         seeds, //signer PDA
@@ -153,8 +153,8 @@ impl<'a> From<&mut Withdraw<'a>> for TransferAccounts<'a> {
 }
 
 
-impl <'a> From <&mut Deposit<'a>> for MintNftAccounts<'a> {
-    fn from (accounts: &mut Deposit<'a>) -> Self {
+impl<'a> From<&mut Deposit<'a>> for MintNftAccounts<'a> {
+    fn from(accounts: &mut Deposit<'a>) -> Self {
         Self {
             token_mint: accounts.receipt_token_mint.to_account_info(),
             payer: accounts.depositor.to_account_info(),

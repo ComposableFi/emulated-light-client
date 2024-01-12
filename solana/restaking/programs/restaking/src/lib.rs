@@ -78,11 +78,7 @@ pub mod restaking {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        token::transfer(
-            ctx.accounts.into(),
-            seeds,
-            amount,
-        )?;
+        token::transfer(ctx.accounts.into(), seeds, amount)?;
 
         // Mint receipt tokens
         token::mint_nft(ctx.accounts.into(), seeds)?;
@@ -143,11 +139,7 @@ pub mod restaking {
 
         let amount = vault_params.stake_amount;
 
-        token::transfer(
-            ctx.accounts.into(),
-            seeds,
-            amount, 
-        )?;
+        token::transfer(ctx.accounts.into(), seeds, amount)?;
 
         // Burn receipt token
         burn_nft(
