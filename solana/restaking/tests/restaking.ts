@@ -2,7 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { Program } from "@coral-xyz/anchor";
-import { Restaking, IDL } from "../../../target/types/restaking.js";
+import { Restaking, IDL } from "../../../target/types/restaking";
 import assert from "assert";
 import bs58 from "bs58"
 
