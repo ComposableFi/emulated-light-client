@@ -12,8 +12,8 @@ The high level flow of the program is given in the image below.
 
 ## Instructions
 
-When the contract is deployed, the `initialize` method is called where the bounding period, whitelisted tokens and the admin key is set. Any update to the staking paramters can only be done by the admin key.
-After that the users can start staking.
+When the contract is deployed, the `initialize` method is called where the bounding period, whitelisted tokens, admin key and the rewards token mint is set. Any update to the staking paramters can only be done by the admin key. A token account is also created for the rewards token mint which would distribute the rewards. Since the authority is PDA, any debit from the account will happen only through the contract (only in `claim` method for now).
+After that the users can start staking. 
 
 - `Deposit`: User can stake any of the whitelisted token. The tokens are stored in the vault and receipt tokens are minted for the user. A CPI (cross program invocation) call is made to the guest chain program where the stake is updated for the validator specified.
 

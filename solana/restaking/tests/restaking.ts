@@ -13,7 +13,7 @@ describe("restaking", () => {
 
   const program = new Program(
     IDL,
-    "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG",
+    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3",
     provider
   );
 
@@ -27,9 +27,10 @@ describe("restaking", () => {
   let initialMintAmount = 100000000;
   const depositAmount = 4000;
   const boundingPeriod = 5; // 5 seconds
+  const testSeed = "abcdefg2";
 
   const guestChainProgramId = new anchor.web3.PublicKey(
-    "32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh"
+    "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
   );
 
   let tokenMintKeypair = anchor.web3.Keypair.generate();
@@ -175,10 +176,19 @@ describe("restaking", () => {
   const getStakingParamsPDA = () => {
     const [stakingParamsPDA, stakingParamsBump] =
       anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("staking_params"), Buffer.from("abcdefg1")],
+        [Buffer.from("staking_params"), Buffer.from(testSeed)],
         program.programId
       );
     return { stakingParamsPDA, stakingParamsBump };
+  };
+
+  const getRewardsTokenAccountPDA = () => {
+    const [rewardsTokenAccountPDA, rewardsTokenAccountBump] =
+      anchor.web3.PublicKey.findProgramAddressSync(
+        [Buffer.from("rewards"), Buffer.from(testSeed)],
+        program.programId
+      );
+    return { rewardsTokenAccountPDA, rewardsTokenAccountBump };
   };
 
   const getVaultParamsPDA = (user_key: anchor.web3.PublicKey) => {
@@ -264,6 +274,9 @@ describe("restaking", () => {
     const whitelistedTokens = [wSolMint];
     const boundingTimestamp = (Date.now() / 1000) + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
+    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+    console.log("Staking params: ", stakingParamsPDA);
+    console.log("Rewards token account: ", rewardsTokenAccountPDA);
     try {
       const tx = await program.methods
         .initialize(whitelistedTokens, new anchor.BN(boundingTimestamp))
@@ -271,6 +284,9 @@ describe("restaking", () => {
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
           systemProgram: anchor.web3.SystemProgram.programId,
+          rewardsTokenMint: wSolMint,
+          tokenProgram: spl.TOKEN_PROGRAM_ID,
+          rewardsTokenAccount: rewardsTokenAccountPDA,
         })
         .signers([admin])
         .rpc();

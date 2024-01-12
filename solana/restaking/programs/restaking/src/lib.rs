@@ -11,15 +11,16 @@ pub mod constants;
 mod token;
 
 use constants::{
-    STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED,
+    REWARDS_SEED, STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED,
 };
 
-declare_id!("4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG");
+declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
 
 #[program]
 pub mod restaking {
 
     use super::*;
+    use crate::token::transfer;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -31,6 +32,8 @@ pub mod restaking {
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
         staking_params.bounding_timestamp = bounding_timestamp;
+        staking_params.rewards_token_mint =
+            ctx.accounts.rewards_token_mint.key();
 
         Ok(())
     }
@@ -169,7 +172,7 @@ pub mod restaking {
 
         anchor_spl::token::transfer(cpi_ctx, vault_params.stake_amount)?;
 
-        // Burn receipt tokens
+        // Burn receipt token
         burn_nft(
             CpiContext::new_with_signer(
                 ctx.accounts.metadata_program.to_account_info(),
@@ -211,7 +214,51 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn claim_rewards(_ctx: Context<Withdraw>) -> Result<()> { Ok(()) }
+    pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
+        let token_account = &ctx.accounts.receipt_token_account;
+        if token_account.amount < 1 {
+            return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
+        }
+
+        // let vault_params = &ctx.accounts.vault_params;
+        // let chain = &ctx.accounts.guest_chain;
+
+        // let validator = match vault_params.service {
+        //     Service::GuestChain { validator } => validator,
+        // };
+        // let stake_amount = vault_params.stake_amount;
+        // let last_recevied_epoch_height = vault_params.last_received_rewards_height;
+
+        /*
+         * Get the rewards from guest blockchain.
+         */
+
+        // let rewards = chain.calculate_rewards(last_received_rewards_height, validator, stake_amount)?;
+
+        /*
+         * Get the current price of rewards token mint from the oracle
+         */
+
+        let amount = 0;
+
+        let bump = ctx.bumps.staking_params;
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+
+        // Transfer the tokens from the platfrom rewards token account to the user token account
+        transfer(
+            ctx.accounts.platform_rewards_token_account.to_account_info(),
+            ctx.accounts.depositor_rewards_token_account.to_account_info(),
+            ctx.accounts.staking_params.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            seeds,
+            amount,
+        )?;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -222,6 +269,11 @@ pub struct Initialize<'info> {
     #[account(init_if_needed, payer = admin, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, space = 1024)]
     pub staking_params: Account<'info, StakingParams>,
 
+    pub rewards_token_mint: Account<'info, Mint>,
+    #[account(init_if_needed, payer = admin, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    pub rewards_token_account: Account<'info, TokenAccount>,
+
+    token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
 }
 
@@ -360,6 +412,37 @@ pub struct UpdateTokenWhitelist<'info> {
     pub staking_params: Account<'info, StakingParams>,
 }
 
+#[derive(Accounts)]
+pub struct Claim<'info> {
+    #[account(mut)]
+    pub claimer: Signer<'info>,
+
+    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
+    pub vault_params: Box<Account<'info, Vault>>,
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = rewards_token_mint)]
+    pub staking_params: Box<Account<'info, StakingParams>>,
+
+    #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
+    pub guest_chain: Box<Account<'info, ChainData>>,
+
+    pub rewards_token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = rewards_token_mint, token::authority = claimer)]
+    pub depositor_rewards_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    pub platform_rewards_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut, mint::decimals = 0)]
+    pub receipt_token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = receipt_token_mint, token::authority = claimer)]
+    pub receipt_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub guest_chain_program: Program<'info, SolanaIbc>,
+    pub token_program: Program<'info, Token>,
+    pub system_program: Program<'info, System>,
+    pub rent: Sysvar<'info, Rent>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct StakingParams {
@@ -367,6 +450,7 @@ pub struct StakingParams {
     #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
     pub bounding_timestamp: u64,
+    pub rewards_token_mint: Pubkey,
 }
 
 /// Unused for now
@@ -399,4 +483,6 @@ pub enum ErrorCodes {
     SubtractionOverflow,
     #[msg("Invalid Token Mint")]
     InvalidTokenMint,
+    #[msg("Insufficient receipt token balance, expected balance 1")]
+    InsufficientReceiptTokenBalance,
 }
