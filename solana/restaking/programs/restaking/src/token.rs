@@ -9,8 +9,8 @@ use anchor_spl::token::{mint_to, MintTo, Transfer};
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 use crate::{Claim, Deposit, Withdraw};
 
-pub fn transfer<'a>(
-    accounts: TransferAccounts<'a>,
+pub fn transfer(
+    accounts: TransferAccounts<'_>,
     seeds: &[&[&[u8]]],
     amount: u64,
 ) -> Result<()> {
@@ -30,8 +30,8 @@ pub fn transfer<'a>(
     Ok(())
 }
 
-pub fn mint_nft<'a>(
-    accounts: MintNftAccounts<'a>,
+pub fn mint_nft(
+    accounts: MintNftAccounts<'_>,
     seeds: &[&[&[u8]]],
 ) -> Result<()> {
     mint_to(
