@@ -108,7 +108,7 @@ jobs:
           avm use $ANCHOR_VERSION
        
       - name: Installing node modules
-      - run : yarn
+        run : yarn
 
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks
