@@ -1,6 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { guestChainProgramId, restakingProgramId, testSeed } from "./constants";
+import { Restaking } from "../../../target/types/restaking";
 
 const guestChainProgramID = new anchor.web3.PublicKey(guestChainProgramId);
 const restakingProgramID = new anchor.web3.PublicKey(restakingProgramId);
@@ -97,3 +98,23 @@ export const getGuestChainAccounts = () => {
 
   return { guestChainPDA, triePDA, ibcStoragePDA };
 };
+
+/// Queries for staking parameters data
+///
+/// Contains the whitelisted token list, rewards token mint, bounding period along
+/// with the admin
+export const getStakingParameters = async(program: anchor.Program<Restaking>) => {
+  const { stakingParamsPDA } = getStakingParamsPDA();
+  const stakingParams = await program.account.stakingParams.fetch(stakingParamsPDA);
+  return stakingParams
+}
+
+/// Queries for vault parameters data. Requires the NFT mint
+///
+/// Contains the staked token amount, staked token mint, stake time,
+/// the height at which the rewards were previously claimed at.
+export const getVaultParameters = async(program: anchor.Program<Restaking>, tokenMint: anchor.web3.PublicKey) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
+  const vaultParams = await program.account.vault.fetch(vaultParamsPDA);
+  return vaultParams
+}
