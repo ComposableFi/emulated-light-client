@@ -110,6 +110,9 @@ jobs:
       - name: Installing node modules
         run : yarn
 
+      - name: Installing ts-mocha and typescript globally
+        run: yarn global add ts-mocha typescript
+
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks
 
