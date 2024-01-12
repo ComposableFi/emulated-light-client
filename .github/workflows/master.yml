@@ -106,6 +106,9 @@ jobs:
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
+       
+      - name: Installing node modules
+      - run : yarn
 
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks
