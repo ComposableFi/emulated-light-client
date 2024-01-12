@@ -196,13 +196,18 @@ pub mod restaking {
             Service::GuestChain { validator } => validator,
         };
         let stake_amount = vault_params.stake_amount;
-        let last_received_rewards_height = vault_params.last_received_rewards_height;
+        let last_received_rewards_height =
+            vault_params.last_received_rewards_height;
 
         /*
          * Get the rewards from guest blockchain.
          */
 
-        let rewards = chain.calculate_rewards(last_received_rewards_height, validator, stake_amount)?;
+        let rewards = chain.calculate_rewards(
+            last_received_rewards_height,
+            validator,
+            stake_amount,
+        )?;
 
         /*
          * Get the current price of rewards token mint from the oracle
@@ -221,13 +226,17 @@ pub mod restaking {
     }
 
     /// This method would only be called by `Admin` to withdraw all the funds from the rewards account
-    /// 
+    ///
     /// This would usually be called when a wrong amount of funds are transferred in the rewards account.
     /// This is a safety measure and should only be called on emergency.
-    pub fn withdraw_reward_funds(ctx: Context<WithdrawRewardFunds>) -> Result<()> {
+    pub fn withdraw_reward_funds(
+        ctx: Context<WithdrawRewardFunds>,
+    ) -> Result<()> {
+        msg!(
+            "Transferring all the funds from rewards token account to admin \
+             account"
+        );
 
-        msg!("Transferring all the funds from rewards token account to admin account");
-        
         let rewards_balance = ctx.accounts.rewards_token_account.amount;
 
         let bump = ctx.bumps.staking_params;
