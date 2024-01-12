@@ -6,20 +6,22 @@ use anchor_spl::metadata::{
 };
 use anchor_spl::token::{mint_to, MintTo, Transfer};
 
+use crate::{Deposit, Claim, Withdraw};
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 
-pub fn transfer<'info>(
-    from: AccountInfo<'info>,
-    to: AccountInfo<'info>,
-    authority: AccountInfo<'info>,
-    token_program: AccountInfo<'info>,
+pub fn transfer<'a>(
+    accounts: TransferAccounts<'a>,
     seeds: &[&[&[u8]]],
     amount: u64,
 ) -> Result<()> {
-    let transfer_instruction = Transfer { from, to, authority };
+    let transfer_instruction = Transfer { 
+        from: accounts.from, 
+        to: accounts.to, 
+        authority: accounts.authority, 
+    };
 
-    let cpi_ctx = CpiContext::new_with_signer(
-        token_program,
+    let cpi_ctx = CpiContext::new_with_signer( 
+        accounts.token_program,
         transfer_instruction,
         seeds, //signer PDA
     );
@@ -28,28 +30,17 @@ pub fn transfer<'info>(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn mint_nft<'info>(
-    token_mint: AccountInfo<'info>,
-    payer: AccountInfo<'info>,
-    mint_authority: AccountInfo<'info>,
-    to: AccountInfo<'info>,
-    token_program: AccountInfo<'info>,
-    metadata_program: AccountInfo<'info>,
-    update_authority: AccountInfo<'info>,
-    system_program: AccountInfo<'info>,
-    rent: AccountInfo<'info>,
-    metadata: AccountInfo<'info>,
-    edition: AccountInfo<'info>,
+pub fn mint_nft<'a>(
+    accounts: MintNftAccounts<'a>,
     seeds: &[&[&[u8]]],
 ) -> Result<()> {
     mint_to(
         CpiContext::new_with_signer(
-            token_program.clone(),
+            accounts.token_program.clone(),
             MintTo {
-                authority: mint_authority.clone(),
-                to,
-                mint: token_mint.clone(),
+                authority: accounts.mint_authority.clone(),
+                to: accounts.to,
+                mint: accounts.token_mint.clone(),
             },
             seeds,
         ),
@@ -58,15 +49,15 @@ pub fn mint_nft<'info>(
 
     create_metadata_accounts_v3(
         CpiContext::new_with_signer(
-            metadata_program.clone(),
+            accounts.metadata_program.clone(),
             CreateMetadataAccountsV3 {
-                payer: payer.clone(),
-                mint: token_mint.clone(),
-                metadata: metadata.clone(),
-                mint_authority: mint_authority.clone(),
-                update_authority: update_authority.clone(),
-                system_program: system_program.clone(),
-                rent: rent.clone(),
+                payer: accounts.payer.clone(),
+                mint: accounts.token_mint.clone(),
+                metadata: accounts.metadata.clone(),
+                mint_authority: accounts.mint_authority.clone(),
+                update_authority: accounts.update_authority.clone(),
+                system_program: accounts.system_program.clone(),
+                rent: accounts.rent.clone(),
             },
             seeds,
         ),
@@ -88,21 +79,94 @@ pub fn mint_nft<'info>(
 
     create_master_edition_v3(
         CpiContext::new_with_signer(
-            metadata_program,
+            accounts.metadata_program,
             CreateMasterEditionV3 {
-                edition,
-                mint: token_mint,
-                update_authority,
-                mint_authority,
-                payer,
-                metadata,
-                token_program,
-                system_program,
-                rent,
+                edition: accounts.edition,
+                mint: accounts.token_mint,
+                update_authority: accounts.update_authority,
+                mint_authority: accounts.mint_authority,
+                payer: accounts.payer,
+                metadata: accounts.metadata,
+                token_program: accounts.token_program,
+                system_program: accounts.system_program,
+                rent: accounts.rent,
             },
             seeds,
         ),
         Some(1),
     )?;
     Ok(())
+}
+
+pub struct TransferAccounts<'a> {
+    pub from: AccountInfo<'a>,
+    pub to: AccountInfo<'a>,
+    pub authority: AccountInfo<'a>,
+    pub token_program: AccountInfo<'a>,
+}
+
+pub struct MintNftAccounts<'a> {
+    token_mint: AccountInfo<'a>,
+    payer: AccountInfo<'a>,
+    mint_authority: AccountInfo<'a>,
+    to: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
+    metadata_program: AccountInfo<'a>,
+    update_authority: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
+    rent: AccountInfo<'a>,
+    metadata: AccountInfo<'a>,
+    edition: AccountInfo<'a>,
+}
+
+impl<'a> From<&mut Deposit<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut Deposit<'a>) -> Self {
+        Self {
+            from: accounts.depositor_token_account.to_account_info(),
+            to: accounts.vault_token_account.to_account_info(),
+            authority: accounts.depositor.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        }
+    }
+}
+
+impl<'a> From<&mut Claim<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut Claim<'a>) -> Self {
+        Self {
+            from: accounts.platform_rewards_token_account.to_account_info(),
+            to: accounts.depositor_rewards_token_account.to_account_info(),
+            authority: accounts.staking_params.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        }
+    }
+}
+
+impl<'a> From<&mut Withdraw<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut Withdraw<'a>) -> Self {
+        Self {
+            from: accounts.vault_token_account.to_account_info(),
+            to: accounts.withdrawer_token_account.to_account_info(),
+            authority: accounts.staking_params.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        }
+    }
+}
+
+
+impl <'a> From <&mut Deposit<'a>> for MintNftAccounts<'a> {
+    fn from (accounts: &mut Deposit<'a>) -> Self {
+        Self {
+            token_mint: accounts.receipt_token_mint.to_account_info(),
+            payer: accounts.depositor.to_account_info(),
+            mint_authority: accounts.depositor.to_account_info(),
+            to: accounts.receipt_token_account.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+            metadata_program: accounts.metadata_program.to_account_info(),
+            update_authority: accounts.depositor.to_account_info(),
+            system_program: accounts.system_program.to_account_info(),
+            rent: accounts.rent.to_account_info(),
+            metadata: accounts.nft_metadata.to_account_info(),
+            edition: accounts.master_edition_account.to_account_info(),
+        }
+    }
 }

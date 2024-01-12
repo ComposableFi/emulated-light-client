@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
-use anchor_spl::token::{Mint, Token, TokenAccount, Transfer};
+use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::Chain;
 use solana_ibc::program::SolanaIbc;
@@ -20,7 +20,6 @@ declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
 pub mod restaking {
 
     use super::*;
-    use crate::token::transfer;
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -80,29 +79,13 @@ pub mod restaking {
         let seeds = core::slice::from_ref(&seeds);
 
         token::transfer(
-            ctx.accounts.depositor_token_account.to_account_info(),
-            ctx.accounts.vault_token_account.to_account_info(),
-            ctx.accounts.depositor.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.into(),
             seeds,
             amount,
         )?;
 
         // Mint receipt tokens
-        token::mint_nft(
-            ctx.accounts.receipt_token_mint.to_account_info(),
-            ctx.accounts.depositor.to_account_info(),
-            ctx.accounts.depositor.to_account_info(),
-            ctx.accounts.receipt_token_account.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
-            ctx.accounts.metadata_program.to_account_info(),
-            ctx.accounts.depositor.to_account_info(),
-            ctx.accounts.system_program.to_account_info(),
-            ctx.accounts.rent.to_account_info(),
-            ctx.accounts.nft_metadata.to_account_info(),
-            ctx.accounts.master_edition_account.to_account_info(),
-            seeds,
-        )?;
+        token::mint_nft(ctx.accounts.into(), seeds)?;
 
         // Call Guest chain program to update the stake
 
@@ -158,19 +141,13 @@ pub mod restaking {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        let transfer_instruction = Transfer {
-            from: ctx.accounts.vault_token_account.to_account_info(),
-            to: ctx.accounts.withdrawer_token_account.to_account_info(),
-            authority: staking_params.to_account_info(),
-        };
+        let amount = vault_params.stake_amount;
 
-        let cpi_ctx = CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            transfer_instruction,
-            seeds, //signer PDA
-        );
-
-        anchor_spl::token::transfer(cpi_ctx, vault_params.stake_amount)?;
+        token::transfer(
+            ctx.accounts.into(),
+            seeds,
+            amount, 
+        )?;
 
         // Burn receipt token
         burn_nft(
@@ -248,14 +225,7 @@ pub mod restaking {
         let seeds = core::slice::from_ref(&seeds);
 
         // Transfer the tokens from the platfrom rewards token account to the user token account
-        transfer(
-            ctx.accounts.platform_rewards_token_account.to_account_info(),
-            ctx.accounts.depositor_rewards_token_account.to_account_info(),
-            ctx.accounts.staking_params.to_account_info(),
-            ctx.accounts.token_program.to_account_info(),
-            seeds,
-            amount,
-        )?;
+        token::transfer(ctx.accounts.into(), seeds, amount)?;
 
         Ok(())
     }
