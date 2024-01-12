@@ -4,7 +4,19 @@ import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { Program } from "@coral-xyz/anchor";
 import { Restaking, IDL } from "../../../target/types/restaking";
 import assert from "assert";
-import bs58 from "bs58"
+import bs58 from "bs58";
+import {
+  getGuestChainAccounts,
+  getMasterEditionPDA,
+  getNftMetadataPDA,
+  getReceiptTokenMintPDA,
+  getRewardsTokenAccountPDA,
+  getStakingParamsPDA,
+  getVaultParamsPDA,
+  getVaultTokenAccountPDA,
+} from "./helper";
+
+export const programID = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 
 describe("restaking", () => {
   // Configure the client to use the local cluster.
@@ -13,7 +25,7 @@ describe("restaking", () => {
 
   const program = new Program(
     IDL,
-    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3",
+    programID,
     provider
   );
 
@@ -26,8 +38,8 @@ describe("restaking", () => {
 
   let initialMintAmount = 100000000;
   const depositAmount = 4000;
-  const boundingPeriod = 5; // 5 seconds
-  const testSeed = "abcdefg2";
+  const boundingPeriod = 5; 
+  
 
   const guestChainProgramId = new anchor.web3.PublicKey(
     "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
@@ -173,106 +185,9 @@ describe("restaking", () => {
     });
   }
 
-  const getStakingParamsPDA = () => {
-    const [stakingParamsPDA, stakingParamsBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("staking_params"), Buffer.from(testSeed)],
-        program.programId
-      );
-    return { stakingParamsPDA, stakingParamsBump };
-  };
-
-  const getRewardsTokenAccountPDA = () => {
-    const [rewardsTokenAccountPDA, rewardsTokenAccountBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("rewards"), Buffer.from(testSeed)],
-        program.programId
-      );
-    return { rewardsTokenAccountPDA, rewardsTokenAccountBump };
-  };
-
-  const getVaultParamsPDA = (user_key: anchor.web3.PublicKey) => {
-    const [vaultParamsPDA, vaultParamsBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("vault_params"), user_key.toBuffer()],
-        program.programId
-      );
-    return { vaultParamsPDA, vaultParamsBump };
-  };
-
-  const getVaultTokenAccountPDA = (token_mint: anchor.web3.PublicKey) => {
-    const [vaultTokenAccountPDA, vaultTokenAccountBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("vault"), token_mint.toBuffer()],
-        program.programId
-      );
-    return { vaultTokenAccountPDA, vaultTokenAccountBump };
-  };
-
-  const getReceiptTokenMintPDA = (token_mint: anchor.web3.PublicKey) => {
-    const [receiptTokenMintPDA, receiptTokenMintBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("receipt"), token_mint.toBuffer()],
-        program.programId
-      );
-    return { receiptTokenMintPDA, receiptTokenMintBump };
-  };
-
-  const getMasterEditionPDA = (token_mint: anchor.web3.PublicKey) => {
-    const [masterEditionPDA, masterEditionBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("metadata"),
-          new anchor.web3.PublicKey(
-            mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-          ).toBuffer(),
-          token_mint.toBuffer(),
-          Buffer.from("edition"),
-        ],
-        new anchor.web3.PublicKey(mpl.MPL_TOKEN_METADATA_PROGRAM_ID)
-      );
-    return { masterEditionPDA, masterEditionBump };
-  };
-
-  const getNftMetadataPDA = (token_mint: anchor.web3.PublicKey) => {
-    const [nftMetadataPDA, nftMetadataBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [
-          Buffer.from("metadata"),
-          new anchor.web3.PublicKey(
-            mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-          ).toBuffer(),
-          token_mint.toBuffer(),
-        ],
-        new anchor.web3.PublicKey(mpl.MPL_TOKEN_METADATA_PROGRAM_ID)
-      );
-    return { nftMetadataPDA, nftMetadataBump };
-  };
-
-  const getGuestChainAccounts = () => {
-    const [guestChainPDA, guestChainBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("chain")],
-        guestChainProgramId
-      );
-
-    const [triePDA, trieBump] = anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("trie")],
-      guestChainProgramId
-    );
-
-    const [ibcStoragePDA, ibcStorageBump] =
-      anchor.web3.PublicKey.findProgramAddressSync(
-        [Buffer.from("private")],
-        guestChainProgramId
-      );
-
-    return { guestChainPDA, triePDA, ibcStoragePDA };
-  };
-
   it("Is Initialized", async () => {
     const whitelistedTokens = [wSolMint];
-    const boundingTimestamp = (Date.now() / 1000) + boundingPeriod;
+    const boundingTimestamp = Date.now() / 1000 + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
     console.log("Staking params: ", stakingParamsPDA);
@@ -380,7 +295,7 @@ describe("restaking", () => {
     await sleep(boundingPeriod * 1000);
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
     const { stakingParamsPDA } = getStakingParamsPDA();
-    const { guestChainPDA} = getGuestChainAccounts();
+    const { guestChainPDA } = getGuestChainAccounts();
     const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(wSolMint);
     const { masterEditionPDA } = getMasterEditionPDA(tokenMint);
     const { nftMetadataPDA } = getNftMetadataPDA(tokenMint);
@@ -442,14 +357,10 @@ describe("restaking", () => {
         depositorBalanceAfter.amount - depositorBalanceBefore.amount,
         depositAmount
       );
-      assert.equal(
-        depositorReceiptTokenBalanceBefore.amount, 
-        1
-      );
+      assert.equal(depositorReceiptTokenBalanceBefore.amount, 1);
     } catch (error) {
       console.log(error);
       throw error;
     }
   });
-
 });
