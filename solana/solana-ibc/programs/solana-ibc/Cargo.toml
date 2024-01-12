@@ -36,6 +36,7 @@ strum.workspace = true
 uint.workspace = true
 
 guestchain.workspace = true
+cf-guest.workspace = true
 lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 solana-allocator = { workspace = true, optional = true }

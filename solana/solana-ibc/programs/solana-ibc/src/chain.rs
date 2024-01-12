@@ -337,21 +337,22 @@ impl From<ChainNotInitialised> for Error {
 }
 
 impl From<ChainNotInitialised> for anchor_lang::error::AnchorError {
-    fn from(_: ChainNotInitialised) -> Self {
-        Error::ChainNotInitialised.into()
-    }
+    fn from(err: ChainNotInitialised) -> Self { Error::from(err).into() }
 }
 
 impl From<ChainNotInitialised> for anchor_lang::error::Error {
+    fn from(err: ChainNotInitialised) -> Self { Error::from(err).into() }
+}
+
+impl From<ChainNotInitialised> for ibc::ClientError {
     fn from(_: ChainNotInitialised) -> Self {
-        Error::ChainNotInitialised.into()
+        ibc::ClientError::Other { description: "ChainNotInitialised".into() }
     }
 }
 
 impl From<ChainNotInitialised> for ibc::ContextError {
-    fn from(_: ChainNotInitialised) -> Self {
-        ibc::ClientError::Other { description: "ChainNotInitialised".into() }
-            .into()
+    fn from(err: ChainNotInitialised) -> Self {
+        ibc::ClientError::from(err).into()
     }
 }
 

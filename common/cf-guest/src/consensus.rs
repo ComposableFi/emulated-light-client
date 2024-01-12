@@ -40,6 +40,15 @@ impl ibc_core_client_context::consensus_state::ConsensusState
 }
 
 
+impl<PK: guestchain::PubKey> From<&crate::Header<PK>> for ConsensusState {
+    fn from(header: &crate::Header<PK>) -> Self {
+        Self {
+            block_hash: header.block_hash.to_vec().into(),
+            timestamp_ns: header.block_header.timestamp_ns,
+        }
+    }
+}
+
 impl From<ConsensusState> for proto::ConsensusState {
     fn from(state: ConsensusState) -> Self {
         Self {

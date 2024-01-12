@@ -1,4 +1,8 @@
+use alloc::vec::Vec;
 use core::num::NonZeroU128;
+
+#[derive(Copy, Clone, Debug)]
+pub struct BadFormat;
 
 /// A cryptographic public key used to identify validators and verify block
 /// signatures.
@@ -6,12 +10,24 @@ pub trait PubKey:
     Clone
     + Eq
     + Ord
+    + core::fmt::Debug
     + core::hash::Hash
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
 {
     /// Signature corresponding to this public key type.
-    type Signature: Clone + borsh::BorshSerialize + borsh::BorshDeserialize;
+    type Signature: Signature;
+
+    fn to_vec(&self) -> Vec<u8>;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
+}
+
+/// A cryptographic signature.
+pub trait Signature:
+    Clone + Eq + core::fmt::Debug + borsh::BorshSerialize + borsh::BorshDeserialize
+{
+    fn to_vec(&self) -> Vec<u8>;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
 /// Function verifying a signature.
@@ -57,8 +73,14 @@ impl<PK> Validator<PK> {
     pub fn stake(&self) -> NonZeroU128 { self.stake }
 }
 
-#[cfg(test)]
+impl From<core::array::TryFromSliceError> for BadFormat {
+    fn from(_: core::array::TryFromSliceError) -> BadFormat { BadFormat }
+}
+
+#[cfg(any(test, feature = "test_utils"))]
 pub(crate) mod test_utils {
+    use alloc::vec::Vec;
+
     use bytemuck::TransparentWrapper;
 
     /// A mock implementation of a PubKey.  Offers no security; intended for
@@ -127,6 +149,45 @@ pub(crate) mod test_utils {
 
     impl super::PubKey for MockPubKey {
         type Signature = MockSignature;
+
+        fn to_vec(&self) -> Vec<u8> { self.0.to_be_bytes().to_vec() }
+        fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
+            Ok(Self(u32::from_be_bytes(bytes.try_into()?)))
+        }
+    }
+
+    #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+    #[repr(C, packed)]
+    struct MockSignatureBytes {
+        genesis: [u8; 4],
+        height: [u8; 8],
+        hash: [u8; 4],
+        pubkey: [u8; 4],
+    }
+
+    impl super::Signature for MockSignature {
+        fn to_vec(&self) -> Vec<u8> {
+            bytemuck::bytes_of(&MockSignatureBytes {
+                genesis: self.0 .0.to_be_bytes(),
+                height: self.0 .1.to_be_bytes(),
+                hash: self.0 .2.to_be_bytes(),
+                pubkey: self.1 .0.to_be_bytes(),
+            })
+            .to_vec()
+        }
+
+        fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
+            let bytes: &[u8; 20] = bytes.try_into()?;
+            let bytes: &MockSignatureBytes = bytemuck::must_cast_ref(bytes);
+            Ok(Self(
+                (
+                    u32::from_be_bytes(bytes.genesis),
+                    u64::from_be_bytes(bytes.height),
+                    u32::from_be_bytes(bytes.hash),
+                ),
+                MockPubKey(u32::from_be_bytes(bytes.pubkey)),
+            ))
+        }
     }
 
     impl super::Verifier<MockPubKey> for () {
@@ -163,5 +224,5 @@ pub(crate) mod test_utils {
     }
 }
 
-#[cfg(test)]
-pub(crate) use test_utils::{MockPubKey, MockSignature, MockSigner};
+#[cfg(any(test, feature = "test_utils"))]
+pub use test_utils::{MockPubKey, MockSignature, MockSigner};

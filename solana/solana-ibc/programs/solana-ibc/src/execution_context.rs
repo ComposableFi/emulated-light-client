@@ -31,42 +31,19 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientConsensusStatePath,
         state: Self::AnyConsensusState,
     ) -> Result {
-        msg!("store_consensus_state({}, {:?})", path, state);
         let height =
             ibc::Height::new(path.revision_number, path.revision_height)?;
-
-        let mut store = self.borrow_mut();
-        let (processed_time, processed_height) = {
-            let head = store.chain.head()?;
-            (head.timestamp_ns, head.block_height)
-        };
-
-        let mut client = store.private.client_mut(&path.client_id, false)?;
-        let state = storage::ClientConsensusState::new(
-            processed_time,
-            processed_height,
-            &state,
-        )?;
-        let hash = state.digest(&path.client_id)?;
-        client.consensus_states.insert(height, state);
-
-        let trie_key =
-            trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.set(&trie_key, &hash).map_err(error)
+        Ok(self.store_consensus_state_impl(&path.client_id, height, state)?)
     }
 
     fn delete_consensus_state(
         &mut self,
         path: ibc::path::ClientConsensusStatePath,
     ) -> Result {
-        msg!("delete_consensus_state({})", path);
-        let height =
-            ibc::Height::new(path.revision_number, path.revision_height)?;
-        let mut store = self.borrow_mut();
-        let mut client = store.private.client_mut(&path.client_id, false)?;
-        client.consensus_states.remove(&height);
-        let key = trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.del(&key).map(|_| ()).map_err(error)
+        Ok(self.delete_consensus_state_impl(
+            &path.client_id,
+            ibc::Height::new(path.revision_number, path.revision_height)?,
+        )?)
     }
 
     /// Does nothing in the current implementation.
@@ -119,6 +96,50 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 }
+
+impl IbcStorage<'_, '_> {
+    pub(crate) fn store_consensus_state_impl(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+        state: AnyConsensusState,
+    ) -> Result<(), ibc::ClientError> {
+        msg!("store_consensus_state({}, {:?})", client_id, state);
+        let mut store = self.borrow_mut();
+        // TODO(mina86): This should be host timestamp and height.
+        let (processed_time, processed_height) = {
+            let head = store.chain.head()?;
+            (head.timestamp_ns, head.block_height)
+        };
+
+        let mut client = store.private.client_mut(client_id, false)?;
+        let state = storage::ClientConsensusState::new(
+            processed_time,
+            processed_height,
+            &state,
+        )?;
+        let hash = state.digest(client_id)?;
+        client.consensus_states.insert(height, state);
+
+        let trie_key =
+            trie_ids::TrieKey::for_consensus_state(client.index, height);
+        store.provable.set(&trie_key, &hash).map_err(client_error)
+    }
+
+    pub(crate) fn delete_consensus_state_impl(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<(), ibc::ClientError> {
+        msg!("delete_consensus_state({}, {})", client_id, height);
+        let mut store = self.borrow_mut();
+        let mut client = store.private.client_mut(client_id, false)?;
+        client.consensus_states.remove(&height);
+        let key = trie_ids::TrieKey::for_consensus_state(client.index, height);
+        store.provable.del(&key).map(|_| ()).map_err(client_error)
+    }
+}
+
 
 impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
@@ -337,6 +358,10 @@ impl storage::IbcStorage<'_, '_> {
     }
 }
 
+fn client_error(description: impl ToString) -> ibc::ClientError {
+    ibc::ClientError::Other { description: description.to_string() }
+}
+
 fn error(description: impl ToString) -> ibc::ContextError {
-    ibc::ClientError::Other { description: description.to_string() }.into()
+    client_error(description).into()
 }

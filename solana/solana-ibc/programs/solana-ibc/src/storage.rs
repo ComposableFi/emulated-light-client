@@ -154,9 +154,7 @@ impl ClientConsensusState {
     ) -> Result<CryptoHash, ibc::ClientError> {
         match self.0.as_bytes().get(16..) {
             Some(serialised) => {
-                Ok(guestchain::ibc_state::digest_with_client_id(
-                    client_id, serialised,
-                ))
+                Ok(cf_guest::digest_with_client_id(client_id, serialised))
             }
             None => Err(ibc::ClientError::ClientSpecific {
                 description: "Internal: Bad AnyConsensusState".into(),
@@ -529,7 +527,7 @@ impl<T> Serialised<T> {
     /// Returns digest of the serialised value with client id mixed in.
     #[inline]
     pub fn digest_with_client(&self, client_id: &ibc::ClientId) -> CryptoHash {
-        guestchain::ibc_state::digest_with_client_id(client_id, self.as_bytes())
+        cf_guest::digest_with_client_id(client_id, self.as_bytes())
     }
 }
 

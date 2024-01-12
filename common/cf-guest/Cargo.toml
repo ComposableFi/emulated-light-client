@@ -1,5 +1,5 @@
 [package]
-name = "guestchain"
+name = "cf-guest"
 authors = ["Michal Nazarewicz <mina86@mina86.com>"]
 version = "0.0.0"
 edition = "2021"
@@ -14,8 +14,8 @@ ibc-core-host.workspace = true
 ibc-primitives.workspace = true
 ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
-strum.workspace = true
 
+guestchain.workspace = true
 lib = { workspace = true, features = ["borsh"] }
 trie-ids.workspace = true
 sealable-trie = { workspace = true, features = ["borsh"] }
@@ -28,9 +28,9 @@ prost-build.workspace = true
 insta.workspace = true
 rand.workspace = true
 
+guestchain = { workspace = true, features = ["test_utils"] }
 lib = { workspace = true, features = ["test_utils"] }
 memory = { workspace = true, features = ["test_utils"] }
 
 [features]
 std = []
-test_utils = []

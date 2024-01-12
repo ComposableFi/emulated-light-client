@@ -37,6 +37,33 @@ pub struct ClientIdx(Counter);
 #[derive(Debug, PartialEq)]
 pub struct BadClientId;
 
+impl ClientIdx {
+    /// Parses the client id and returns it together with the client type.
+    ///
+    /// Performs no validation of the client type.  Instead, splits the
+    /// identifier on the final dash.  If the second part can be parsed as
+    /// a counter, returns `(head, counter)` where head is the part of the
+    /// string prior to last dash and `counter` is the parsed counter value.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::str::FromStr;
+    /// # use trie_ids::ClientIdx;
+    /// # use ibc_core_host_types::identifiers::ClientId;
+    ///
+    /// let id = ClientId::from_str("foo-bar-42").unwrap();
+    /// let idx = ClientIdx::try_from(&id).unwrap();
+    /// assert_eq!(Ok(("foo-bar", idx)), ClientIdx::parse(&id));
+    /// ```
+    #[inline]
+    pub fn parse(id: &ibc::ClientId) -> Result<(&str, Self), BadClientId> {
+        Counter::parse(id.as_str())
+            .map(|(client_type, counter)| (client_type, Self(counter)))
+            .ok_or(BadClientId)
+    }
+}
+
 impl TryFrom<ibc::ClientId> for ClientIdx {
     type Error = BadClientId;
 
@@ -51,7 +78,7 @@ impl<'a> TryFrom<&'a ibc::ClientId> for ClientIdx {
 
     #[inline]
     fn try_from(id: &'a ibc::ClientId) -> Result<Self, Self::Error> {
-        Counter::from_tail_of(id.as_str()).map(Self).ok_or(BadClientId)
+        Self::parse(id).map(|(_, this)| this)
     }
 }
 
@@ -448,14 +475,16 @@ impl Counter {
         id.strip_prefix(prefix).and_then(Self::from_counter)
     }
 
-    /// Strips part of the `id` up to and including final `-` character and
-    /// parses remaining part to get the counter.
+    /// Splits string on the last `-` character and parses the suffix as
+    /// a counter.
     ///
-    /// For example, `foo-bar-42` parses as 42.  Returns `None` if `id` doesn’t
-    /// contain a dash or parsing of the counter value fails.
+    /// For example, parsing `"foo-bar-42"` yields `("foo-bar", 42)`.  Returns
+    /// `None` if `id` doesn’t contain a dash or parsing of the counter value
+    /// fails.
     #[inline]
-    fn from_tail_of(id: &str) -> Option<Self> {
-        id.rsplit_once('-').and_then(|(_, tail)| Self::from_counter(tail))
+    fn parse(id: &str) -> Option<(&str, Self)> {
+        let (head, tail) = id.rsplit_once('-')?;
+        Self::from_counter(tail).map(|this| (head, this))
     }
 
     /// Parses the string as a number making sure it doesn’t overflow `u32` nor
