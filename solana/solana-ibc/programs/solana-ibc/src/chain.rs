@@ -56,6 +56,7 @@ impl ChainData {
         trie: &mut storage::AccountTrie,
         config: Config,
         genesis_epoch: Epoch,
+        staking_program_id: Pubkey,
     ) -> Result {
         let (host_height, host_timestamp) = get_host_head()?;
         let genesis = Block::generate_genesis(
@@ -72,7 +73,11 @@ impl ChainData {
         if self.inner.is_some() {
             return Err(Error::ChainAlreadyInitialised.into());
         }
-        let inner = ChainInner { last_check_height: host_height, manager };
+        let inner = ChainInner {
+            last_check_height: host_height,
+            manager,
+            staking_program_id: Box::new(staking_program_id),
+        };
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
         assert!(finalised);
@@ -150,6 +155,50 @@ impl ChainData {
             .map_err(into_error)
     }
 
+    /// Returns the validator data with stake and rewards
+    pub fn get_validator(
+        &self,
+        validator: Pubkey,
+    ) -> Result<Option<Validator>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner
+            .manager
+            .validators()
+            .iter()
+            .find(|c| c.pubkey == validator)
+            .cloned())
+    }
+
+    /// Gets the rewards from the mentioned epoch height for the validator with specified stake
+    ///
+    /// Right now, returning 0 for rewards until calculating rewards is implemented.
+    pub fn calculate_rewards(
+        &self,
+        _last_claimed_epoch_height: u64,
+        _validator: Pubkey,
+        _stake: u64,
+    ) -> Result<u64, ChainNotInitialised> {
+        let _inner = self.get()?;
+        // Call the method to get the rewards
+        Ok(0)
+    }
+
+    /// Checks whether given `program_id` matches expected staking program id.
+    ///
+    /// The staking program id is stored within the chain account.  Various
+    /// CPI calls which affect stake and rewards can only be made from that
+    /// program.  This method checks whether program id given as argument
+    /// matches the one we expect.  If it doesn’t, returns `InvalidCPICall`.
+    pub fn check_staking_program(
+        &self,
+        program_id: &Pubkey,
+    ) -> Result<(), Error> {
+        match program_id == &*self.get()?.staking_program_id {
+            false => Err(Error::InvalidCPICall),
+            true => Ok(()),
+        }
+    }
+
     /// Returns a shared reference the inner chain data if it has been
     /// initialised.
     fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
@@ -172,6 +221,9 @@ struct ChainInner {
 
     /// The guest blockchain manager handling generation of new guest blocks.
     manager: Manager,
+
+    /// Staking Contract program ID. The program which would make CPI calls to set the stake
+    staking_program_id: Box<Pubkey>,
 }
 
 impl ChainInner {

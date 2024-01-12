@@ -7,6 +7,7 @@ use std::collections::HashSet as Set;
 use lib::hash::CryptoHash;
 
 pub use crate::candidates::UpdateCandidateError;
+use crate::Validator;
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ChainManager<PK> {
@@ -281,6 +282,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         stake: u128,
     ) -> Result<(), UpdateCandidateError> {
         self.candidates.update(&self.config, pubkey, stake)
+    }
+
+    pub fn validators(&self) -> &[Validator<PK>] {
+        self.next_epoch.validators()
     }
 }
 
