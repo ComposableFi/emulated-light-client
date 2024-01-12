@@ -25,7 +25,7 @@ members = [
 
 [scripts]
 # test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 solana/restaking/tests/**/*.ts"
-test = "sh test.sh"
+test = "./solana-test.sh"
 
 [test]
 startup_wait = 20000
