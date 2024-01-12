@@ -23,6 +23,8 @@ use crate::storage::PrivateStorage;
 use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
+pub const STAKING_PROGRAM_ID: &str =
+    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;
@@ -116,6 +118,7 @@ fn anchor_test_deliver() -> Result<()> {
                 min_block_length: 5.into(),
                 min_epoch_length: 200_000.into(),
             },
+            staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
             genesis_epoch: chain::Epoch::new(
                 vec![chain::Validator::new(
                     authority.pubkey().into(),

@@ -41,10 +41,10 @@ pub struct Validator<PK> {
     version: crate::common::VersionZero,
 
     /// Public key of the validator.
-    pubkey: PK,
+    pub pubkey: PK,
 
     /// Validator’s stake.
-    stake: NonZeroU128,
+    pub stake: NonZeroU128,
 }
 
 impl<PK> Validator<PK> {

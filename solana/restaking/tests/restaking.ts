@@ -15,8 +15,7 @@ import {
   getVaultParamsPDA,
   getVaultTokenAccountPDA,
 } from "./helper";
-
-export const programID = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+import { restakingProgramId } from "./constants";
 
 describe("restaking", () => {
   // Configure the client to use the local cluster.
@@ -25,7 +24,7 @@ describe("restaking", () => {
 
   const program = new Program(
     IDL,
-    programID,
+    restakingProgramId,
     provider
   );
 

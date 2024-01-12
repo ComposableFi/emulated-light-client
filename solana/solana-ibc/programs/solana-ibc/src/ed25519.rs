@@ -32,6 +32,16 @@ impl From<PubKey> for solana_program::pubkey::Pubkey {
     fn from(pubkey: PubKey) -> Self { Self::from(pubkey.0) }
 }
 
+impl PartialEq<solana_program::pubkey::Pubkey> for PubKey {
+    fn eq(&self, other: &solana_program::pubkey::Pubkey) -> bool {
+        &self.0[..] == other.as_ref()
+    }
+}
+
+impl PartialEq<PubKey> for solana_program::pubkey::Pubkey {
+    fn eq(&self, other: &PubKey) -> bool { self.as_ref() == &other.0[..] }
+}
+
 impl blockchain::PubKey for PubKey {
     type Signature = Signature;
 }

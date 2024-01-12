@@ -91,7 +91,7 @@ pub mod restaking {
             chain: ctx.remaining_accounts[1].clone(),
             trie: ctx.remaining_accounts[2].clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
-            // instruction: ctx.accounts.instruction.to_account_info(),
+            instruction: ctx.accounts.instruction.to_account_info(),
         };
         let cpi_program = ctx.remaining_accounts[3].clone();
         let cpi_ctx =
@@ -120,14 +120,14 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenMint));
         }
 
-        let _chain = &ctx.accounts.guest_chain;
-        let _validator_key = match vault_params.service {
+        let chain = &ctx.accounts.guest_chain;
+        let validator_key = match vault_params.service {
             Service::GuestChain { validator } => validator,
         };
 
         // Get rewards from chain manager
-        // let validator = chain.validator(validator_key).unwrap();
-        // msg!("This is validator {:?}", validator);
+        let validator = chain.validator(validator_key).unwrap();
+        msg!("This is validator {:?}", validator);
 
         // Transfer tokens from escrow
 
@@ -189,26 +189,24 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
         }
 
-        // let vault_params = &ctx.accounts.vault_params;
-        // let chain = &ctx.accounts.guest_chain;
+        let vault_params = &ctx.accounts.vault_params;
+        let chain = &ctx.accounts.guest_chain;
 
-        // let validator = match vault_params.service {
-        //     Service::GuestChain { validator } => validator,
-        // };
-        // let stake_amount = vault_params.stake_amount;
-        // let last_recevied_epoch_height = vault_params.last_received_rewards_height;
+        let validator = match vault_params.service {
+            Service::GuestChain { validator } => validator,
+        };
+        let stake_amount = vault_params.stake_amount;
+        let last_received_rewards_height = vault_params.last_received_rewards_height;
 
         /*
          * Get the rewards from guest blockchain.
          */
 
-        // let rewards = chain.calculate_rewards(last_received_rewards_height, validator, stake_amount)?;
+        let rewards = chain.calculate_rewards(last_received_rewards_height, validator, stake_amount)?;
 
         /*
          * Get the current price of rewards token mint from the oracle
          */
-
-        let amount = 0;
 
         let bump = ctx.bumps.staking_params;
         let seeds =
@@ -217,7 +215,7 @@ pub mod restaking {
         let seeds = core::slice::from_ref(&seeds);
 
         // Transfer the tokens from the platfrom rewards token account to the user token account
-        token::transfer(ctx.accounts.into(), seeds, amount)?;
+        token::transfer(ctx.accounts.into(), seeds, rewards)?;
 
         Ok(())
     }
@@ -423,7 +421,6 @@ pub struct Claim<'info> {
     pub guest_chain_program: Program<'info, SolanaIbc>,
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]

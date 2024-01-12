@@ -7,6 +7,7 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
+use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
@@ -54,9 +55,15 @@ pub mod solana_ibc {
         ctx: Context<Initialise>,
         config: chain::Config,
         genesis_epoch: chain::Epoch,
+        staking_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.initialise(&mut provable, config, genesis_epoch)
+        ctx.accounts.chain.initialise(
+            &mut provable,
+            config,
+            genesis_epoch,
+            staking_program_id,
+        )
     }
 
     /// Attempts to generate a new guest block.
@@ -111,10 +118,26 @@ pub mod solana_ibc {
     /// TODO(mina86): At the moment we’re operating on pretend tokens and each
     /// validator can set whatever stake they want.  This is purely for testing
     /// and not intended for production use.
+    ///
+    /// Can only be called through CPI from our staking program whose
+    /// id is stored in chain account.
     pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
+        let chain = &mut ctx.accounts.chain;
+        let ixns = ctx.accounts.instruction.to_account_info();
+        let current_index =
+            tx_instructions::load_current_index_checked(&ixns)? as usize;
+        let current_ixn =
+            tx_instructions::load_instruction_at_checked(current_index, &ixns)?;
+
+        msg!(
+            " staking program ID: {} Current program ID: {}",
+            current_ixn.program_id,
+            *ctx.program_id
+        );
+        chain.check_staking_program(&current_ixn.program_id)?;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.maybe_generate_block(&provable)?;
-        ctx.accounts.chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+        chain.maybe_generate_block(&provable)?;
+        chain.set_stake((*ctx.accounts.sender.key).into(), amount)
     }
 
     /// Called to set up escrow and mint accounts for given channel
@@ -324,6 +347,10 @@ pub struct Chain<'info> {
     trie: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
+
+    /// CHECK: Used for getting the caller program id to verify if the right
+    /// program is calling the method.
+    instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
