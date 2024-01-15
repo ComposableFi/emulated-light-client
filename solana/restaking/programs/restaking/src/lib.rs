@@ -125,11 +125,16 @@ pub mod restaking {
             Service::GuestChain { validator } => validator,
         };
 
-        // Get rewards from chain manager
-        let validator = chain.validator(validator_key).unwrap();
-        msg!("This is validator {:?}", validator);
+        /*
+         * Get the rewards from guest blockchain.
+         */
 
-        // Transfer tokens from escrow
+        let (rewards, _current_height) = chain.calculate_rewards(
+            vault_params.last_received_rewards_height,
+            validator_key,
+            vault_params.stake_amount,
+        )?;
+
 
         let bump = ctx.bumps.staking_params;
         let seeds =
@@ -137,8 +142,27 @@ pub mod restaking {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        let amount = vault_params.stake_amount;
 
+        // Transfer rewards from platform wallet
+        token::transfer(
+            token::TransferAccounts {
+                from: ctx
+                    .accounts
+                    .platform_rewards_token_account
+                    .to_account_info(),
+                to: ctx
+                    .accounts
+                    .depositor_rewards_token_account
+                    .to_account_info(),
+                authority: ctx.accounts.staking_params.to_account_info(),
+                token_program: ctx.accounts.token_program.to_account_info(),
+            },
+            seeds,
+            rewards,
+        )?;
+
+        // Transfer tokens from escrow
+        let amount = vault_params.stake_amount;
         token::transfer(ctx.accounts.into(), seeds, amount)?;
 
         // Burn receipt token
@@ -209,6 +233,11 @@ pub mod restaking {
             stake_amount,
         )?;
 
+        msg!(
+            "Current height {}, last claimed height {}",
+            current_height,
+            vault_params.last_received_rewards_height
+        );
         vault_params.last_received_rewards_height = current_height;
 
         /*
@@ -338,7 +367,7 @@ pub struct Withdraw<'info> {
     #[account(mut)]
     pub withdrawer: Signer<'info>,
 
-    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
+    #[account(mut, close = withdrawer, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
     pub vault_params: Box<Account<'info, Vault>>,
     #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
     pub staking_params: Box<Account<'info, StakingParams>>,
@@ -353,6 +382,13 @@ pub struct Withdraw<'info> {
     #[account(mut, seeds = [VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = staking_params)]
     pub vault_token_account: Box<Account<'info, TokenAccount>>,
 
+    pub rewards_token_mint: Box<Account<'info, Mint>>,
+    #[account(init_if_needed, payer = withdrawer, associated_token::mint = rewards_token_mint, associated_token::authority = withdrawer)]
+    pub depositor_rewards_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    pub platform_rewards_token_account: Box<Account<'info, TokenAccount>>,
+
     #[account(
         mut,
         mint::decimals = 0,
@@ -365,6 +401,7 @@ pub struct Withdraw<'info> {
 
     pub guest_chain_program: Program<'info, SolanaIbc>,
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub metadata_program: Program<'info, Metadata>,
     pub rent: Sysvar<'info, Rent>,

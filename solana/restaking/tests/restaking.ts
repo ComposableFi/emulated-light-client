@@ -359,6 +359,7 @@ describe("restaking", () => {
     const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(wSolMint);
     const { masterEditionPDA } = getMasterEditionPDA(tokenMint);
     const { nftMetadataPDA } = getNftMetadataPDA(tokenMint);
+    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
 
     const receiptTokenAccount = await spl.getAssociatedTokenAddress(
       tokenMint,
@@ -366,7 +367,10 @@ describe("restaking", () => {
     );
 
     // console.log("Withdrawer: ", depositor.publicKey);
-
+    const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+      rewardsTokenMint,
+      depositor.publicKey
+    );
     const depositorBalanceBefore = await spl.getAccount(
       provider.connection,
       depositorWSolTokenAccount
@@ -392,6 +396,9 @@ describe("restaking", () => {
           tokenMint: wSolMint,
           withdrawerTokenAccount: depositorWSolTokenAccount,
           vaultTokenAccount: vaultTokenAccountPDA,
+          rewardsTokenMint,
+          depositorRewardsTokenAccount: depositorRewardsTokenAccount,
+          platformRewardsTokenAccount: rewardsTokenAccountPDA,
           receiptTokenMint: tokenMint,
           receiptTokenAccount,
           guestChainProgram: guestChainProgramId,
