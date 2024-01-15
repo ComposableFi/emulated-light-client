@@ -189,7 +189,7 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
         }
 
-        let vault_params = &ctx.accounts.vault_params;
+        let vault_params = &mut ctx.accounts.vault_params;
         let chain = &ctx.accounts.guest_chain;
 
         let validator = match vault_params.service {
@@ -203,11 +203,13 @@ pub mod restaking {
          * Get the rewards from guest blockchain.
          */
 
-        let rewards = chain.calculate_rewards(
+        let (rewards, current_height) = chain.calculate_rewards(
             last_received_rewards_height,
             validator,
             stake_amount,
         )?;
+
+        vault_params.last_received_rewards_height = current_height;
 
         /*
          * Get the current price of rewards token mint from the oracle
@@ -416,7 +418,7 @@ pub struct Claim<'info> {
     pub guest_chain: Box<Account<'info, ChainData>>,
 
     pub rewards_token_mint: Box<Account<'info, Mint>>,
-    #[account(mut, token::mint = rewards_token_mint, token::authority = claimer)]
+    #[account(init_if_needed, payer = claimer, associated_token::mint = rewards_token_mint, associated_token::authority = claimer)]
     pub depositor_rewards_token_account: Box<Account<'info, TokenAccount>>,
 
     #[account(mut, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
@@ -429,6 +431,7 @@ pub struct Claim<'info> {
 
     pub guest_chain_program: Program<'info, SolanaIbc>,
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
 

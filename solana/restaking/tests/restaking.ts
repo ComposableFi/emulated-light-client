@@ -22,23 +22,19 @@ describe("restaking", () => {
   const provider = anchor.AnchorProvider.env();
   anchor.setProvider(provider);
 
-  const program = new Program(
-    IDL,
-    restakingProgramId,
-    provider
-  );
+  const program = new Program(IDL, restakingProgramId, provider);
 
   let depositor: anchor.web3.Keypair; // Just another Keypair
   let admin: anchor.web3.Keypair; // This is the authority which is responsible for setting up the staking parameters
 
   let wSolMint: anchor.web3.PublicKey; // token which would be staked
+  let rewardsTokenMint: anchor.web3.PublicKey; // token which would be given as rewards
 
-  let depositorTokenAccount: any; // cas stable token account
+  let depositorWSolTokenAccount: any; // depositor wSol token account
 
   let initialMintAmount = 100000000;
   const depositAmount = 4000;
-  const boundingPeriod = 5; 
-  
+  const boundingPeriod = 5;
 
   const guestChainProgramId = new anchor.web3.PublicKey(
     "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
@@ -88,7 +84,15 @@ describe("restaking", () => {
         6
       );
 
-      depositorTokenAccount = await spl.createAccount(
+      rewardsTokenMint = await spl.createMint(
+        provider.connection,
+        admin,
+        admin.publicKey,
+        null,
+        6
+      );
+
+      depositorWSolTokenAccount = await spl.createAccount(
         provider.connection,
         depositor,
         wSolMint,
@@ -99,18 +103,18 @@ describe("restaking", () => {
         provider.connection,
         depositor,
         wSolMint,
-        depositorTokenAccount,
+        depositorWSolTokenAccount,
         admin.publicKey,
         initialMintAmount,
         [admin]
       );
 
-      let depositorTokenAccountUpdated = await spl.getAccount(
+      let depositorWSolTokenAccountUpdated = await spl.getAccount(
         provider.connection,
-        depositorTokenAccount
+        depositorWSolTokenAccount
       );
 
-      assert.equal(initialMintAmount, depositorTokenAccountUpdated.amount);
+      assert.equal(initialMintAmount, depositorWSolTokenAccountUpdated.amount);
     });
   } else {
     // These are the private keys of accounts which i have created and have deposited some SOL in it.
@@ -146,7 +150,7 @@ describe("restaking", () => {
         console.log("Airdrop failed");
       }
 
-      const TempdepositorTokenAccount =
+      const TempdepositorWSolTokenAccount =
         await spl.getOrCreateAssociatedTokenAccount(
           provider.connection,
           depositor,
@@ -155,31 +159,32 @@ describe("restaking", () => {
           false
         );
 
-      depositorTokenAccount = TempdepositorTokenAccount.address;
+      depositorWSolTokenAccount = TempdepositorWSolTokenAccount.address;
 
-      const _depositorTokenAccountBefore = await spl.getAccount(
+      const _depositorWSolTokenAccountBefore = await spl.getAccount(
         provider.connection,
-        depositorTokenAccount
+        depositorWSolTokenAccount
       );
 
       await spl.mintTo(
         provider.connection,
         depositor,
         wSolMint,
-        depositorTokenAccount,
+        depositorWSolTokenAccount,
         admin.publicKey,
         initialMintAmount,
         [admin]
       );
 
-      const _depositorTokenAccountAfter = await spl.getAccount(
+      const _depositorWSolTokenAccountAfter = await spl.getAccount(
         provider.connection,
-        depositorTokenAccount
+        depositorWSolTokenAccount
       );
 
       assert.equal(
         initialMintAmount,
-        _depositorTokenAccountAfter.amount - _depositorTokenAccountBefore.amount
+        _depositorWSolTokenAccountAfter.amount -
+          _depositorWSolTokenAccountBefore.amount
       );
     });
   }
@@ -189,8 +194,8 @@ describe("restaking", () => {
     const boundingTimestamp = Date.now() / 1000 + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-    console.log("Staking params: ", stakingParamsPDA);
-    console.log("Rewards token account: ", rewardsTokenAccountPDA);
+    // console.log("Staking params: ", stakingParamsPDA);
+    // console.log("Rewards token account: ", rewardsTokenAccountPDA);
     try {
       const tx = await program.methods
         .initialize(whitelistedTokens, new anchor.BN(boundingTimestamp))
@@ -198,7 +203,7 @@ describe("restaking", () => {
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
           systemProgram: anchor.web3.SystemProgram.programId,
-          rewardsTokenMint: wSolMint,
+          rewardsTokenMint,
           tokenProgram: spl.TOKEN_PROGRAM_ID,
           rewardsTokenAccount: rewardsTokenAccountPDA,
         })
@@ -226,7 +231,7 @@ describe("restaking", () => {
 
     const depositorBalanceBefore = await spl.getAccount(
       provider.connection,
-      depositorTokenAccount
+      depositorWSolTokenAccount
     );
 
     try {
@@ -245,7 +250,7 @@ describe("restaking", () => {
           vaultParams: vaultParamsPDA,
           stakingParams: stakingParamsPDA,
           tokenMint: wSolMint,
-          depositorTokenAccount: depositorTokenAccount,
+          depositorTokenAccount: depositorWSolTokenAccount,
           vaultTokenAccount: vaultTokenAccountPDA,
           receiptTokenMint: tokenMint,
           receiptTokenAccount,
@@ -272,7 +277,7 @@ describe("restaking", () => {
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,
-        depositorTokenAccount
+        depositorWSolTokenAccount
       );
       const depositorReceiptTokenBalanceAfter = await spl.getAccount(
         provider.connection,
@@ -290,8 +295,64 @@ describe("restaking", () => {
     }
   });
 
+  it("Claim rewards", async () => {
+    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    const { guestChainPDA } = getGuestChainAccounts();
+    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
+
+    const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+      rewardsTokenMint,
+      depositor.publicKey
+    );
+
+    try {
+      const tx = await program.methods
+        .claimRewards()
+        .preInstructions([
+          anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+            units: 1000000,
+          }),
+        ])
+        .accounts({
+          claimer: depositor.publicKey,
+          vaultParams: vaultParamsPDA,
+          stakingParams: stakingParamsPDA,
+          guestChain: guestChainPDA,
+          rewardsTokenMint,
+          depositorRewardsTokenAccount,
+          platformRewardsTokenAccount: rewardsTokenAccountPDA,
+          receiptTokenMint: tokenMint,
+          receiptTokenAccount,
+          guestChainProgram: guestChainProgramId,
+          tokenProgram: spl.TOKEN_PROGRAM_ID,
+          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([depositor])
+        .rpc();
+
+      console.log("  Signature for Claiming rewards: ", tx);
+
+      const depositorBalanceAfter = await spl.getAccount(
+        provider.connection,
+        depositorRewardsTokenAccount
+      );
+
+      assert.equal(depositorBalanceAfter.amount, 0); // Rewards is 0 for now.
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
+
   it("Withdraw tokens", async () => {
-    await sleep(boundingPeriod * 1000);
+    // await sleep(boundingPeriod * 1000);
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { guestChainPDA } = getGuestChainAccounts();
@@ -304,11 +365,11 @@ describe("restaking", () => {
       depositor.publicKey
     );
 
-    console.log("Withdrawer: ", depositor.publicKey);
+    // console.log("Withdrawer: ", depositor.publicKey);
 
     const depositorBalanceBefore = await spl.getAccount(
       provider.connection,
-      depositorTokenAccount
+      depositorWSolTokenAccount
     );
     const depositorReceiptTokenBalanceBefore = await spl.getAccount(
       provider.connection,
@@ -329,7 +390,7 @@ describe("restaking", () => {
           stakingParams: stakingParamsPDA,
           guestChain: guestChainPDA,
           tokenMint: wSolMint,
-          withdrawerTokenAccount: depositorTokenAccount,
+          withdrawerTokenAccount: depositorWSolTokenAccount,
           vaultTokenAccount: vaultTokenAccountPDA,
           receiptTokenMint: tokenMint,
           receiptTokenAccount,
@@ -349,7 +410,7 @@ describe("restaking", () => {
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,
-        depositorTokenAccount
+        depositorWSolTokenAccount
       );
 
       assert.equal(
