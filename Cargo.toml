@@ -67,8 +67,8 @@ blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }
-solana-trie = { path = "solana/trie" }
 solana-ibc = { path = "solana/solana-ibc/programs/solana-ibc" }
+solana-trie = { path = "solana/trie" }
 stdx = { path = "common/stdx" }
 trie-ids = { path = "common/trie-ids" }
 
