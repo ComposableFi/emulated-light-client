@@ -156,7 +156,7 @@ impl ChainData {
     }
 
     /// Returns the validator data with stake and rewards
-    pub fn get_validator(
+    pub fn validator(
         &self,
         validator: Pubkey,
     ) -> Result<Option<Validator>, ChainNotInitialised> {
@@ -169,7 +169,7 @@ impl ChainData {
             .cloned())
     }
 
-    /// Gets the rewards from the mentioned epoch height for the validator with specified stake
+    /// Gets the rewards from the mentioned epoch height for the validator with specified stake along with the current epoch height
     ///
     /// Right now, returning 0 for rewards until calculating rewards is implemented.
     pub fn calculate_rewards(
@@ -177,10 +177,11 @@ impl ChainData {
         _last_claimed_epoch_height: u64,
         _validator: Pubkey,
         _stake: u64,
-    ) -> Result<u64, ChainNotInitialised> {
-        let _inner = self.get()?;
+    ) -> Result<(u64, u64), ChainNotInitialised> {
+        let inner = self.get()?;
         // Call the method to get the rewards
-        Ok(0)
+        let current_height = inner.manager.epoch_height();
+        Ok((0, u64::from(current_height)))
     }
 
     /// Checks whether given `program_id` matches expected staking program id.

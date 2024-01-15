@@ -23,7 +23,7 @@ pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
-declare_id!("32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh");
+declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
 mod allocator;
 pub mod chain;

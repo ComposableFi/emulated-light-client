@@ -2,6 +2,7 @@
   "extends": "@tsconfig/recommended/tsconfig.json",
   "ts-node": {
     "compilerOptions": {
+      "esModuleInterop": true,
       "module": "commonjs"
     }
   },
@@ -10,6 +11,8 @@
     "moduleResolution": "node",
     "module": "es2015"
   },
-  "include": ["src/client/**/*"],
+  "resolveJsonModule": true,
+  "esModuleInterop": true,
+  "include": ["/**/*.ts"],
   "exclude": ["node_modules"]
 }

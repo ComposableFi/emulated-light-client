@@ -65,6 +65,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Install Node JS 16
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+          cache: "yarn"
+
       - name: Install Rust
         id: install-rust
         uses: dtolnay/rust-toolchain@master
@@ -106,6 +112,12 @@ jobs:
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
+       
+      - name: Installing node modules
+        run : yarn
+
+      - name: Installing ts-mocha and typescript globally
+        run: yarn global add ts-mocha typescript
 
       - name: Anchor Build (with mocks)
         run: anchor build -- --features=mocks

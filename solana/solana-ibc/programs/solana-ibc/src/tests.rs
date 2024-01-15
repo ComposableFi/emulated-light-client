@@ -24,7 +24,7 @@ use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
-    "4EgHMraeMbgQsKyx7sG81ovudTkYN3XcSHpYAJayxCEG";
+    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;

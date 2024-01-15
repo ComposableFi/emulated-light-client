@@ -287,6 +287,8 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     pub fn validators(&self) -> &[Validator<PK>] {
         self.next_epoch.validators()
     }
+
+    pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }
 }
 
 #[test]

@@ -3,10 +3,12 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-solana_ibc = "32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh"
+restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
 
 [programs.localnet]
-solana_ibc = "32hX7oFAPd2tipkZ8gMUPTsTtRnvJG2fcy9qqhjxVSWh"
+restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
 
 [registry]
 url = "https://api.apr.dev"
@@ -16,7 +18,25 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [workspace]
-members = ["solana/solana-ibc/programs/solana-ibc"]
+members = [
+  "solana/restaking/programs/restaking",
+  "solana/solana-ibc/programs/solana-ibc"
+]
 
 [scripts]
-test = "cargo test --lib -- --nocapture --include-ignored ::anchor"
+# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 solana/restaking/tests/**/*.ts"
+test = "./solana-test.sh"
+
+[test]
+startup_wait = 20000
+shutdown_wait = 2000
+upgradeable = true
+
+[test.validator]
+bind_address = "0.0.0.0"
+url = "https://api.devnet.solana.com"
+ledger = ".anchor/test-ledger"
+rpc_port = 8899
+
+[[test.validator.clone]]
+address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
