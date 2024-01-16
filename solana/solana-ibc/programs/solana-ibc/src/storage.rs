@@ -388,6 +388,8 @@ pub(crate) struct IbcStorageInner<'a, 'b> {
 pub struct MsgChunks {
     pub type_url: String,
     pub value: Vec<u8>,
+    pub bytes_left: usize,
+    pub final_msg: Option<ibc::MsgEnvelope>,
 }
 
 impl MsgChunks {
@@ -397,13 +399,15 @@ impl MsgChunks {
         let msg = vec![0; total_len + 4];
         self.value = msg;
         self.type_url = type_url;
+        self.bytes_left = total_len + 4;
         let total_len_in_bytes = (total_len as u32).to_be_bytes();
         self.copy_into(0, &total_len_in_bytes);
     }
 
     pub fn copy_into(&mut self, position: usize, data: &[u8]) {
-        msg!("data size -> {} {}", data.len(), self.value.len());
+        msg!("data size -> {} {} {}",self.bytes_left, data.len(), self.value.len());
         self.value[position..position + data.len()].copy_from_slice(data);
+        self.bytes_left -= data.len(); 
     }
 }
 
@@ -576,7 +580,9 @@ impl<T: borsh::BorshSerialize> Serialised<T> {
     pub fn new(value: &T) -> Result<Self, ibc::ClientError> {
         borsh::to_vec(value)
             .map(|data| Self(data, core::marker::PhantomData))
-            .map_err(make_err)
+            .map_err({
+                make_err
+            })
     }
 
     pub fn set(&mut self, value: &T) -> Result<&mut Self, ibc::ClientError> {

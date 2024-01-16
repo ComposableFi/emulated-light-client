@@ -52,10 +52,17 @@ impl AccountId {
         };
         let channel_id = port_channel.channel_id();
         let port_id = port_channel.port_id();
-        let seeds =
-            [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
-        let (escrow_account_key, _bump) =
-            Pubkey::find_program_address(&seeds, &crate::ID);
+
+        let (escrow_account_key, _bump) = if denom.len() > 32 {
+            let seeds =
+                [port_id.as_bytes(), channel_id.as_bytes(), denom[..32].as_bytes(), denom[32..].as_bytes()];
+            Pubkey::find_program_address(&seeds, &crate::ID)
+        } else {
+            let seeds =
+                [port_id.as_bytes(), channel_id.as_bytes(), denom.as_bytes()];
+            Pubkey::find_program_address(&seeds, &crate::ID)
+        };
+        
         Ok(escrow_account_key)
     }
 }
@@ -118,7 +125,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
                 (sender, receiver, auth)
             } else {
                 let sender = accounts
-                    .sender_token_account
+                    .receiver_token_account
                     .clone()
                     .ok_or(TokenTransferError::ParseAccountFailure)?;
                 let receiver = accounts

@@ -2,6 +2,7 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
+use anchor_lang::solana_program::sysvar::Sysvar;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
@@ -37,7 +38,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<Self::AnyConsensusState> {
         let height =
             ibc::Height::new(path.revision_number, path.revision_height)?;
-        self.borrow()
+        let cs = self.borrow()
             .private
             .client(&path.client_id)?
             .consensus_states
@@ -48,18 +49,24 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
                 height,
             })
             .and_then(|data| data.state())
-            .map_err(ibc::ContextError::from)
+            .map_err(ibc::ContextError::from)?;
+        Ok(cs)
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
-        let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        // let height = u64::from(self.borrow().chain.head()?.block_height);
+        let clock = crate::Clock::get().unwrap();
+        let height = clock.slot;
+        let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
-        let timestamp = self.borrow().chain.head()?.host_timestamp.get();
-        ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+        // let timestamp = self.borrow().chain.head()?.host_timestamp.get();
+        // crate::msg!("This is host timestamp {}", timestamp);
+        let clock = crate::Clock::get().unwrap();
+        let timestamp = clock.unix_timestamp as u64;
+        ibc::Timestamp::from_nanoseconds(timestamp * 10_u64.pow(9)).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
         })
     }
@@ -72,6 +79,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         let state = if height.revision_number() == 0 {
             store.chain.consensus_state(height.revision_height().into())?
         } else {
+            crate::msg!("Skippped revisions > 0");
             None
         }
         .ok_or(ibc::ClientError::MissingLocalConsensusState {

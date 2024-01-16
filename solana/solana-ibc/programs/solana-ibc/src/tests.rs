@@ -12,10 +12,13 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
-use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
+use anchor_client::solana_sdk::signature::{
+    read_keypair_file, Keypair, Signature, Signer,
+};
 use anchor_client::{Client, Cluster};
 use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::instruction::AccountMeta;
+use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::{AnchorDeserialize, ToAccountMetas};
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
@@ -116,14 +119,15 @@ impl ToAccountMetas for DeliverWithRemainingAccounts {
 fn anchor_test_deliver() -> Result<()> {
     let (authority, _client, program, _airdrop_signature) =
         setup_client_program(
-            Keypair::new(),
+            read_keypair_file("../../keypair.json").unwrap(),
             Cluster::Localnet,
             CommitmentConfig::processed(),
-            true,
+            false,
         );
     let sol_rpc_client = program.rpc();
 
     // Build, sign, and send program instruction
+    println!("This is program id {:?}", crate::ID);
     let storage = Pubkey::find_program_address(
         &[crate::SOLANA_IBC_STORAGE_SEED],
         &crate::ID,
@@ -135,13 +139,83 @@ fn anchor_test_deliver() -> Result<()> {
     let msg_chunks =
         Pubkey::find_program_address(&[crate::MSG_CHUNKS], &crate::ID).0;
 
+    let mint_keypair =
+        read_keypair_file("../../token_mint_keypair.json").unwrap();
+    println!("This is keypair {:?}", mint_keypair.pubkey());
+
+    let create_account_ix = create_account(
+        &authority.pubkey(),
+        &mint_keypair.pubkey(),
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+        82,
+        &anchor_spl::token::ID,
+    );
+
+    let create_mint_ix = spl_token::instruction::initialize_mint2(
+        &anchor_spl::token::ID,
+        &mint_keypair.pubkey(),
+        &authority.pubkey(),
+        Some(&authority.pubkey()),
+        6,
+    )
+    .expect("invalid mint instruction");
+
+    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &mint_keypair.pubkey(), &anchor_spl::token::ID);
+    let associated_token_addr = get_associated_token_address(
+        &authority.pubkey(),
+        &mint_keypair.pubkey(),
+    );
+    let mint_ix = spl_token::instruction::mint_to(
+        &anchor_spl::token::ID,
+        &mint_keypair.pubkey(),
+        &associated_token_addr,
+        &authority.pubkey(),
+        &[&authority.pubkey()],
+        1000000000,
+    )
+    .unwrap();
+
+    let tx = program
+        .request()
+        .instruction(create_account_ix)
+        .instruction(create_mint_ix)
+        .instruction(create_token_acc_ix)
+        .instruction(mint_ix)
+        .payer(authority.clone())
+        .signer(&*authority)
+        .signer(&mint_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+
+    println!("  Signature: {}", tx);
+
+    /*
+     * Close Account
+     */ 
+    // let sig = program
+    //         .request()
+    //         .accounts(accounts::CloseAccounts {
+    //             sender: authority.pubkey(),
+    //             account: msg_chunks,
+    //             system_program: system_program::ID,
+    //         })
+    //         .args(instruction::Close{} )
+    //         .payer(authority.clone())
+    //         .signer(&*authority)
+    //         .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //             skip_preflight: true,
+    //             ..RpcSendTransactionConfig::default()
+    //         })?;
+
     /*
      * Initialise chain
      */
-
     println!("\nInitialising");
     let sig = program
         .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(1000000))
         .accounts(accounts::Initialise {
             sender: authority.pubkey(),
             storage,
@@ -176,61 +250,24 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
-    /*
-     * Create New Mock Client
-     */
-
+    // /*
+    //  * Create New Mock Client
+    //  */
     println!("\nCreating Mock Client");
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    // let message = make_message!(
-    //     ibc::MsgCreateClient::new(
-    //         ibc::Any::from(mock_client_state),
-    //         ibc::Any::from(mock_cs_state.clone()),
-    //         ibc::Signer::from(authority.pubkey().to_string()),
-    //     ),
-    //     ibc::ClientMsg::CreateClient,
-    //     ibc::MsgEnvelope::Client,
-    // );
-
-    let test_msg = ibc::MsgCreateClient::new(
-        ibc::Any::from(mock_client_state),
-        ibc::Any::from(mock_cs_state),
-        ibc::Signer::from(authority.pubkey().to_string()),
+    let message = make_message!(
+        ibc::MsgCreateClient::new(
+            ibc::Any::from(mock_client_state),
+            ibc::Any::from(mock_cs_state.clone()),
+            ibc::Signer::from(authority.pubkey().to_string()),
+        ),
+        ibc::ClientMsg::CreateClient,
+        ibc::MsgEnvelope::Client,
     );
-
-    let serialized_message = test_msg.clone().encode_vec();
-
-    let length = serialized_message.len();
-    let chunk_size = 100;
-    let mut offset = 4;
-
-    for i in serialized_message.chunks(chunk_size) {
-        let sig = program
-            .request()
-            .accounts(accounts::FormMessageChunks {
-                sender: authority.pubkey(),
-                msg_chunks,
-                system_program: system_program::ID,
-            })
-            .args(instruction::FormMsgChunks {
-                total_len: length as u32,
-                offset: offset as u32,
-                bytes: i.to_vec(),
-                type_url: test_msg.type_url(),
-            })
-            .payer(authority.clone())
-            .signer(&*authority)
-            .send_with_spinner_and_config(RpcSendTransactionConfig {
-                skip_preflight: true,
-                ..RpcSendTransactionConfig::default()
-            })?;
-        println!("  Signature for message chunks : {sig}");
-        offset += chunk_size;
-    }
 
     let sig = program
         .request()
-        .accounts(accounts::DeliverWithChunks {
+        .accounts(accounts::Deliver {
             sender: authority.pubkey(),
             receiver: None,
             storage,
@@ -243,9 +280,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: None,
             associated_token_program: None,
             token_program: None,
-            msg_chunks,
         })
-        .args(instruction::DeliverWithChunks {})
+        .args(instruction::Deliver { message })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -266,7 +302,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Create New Mock Connection Open Init
      */
-
     println!("\nIssuing Connection Open Init");
     let client_id =
         ibc::ClientId::new(mock_client_state.client_type(), 0).unwrap();
@@ -325,7 +360,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Setup mock escrow.
      */
-
     println!("\nCreating mint and escrow accounts");
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
@@ -374,7 +408,6 @@ fn anchor_test_deliver() -> Result<()> {
      *  - Create PDAs for the above keys,
      *  - Get token account for receiver and sender
      */
-
     println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
@@ -436,7 +469,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Setup deliver escrow.
      */
-
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -467,7 +499,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * On Source chain
      */
-
     println!("\nRecving on source chain");
     let packet = construct_packet_from_denom(
         port_id.clone(),
@@ -508,7 +539,6 @@ fn anchor_test_deliver() -> Result<()> {
         - mint authority
         - token program
     */
-
     let remaining_accounts = vec![
         AccountMeta {
             pubkey: sender_token_address,
@@ -601,7 +631,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * On Destination chain
      */
-
     println!("\nRecving on destination chain");
     let account_balance_before = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
@@ -675,7 +704,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Send Packets
      */
-
     println!("\nSend packet");
     let packet = construct_packet_from_denom(
         port_id.clone(),

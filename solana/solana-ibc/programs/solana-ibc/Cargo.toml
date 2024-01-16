@@ -9,6 +9,8 @@ crate-type = ["cdylib", "lib"]
 name = "solana_ibc"
 
 [features]
+default = ["custom-heap"]
+custom-heap = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
@@ -20,15 +22,20 @@ anchor-lang.workspace = true
 anchor-spl.workspace = true
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast"] }
+borsh.workspace = true
 derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
 primitive-types.workspace = true
+prost.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 spl-associated-token-account.workspace = true
 strum.workspace = true
 uint.workspace = true
+ed25519-consensus.workspace = true
+ahash.workspace = true
+spl-token.workspace = true
 
 blockchain.workspace = true
 lib.workspace = true

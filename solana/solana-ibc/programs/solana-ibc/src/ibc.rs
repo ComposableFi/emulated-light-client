@@ -7,6 +7,8 @@ pub use ibc::core::channel::types::channel::ChannelEnd;
 pub use ibc::core::channel::types::commitment::{
     AcknowledgementCommitment, PacketCommitment,
 };
+pub use ibc::apps::transfer::types::error::TokenTransferError;
+pub use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 pub use ibc::core::channel::types::error::{ChannelError, PacketError};
 pub use ibc::core::channel::types::msgs::{MsgRecvPacket, PacketMsg};
 pub use ibc::core::channel::types::packet::{Packet, Receipt};
@@ -17,7 +19,7 @@ pub use ibc::core::client::context::client_state::{
 };
 pub use ibc::core::client::context::consensus_state::ConsensusState;
 pub use ibc::core::client::context::types::error::ClientError;
-#[cfg(test)]
+// #[cfg(test)]
 pub use ibc::core::client::context::types::msgs::{
     ClientMsg, MsgCreateClient, MsgUpdateClient,
 };

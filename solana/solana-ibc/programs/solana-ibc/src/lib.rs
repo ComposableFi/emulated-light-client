@@ -24,7 +24,7 @@ pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MSG_CHUNKS: &[u8] = b"msg_chunks";
 
-declare_id!("EnfDJsAK7BGgetnmKzBx86CsgC5kfSPcsktFCQ4YLC81");
+declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
 pub mod chain;
 pub mod client_state;
@@ -41,13 +41,12 @@ pub mod storage;
 mod tests;
 mod transfer;
 mod validation_context;
+mod allocator;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
 
     use super::*;
-    use crate::storage::MsgChunks;
-
     /// Initialises the guest blockchain with given configuration and genesis
     /// epoch.
     pub fn initialise(
@@ -149,15 +148,12 @@ pub mod solana_ibc {
     pub fn deliver_with_chunks<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, DeliverWithChunks<'info>>,
     ) -> Result<()> {
+        msg!("I am in chunks, how re u");
         let msg_chunks = &ctx.accounts.msg_chunks;
-        let cloned_msg_chunks: &mut MsgChunks = &mut msg_chunks.clone();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
-        let message = ibc::MsgEnvelope::try_from(ibc::Any::from(
-            cloned_msg_chunks.clone(),
-        ))
-        .unwrap();
+        let message = msg_chunks.final_msg.clone().expect("Final message doesnt exist");
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
@@ -301,6 +297,47 @@ pub mod solana_ibc {
             store.new_alloc(total_len as usize, type_url);
         }
         store.copy_into(offset.try_into().unwrap(), &bytes);
+        msg!("Bytes left are {}", store.bytes_left);
+        if store.bytes_left == 0 {
+            let message = ibc::Any {
+                type_url: store.type_url.clone(),
+                value: store.value[4..].to_vec(),
+            };
+    
+            msg!("Before conversion");
+            let message = ibc::MsgEnvelope::try_from(
+                message
+            )
+            .unwrap(); 
+            // let message = ibc::MsgUpdateClient::decode_vec(&store.value[4..].to_vec()).unwrap();
+            store.final_msg = Some(message);
+        }
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    pub fn send_transfer(
+        ctx: Context<SendTransfer>,
+        port_id: ibc::PortId,
+        channel_id: ibc::ChannelId,
+        base_denom: String,
+        msg: ibc::MsgTransfer,
+    ) -> Result<()> {
+        let mut store = storage::from_ctx!(ctx, with accounts);
+        let mut token_ctx = store.clone();
+
+        ibc::apps::transfer::handler::send_transfer(
+            &mut store,
+            &mut token_ctx,
+            msg,
+        )
+        .unwrap();
+        // .map_err(|e| { msg!("{:?}", e)}).unwrap();
+        Ok(())
+        // .map_err(|err| error!((&err)))
+    }
+
+    pub fn close(ctx: Context<CloseAccounts>) -> Result<()> {
         Ok(())
     }
 }
@@ -461,7 +498,7 @@ pub struct DeliverWithChunks<'info> {
     storage: Account<'info, storage::PrivateStorage>,
 
     #[account(mut, close = sender)]
-    msg_chunks: Box<Account<'info, storage::MsgChunks>>,
+    msg_chunks: Account<'info, storage::MsgChunks>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
@@ -473,7 +510,7 @@ pub struct DeliverWithChunks<'info> {
 
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
-    chain: Box<Account<'info, chain::ChainData>>,
+    chain: Account<'info, chain::ChainData>,
     #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
@@ -599,6 +636,61 @@ pub struct FormMessageChunks<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct TestVerification<'info> {
+    #[account(mut)]
+    sender: Signer<'info>
+}
+
+#[derive(Accounts)]
+pub struct CloseAccounts<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+    #[account(mut, close = sender)]
+    ///CHECK:
+    account: Account<'info, storage::MsgChunks>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, base_denom: String)]
+pub struct SendTransfer<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    receiver: Option<AccountInfo<'info>>,
+
+    /// The account holding private IBC storage.
+    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Box<Account<'info, chain::ChainData>>,
+    #[account(mut, seeds = [MINT_ESCROW_SEED], bump)]
+    /// CHECK:
+    mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    token_mint: Option<Box<Account<'info, Mint>>>,
+    // Splitting `base_denom` since each seed can be at most 32 byte long.
+    #[account(init_if_needed, payer = sender, seeds = [
+        port_id.as_bytes(), channel_id.as_bytes(), base_denom[..32].as_bytes(), base_denom[32..].as_bytes()
+    ], bump, token::mint = token_mint, token::authority = mint_authority)]
+    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut)]
+    receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    associated_token_program: Option<Program<'info, AssociatedToken>>,
+    token_program: Option<Program<'info, Token>>,
+    system_program: Program<'info, System>,
+}
 
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {

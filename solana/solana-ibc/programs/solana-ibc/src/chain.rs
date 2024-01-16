@@ -43,6 +43,7 @@ impl ChainData {
         height: blockchain::BlockHeight,
     ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
         let block = self.get()?.manager.head().1;
+        msg!("This is block height {:?} {:?}", block.block_height, height);
         Ok((block.block_height == height)
             .then(|| (block.calc_hash(), block.host_timestamp)))
     }

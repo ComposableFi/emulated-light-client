@@ -18,7 +18,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientStatePath,
         state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({}, {:?})", path, state);
+        // msg!("store_client_state({}, {:?})", path, state);
+        msg!("store_client_state");
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
         let serialised = client.client_state.set(&state)?;
@@ -37,7 +38,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientConsensusStatePath,
         state: Self::AnyConsensusState,
     ) -> Result {
-        msg!("store_consensus_state({}, {:?})", path, state);
+        // msg!("store_consensus_state({}, {:?})", path, state);
+        msg!("store_consensus_state");
         let height =
             ibc::Height::new(path.revision_number, path.revision_height)?;
 
@@ -58,8 +60,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.set(&trie_key, &hash).map_err(error)?;
-        Ok(())
+        store.provable.set(&trie_key, &hash).map_err(error)
     }
 
     fn delete_consensus_state(
@@ -73,8 +74,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut client = store.private.client_mut(&path.client_id, false)?;
         client.consensus_states.remove(&height);
         let key = trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.del(&key).map_err(error)?;
-        Ok(())
+        store.provable.del(&key).map(|_| ()).map_err(error)
     }
 
     /// Does nothing in the current implementation.
@@ -298,6 +298,8 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: ibc::IbcEvent) -> Result {
+        // msg!("{:?}", event);
+        // Ok(())
         crate::events::emit(event).map_err(error)
     }
 
