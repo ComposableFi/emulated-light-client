@@ -13,7 +13,8 @@ The high level flow of the program is given in the image below.
 
 - Receipt Token Mint: The receipt token mint is a NFT which is the
   seed for the PDA storing information about stake amout, validator
-  and rewards.
+  and rewards. For more information, refer: 
+  https://docs.google.com/document/d/1qXEvgYL6MrBQEbt_oFc8NW2znkOApevqz9u7yyA-cgw/edit?usp=sharing
 
 - Staking Params: This is a PDA which stores the staking parameters
   and also is the authority to `Receipt Token Mint` and `Vaults`.
@@ -51,3 +52,16 @@ can start staking.
 
 - `Update token Whitelist`: The admin can update the token whitelist.
   Only callable by admin set during `initialize` method.
+
+- `Withdraw Reward Funds`: This method is only callable by admin to
+  withdraw all the funds from the reward token account. This is a
+  safety measure so it should be called only during emergency.
+
+## Note
+
+- Since the rewards are not implemented yet on the `Guest Blockchain`,
+  a nil value is returned for now.
+
+- Oracle interface is yet to be added to fetch the current price of 
+  staked tokens as well as the governance token in the `Guest Blockchain`.
+  

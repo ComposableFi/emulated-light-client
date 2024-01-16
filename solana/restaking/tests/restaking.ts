@@ -238,7 +238,7 @@ describe("restaking", () => {
       const tx = await program.methods
         .deposit(
           { guestChain: { validator: depositor.publicKey } },
-          new anchor.BN(depositAmount)
+          new anchor.BN(depositAmount) // amount how much they are staking
         )
         .preInstructions([
           anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
@@ -246,13 +246,13 @@ describe("restaking", () => {
           }),
         ])
         .accounts({
-          depositor: depositor.publicKey,
+          depositor: depositor.publicKey, // staker
           vaultParams: vaultParamsPDA,
           stakingParams: stakingParamsPDA,
-          tokenMint: wSolMint,
+          tokenMint: wSolMint, // token which they are staking
           depositorTokenAccount: depositorWSolTokenAccount,
           vaultTokenAccount: vaultTokenAccountPDA,
-          receiptTokenMint: tokenMint,
+          receiptTokenMint: tokenMint, // NFT
           receiptTokenAccount,
           tokenProgram: spl.TOKEN_PROGRAM_ID,
           associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
