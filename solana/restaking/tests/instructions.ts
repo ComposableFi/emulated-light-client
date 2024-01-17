@@ -47,11 +47,6 @@ export const depositInstruction = async (
     staker
   );
 
-  const depositorBalanceBefore = await spl.getAccount(
-    program.provider.connection,
-    stakerTokenAccount
-  );
-
   const ix = await program.methods
     .deposit(
       { guestChain: { validator: staker } },
@@ -89,15 +84,130 @@ export const depositInstruction = async (
     ])
     .transaction();
 
-  // const tx = new anchor.web3.Transaction();
-  // tx.add(anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-  //   units: 1000000,
-  // }));
-  // tx.add(ix);
-  // tx.recentBlockhash = (
-  //   await program.provider.connection.getLatestBlockhash("finalized")
-  // ).blockhash;
-  // tx.feePayer = staker;
-
   return ix;
+};
+
+export const claimRewardsInstruction = async (
+  program: anchor.Program<Restaking>,
+  claimer: anchor.web3.PublicKey,
+  receiptTokenMint: anchor.web3.PublicKey
+) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
+  const { stakingParamsPDA } = getStakingParamsPDA();
+  const { guestChainPDA } = getGuestChainAccounts();
+  const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+
+  const stakingParams = await program.account.stakingParams.fetch(
+    stakingParamsPDA
+  );
+
+  const { rewardsTokenMint } = stakingParams;
+
+  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+    receiptTokenMint,
+    claimer
+  );
+
+  const claimerRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+    rewardsTokenMint,
+    claimer
+  );
+
+  const tx = await program.methods
+    .claimRewards()
+    .preInstructions([
+      anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+        units: 1000000,
+      }),
+    ])
+    .accounts({
+      claimer: claimer,
+      vaultParams: vaultParamsPDA,
+      stakingParams: stakingParamsPDA,
+      guestChain: guestChainPDA,
+      rewardsTokenMint,
+      depositorRewardsTokenAccount: claimerRewardsTokenAccount,
+      platformRewardsTokenAccount: rewardsTokenAccountPDA,
+      receiptTokenMint,
+      receiptTokenAccount,
+      guestChainProgram: guestChainProgramID,
+      tokenProgram: spl.TOKEN_PROGRAM_ID,
+      associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    })
+    .transaction();
+
+  return tx;
+};
+
+export const withdrawInstruction = async (
+  program: anchor.Program<Restaking>,
+  withdrawer: anchor.web3.PublicKey,
+  receiptTokenMint: anchor.web3.PublicKey
+) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
+  const { stakingParamsPDA } = getStakingParamsPDA();
+  const { guestChainPDA } = getGuestChainAccounts();
+
+  const vaultParams = await program.account.vault.fetch(vaultParamsPDA);
+  const stakedTokenMint = vaultParams.stakeMint;
+
+  const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(stakedTokenMint);
+  const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
+  const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
+  const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+
+  const stakingParams = await program.account.stakingParams.fetch(
+    stakingParamsPDA
+  );
+
+  const { rewardsTokenMint } = stakingParams;
+
+  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+    receiptTokenMint,
+    withdrawer
+  );
+
+  const withdrawerRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+    rewardsTokenMint,
+    withdrawer
+  );
+
+  const withdrawerStakedTokenAccount = await spl.getAssociatedTokenAddress(
+    stakedTokenMint,
+    withdrawer
+  );
+
+  const tx = await program.methods
+    .withdraw()
+    .preInstructions([
+      anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+        units: 1000000,
+      }),
+    ])
+    .accounts({
+      withdrawer,
+      vaultParams: vaultParamsPDA,
+      stakingParams: stakingParamsPDA,
+      guestChain: guestChainPDA,
+      tokenMint: stakedTokenMint,
+      withdrawerTokenAccount: withdrawerStakedTokenAccount,
+      vaultTokenAccount: vaultTokenAccountPDA,
+      rewardsTokenMint,
+      depositorRewardsTokenAccount: withdrawerRewardsTokenAccount,
+      platformRewardsTokenAccount: rewardsTokenAccountPDA,
+      receiptTokenMint,
+      receiptTokenAccount,
+      guestChainProgram: guestChainProgramID,
+      tokenProgram: spl.TOKEN_PROGRAM_ID,
+      masterEditionAccount: masterEditionPDA,
+      nftMetadata: nftMetadataPDA,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      metadataProgram: new anchor.web3.PublicKey(
+        mpl.MPL_TOKEN_METADATA_PROGRAM_ID
+      ),
+    })
+    .transaction();
+
+  return tx;
 };
