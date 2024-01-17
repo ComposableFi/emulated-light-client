@@ -40,7 +40,7 @@ pub mod restaking {
     /// made to update the stake.
     ///
     /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
-    /// since we were running out of stack memory. Note that these accounts dont need to be sent until the 
+    /// since we were running out of stack memory. Note that these accounts dont need to be sent until the
     /// guest chain is initialized since CPI calls wont be made during that period.
     /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
@@ -69,7 +69,8 @@ pub mod restaking {
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
 
         let current_time = Clock::get()?.unix_timestamp;
-        let is_guest_chain_initialized = staking_params.is_guest_chain_initialized;
+        let is_guest_chain_initialized =
+            staking_params.is_guest_chain_initialized;
 
         vault_params.service = service;
         vault_params.stake_timestamp_sec = current_time;
@@ -123,9 +124,12 @@ pub mod restaking {
         }
 
         let chain = &ctx.accounts.guest_chain;
-        let service = vault_params.service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+        let service = vault_params
+            .service
+            .as_ref()
+            .ok_or(error!(ErrorCodes::MissingService))?;
         let validator_key = match service {
-            Service::GuestChain { validator } => validator
+            Service::GuestChain { validator } => validator,
         };
 
         /*
@@ -192,9 +196,9 @@ pub mod restaking {
     }
 
     /// Whitelists new tokens
-    /// 
+    ///
     /// This method checks if any of the new token mints which are to be whitelisted
-    /// are already whitelisted. If they are the method fails to update the 
+    /// are already whitelisted. If they are the method fails to update the
     /// whitelisted token list.
     pub fn update_token_whitelist(
         ctx: Context<UpdateAdminParams>,
@@ -218,7 +222,7 @@ pub mod restaking {
     }
 
     /// Sets guest chain initialization status to true.
-    /// 
+    ///
     /// After this method is called, CPI calls would be made to guest chain during deposit and stake would be
     /// set to the validators. Users can also claim rewards or withdraw their stake
     /// when the chain is initialized.
@@ -246,9 +250,12 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
         let chain = &ctx.accounts.guest_chain;
 
-        let service = vault_params.service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+        let service = vault_params
+            .service
+            .as_ref()
+            .ok_or(error!(ErrorCodes::MissingService))?;
         let validator_key = match service {
-            Service::GuestChain { validator } => validator
+            Service::GuestChain { validator } => validator,
         };
         let stake_amount = vault_params.stake_amount;
         let last_received_rewards_height =
@@ -554,14 +561,19 @@ pub enum ErrorCodes {
     TokenAlreadyWhitelisted,
     #[msg("Can only stake whitelisted tokens")]
     TokenNotWhitelisted,
-    #[msg("This operation is not allowed until the guest chain is initialized")]
-    OperationNotAllowed, 
+    #[msg(
+        "This operation is not allowed until the guest chain is initialized"
+    )]
+    OperationNotAllowed,
     #[msg("Subtraction overflow")]
     SubtractionOverflow,
     #[msg("Invalid Token Mint")]
     InvalidTokenMint,
     #[msg("Insufficient receipt token balance, expected balance 1")]
     InsufficientReceiptTokenBalance,
-    #[msg("Service is missing. Make sure you have assigned your stake to a service")]
+    #[msg(
+        "Service is missing. Make sure you have assigned your stake to a \
+         service"
+    )]
     MissingService,
 }
