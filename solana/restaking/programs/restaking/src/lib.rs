@@ -24,25 +24,24 @@ pub mod restaking {
     pub fn initialize(
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<Pubkey>,
-        bounding_timestamp: i64,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
-        staking_params.bounding_timestamp_sec = bounding_timestamp;
+        staking_params.is_guest_chain_initialized = false;
         staking_params.rewards_token_mint =
             ctx.accounts.rewards_token_mint.key();
 
         Ok(())
     }
 
-    /// Stakes the amount in the vault and if bounding time has elapsed, a CPI call to the service is being
+    /// Stakes the amount in the vault and if guest chain is initialized, a CPI call to the service is being
     /// made to update the stake.
     ///
     /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
-    /// since we were running out of stack memory. Note that these accounts dont need to be sent during
-    /// bounding period since CPI calls wont be made during that period.
+    /// since we were running out of stack memory. Note that these accounts dont need to be sent until the 
+    /// guest chain is initialized since CPI calls wont be made during that period.
     /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
     /// - SolanaIBCStorage
@@ -51,7 +50,7 @@ pub mod restaking {
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
-        service: Service,
+        service: Option<Service>,
         amount: u64,
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
@@ -70,7 +69,7 @@ pub mod restaking {
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
 
         let current_time = Clock::get()?.unix_timestamp;
-        let bounding_timestamp_sec = staking_params.bounding_timestamp_sec;
+        let is_guest_chain_initialized = staking_params.is_guest_chain_initialized;
 
         vault_params.service = service;
         vault_params.stake_timestamp_sec = current_time;
@@ -91,8 +90,8 @@ pub mod restaking {
         // Mint receipt tokens
         token::mint_nft(ctx.accounts.into(), seeds)?;
 
-        // Call Guest chain program to update the stake if bounding time has elapsed
-        if current_time > bounding_timestamp_sec {
+        // Call Guest chain program to update the stake if the chain is initialized
+        if is_guest_chain_initialized {
             let cpi_accounts = Chain {
                 sender: ctx.accounts.depositor.to_account_info(),
                 storage: ctx.remaining_accounts[0].clone(),
@@ -115,25 +114,18 @@ pub mod restaking {
         let staking_params = &mut ctx.accounts.staking_params;
         let stake_token_mint = ctx.accounts.token_mint.key();
 
-        let current_time = Clock::get()?.unix_timestamp as u64;
-        msg!(
-            "current {} bounding_timestamp {}",
-            current_time,
-            staking_params.bounding_timestamp_sec
-        );
-        // if current_time < staking_params.bounding_timestamp {
-        //     return Err(error!(ErrorCodes::CannotWithdrawDuringBoundingPeriod));
-        // };
+        if !staking_params.is_guest_chain_initialized {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
 
         if stake_token_mint != vault_params.stake_mint {
             return Err(error!(ErrorCodes::InvalidTokenMint));
         }
 
         let chain = &ctx.accounts.guest_chain;
-        let validator_key = match vault_params.service {
-            Service::GuestChain { validator } => {
-                validator.ok_or(error!(ErrorCodes::MissingValidator))?
-            }
+        let service = vault_params.service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+        let validator_key = match service {
+            Service::GuestChain { validator } => validator
         };
 
         /*
@@ -142,7 +134,7 @@ pub mod restaking {
 
         let (rewards, _current_height) = chain.calculate_rewards(
             vault_params.last_received_rewards_height,
-            validator_key,
+            *validator_key,
             vault_params.stake_amount,
         )?;
 
@@ -199,8 +191,13 @@ pub mod restaking {
         Ok(())
     }
 
+    /// Whitelists new tokens
+    /// 
+    /// This method checks if any of the new token mints which are to be whitelisted
+    /// are already whitelisted. If they are the method fails to update the 
+    /// whitelisted token list.
     pub fn update_token_whitelist(
-        ctx: Context<UpdateTokenWhitelist>,
+        ctx: Context<UpdateAdminParams>,
         new_token_mints: Vec<Pubkey>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
@@ -220,18 +217,27 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn update_bounding_period(
-        ctx: Context<UpdateBoundingPeriod>,
-        new_bounding_period: i64,
+    /// Sets guest chain initialization status to true.
+    /// 
+    /// After this method is called, CPI calls would be made to guest chain during deposit and stake would be
+    /// set to the validators. Users can also claim rewards or withdraw their stake
+    /// when the chain is initialized.
+    pub fn update_guest_chain_initialization(
+        ctx: Context<UpdateAdminParams>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
-
-        staking_params.bounding_timestamp_sec = new_bounding_period;
+        staking_params.is_guest_chain_initialized = true;
 
         Ok(())
     }
 
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
+        let staking_params = &ctx.accounts.staking_params;
+
+        if !staking_params.is_guest_chain_initialized {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
+
         let token_account = &ctx.accounts.receipt_token_account;
         if token_account.amount < 1 {
             return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
@@ -240,10 +246,9 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
         let chain = &ctx.accounts.guest_chain;
 
-        let validator = match vault_params.service {
-            Service::GuestChain { validator } => {
-                validator.ok_or(error!(ErrorCodes::MissingValidator))?
-            }
+        let service = vault_params.service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+        let validator_key = match service {
+            Service::GuestChain { validator } => validator
         };
         let stake_amount = vault_params.stake_amount;
         let last_received_rewards_height =
@@ -255,7 +260,7 @@ pub mod restaking {
 
         let (rewards, current_height) = chain.calculate_rewards(
             last_received_rewards_height,
-            validator,
+            *validator_key,
             stake_amount,
         )?;
 
@@ -459,20 +464,11 @@ pub struct Withdraw<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateTokenWhitelist<'info> {
+pub struct UpdateAdminParams<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(mut, seeds = [STAKING_PARAMS_SEED], bump)]
-    pub staking_params: Account<'info, StakingParams>,
-}
-
-#[derive(Accounts)]
-pub struct UpdateBoundingPeriod<'info> {
-    #[account(mut)]
-    pub admin: Signer<'info>,
-
-    #[account(mut, seeds = [STAKING_PARAMS_SEED], bump)]
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = admin)]
     pub staking_params: Account<'info, StakingParams>,
 }
 
@@ -530,14 +526,14 @@ pub struct StakingParams {
     pub admin: Pubkey,
     #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
-    pub bounding_timestamp_sec: i64,
+    pub is_guest_chain_initialized: bool,
     pub rewards_token_mint: Pubkey,
 }
 
 /// Unused for now
 #[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug)]
 pub enum Service {
-    GuestChain { validator: Option<Pubkey> },
+    GuestChain { validator: Pubkey },
 }
 
 #[account]
@@ -545,7 +541,7 @@ pub struct Vault {
     pub stake_timestamp_sec: i64,
     // Program to which the amount is staked
     // unused for now
-    pub service: Service,
+    pub service: Option<Service>,
     pub stake_amount: u64,
     pub stake_mint: Pubkey,
     /// is 0 initially
@@ -558,14 +554,14 @@ pub enum ErrorCodes {
     TokenAlreadyWhitelisted,
     #[msg("Can only stake whitelisted tokens")]
     TokenNotWhitelisted,
-    #[msg("Cannot withdraw during bounding period")]
-    CannotWithdrawDuringBoundingPeriod,
+    #[msg("This operation is not allowed until the guest chain is initialized")]
+    OperationNotAllowed, 
     #[msg("Subtraction overflow")]
     SubtractionOverflow,
     #[msg("Invalid Token Mint")]
     InvalidTokenMint,
     #[msg("Insufficient receipt token balance, expected balance 1")]
     InsufficientReceiptTokenBalance,
-    #[msg("Validator is missing")]
-    MissingValidator,
+    #[msg("Service is missing. Make sure you have assigned your stake to a service")]
+    MissingService,
 }

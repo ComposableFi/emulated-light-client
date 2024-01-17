@@ -194,11 +194,9 @@ describe("restaking", () => {
     const boundingTimestamp = Date.now() / 1000 + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-    // console.log("Staking params: ", stakingParamsPDA);
-    // console.log("Rewards token account: ", rewardsTokenAccountPDA);
     try {
       const tx = await program.methods
-        .initialize(whitelistedTokens, new anchor.BN(boundingTimestamp))
+        .initialize(whitelistedTokens)
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
@@ -215,6 +213,24 @@ describe("restaking", () => {
       // throw error;
     }
   });
+
+  it("Update guest chain initialization to true", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateGuestChainInitialization()
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
 
   it("Deposit tokens", async () => {
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
