@@ -37,8 +37,13 @@ pub mod restaking {
         Ok(())
     }
 
+    /// Stakes the amount in the vault and if bounding time has elapsed, a CPI call to the service is being 
+    /// made to update the stake.
+    /// 
     /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
-    /// since we were running out of stack memory. Since remaining accounts are not named, they have to be
+    /// since we were running out of stack memory. Note that these accounts dont need to be sent during 
+    /// bounding period since CPI calls wont be made during that period.
+    /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
     /// - SolanaIBCStorage
     /// - Chain Data
@@ -64,8 +69,11 @@ pub mod restaking {
             .find(|&&token_mint| token_mint == ctx.accounts.token_mint.key())
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
 
+        let current_time = Clock::get()?.unix_timestamp;
+        let bounding_timestamp_sec = staking_params.bounding_timestamp_sec;
+
         vault_params.service = service;
-        vault_params.stake_timestamp_sec = Clock::get()?.unix_timestamp;
+        vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
         vault_params.last_received_rewards_height = 0;
@@ -83,20 +91,21 @@ pub mod restaking {
         // Mint receipt tokens
         token::mint_nft(ctx.accounts.into(), seeds)?;
 
-        // Call Guest chain program to update the stake
-
-        let cpi_accounts = Chain {
-            sender: ctx.accounts.depositor.to_account_info(),
-            storage: ctx.remaining_accounts[0].clone(),
-            chain: ctx.remaining_accounts[1].clone(),
-            trie: ctx.remaining_accounts[2].clone(),
-            system_program: ctx.accounts.system_program.to_account_info(),
-            instruction: ctx.accounts.instruction.to_account_info(),
-        };
-        let cpi_program = ctx.remaining_accounts[3].clone();
-        let cpi_ctx =
-            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+        // Call Guest chain program to update the stake if bounding time has elapsed
+        if current_time > bounding_timestamp_sec {
+            let cpi_accounts = Chain {
+                sender: ctx.accounts.depositor.to_account_info(),
+                storage: ctx.remaining_accounts[0].clone(),
+                chain: ctx.remaining_accounts[1].clone(),
+                trie: ctx.remaining_accounts[2].clone(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                instruction: ctx.accounts.instruction.to_account_info(),
+            };
+            let cpi_program = ctx.remaining_accounts[3].clone();
+            let cpi_ctx =
+                CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+            solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+        }
 
         Ok(())
     }
@@ -122,7 +131,7 @@ pub mod restaking {
 
         let chain = &ctx.accounts.guest_chain;
         let validator_key = match vault_params.service {
-            Service::GuestChain { validator } => validator,
+            Service::GuestChain { validator } => validator.ok_or(error!(ErrorCodes::MissingValidator))?,
         };
 
         /*
@@ -135,13 +144,11 @@ pub mod restaking {
             vault_params.stake_amount,
         )?;
 
-
         let bump = ctx.bumps.staking_params;
         let seeds =
             [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
-
 
         // Transfer rewards from platform wallet
         token::transfer(
@@ -204,7 +211,17 @@ pub mod restaking {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
         }
 
+        staking_params.whitelisted_tokens.append(&mut new_token_mints.as_slice().to_vec());
+
         Ok(())
+    }
+
+    pub fn update_bounding_period(ctx: Context<UpdateBoundingPeriod>, new_bounding_period: i64) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        staking_params.bounding_timestamp_sec = new_bounding_period; 
+
+        Ok(()) 
     }
 
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
@@ -217,7 +234,7 @@ pub mod restaking {
         let chain = &ctx.accounts.guest_chain;
 
         let validator = match vault_params.service {
-            Service::GuestChain { validator } => validator,
+            Service::GuestChain { validator } => validator.ok_or(error!(ErrorCodes::MissingValidator))?,
         };
         let stake_amount = vault_params.stake_amount;
         let last_received_rewards_height =
@@ -442,6 +459,15 @@ pub struct UpdateTokenWhitelist<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateBoundingPeriod<'info> {
+    #[account(mut)]
+    pub admin: Signer<'info>,
+
+    #[account(mut, seeds = [STAKING_PARAMS_SEED], bump)]
+    pub staking_params: Account<'info, StakingParams>,
+}
+
+#[derive(Accounts)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub claimer: Signer<'info>,
@@ -502,7 +528,7 @@ pub struct StakingParams {
 /// Unused for now
 #[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug)]
 pub enum Service {
-    GuestChain { validator: Pubkey },
+    GuestChain { validator: Option<Pubkey> },
 }
 
 #[account]
@@ -531,4 +557,6 @@ pub enum ErrorCodes {
     InvalidTokenMint,
     #[msg("Insufficient receipt token balance, expected balance 1")]
     InsufficientReceiptTokenBalance,
+    #[msg("Validator is missing")]
+    MissingValidator,
 }
