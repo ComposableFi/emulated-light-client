@@ -16,6 +16,7 @@ import {
   getVaultTokenAccountPDA,
 } from "./helper";
 import { restakingProgramId } from "./constants";
+import { depositInstruction } from "./instructions";
 
 describe("restaking", () => {
   // Configure the client to use the local cluster.
@@ -234,46 +235,25 @@ describe("restaking", () => {
       depositorWSolTokenAccount
     );
 
-    try {
-      const tx = await program.methods
-        .deposit(
-          { guestChain: { validator: depositor.publicKey } },
-          new anchor.BN(depositAmount) // amount how much they are staking
-        )
-        .preInstructions([
-          anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-            units: 1000000,
-          }),
-        ])
-        .accounts({
-          depositor: depositor.publicKey, // staker
-          vaultParams: vaultParamsPDA,
-          stakingParams: stakingParamsPDA,
-          tokenMint: wSolMint, // token which they are staking
-          depositorTokenAccount: depositorWSolTokenAccount,
-          vaultTokenAccount: vaultTokenAccountPDA,
-          receiptTokenMint: tokenMint, // NFT
-          receiptTokenAccount,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          masterEditionAccount: masterEditionPDA,
-          nftMetadata: nftMetadataPDA,
-          instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-          metadataProgram: new anchor.web3.PublicKey(
-            mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-          ),
-        })
-        .remainingAccounts([
-          { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
-          { pubkey: guestChainPDA, isSigner: false, isWritable: true },
-          { pubkey: triePDA, isSigner: false, isWritable: true },
-          { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
-        ])
-        .signers([depositor, tokenMintKeypair])
-        .rpc();
+    const tx = await depositInstruction(
+      program,
+      wSolMint,
+      depositor.publicKey,
+      depositAmount,
+      tokenMintKeypair
+    );
 
-      console.log("  Signature for Depositing: ", tx);
+    console.log("Outside ", tokenMintKeypair.publicKey);
+
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor, tokenMintKeypair]
+      );
+
+      console.log("  Signature for Depositing: ", sig);
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,
