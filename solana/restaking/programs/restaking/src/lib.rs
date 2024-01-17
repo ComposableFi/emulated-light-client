@@ -37,11 +37,11 @@ pub mod restaking {
         Ok(())
     }
 
-    /// Stakes the amount in the vault and if bounding time has elapsed, a CPI call to the service is being 
+    /// Stakes the amount in the vault and if bounding time has elapsed, a CPI call to the service is being
     /// made to update the stake.
-    /// 
+    ///
     /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
-    /// since we were running out of stack memory. Note that these accounts dont need to be sent during 
+    /// since we were running out of stack memory. Note that these accounts dont need to be sent during
     /// bounding period since CPI calls wont be made during that period.
     /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
@@ -131,7 +131,9 @@ pub mod restaking {
 
         let chain = &ctx.accounts.guest_chain;
         let validator_key = match vault_params.service {
-            Service::GuestChain { validator } => validator.ok_or(error!(ErrorCodes::MissingValidator))?,
+            Service::GuestChain { validator } => {
+                validator.ok_or(error!(ErrorCodes::MissingValidator))?
+            }
         };
 
         /*
@@ -211,17 +213,22 @@ pub mod restaking {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
         }
 
-        staking_params.whitelisted_tokens.append(&mut new_token_mints.as_slice().to_vec());
+        staking_params
+            .whitelisted_tokens
+            .append(&mut new_token_mints.as_slice().to_vec());
 
         Ok(())
     }
 
-    pub fn update_bounding_period(ctx: Context<UpdateBoundingPeriod>, new_bounding_period: i64) -> Result<()> {
+    pub fn update_bounding_period(
+        ctx: Context<UpdateBoundingPeriod>,
+        new_bounding_period: i64,
+    ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
-        staking_params.bounding_timestamp_sec = new_bounding_period; 
+        staking_params.bounding_timestamp_sec = new_bounding_period;
 
-        Ok(()) 
+        Ok(())
     }
 
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
@@ -234,7 +241,9 @@ pub mod restaking {
         let chain = &ctx.accounts.guest_chain;
 
         let validator = match vault_params.service {
-            Service::GuestChain { validator } => validator.ok_or(error!(ErrorCodes::MissingValidator))?,
+            Service::GuestChain { validator } => {
+                validator.ok_or(error!(ErrorCodes::MissingValidator))?
+            }
         };
         let stake_amount = vault_params.stake_amount;
         let last_received_rewards_height =
