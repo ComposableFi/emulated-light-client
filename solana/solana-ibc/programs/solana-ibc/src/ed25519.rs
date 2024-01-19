@@ -49,7 +49,7 @@ impl blockchain::PubKey for PubKey {
     derive_more::From,
     derive_more::Into,
 )]
-pub struct Signature([u8; 64]);
+pub struct Signature(pub [u8; 64]);
 
 impl Signature {
     pub const LENGTH: usize = 64;
@@ -64,7 +64,7 @@ impl Signature {
 ///
 /// [Instruction sysvar]: https://docs.solana.com/developing/runtime-facilities/sysvars#instructions
 /// [Ed25519 native program]: https://docs.solana.com/developing/runtime-facilities/programs#ed25519-program
-pub struct Verifier(Vec<u8>);
+pub struct Verifier(pub Vec<u8>);
 
 impl Verifier {
     /// Constructs the versifier from the Instruction sysvar `AccountInfo`.
@@ -149,22 +149,22 @@ fn verify_impl(
 /// <https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs>.
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
-struct SignatureOffsets {
+pub struct SignatureOffsets {
     /// Offset to ed25519 signature of 64 bytes.
-    signature_offset: u16,
+    pub signature_offset: u16,
     /// Instruction index to find signature.  We support `u16::MAX` only.
-    signature_instruction_index: u16,
+    pub signature_instruction_index: u16,
     /// Offset to public key of 32 bytes.
-    public_key_offset: u16,
+    pub public_key_offset: u16,
     /// Instruction index to find public key.  We support `u16::MAX` only.
-    public_key_instruction_index: u16,
+    pub public_key_instruction_index: u16,
     /// Offset to start of message data
-    message_data_offset: u16,
+    pub message_data_offset: u16,
     /// Size of message data.
-    message_data_size: u16,
+    pub message_data_size: u16,
     /// Index of instruction data to get message data.  We support `u16::MAX`
     /// only.
-    message_instruction_index: u16,
+    pub message_instruction_index: u16,
 }
 
 impl SignatureOffsets {

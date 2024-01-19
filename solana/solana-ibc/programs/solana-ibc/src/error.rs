@@ -15,6 +15,9 @@ pub(crate) enum Error {
     /// Error handling an IBC request.
     ContextError(crate::ibc::ContextError),
 
+    /// Error handling of IBC token transfer
+    TokenTransferError(crate::ibc::TokenTransferError),
+
     /// Guest block hasn’t been initialised yet.
     ChainNotInitialised,
 
