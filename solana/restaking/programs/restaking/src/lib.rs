@@ -24,12 +24,14 @@ pub mod restaking {
     pub fn initialize(
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<Pubkey>,
+        staking_cap: u128,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
         staking_params.is_guest_chain_initialized = false;
+        staking_params.staking_cap = staking_cap;
         staking_params.rewards_token_mint =
             ctx.accounts.rewards_token_mint.key();
 
@@ -67,6 +69,11 @@ pub mod restaking {
             .iter()
             .find(|&&token_mint| token_mint == ctx.accounts.token_mint.key())
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
+
+        staking_params.total_deposited_amount += amount as u128;
+        if staking_params.total_deposited_amount > staking_params.staking_cap {
+            return Err(error!(ErrorCodes::StakingCapExceeded));
+        }
 
         let current_time = Clock::get()?.unix_timestamp;
         let is_guest_chain_initialized =
@@ -132,6 +139,9 @@ pub mod restaking {
             Service::GuestChain { validator } => validator,
         };
 
+        let amount = vault_params.stake_amount;
+        staking_params.total_deposited_amount -= amount as u128;
+
         /*
          * Get the rewards from guest blockchain.
          */
@@ -190,6 +200,8 @@ pub mod restaking {
             None,
         )?;
 
+
+
         // Call Guest chain to update the stake
 
         Ok(())
@@ -201,7 +213,7 @@ pub mod restaking {
     /// are already whitelisted. If they are the method fails to update the
     /// whitelisted token list.
     pub fn update_token_whitelist(
-        ctx: Context<UpdateAdminParams>,
+        ctx: Context<UpdateStakingParams>,
         new_token_mints: Vec<Pubkey>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
@@ -227,7 +239,7 @@ pub mod restaking {
     /// set to the validators. Users can also claim rewards or withdraw their stake
     /// when the chain is initialized.
     pub fn update_guest_chain_initialization(
-        ctx: Context<UpdateAdminParams>,
+        ctx: Context<UpdateStakingParams>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
         staking_params.is_guest_chain_initialized = true;
@@ -315,6 +327,23 @@ pub mod restaking {
         let seeds = core::slice::from_ref(&seeds);
 
         token::transfer(ctx.accounts.into(), seeds, rewards_balance)?;
+
+        Ok(())
+    }
+
+    pub fn update_staking_cap(
+        ctx: Context<UpdateStakingParams>,
+        new_staking_cap: u128,
+    ) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        if staking_params.staking_cap >= new_staking_cap {
+            return Err(error!(
+                ErrorCodes::NewStakingCapShouldBeMoreThanExistingOne
+            ));
+        }
+
+        staking_params.staking_cap = new_staking_cap;
 
         Ok(())
     }
@@ -471,7 +500,7 @@ pub struct Withdraw<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateAdminParams<'info> {
+pub struct UpdateStakingParams<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
@@ -535,6 +564,9 @@ pub struct StakingParams {
     pub whitelisted_tokens: Vec<Pubkey>,
     pub is_guest_chain_initialized: bool,
     pub rewards_token_mint: Pubkey,
+    // None means there is not staking cap
+    pub staking_cap: u128,
+    pub total_deposited_amount: u128,
 }
 
 /// Unused for now
@@ -576,4 +608,11 @@ pub enum ErrorCodes {
          service"
     )]
     MissingService,
+    #[msg(
+        "Staking cap has reached. You can stake only when the staking cap is \
+         increased"
+    )]
+    StakingCapExceeded,
+    #[msg("New staking cap should be more than existing one")]
+    NewStakingCapShouldBeMoreThanExistingOne,
 }

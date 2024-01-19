@@ -33,8 +33,8 @@ describe("restaking", () => {
   let depositorWSolTokenAccount: any; // depositor wSol token account
 
   let initialMintAmount = 100000000;
+  let stakingCap = 30000;
   const depositAmount = 4000;
-  const boundingPeriod = 5;
 
   const guestChainProgramId = new anchor.web3.PublicKey(
     "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
@@ -191,12 +191,11 @@ describe("restaking", () => {
 
   it("Is Initialized", async () => {
     const whitelistedTokens = [wSolMint];
-    const boundingTimestamp = Date.now() / 1000 + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
     try {
       const tx = await program.methods
-        .initialize(whitelistedTokens)
+        .initialize(whitelistedTokens, new anchor.BN(stakingCap))
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
