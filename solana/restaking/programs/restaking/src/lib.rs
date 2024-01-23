@@ -79,7 +79,8 @@ pub mod restaking {
         let current_time = Clock::get()?.unix_timestamp;
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
-        vault_params.service = service;
+        vault_params.service =
+            if guest_chain_program_id.is_some() { service } else { None };
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
@@ -306,6 +307,58 @@ pub mod restaking {
 
         // Transfer the tokens from the platfrom rewards token account to the user token account
         token::transfer(ctx.accounts.into(), seeds, rewards)?;
+
+        Ok(())
+    }
+
+    /// This method sets the service for the stake which was deposited before guest chain
+    /// initialization
+    ///
+    /// This method can only be called if the service was not set during the depositing and
+    /// can only be called once. Calling otherwise would panic.
+    ///
+    /// The accounts for CPI are sent as remaining accounts similar to `deposit` method.
+    pub fn set_service<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetService<'info>>,
+        service: Service,
+    ) -> Result<()> {
+        let vault_params = &mut ctx.accounts.vault_params;
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        if staking_params.guest_chain_program_id.is_none() {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
+        if vault_params.service.is_some() {
+            return Err(error!(ErrorCodes::ServiceAlreadySet));
+        }
+
+        vault_params.service = Some(service);
+
+        let guest_chain_program_id =
+            staking_params.guest_chain_program_id.unwrap(); // Infallible
+        let amount = vault_params.stake_amount;
+
+        validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
+        let bump = ctx.bumps.staking_params;
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+        let cpi_accounts = Chain {
+            sender: ctx.accounts.depositor.to_account_info(),
+            storage: ctx.remaining_accounts[0].clone(),
+            chain: ctx.remaining_accounts[1].clone(),
+            trie: ctx.remaining_accounts[2].clone(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            instruction: ctx.accounts.instruction.to_account_info(),
+        };
+        let cpi_program = ctx.remaining_accounts[3].clone();
+        let cpi_ctx =
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
 
         Ok(())
     }
@@ -544,6 +597,27 @@ pub struct Claim<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetService<'info> {
+    #[account(mut)]
+    depositor: Signer<'info>,
+
+    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
+    pub vault_params: Box<Account<'info, Vault>>,
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    pub staking_params: Box<Account<'info, StakingParams>>,
+
+    #[account(mut, mint::decimals = 0)]
+    pub receipt_token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = receipt_token_mint, token::authority = depositor)]
+    pub receipt_token_account: Box<Account<'info, TokenAccount>>,
+
+    ///CHECK:   
+    pub instruction: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct WithdrawRewardFunds<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -624,4 +698,6 @@ pub enum ErrorCodes {
     GuestChainAlreadyInitialized,
     #[msg("Account validation for CPI call to the guest chain")]
     AccountValidationFailedForCPI,
+    #[msg("Service is already set.")]
+    ServiceAlreadySet,
 }

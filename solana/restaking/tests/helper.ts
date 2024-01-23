@@ -24,10 +24,10 @@ export const getRewardsTokenAccountPDA = () => {
   return { rewardsTokenAccountPDA, rewardsTokenAccountBump };
 };
 
-export const getVaultParamsPDA = (user_key: anchor.web3.PublicKey) => {
+export const getVaultParamsPDA = (receipt_mint: anchor.web3.PublicKey) => {
   const [vaultParamsPDA, vaultParamsBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
-      [Buffer.from("vault_params"), user_key.toBuffer()],
+      [Buffer.from("vault_params"), receipt_mint.toBuffer()],
       restakingProgramID
     );
   return { vaultParamsPDA, vaultParamsBump };

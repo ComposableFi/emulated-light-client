@@ -213,25 +213,9 @@ describe("restaking", () => {
     }
   });
 
-  it("Update guest chain initialization with its program ID", async () => {
-    const { stakingParamsPDA } = getStakingParamsPDA();
-    try {
-      const tx = await program.methods
-        .updateGuestChainInitialization(guestChainProgramId)
-        .accounts({
-          admin: admin.publicKey,
-          stakingParams: stakingParamsPDA,
-        })
-        .signers([admin])
-        .rpc();
-      console.log("  Signature for Updating Guest chain Initialization: ", tx);
-    } catch (error) {
-      console.log(error);
-      throw error;
-    }
-  })
+  
 
-  it("Deposit tokens", async () => {
+  it("Deposit tokens before chain is initialized", async () => {
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
@@ -309,6 +293,60 @@ describe("restaking", () => {
       throw error;
     }
   });
+
+  it("Update guest chain initialization with its program ID", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateGuestChainInitialization(guestChainProgramId)
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
+
+  it("Set service after guest chain is initialized", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
+    const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
+
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
+    try {
+      const tx = await program.methods
+        .setService( { guestChain: { validator: depositor.publicKey } })
+        .accounts({
+          depositor: depositor.publicKey,
+          vaultParams: vaultParamsPDA,
+          stakingParams: stakingParamsPDA,
+          receiptTokenMint: tokenMint,
+          receiptTokenAccount,
+          instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .remainingAccounts([
+          { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
+          { pubkey: guestChainPDA, isSigner: false, isWritable: true },
+          { pubkey: triePDA, isSigner: false, isWritable: true },
+          { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
+        ])
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
 
   it("Claim rewards", async () => {
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
