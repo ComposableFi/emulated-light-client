@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::associated_token::get_associated_token_address_with_program_id;
 use solana_ibc::{CHAIN_SEED, SOLANA_IBC_STORAGE_SEED, TRIE_SEED};
 
 use crate::ErrorCodes;
@@ -17,8 +16,8 @@ use crate::ErrorCodes;
 /// - guest chain program ID: Should match the expected guest chain program ID
 ///
 /// Note: The accounts should be sent in above order.
-pub fn validate_remaining_accounts<'a>(
-    accounts: &[AccountInfo<'a>],
+pub fn validate_remaining_accounts(
+    accounts: &[AccountInfo<'_>],
     expected_guest_chain_program_id: &Pubkey,
 ) -> Result<()> {
     // Storage Account
@@ -26,7 +25,7 @@ pub fn validate_remaining_accounts<'a>(
     let seeds = seeds.as_ref();
 
     let (storage_account, _bump) =
-        Pubkey::find_program_address(seeds, &expected_guest_chain_program_id);
+        Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
     if &storage_account != accounts[0].key {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
@@ -36,7 +35,7 @@ pub fn validate_remaining_accounts<'a>(
     let seeds = seeds.as_ref();
 
     let (storage_account, _bump) =
-        Pubkey::find_program_address(seeds, &expected_guest_chain_program_id);
+        Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
     if &storage_account != accounts[1].key && accounts[1].is_writable {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
@@ -45,7 +44,7 @@ pub fn validate_remaining_accounts<'a>(
     let seeds = seeds.as_ref();
 
     let (storage_account, _bump) =
-        Pubkey::find_program_address(seeds, &expected_guest_chain_program_id);
+        Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
     if &storage_account != accounts[2].key && accounts[2].is_writable {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
