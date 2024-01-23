@@ -8,8 +8,8 @@ use solana_ibc::program::SolanaIbc;
 use solana_ibc::CHAIN_SEED;
 
 pub mod constants;
-mod validation;
 mod token;
+mod validation;
 
 use constants::{
     REWARDS_SEED, STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED,
@@ -77,8 +77,7 @@ pub mod restaking {
         }
 
         let current_time = Clock::get()?.unix_timestamp;
-        let guest_chain_program_id =
-            staking_params.guest_chain_program_id;
+        let guest_chain_program_id = staking_params.guest_chain_program_id;
 
         vault_params.service = service;
         vault_params.stake_timestamp_sec = current_time;
@@ -101,7 +100,10 @@ pub mod restaking {
 
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
-            validation::validate_remaining_accounts(ctx.remaining_accounts, &guest_chain_program_id.unwrap())?;
+            validation::validate_remaining_accounts(
+                ctx.remaining_accounts,
+                &guest_chain_program_id.unwrap(),
+            )?;
             let cpi_accounts = Chain {
                 sender: ctx.accounts.depositor.to_account_info(),
                 storage: ctx.remaining_accounts[0].clone(),
@@ -242,7 +244,7 @@ pub mod restaking {
     /// when the chain is initialized.
     pub fn update_guest_chain_initialization(
         ctx: Context<UpdateStakingParams>,
-        guest_chain_program_id: Pubkey, 
+        guest_chain_program_id: Pubkey,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
         if staking_params.guest_chain_program_id.is_some() {
@@ -625,5 +627,5 @@ pub enum ErrorCodes {
     #[msg("Guest chain can only be initialized once")]
     GuestChainAlreadyInitialized,
     #[msg("Account validation for CPI call to the guest chain")]
-    AccountValidationFailedForCPI
+    AccountValidationFailedForCPI,
 }
