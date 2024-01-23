@@ -493,7 +493,7 @@ pub struct Withdraw<'info> {
 
     #[account(mut, close = withdrawer, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
     pub vault_params: Box<Account<'info, Vault>>,
-    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = rewards_token_mint)]
     pub staking_params: Box<Account<'info, StakingParams>>,
 
     #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
