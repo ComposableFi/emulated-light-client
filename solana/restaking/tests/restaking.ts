@@ -81,7 +81,7 @@ describe("restaking", () => {
         admin,
         admin.publicKey,
         null,
-        6
+        9,
       );
 
       rewardsTokenMint = await spl.createMint(
@@ -264,7 +264,6 @@ describe("restaking", () => {
           ),
         })
         .remainingAccounts([
-          { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainPDA, isSigner: false, isWritable: true },
           { pubkey: triePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
@@ -330,11 +329,11 @@ describe("restaking", () => {
           stakingParams: stakingParamsPDA,
           receiptTokenMint: tokenMint,
           receiptTokenAccount,
+          stakeMint: wSolMint,
           instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .remainingAccounts([
-          { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainPDA, isSigner: false, isWritable: true },
           { pubkey: triePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainProgramId, isSigner: false, isWritable: true },

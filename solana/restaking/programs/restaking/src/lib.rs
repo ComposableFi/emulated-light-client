@@ -3,7 +3,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_ibc::chain::ChainData;
-use solana_ibc::cpi::accounts::Chain;
+use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::CHAIN_SEED;
 
@@ -47,7 +47,6 @@ pub mod restaking {
     /// guest chain is initialized since CPI calls wont be made during that period.
     /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
-    /// - SolanaIBCStorage
     /// - Chain Data
     /// - trie
     /// - Guest blockchain program ID
@@ -104,15 +103,15 @@ pub mod restaking {
                 [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
             let seeds = seeds.as_ref();
             let seeds = core::slice::from_ref(&seeds);
-            let cpi_accounts = Chain {
+            let cpi_accounts = SetStake {
                 sender: ctx.accounts.depositor.to_account_info(),
-                storage: ctx.remaining_accounts[0].clone(),
-                chain: ctx.remaining_accounts[1].clone(),
-                trie: ctx.remaining_accounts[2].clone(),
+                stake_mint: ctx.accounts.token_mint.to_account_info(),
+                chain: ctx.remaining_accounts[0].clone(),
+                trie: ctx.remaining_accounts[1].clone(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 instruction: ctx.accounts.instruction.to_account_info(),
             };
-            let cpi_program = ctx.remaining_accounts[3].clone();
+            let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
             solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
@@ -347,15 +346,15 @@ pub mod restaking {
             [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
-        let cpi_accounts = Chain {
+        let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
-            storage: ctx.remaining_accounts[0].clone(),
-            chain: ctx.remaining_accounts[1].clone(),
-            trie: ctx.remaining_accounts[2].clone(),
+            stake_mint: ctx.accounts.stake_mint.to_account_info(),
+            chain: ctx.remaining_accounts[0].clone(),
+            trie: ctx.remaining_accounts[1].clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
             instruction: ctx.accounts.instruction.to_account_info(),
         };
-        let cpi_program = ctx.remaining_accounts[3].clone();
+        let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
         solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
@@ -601,7 +600,7 @@ pub struct SetService<'info> {
     #[account(mut)]
     depositor: Signer<'info>,
 
-    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
+    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump, has_one = stake_mint)]
     pub vault_params: Box<Account<'info, Vault>>,
     #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
     pub staking_params: Box<Account<'info, StakingParams>>,
@@ -610,6 +609,9 @@ pub struct SetService<'info> {
     pub receipt_token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = receipt_token_mint, token::authority = depositor)]
     pub receipt_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub stake_mint: Account<'info, Mint>,
 
     ///CHECK:   
     pub instruction: AccountInfo<'info>,

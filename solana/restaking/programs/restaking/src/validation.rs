@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use solana_ibc::{CHAIN_SEED, SOLANA_IBC_STORAGE_SEED, TRIE_SEED};
+use solana_ibc::{CHAIN_SEED, TRIE_SEED};
 
 use crate::ErrorCodes;
 
@@ -10,7 +10,6 @@ use crate::ErrorCodes;
 /// extend this method below to do the validation for those accounts as well.
 ///
 /// Accounts needed for calling `set_stake`
-/// - storage: PDA with seeds ["private"]
 /// - chain: PDA with seeds ["chain"]. Should be writable
 /// - trie: PDA with seeds ["trie"]
 /// - guest chain program ID: Should match the expected guest chain program ID
@@ -20,23 +19,13 @@ pub fn validate_remaining_accounts(
     accounts: &[AccountInfo<'_>],
     expected_guest_chain_program_id: &Pubkey,
 ) -> Result<()> {
-    // Storage Account
-    let seeds = [SOLANA_IBC_STORAGE_SEED];
-    let seeds = seeds.as_ref();
-
-    let (storage_account, _bump) =
-        Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
-    if &storage_account != accounts[0].key {
-        return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
-    }
-
     // Chain account
     let seeds = [CHAIN_SEED];
     let seeds = seeds.as_ref();
 
     let (storage_account, _bump) =
         Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
-    if &storage_account != accounts[1].key && accounts[1].is_writable {
+    if &storage_account != accounts[0].key && accounts[0].is_writable {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
     // Trie account
@@ -45,12 +34,12 @@ pub fn validate_remaining_accounts(
 
     let (storage_account, _bump) =
         Pubkey::find_program_address(seeds, expected_guest_chain_program_id);
-    if &storage_account != accounts[2].key && accounts[2].is_writable {
+    if &storage_account != accounts[1].key && accounts[1].is_writable {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
 
     // Guest chain program ID
-    if expected_guest_chain_program_id != accounts[3].key {
+    if expected_guest_chain_program_id != accounts[2].key {
         return Err(error!(ErrorCodes::AccountValidationFailedForCPI));
     }
 
