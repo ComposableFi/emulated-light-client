@@ -354,11 +354,11 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(init_if_needed, payer = admin, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, space = 1024)]
+    #[account(init, payer = admin, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, space = 1024)]
     pub staking_params: Account<'info, StakingParams>,
 
     pub rewards_token_mint: Account<'info, Mint>,
-    #[account(init_if_needed, payer = admin, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    #[account(init, payer = admin, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
     pub rewards_token_account: Account<'info, TokenAccount>,
 
     token_program: Program<'info, Token>,
