@@ -213,11 +213,11 @@ describe("restaking", () => {
     }
   });
 
-  it("Update guest chain initialization to true", async () => {
+  it("Update guest chain initialization with its program ID", async () => {
     const { stakingParamsPDA } = getStakingParamsPDA();
     try {
       const tx = await program.methods
-        .updateGuestChainInitialization()
+        .updateGuestChainInitialization(guestChainProgramId)
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,

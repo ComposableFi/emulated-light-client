@@ -8,6 +8,7 @@ use solana_ibc::program::SolanaIbc;
 use solana_ibc::CHAIN_SEED;
 
 pub mod constants;
+mod validation;
 mod token;
 
 use constants::{
@@ -30,7 +31,7 @@ pub mod restaking {
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
-        staking_params.is_guest_chain_initialized = false;
+        staking_params.guest_chain_program_id = None;
         staking_params.staking_cap = staking_cap;
         staking_params.rewards_token_mint =
             ctx.accounts.rewards_token_mint.key();
@@ -76,8 +77,8 @@ pub mod restaking {
         }
 
         let current_time = Clock::get()?.unix_timestamp;
-        let is_guest_chain_initialized =
-            staking_params.is_guest_chain_initialized;
+        let guest_chain_program_id =
+            staking_params.guest_chain_program_id;
 
         vault_params.service = service;
         vault_params.stake_timestamp_sec = current_time;
@@ -99,7 +100,8 @@ pub mod restaking {
         token::mint_nft(ctx.accounts.into(), seeds)?;
 
         // Call Guest chain program to update the stake if the chain is initialized
-        if is_guest_chain_initialized {
+        if guest_chain_program_id.is_some() {
+            validation::validate_remaining_accounts(ctx.remaining_accounts, &guest_chain_program_id.unwrap())?;
             let cpi_accounts = Chain {
                 sender: ctx.accounts.depositor.to_account_info(),
                 storage: ctx.remaining_accounts[0].clone(),
@@ -122,7 +124,7 @@ pub mod restaking {
         let staking_params = &mut ctx.accounts.staking_params;
         let stake_token_mint = ctx.accounts.token_mint.key();
 
-        if !staking_params.is_guest_chain_initialized {
+        if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
         }
 
@@ -233,16 +235,20 @@ pub mod restaking {
         Ok(())
     }
 
-    /// Sets guest chain initialization status to true.
+    /// Sets guest chain program ID
     ///
     /// After this method is called, CPI calls would be made to guest chain during deposit and stake would be
     /// set to the validators. Users can also claim rewards or withdraw their stake
     /// when the chain is initialized.
     pub fn update_guest_chain_initialization(
         ctx: Context<UpdateStakingParams>,
+        guest_chain_program_id: Pubkey, 
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
-        staking_params.is_guest_chain_initialized = true;
+        if staking_params.guest_chain_program_id.is_some() {
+            return Err(error!(ErrorCodes::GuestChainAlreadyInitialized));
+        }
+        staking_params.guest_chain_program_id = Some(guest_chain_program_id);
 
         Ok(())
     }
@@ -250,7 +256,7 @@ pub mod restaking {
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
         let staking_params = &ctx.accounts.staking_params;
 
-        if !staking_params.is_guest_chain_initialized {
+        if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
         }
 
@@ -562,7 +568,8 @@ pub struct StakingParams {
     pub admin: Pubkey,
     #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
-    pub is_guest_chain_initialized: bool,
+    /// None means the guest chain is not initialized yet.
+    pub guest_chain_program_id: Option<Pubkey>,
     pub rewards_token_mint: Pubkey,
     // None means there is not staking cap
     pub staking_cap: u128,
@@ -615,4 +622,8 @@ pub enum ErrorCodes {
     StakingCapExceeded,
     #[msg("New staking cap should be more than existing one")]
     NewStakingCapShouldBeMoreThanExistingOne,
+    #[msg("Guest chain can only be initialized once")]
+    GuestChainAlreadyInitialized,
+    #[msg("Account validation for CPI call to the guest chain")]
+    AccountValidationFailedForCPI
 }
