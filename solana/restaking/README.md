@@ -51,10 +51,16 @@ can start staking.
   stake. They would have to have to own the non fungible receipt
   token to be eligible for claiming rewards.
 
+- `Set Service`: Once the bridge is live, users who had deposited before
+  can call this method to delegate their stake to the validator. Users
+  cannot withdraw or claim any rewards until they delegate their stake
+  to the validator. But this method wont be needed after the bridge is
+  live and would panic if called otherwise.
+
 - `Update Guest chain Initialization`: The admin would call this method
-  when the bridge is up and running. This would make `is_guest_chain_initialized`
-  as true which would allow to make CPI calls during deposit and set stake to 
-  validator. 
+  when the bridge is up and running. This would set `guest_chain_program_id`
+  with the specified program ID which would allow to make CPI calls during 
+  deposit and set stake to validator. 
 
 - `Update token Whitelist`: The admin can update the token whitelist.
   Only callable by admin set during `initialize` method.
