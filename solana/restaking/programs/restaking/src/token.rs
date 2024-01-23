@@ -10,9 +10,9 @@ use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 use crate::{Claim, Deposit, Withdraw, WithdrawRewardFunds};
 
 /// Performs token transfer based on the given accounts and amount
-/// 
+///
 /// If the tokens are transferred from an account which is a signer,
-/// we dont need signed invocation. On the other hand, if 
+/// we dont need signed invocation. On the other hand, if
 /// the tokens are transferred from a PDA, then we need signed
 /// invocation
 pub fn transfer(
@@ -41,21 +41,16 @@ pub fn transfer(
 }
 
 /// Mints NFT using the metaplex standard
-/// 
+///
 /// Since the NFT is minted by the depositor who is a signer,
 /// we dont need signed invocation.
-pub fn mint_nft(
-    accounts: MintNftAccounts<'_>,
-) -> Result<()> {
+pub fn mint_nft(accounts: MintNftAccounts<'_>) -> Result<()> {
     mint_to(
-        CpiContext::new(
-            accounts.token_program.clone(),
-            MintTo {
-                authority: accounts.mint_authority.clone(),
-                to: accounts.to,
-                mint: accounts.token_mint.clone(),
-            },
-        ),
+        CpiContext::new(accounts.token_program.clone(), MintTo {
+            authority: accounts.mint_authority.clone(),
+            to: accounts.to,
+            mint: accounts.token_mint.clone(),
+        }),
         1, // 1 token
     )?;
 
@@ -89,20 +84,17 @@ pub fn mint_nft(
     msg!("Run create master edition v3");
 
     create_master_edition_v3(
-        CpiContext::new(
-            accounts.metadata_program,
-            CreateMasterEditionV3 {
-                edition: accounts.edition,
-                mint: accounts.token_mint,
-                update_authority: accounts.update_authority,
-                mint_authority: accounts.mint_authority,
-                payer: accounts.payer,
-                metadata: accounts.metadata,
-                token_program: accounts.token_program,
-                system_program: accounts.system_program,
-                rent: accounts.rent,
-            },
-        ),
+        CpiContext::new(accounts.metadata_program, CreateMasterEditionV3 {
+            edition: accounts.edition,
+            mint: accounts.token_mint,
+            update_authority: accounts.update_authority,
+            mint_authority: accounts.mint_authority,
+            payer: accounts.payer,
+            metadata: accounts.metadata,
+            token_program: accounts.token_program,
+            system_program: accounts.system_program,
+            rent: accounts.rent,
+        }),
         Some(1),
     )?;
     Ok(())
