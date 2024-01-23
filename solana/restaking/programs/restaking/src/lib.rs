@@ -87,16 +87,10 @@ pub mod restaking {
 
         // Transfer tokens to escrow
 
-        let bump = ctx.bumps.staking_params;
-        let seeds =
-            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-        let seeds = seeds.as_ref();
-        let seeds = core::slice::from_ref(&seeds);
-
-        token::transfer(ctx.accounts.into(), seeds, amount)?;
+        token::transfer(ctx.accounts.into(), &[], amount)?;
 
         // Mint receipt tokens
-        token::mint_nft(ctx.accounts.into(), seeds)?;
+        token::mint_nft(ctx.accounts.into())?;
 
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
@@ -104,6 +98,11 @@ pub mod restaking {
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
             )?;
+            let bump = ctx.bumps.staking_params;
+            let seeds =
+                [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+            let seeds = seeds.as_ref();
+            let seeds = core::slice::from_ref(&seeds);
             let cpi_accounts = Chain {
                 sender: ctx.accounts.depositor.to_account_info(),
                 storage: ctx.remaining_accounts[0].clone(),
@@ -186,7 +185,7 @@ pub mod restaking {
 
         // Burn receipt token
         burn_nft(
-            CpiContext::new_with_signer(
+            CpiContext::new(
                 ctx.accounts.metadata_program.to_account_info(),
                 BurnNft {
                     metadata: ctx.accounts.nft_metadata.to_account_info(),
@@ -199,12 +198,9 @@ pub mod restaking {
                         .master_edition_account
                         .to_account_info(),
                 },
-                seeds,
             ),
             None,
         )?;
-
-
 
         // Call Guest chain to update the stake
 
