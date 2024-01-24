@@ -161,15 +161,14 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        match message.clone() {
-            ibc::MsgEnvelope::Client(msg) => match msg {
-                ibc::ClientMsg::UpdateClient(_) => panic!(
-                    "Invalid message, Update Client message cannot be passed \
-                     here. Call send_update_client instead."
-                ),
-                _ => (),
-            },
-            _ => (),
+        if matches!(
+            message,
+            ibc::MsgEnvelope::Client(ibc::ClientMsg::UpdateClient(_))
+        ) {
+            panic!(
+                "Invalid message, Update Client message cannot be passed \
+                 here. Call send_update_client instead."
+            );
         }
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
@@ -193,7 +192,6 @@ pub mod solana_ibc {
         signatures_data: Vec<SignatureData>,
     ) -> Result<()> {
         let length = signatures_data.len() as i64;
-        // let mut index = 0;
         for (index, signature_data) in signatures_data.into_iter().enumerate() {
             let verifier = ed25519::Verifier::new(
                 &ctx.accounts.ix_sysvar,
@@ -214,17 +212,13 @@ pub mod solana_ibc {
                 )
                 .into());
             }
-            // index += 1;
         }
         if cfg!(not(feature = "mocks")) {
-            match update_client_msg.clone() {
-                ibc::MsgEnvelope::Client(msg) => match msg {
-                    ibc::ClientMsg::UpdateClient(_) => (),
-                    _ => {
-                        panic!("Invalid instruction, expected MsgUpdateClient")
-                    }
-                },
-                _ => panic!("Invalid instruction, expected MsgUpdateClient"),
+            if !matches!(
+                update_client_msg,
+                ibc::MsgEnvelope::Client(ibc::ClientMsg::UpdateClient(_))
+            ) {
+                panic!("Invalid message, Expect MsgUpdateClient");
             }
             let mut store = storage::from_ctx!(ctx);
             let mut router = store.clone();

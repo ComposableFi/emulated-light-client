@@ -94,3 +94,4 @@ curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dal
 # Skips signature verification since solana programs dont have
 # compute budget to verify ed25519 signatures.
 tendermint = { git = "https://github.com/dhruvja/tendermint-rs", branch = "skip-sig-verification" }
+tendermint-proto = { git = "https://github.com/dhruvja/tendermint-rs", branch = "skip-sig-verification" }
