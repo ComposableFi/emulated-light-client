@@ -121,7 +121,7 @@ pub mod solana_ibc {
     ///
     /// Can only be called through CPI from our staking program whose
     /// id is stored in chain account.
-    pub fn set_stake(ctx: Context<Chain>, amount: u128) -> Result<()> {
+    pub fn set_stake(ctx: Context<SetStake>, amount: u128) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
         let ixns = ctx.accounts.instruction.to_account_info();
         let current_index =
@@ -345,6 +345,34 @@ pub struct Chain<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
+
+    system_program: Program<'info, System>,
+
+    /// CHECK: Used for getting the caller program id to verify if the right
+    /// program is calling the method.
+    instruction: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct SetStake<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// The account holding the trie which corresponds to guest blockchain’s
+    /// state root.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// We would support only SOL as stake which has decimal of 9
+    #[account(mut, mint::decimals = 9)]
+    stake_mint: Account<'info, Mint>,
 
     system_program: Program<'info, System>,
 

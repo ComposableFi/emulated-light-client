@@ -33,8 +33,8 @@ describe("restaking", () => {
   let depositorWSolTokenAccount: any; // depositor wSol token account
 
   let initialMintAmount = 100000000;
+  let stakingCap = 30000;
   const depositAmount = 4000;
-  const boundingPeriod = 5;
 
   const guestChainProgramId = new anchor.web3.PublicKey(
     "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
@@ -81,7 +81,7 @@ describe("restaking", () => {
         admin,
         admin.publicKey,
         null,
-        6
+        9,
       );
 
       rewardsTokenMint = await spl.createMint(
@@ -191,14 +191,11 @@ describe("restaking", () => {
 
   it("Is Initialized", async () => {
     const whitelistedTokens = [wSolMint];
-    const boundingTimestamp = Date.now() / 1000 + boundingPeriod;
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-    // console.log("Staking params: ", stakingParamsPDA);
-    // console.log("Rewards token account: ", rewardsTokenAccountPDA);
     try {
       const tx = await program.methods
-        .initialize(whitelistedTokens, new anchor.BN(boundingTimestamp))
+        .initialize(whitelistedTokens, new anchor.BN(stakingCap))
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
@@ -216,7 +213,9 @@ describe("restaking", () => {
     }
   });
 
-  it("Deposit tokens", async () => {
+  
+
+  it("Deposit tokens before chain is initialized", async () => {
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
@@ -265,7 +264,6 @@ describe("restaking", () => {
           ),
         })
         .remainingAccounts([
-          { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainPDA, isSigner: false, isWritable: true },
           { pubkey: triePDA, isSigner: false, isWritable: true },
           { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
@@ -294,6 +292,60 @@ describe("restaking", () => {
       throw error;
     }
   });
+
+  it("Update guest chain initialization with its program ID", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateGuestChainInitialization(guestChainProgramId)
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
+
+  it("Set service after guest chain is initialized", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
+    const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
+
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
+    try {
+      const tx = await program.methods
+        .setService( { guestChain: { validator: depositor.publicKey } })
+        .accounts({
+          depositor: depositor.publicKey,
+          vaultParams: vaultParamsPDA,
+          stakingParams: stakingParamsPDA,
+          receiptTokenMint: tokenMint,
+          receiptTokenAccount,
+          stakeMint: wSolMint,
+          instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .remainingAccounts([
+          { pubkey: guestChainPDA, isSigner: false, isWritable: true },
+          { pubkey: triePDA, isSigner: false, isWritable: true },
+          { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
+        ])
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
 
   it("Claim rewards", async () => {
     const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);

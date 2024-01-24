@@ -26,8 +26,9 @@ The high level flow of the program is given in the image below.
 ## Instructions
 
 When the contract is deployed, the `initialize` method is called where
-the bounding period, whitelisted tokens, admin key and the rewards
-token mint is set. Any update to the staking paramters can only be
+the whitelisted tokens, admin key and the rewards
+token mint is set. Initially the `guest_chain_initialization` is set to
+false. Any update to the staking paramters can only be
 done by the admin key. A token account is also created for the
 rewards token mint which would distribute the rewards. Since the
 authority is PDA, any debit from the account will happen only through
@@ -50,6 +51,17 @@ can start staking.
   stake. They would have to have to own the non fungible receipt
   token to be eligible for claiming rewards.
 
+- `Set Service`: Once the bridge is live, users who had deposited before
+  can call this method to delegate their stake to the validator. Users
+  cannot withdraw or claim any rewards until they delegate their stake
+  to the validator. But this method wont be needed after the bridge is
+  live and would panic if called otherwise.
+
+- `Update Guest chain Initialization`: The admin would call this method
+  when the bridge is up and running. This would set `guest_chain_program_id`
+  with the specified program ID which would allow to make CPI calls during 
+  deposit and set stake to validator. 
+
 - `Update token Whitelist`: The admin can update the token whitelist.
   Only callable by admin set during `initialize` method.
 
@@ -64,4 +76,10 @@ can start staking.
 
 - Oracle interface is yet to be added to fetch the current price of 
   staked tokens as well as the governance token in the `Guest Blockchain`.
+
+- Users who have deposited before the `guest chain` is initialized can choose
+  the validator in one of three ways(Yet to be implemented):
+  - Choose a validator randomly
+  - Choose a validator from the list of top 10 validators chosen by us
+  - Choose a particular validator.
   
