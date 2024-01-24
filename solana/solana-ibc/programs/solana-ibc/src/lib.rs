@@ -93,7 +93,7 @@ pub mod solana_ibc {
         signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar, -1)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -318,50 +318,63 @@ pub mod solana_ibc {
     }
 
     pub fn verify_signature(
-        _ctx: Context<TestVerification>,
-        pubkey: Pubkey,
-        msg: Vec<u8>,
-        signature: [u8; 64],
+        ctx: Context<TestVerification>,
+        pubkey: Vec<Pubkey>,
+        msg: Vec<Vec<u8>>,
+        signature: Vec<[u8; 64]>,
     ) -> Result<()> {
+        let length = pubkey.len() as i64;
+        for i in 0..length {
+            let verifier = ed25519::Verifier::new(&ctx.accounts.instruction, i - length)?;
+            let result = verifier.verify(&msg[i as usize], &pubkey[i as usize].into(), &signature[i as usize].into());
+            msg!("This is the result {}", result);
+        }
+        // if ctx.accounts.chain.sign_block(
+        //     (*ctx.accounts.sender.key).into(),
+        //     &signature.into(),
+        //     &verifier,
+        // )? {
+        //     ctx.accounts.chain.maybe_generate_block(&provable)?;
+        // }
         // let pubkey = ed25519_consensus::VerificationKey::try_from(pubkey.to_bytes()).unwrap();
 
         // pubkey.verify(&ed25519_consensus::Signature::from(signature), &msg).unwrap();
 
-        // Constructs the Ed25519 program instruction data.
-        let mut data =
-            vec![0; 2 + core::mem::size_of::<ed25519::SignatureOffsets>() * 2];
+        // // Constructs the Ed25519 program instruction data.
+        // let mut data =
+        //     vec![0; 2 + core::mem::size_of::<ed25519::SignatureOffsets>() * 2];
 
-        let push = |data: &mut Vec<u8>, slice: &[u8]| {
-            let offset = u16::try_from(data.len()).unwrap();
-            let len = u16::try_from(slice.len()).unwrap();
-            data.extend_from_slice(slice);
-            (offset, len)
-        };
+        // let push = |data: &mut Vec<u8>, slice: &[u8]| {
+        //     let offset = u16::try_from(data.len()).unwrap();
+        //     let len = u16::try_from(slice.len()).unwrap();
+        //     data.extend_from_slice(slice);
+        //     (offset, len)
+        // };
 
-        let (public_key_offset, _) = push(&mut data, pubkey.as_ref());
+        // let (public_key_offset, _) = push(&mut data, pubkey.as_ref());
 
-        for (sig, msg) in [(&signature, msg.clone())] {
-            let (signature_offset, _) = push(&mut data, sig);
-            let (message_data_offset, message_data_size) = push(&mut data, &msg);
+        // for (sig, msg) in [(&signature, msg.clone())] {
+        //     let (signature_offset, _) = push(&mut data, sig);
+        //     let (message_data_offset, message_data_size) = push(&mut data, &msg);
 
-            let header = ed25519::SignatureOffsets {
-                signature_offset,
-                signature_instruction_index: u16::MAX,
-                public_key_offset,
-                public_key_instruction_index: u16::MAX,
-                message_data_offset,
-                message_data_size,
-                message_instruction_index: u16::MAX,
-            };
-            let header = bytemuck::bytes_of(&header);
-            let start = 2 + usize::from(data[0]) * header.len();
-            data[start..start + header.len()].copy_from_slice(header);
-            data[0] += 1;
-        }
-        let verifier = ed25519::Verifier(data);
-        let result = verifier.verify(&msg, &pubkey.into(), &ed25519::Signature(signature));
-        assert!(result);
-        msg!("THis is result {}", result);
+        //     let header = ed25519::SignatureOffsets {
+        //         signature_offset,
+        //         signature_instruction_index: u16::MAX,
+        //         public_key_offset,
+        //         public_key_instruction_index: u16::MAX,
+        //         message_data_offset,
+        //         message_data_size,
+        //         message_instruction_index: u16::MAX,
+        //     };
+        //     let header = bytemuck::bytes_of(&header);
+        //     let start = 2 + usize::from(data[0]) * header.len();
+        //     data[start..start + header.len()].copy_from_slice(header);
+        //     data[0] += 1;
+        // }
+        // let verifier = ed25519::Verifier(data);
+        // let result = verifier.verify(&msg, &pubkey.into(), &ed25519::Signature(signature));
+        // assert!(result);
+        // msg!("THis is result {}", result);
 
         Ok(())
     }
@@ -691,6 +704,9 @@ pub struct FormMessageChunks<'info> {
 pub struct TestVerification<'info> {
     #[account(mut)]
     sender: Signer<'info>,
+
+    /// CHECK:
+    instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]

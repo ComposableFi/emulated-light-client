@@ -76,14 +76,15 @@ impl Verifier {
     /// Returns error if `ix_sysver` is not `AccountInfo` for the Instruction
     /// sysvar, there was no instruction prior to the current on or the previous
     /// instruction was not a call to the Ed25519 native program.
-    pub fn new(ix_sysvar: &AccountInfo<'_>) -> anchor_lang::Result<Self> {
-        let ix = sysvar::instructions::get_instruction_relative(-1, ix_sysvar)?;
+    pub fn new(ix_sysvar: &AccountInfo<'_>, index: i64) -> anchor_lang::Result<Self> {
+        let ix = sysvar::instructions::get_instruction_relative(index, ix_sysvar)?;
         if ed25519_program::check_id(&ix.program_id) {
             Ok(Self(ix.data))
         } else {
             err!(anchor_lang::error::ErrorCode::InstructionMissing)
         }
     }
+
 }
 
 impl blockchain::Verifier<PubKey> for Verifier {
@@ -138,7 +139,8 @@ fn verify_impl(
             if cfg!(miri) {
                 check(&bytemuck::pod_read_unaligned(chunk))
             } else {
-                check(bytemuck::from_bytes(chunk))
+                check(&bytemuck::pod_read_unaligned(chunk))
+                // check(bytemuck::from_bytes(chunk))
             }
         })
 }
@@ -235,7 +237,7 @@ fn test_verify() {
     let msg1 = &b"hello, world"[..];
     let sig1 = Signature([1; 64]);
     let msg2 = &b"Hello, world!"[..];
-    let sig2 = Signature([2; 64]);
+    let sig2 = Signature([3; 64]);
 
     // Constructs the Ed25519 program instruction data.
     let mut data = vec![0; 2 + core::mem::size_of::<SignatureOffsets>() * 2];

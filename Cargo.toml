@@ -65,6 +65,8 @@ strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 uint = "0.9.5"
 ahash = "=0.8.6"
 spl-token = "4.0.0"
+tendermint-light-client-verifier = { path = "../tendermint-rs/light-client-verifier" }
+tendermint = { path = "../tendermint-rs/tendermint" }
 
 blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
@@ -98,7 +100,7 @@ curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dal
 # refer to a commit on master.
 # tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 # tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-# tendermint = { path = "../tendermint-rs/tendermint" }
-# tendermint-proto = { path = "../tendermint-rs/proto" }
-tendermint = { git = "https://github.com/dhruvja/tendermint-rs", branch = "solana-sig-verify" }
-tendermint-proto = { git = "https://github.com/dhruvja/tendermint-rs", branch = "solana-sig-verify" }
+tendermint = { path = "../tendermint-rs/tendermint" }
+tendermint-proto = { path = "../tendermint-rs/proto" }
+# tendermint = { git = "https://github.com/dhruvja/tendermint-rs", branch = "solana-sig-verify" }
+# tendermint-proto = { git = "https://github.com/dhruvja/tendermint-rs", branch = "solana-sig-verify" }

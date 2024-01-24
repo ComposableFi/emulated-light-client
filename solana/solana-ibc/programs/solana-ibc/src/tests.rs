@@ -1,9 +1,13 @@
 use core::num::{NonZeroU128, NonZeroU16};
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
+use anchor_client::solana_sdk::transaction::Transaction;
+use ::ibc::clients::tendermint::types::Header;
+use ::ibc::core::client::types::msgs::MsgCreateClient;
 use ::ibc::primitives::proto::Protobuf;
 // use ::ibc::primitives::Msg;
 use anchor_client::anchor_lang::system_program;
@@ -11,21 +15,30 @@ use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
+use anchor_client::solana_sdk::ed25519_instruction::new_ed25519_instruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
 use anchor_client::{Client, Cluster};
-use anchor_lang::prelude::borsh;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::{AnchorDeserialize, ToAccountMetas};
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::{ClientId, MsgEnvelope, MsgUpdateClient};
+use ibc_testkit::testapp::ibc::clients::AnyClientState;
+use tendermint_light_client_verifier::errors::VerificationError;
+use tendermint::{
+    block::CommitSig,
+    crypto::signature,
+    trust_threshold::TrustThreshold as _,
+    vote::{SignedVote, ValidatorIndex, Vote},
+};
+use tendermint_light_client_verifier::types::Commit;
 
 use crate::ibc::ClientStateCommon;
-use crate::storage::PrivateStorage;
+use crate::storage::{PrivateStorage, Serialised};
 use crate::{accounts, chain, ibc, instruction, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
@@ -190,20 +203,31 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
 
     println!("  Signature: {}", tx);
-    let message = b"Hello";
+    let msg1 = b"Hello";
     let private = authority.secret();
-    let signature =
-        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(message);
+    let sig1 =
+        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg1);
+    let msg2 = b"bye";
+    let sig2 =
+        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg2);
+
+    let messages = vec![msg1.to_vec(), msg2.to_vec()];
+    let pubkeys = vec![authority.pubkey(), authority.pubkey()];
+    let signatures = vec![sig1.to_bytes(), sig2.to_bytes()];
+
     let sig = program
         .request()
-        .accounts(accounts::TestVerification { sender: authority.pubkey() })
+        .instruction(new_ed25519_instruction(&authority.pubkey().to_bytes(), msg1, &sig1.to_bytes()))
+        .instruction(new_ed25519_instruction(&authority.pubkey().to_bytes(), msg2, &sig2.to_bytes()))
+        .accounts(accounts::TestVerification { sender: authority.pubkey(), instruction: anchor_lang::solana_program::sysvar::instructions::id()})
         .args(instruction::VerifySignature {
-            pubkey: authority.pubkey(),
-            msg: message.to_vec(),
-            signature: signature.to_bytes(),
+            pubkey: pubkeys,
+            msg: messages,
+            signature: signatures,
         })
         .payer(authority.clone())
         .signer(&*authority)
+        // .instructions()?;
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
@@ -266,257 +290,364 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
-    // /*
-    //  * Create New Mock Client
-    //  */
-    // println!("\nCreating Mock Client");
-    // let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    // let message = make_message!(
-    //     ibc::MsgCreateClient::new(
-    //         ibc::Any::from(mock_client_state),
-    //         ibc::Any::from(mock_cs_state.clone()),
-    //         ibc::Signer::from(authority.pubkey().to_string()),
-    //     ),
-    //     ibc::ClientMsg::CreateClient,
-    //     ibc::MsgEnvelope::Client,
+    /*
+     * Create New Mock Client
+     */
+    println!("\nCreating Mock Client");
+    let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
+    let message = make_message!(
+        ibc::MsgCreateClient::new(
+            ibc::Any::from(mock_client_state),
+            ibc::Any::from(mock_cs_state.clone()),
+            ibc::Signer::from(authority.pubkey().to_string()),
+        ),
+        ibc::ClientMsg::CreateClient,
+        ibc::MsgEnvelope::Client,
+    );
+
+    // let test_msg = ibc::MsgCreateClient::new(
+    //     ibc::Any::from(mock_client_state),
+    //     ibc::Any::from(mock_cs_state),
+    //     ibc::Signer::from(authority.pubkey().to_string()),
     // );
 
-    // // let test_msg = ibc::MsgCreateClient::new(
-    // //     ibc::Any::from(mock_client_state),
-    // //     ibc::Any::from(mock_cs_state),
-    // //     ibc::Signer::from(authority.pubkey().to_string()),
-    // // );
+    let test_msg = ibc::MsgCreateClient {
+        client_state: ibc::Any {
+            type_url: "/ibc.lightclients.tendermint.v1.ClientState".to_owned(),
+            value: vec![
+                10, 6, 116, 101, 115, 116, 45, 49, 18, 4, 8, 1, 16, 3, 26, 4,
+                8, 128, 244, 3, 34, 4, 8, 128, 223, 110, 42, 4, 8, 224, 198,
+                91, 50, 0, 58, 5, 8, 1, 16, 191, 1, 66, 25, 10, 9, 8, 1, 24, 1,
+                32, 1, 42, 1, 0, 18, 12, 10, 2, 0, 1, 16, 33, 24, 4, 32, 12,
+                48, 1, 66, 25, 10, 9, 8, 1, 24, 1, 32, 1, 42, 1, 0, 18, 12, 10,
+                2, 0, 1, 16, 32, 24, 1, 32, 1, 48, 1, 74, 7, 117, 112, 103,
+                114, 97, 100, 101, 74, 16, 117, 112, 103, 114, 97, 100, 101,
+                100, 73, 66, 67, 83, 116, 97, 116, 101,
+            ],
+        },
+        consensus_state: ibc::Any {
+            type_url: "/ibc.lightclients.tendermint.v1.ConsensusState"
+                .to_owned(),
+            value: vec![
+                10, 12, 8, 235, 165, 191, 173, 6, 16, 240, 254, 214, 137, 3,
+                18, 34, 10, 32, 29, 6, 192, 64, 73, 52, 173, 198, 91, 206, 193,
+                170, 117, 139, 21, 108, 52, 255, 26, 234, 172, 73, 98, 239, 48,
+                168, 170, 7, 145, 149, 42, 23, 26, 32, 189, 225, 101, 229, 59,
+                118, 20, 94, 85, 152, 110, 168, 154, 47, 221, 32, 52, 201, 31,
+                51, 155, 255, 233, 13, 221, 110, 211, 13, 143, 118, 160, 83,
+            ],
+        },
+        signer: String::from("oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb")
+            .into(),
+    };
 
-    // let test_msg = ibc::MsgCreateClient {
-    //     client_state: ibc::Any {
-    //         type_url: "/ibc.lightclients.tendermint.v1.ClientState".to_owned(),
-    //         value: vec![
-    //             10, 6, 116, 101, 115, 116, 45, 49, 18, 4, 8, 1, 16, 3, 26, 4,
-    //             8, 128, 244, 3, 34, 4, 8, 128, 223, 110, 42, 4, 8, 224, 198,
-    //             91, 50, 0, 58, 5, 8, 1, 16, 134, 19, 66, 25, 10, 9, 8, 1, 24,
-    //             1, 32, 1, 42, 1, 0, 18, 12, 10, 2, 0, 1, 16, 33, 24, 4, 32, 12,
-    //             48, 1, 66, 25, 10, 9, 8, 1, 24, 1, 32, 1, 42, 1, 0, 18, 12, 10,
-    //             2, 0, 1, 16, 32, 24, 1, 32, 1, 48, 1, 74, 7, 117, 112, 103,
-    //             114, 97, 100, 101, 74, 16, 117, 112, 103, 114, 97, 100, 101,
-    //             100, 73, 66, 67, 83, 116, 97, 116, 101,
-    //         ],
-    //     },
-    //     consensus_state: ibc::Any {
-    //         type_url: "/ibc.lightclients.tendermint.v1.ConsensusState"
-    //             .to_owned(),
-    //         value: vec![
-    //             10, 12, 8, 179, 168, 163, 173, 6, 16, 144, 196, 184, 157, 3,
-    //             18, 34, 10, 32, 171, 25, 49, 41, 233, 249, 239, 193, 239, 94,
-    //             57, 206, 14, 74, 119, 191, 100, 74, 50, 162, 113, 203, 56, 172,
-    //             115, 251, 174, 22, 252, 232, 110, 189, 26, 32, 100, 144, 35,
-    //             130, 184, 52, 158, 170, 197, 1, 36, 33, 173, 21, 159, 135, 46,
-    //             190, 227, 46, 85, 199, 122, 110, 146, 94, 111, 60, 37, 23, 216,
-    //             125,
-    //         ],
-    //     },
-    //     signer: String::from("oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb")
-    //         .into(),
-    // };
+    let serialized_message = test_msg.clone().encode_vec();
 
-    // let serialized_message = test_msg.clone().encode_vec();
+    let length = serialized_message.len();
+    let chunk_size = 500;
+    let mut offset = 4;
 
-    // let length = serialized_message.len();
-    // let chunk_size = 500;
-    // let mut offset = 4;
+    for i in serialized_message.chunks(chunk_size) {
+        let sig = program
+            .request()
+            .accounts(accounts::FormMessageChunks {
+                sender: authority.pubkey(),
+                msg_chunks,
+                system_program: system_program::ID,
+            })
+            .args(instruction::FormMsgChunks {
+                total_len: length as u32,
+                offset: offset as u32,
+                bytes: i.to_vec(),
+                type_url: ::ibc::core::client::context::types::msgs::CREATE_CLIENT_TYPE_URL.to_owned(),
+            })
+            .payer(authority.clone())
+            .signer(&*authority)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..RpcSendTransactionConfig::default()
+            })?;
+        println!("  Signature for message chunks : {sig}");
+        offset += chunk_size;
+    }
 
-    // for i in serialized_message.chunks(chunk_size) {
-    //     let sig = program
-    //         .request()
-    //         .accounts(accounts::FormMessageChunks {
-    //             sender: authority.pubkey(),
-    //             msg_chunks,
-    //             system_program: system_program::ID,
-    //         })
-    //         .args(instruction::FormMsgChunks {
-    //             total_len: length as u32,
-    //             offset: offset as u32,
-    //             bytes: i.to_vec(),
-    //             type_url: test_msg.type_url(),
-    //         })
-    //         .payer(authority.clone())
-    //         .signer(&*authority)
-    //         .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //             skip_preflight: true,
-    //             ..RpcSendTransactionConfig::default()
-    //         })?;
-    //     println!("  Signature for message chunks : {sig}");
-    //     offset += chunk_size;
-    // }
-
-    // let sig = program
-    //     .request()
-    //     .accounts(accounts::DeliverWithChunks {
-    //         sender: authority.pubkey(),
-    //         receiver: None,
-    //         storage,
-    //         trie,
-    //         chain,
-    //         system_program: system_program::ID,
-    //         mint_authority: None,
-    //         token_mint: None,
-    //         escrow_account: None,
-    //         receiver_token_account: None,
-    //         associated_token_program: None,
-    //         token_program: None,
-    //         msg_chunks,
-    //     })
-    //     .args(instruction::DeliverWithChunks {})
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
-
-    // let msg = MsgUpdateClient {
-    //     client_id: ibc::ClientId::from_str("07-tendermint-0").unwrap(),
-    //     client_message: ibc::Any {
-    //         type_url: "/ibc.lightclients.tendermint.v1.Header".to_owned(),
-    //         value: vec![
-    //             10, 202, 4, 10, 141, 3, 10, 2, 8, 11, 18, 6, 116, 101, 115,
-    //             116, 45, 49, 24, 146, 19, 34, 12, 8, 240, 168, 163, 173, 6, 16,
-    //             208, 170, 140, 243, 1, 42, 72, 10, 32, 15, 97, 92, 199, 8, 21,
-    //             180, 3, 123, 221, 37, 62, 173, 83, 169, 21, 246, 38, 93, 36,
-    //             151, 57, 190, 231, 229, 22, 198, 30, 242, 36, 88, 101, 18, 36,
-    //             8, 1, 18, 32, 212, 97, 156, 74, 48, 225, 249, 150, 9, 30, 248,
-    //             122, 211, 71, 252, 190, 68, 205, 100, 98, 232, 38, 191, 227,
-    //             16, 54, 43, 28, 65, 211, 133, 195, 50, 32, 171, 61, 83, 203,
-    //             212, 228, 171, 130, 118, 46, 199, 252, 214, 43, 67, 99, 137, 7,
-    //             231, 163, 215, 60, 0, 21, 19, 244, 176, 2, 44, 183, 183, 188,
-    //             58, 32, 227, 176, 196, 66, 152, 252, 28, 20, 154, 251, 244,
-    //             200, 153, 111, 185, 36, 39, 174, 65, 228, 100, 155, 147, 76,
-    //             164, 149, 153, 27, 120, 82, 184, 85, 66, 32, 100, 144, 35, 130,
-    //             184, 52, 158, 170, 197, 1, 36, 33, 173, 21, 159, 135, 46, 190,
-    //             227, 46, 85, 199, 122, 110, 146, 94, 111, 60, 37, 23, 216, 125,
-    //             74, 32, 100, 144, 35, 130, 184, 52, 158, 170, 197, 1, 36, 33,
-    //             173, 21, 159, 135, 46, 190, 227, 46, 85, 199, 122, 110, 146,
-    //             94, 111, 60, 37, 23, 216, 125, 82, 32, 4, 128, 145, 188, 125,
-    //             220, 40, 63, 119, 191, 191, 145, 215, 60, 68, 218, 88, 195,
-    //             223, 138, 156, 188, 134, 116, 5, 216, 183, 243, 218, 173, 162,
-    //             47, 90, 32, 35, 247, 234, 150, 203, 236, 249, 57, 166, 231, 84,
-    //             18, 136, 158, 18, 80, 189, 33, 137, 31, 205, 44, 225, 217, 151,
-    //             66, 123, 206, 14, 251, 140, 155, 98, 32, 184, 18, 92, 44, 71,
-    //             79, 230, 152, 18, 40, 140, 178, 180, 219, 28, 166, 43, 145,
-    //             166, 125, 247, 154, 151, 99, 75, 160, 6, 238, 12, 177, 229,
-    //             171, 106, 32, 227, 176, 196, 66, 152, 252, 28, 20, 154, 251,
-    //             244, 200, 153, 111, 185, 36, 39, 174, 65, 228, 100, 155, 147,
-    //             76, 164, 149, 153, 27, 120, 82, 184, 85, 114, 20, 87, 221, 134,
-    //             241, 58, 73, 231, 146, 124, 184, 171, 142, 166, 87, 81, 100,
-    //             174, 218, 237, 237, 18, 183, 1, 8, 146, 19, 26, 72, 10, 32, 15,
-    //             241, 227, 150, 124, 172, 0, 117, 122, 98, 252, 54, 64, 14, 39,
-    //             38, 171, 181, 35, 152, 132, 147, 178, 117, 74, 67, 11, 63, 40,
-    //             117, 193, 193, 18, 36, 8, 1, 18, 32, 198, 180, 212, 16, 196,
-    //             255, 255, 63, 114, 60, 75, 13, 112, 200, 98, 198, 240, 101,
-    //             207, 55, 137, 56, 252, 128, 180, 253, 123, 224, 134, 52, 39,
-    //             40, 34, 104, 8, 2, 18, 20, 87, 221, 134, 241, 58, 73, 231, 146,
-    //             124, 184, 171, 142, 166, 87, 81, 100, 174, 218, 237, 237, 26,
-    //             12, 8, 245, 168, 163, 173, 6, 16, 176, 205, 192, 132, 2, 34,
-    //             64, 103, 109, 66, 191, 44, 245, 88, 130, 86, 19, 139, 158, 63,
-    //             68, 54, 68, 32, 210, 43, 42, 98, 38, 211, 100, 234, 48, 47,
-    //             144, 137, 20, 236, 104, 150, 87, 114, 164, 125, 174, 162, 109,
-    //             217, 65, 223, 47, 214, 226, 116, 98, 240, 153, 204, 43, 133,
-    //             94, 217, 136, 0, 91, 1, 90, 96, 123, 234, 1, 18, 138, 1, 10,
-    //             64, 10, 20, 87, 221, 134, 241, 58, 73, 231, 146, 124, 184, 171,
-    //             142, 166, 87, 81, 100, 174, 218, 237, 237, 18, 34, 10, 32, 211,
-    //             78, 237, 202, 193, 179, 82, 202, 110, 63, 88, 60, 83, 118, 35,
-    //             198, 94, 71, 15, 3, 48, 166, 244, 59, 17, 56, 255, 154, 86, 85,
-    //             134, 49, 24, 128, 148, 235, 220, 3, 18, 64, 10, 20, 87, 221,
-    //             134, 241, 58, 73, 231, 146, 124, 184, 171, 142, 166, 87, 81,
-    //             100, 174, 218, 237, 237, 18, 34, 10, 32, 211, 78, 237, 202,
-    //             193, 179, 82, 202, 110, 63, 88, 60, 83, 118, 35, 198, 94, 71,
-    //             15, 3, 48, 166, 244, 59, 17, 56, 255, 154, 86, 85, 134, 49, 24,
-    //             128, 148, 235, 220, 3, 24, 128, 148, 235, 220, 3, 26, 5, 8, 1,
-    //             16, 134, 19, 34, 138, 1, 10, 64, 10, 20, 87, 221, 134, 241, 58,
-    //             73, 231, 146, 124, 184, 171, 142, 166, 87, 81, 100, 174, 218,
-    //             237, 237, 18, 34, 10, 32, 211, 78, 237, 202, 193, 179, 82, 202,
-    //             110, 63, 88, 60, 83, 118, 35, 198, 94, 71, 15, 3, 48, 166, 244,
-    //             59, 17, 56, 255, 154, 86, 85, 134, 49, 24, 128, 148, 235, 220,
-    //             3, 18, 64, 10, 20, 87, 221, 134, 241, 58, 73, 231, 146, 124,
-    //             184, 171, 142, 166, 87, 81, 100, 174, 218, 237, 237, 18, 34,
-    //             10, 32, 211, 78, 237, 202, 193, 179, 82, 202, 110, 63, 88, 60,
-    //             83, 118, 35, 198, 94, 71, 15, 3, 48, 166, 244, 59, 17, 56, 255,
-    //             154, 86, 85, 134, 49, 24, 128, 148, 235, 220, 3, 24, 128, 148,
-    //             235, 220, 3,
-    //         ],
-    //     },
-    //     signer: String::from("oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb")
-    //         .into(),
-    // };
+    let sig = program
+        .request()
+        .accounts(accounts::DeliverWithChunks {
+            sender: authority.pubkey(),
+            receiver: None,
+            storage,
+            trie,
+            chain,
+            system_program: system_program::ID,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
+            msg_chunks,
+        })
+        .args(instruction::DeliverWithChunks {})
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+    let client_type = "07-tendermint";
+    let client_idx = 0;
+    let client_id = format!("{}-{}", client_type, client_idx.to_string());
+    let msg = MsgUpdateClient {
+        client_id: ibc::ClientId::from_str(client_id.as_str()).unwrap(),
+        client_message: ibc::Any {
+            type_url: "/ibc.lightclients.tendermint.v1.Header".to_owned(),
+            value: vec![
+                10, 200, 4, 10, 140, 3, 10, 2, 8, 11, 18, 6, 116, 101, 115,
+                116, 45, 49, 24, 203, 1, 34, 11, 8, 168, 166, 191, 173, 6, 16,
+                216, 228, 146, 100, 42, 72, 10, 32, 133, 128, 207, 134, 35, 11,
+                63, 107, 154, 98, 33, 39, 120, 35, 204, 21, 144, 149, 250, 230,
+                78, 118, 134, 191, 144, 15, 127, 23, 155, 101, 107, 91, 18, 36,
+                8, 1, 18, 32, 252, 170, 110, 166, 207, 8, 33, 209, 249, 218,
+                203, 14, 250, 74, 217, 54, 232, 109, 154, 193, 1, 184, 181,
+                233, 123, 198, 204, 253, 111, 39, 35, 44, 50, 32, 255, 202,
+                191, 133, 221, 204, 53, 186, 73, 181, 250, 225, 209, 41, 59,
+                212, 57, 67, 120, 60, 227, 211, 128, 81, 218, 186, 229, 179,
+                91, 197, 210, 185, 58, 32, 227, 176, 196, 66, 152, 252, 28, 20,
+                154, 251, 244, 200, 153, 111, 185, 36, 39, 174, 65, 228, 100,
+                155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85, 66, 32, 189,
+                225, 101, 229, 59, 118, 20, 94, 85, 152, 110, 168, 154, 47,
+                221, 32, 52, 201, 31, 51, 155, 255, 233, 13, 221, 110, 211, 13,
+                143, 118, 160, 83, 74, 32, 189, 225, 101, 229, 59, 118, 20, 94,
+                85, 152, 110, 168, 154, 47, 221, 32, 52, 201, 31, 51, 155, 255,
+                233, 13, 221, 110, 211, 13, 143, 118, 160, 83, 82, 32, 4, 128,
+                145, 188, 125, 220, 40, 63, 119, 191, 191, 145, 215, 60, 68,
+                218, 88, 195, 223, 138, 156, 188, 134, 116, 5, 216, 183, 243,
+                218, 173, 162, 47, 90, 32, 220, 34, 180, 177, 215, 225, 130,
+                233, 233, 165, 3, 83, 176, 219, 202, 177, 124, 144, 55, 28,
+                158, 18, 175, 179, 44, 3, 3, 35, 230, 156, 69, 49, 98, 32, 239,
+                217, 10, 102, 103, 167, 83, 40, 150, 182, 14, 100, 250, 117,
+                191, 175, 180, 109, 238, 210, 150, 35, 193, 95, 52, 215, 83,
+                192, 116, 141, 147, 31, 106, 32, 227, 176, 196, 66, 152, 252,
+                28, 20, 154, 251, 244, 200, 153, 111, 185, 36, 39, 174, 65,
+                228, 100, 155, 147, 76, 164, 149, 153, 27, 120, 82, 184, 85,
+                114, 20, 78, 157, 134, 103, 221, 169, 242, 27, 23, 188, 135,
+                120, 184, 183, 98, 183, 156, 70, 96, 155, 18, 182, 1, 8, 203,
+                1, 26, 72, 10, 32, 204, 208, 251, 35, 82, 44, 164, 168, 96, 6,
+                248, 114, 119, 26, 93, 108, 57, 133, 244, 44, 91, 159, 234, 66,
+                39, 217, 10, 205, 251, 170, 190, 242, 18, 36, 8, 1, 18, 32,
+                197, 202, 124, 189, 171, 45, 116, 35, 137, 38, 131, 166, 232,
+                191, 40, 38, 204, 76, 146, 174, 83, 169, 51, 237, 157, 229,
+                138, 158, 52, 128, 101, 15, 34, 103, 8, 2, 18, 20, 78, 157,
+                134, 103, 221, 169, 242, 27, 23, 188, 135, 120, 184, 183, 98,
+                183, 156, 70, 96, 155, 26, 11, 8, 173, 166, 191, 173, 6, 16,
+                152, 141, 154, 114, 34, 64, 56, 58, 108, 71, 134, 229, 115, 46,
+                37, 133, 15, 126, 40, 77, 37, 79, 145, 202, 190, 82, 32, 77, 8,
+                145, 241, 177, 250, 61, 247, 80, 63, 175, 121, 224, 237, 221,
+                10, 163, 223, 38, 199, 175, 181, 223, 110, 244, 25, 188, 139,
+                240, 234, 213, 133, 169, 221, 229, 2, 95, 223, 64, 24, 171,
+                170, 3, 18, 138, 1, 10, 64, 10, 20, 78, 157, 134, 103, 221,
+                169, 242, 27, 23, 188, 135, 120, 184, 183, 98, 183, 156, 70,
+                96, 155, 18, 34, 10, 32, 216, 141, 116, 247, 208, 172, 66, 156,
+                76, 57, 233, 29, 27, 175, 151, 61, 218, 75, 47, 221, 135, 157,
+                20, 129, 141, 200, 94, 125, 152, 244, 254, 24, 24, 128, 148,
+                235, 220, 3, 18, 64, 10, 20, 78, 157, 134, 103, 221, 169, 242,
+                27, 23, 188, 135, 120, 184, 183, 98, 183, 156, 70, 96, 155, 18,
+                34, 10, 32, 216, 141, 116, 247, 208, 172, 66, 156, 76, 57, 233,
+                29, 27, 175, 151, 61, 218, 75, 47, 221, 135, 157, 20, 129, 141,
+                200, 94, 125, 152, 244, 254, 24, 24, 128, 148, 235, 220, 3, 24,
+                128, 148, 235, 220, 3, 26, 5, 8, 1, 16, 191, 1, 34, 138, 1, 10,
+                64, 10, 20, 78, 157, 134, 103, 221, 169, 242, 27, 23, 188, 135,
+                120, 184, 183, 98, 183, 156, 70, 96, 155, 18, 34, 10, 32, 216,
+                141, 116, 247, 208, 172, 66, 156, 76, 57, 233, 29, 27, 175,
+                151, 61, 218, 75, 47, 221, 135, 157, 20, 129, 141, 200, 94,
+                125, 152, 244, 254, 24, 24, 128, 148, 235, 220, 3, 18, 64, 10,
+                20, 78, 157, 134, 103, 221, 169, 242, 27, 23, 188, 135, 120,
+                184, 183, 98, 183, 156, 70, 96, 155, 18, 34, 10, 32, 216, 141,
+                116, 247, 208, 172, 66, 156, 76, 57, 233, 29, 27, 175, 151, 61,
+                218, 75, 47, 221, 135, 157, 20, 129, 141, 200, 94, 125, 152,
+                244, 254, 24, 24, 128, 148, 235, 220, 3, 24, 128, 148, 235,
+                220, 3,
+            ],
+        },
+        signer: String::from("oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb")
+            .into(),
+    };
 
     // let msg_envelope =
     //     MsgEnvelope::Client(ibc::ClientMsg::UpdateClient(msg.clone()));
 
-    // let serialized_message = msg.clone().encode_vec();
+    // Retrieve and validate state
+    let solana_ibc_storage_account: PrivateStorage =
+        program.account(storage).unwrap();
 
-    // println!("This is serialized message length {}", serialized_message.len());
+    let header = Header::try_from(msg.clone().client_message).unwrap();
+    let client_state = Serialised::get(
+        &solana_ibc_storage_account.clients[client_idx].client_state,
+    )
+    .unwrap();
 
-    // let length = serialized_message.len();
-    // let chunk_size = 500;
-    // let mut offset = 4;
+    let client_state = match client_state {
+        crate::client_state::AnyClientState::Tendermint(cs) => cs,
+        _ => panic!("Invalid"),
+    };
 
-    // for i in serialized_message.chunks(chunk_size) {
-    //     let sig = program
-    //         .request()
-    //         .accounts(accounts::FormMessageChunks {
-    //             sender: authority.pubkey(),
-    //             msg_chunks,
-    //             system_program: system_program::ID,
-    //         })
-    //         .args(instruction::FormMsgChunks {
-    //             total_len: length as u32,
-    //             offset: offset as u32,
-    //             bytes: i.to_vec(),
-    //             type_url: msg.type_url(),
-    //         })
-    //         .payer(authority.clone())
-    //         .signer(&*authority)
-    //         .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //             skip_preflight: true,
-    //             ..RpcSendTransactionConfig::default()
-    //         })?;
-    //     println!("  Signature for message chunks : {sig}");
-    //     offset += chunk_size;
-    // }
+    let untrusted_sh = header.signed_header;
+    let trusted_validators = header.validator_set;
+    let options = client_state.inner().as_light_client_options().unwrap();
 
-    // let sig = program
-    //     .request()
-    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-    //         5_000_000u32,
-    //     ))
-    //     .instruction(ComputeBudgetInstruction::request_heap_frame(256 * 1024))
-    //     .accounts(accounts::DeliverWithChunks {
-    //         sender: authority.pubkey(),
-    //         receiver: None,
-    //         storage,
-    //         trie,
-    //         chain,
-    //         system_program: system_program::ID,
-    //         mint_authority: None,
-    //         token_mint: None,
-    //         escrow_account: None,
-    //         receiver_token_account: None,
-    //         associated_token_program: None,
-    //         token_program: None,
-    //         msg_chunks,
-    //     })
-    //     .args(instruction::DeliverWithChunks {})
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
+    let mut instructions = Vec::new();
+    let mut messages = Vec::new();
+    let mut pubkeys = Vec::new();
+    let mut sigs: Vec<[u8;64]> = Vec::new();
 
-    // // Retrieve and validate state
-    // let solana_ibc_storage_account: PrivateStorage =
-    //     program.account(storage).unwrap();
+    let signatures = &untrusted_sh.commit.signatures;
+
+    let mut tallied_voting_power = 0_u64;
+    let mut seen_validators = HashSet::new();
+
+    // Get non-absent votes from the signatures
+    let non_absent_votes =
+        signatures.iter().enumerate().flat_map(|(idx, signature)| {
+            non_absent_vote(
+                signature,
+                ValidatorIndex::try_from(idx).unwrap(),
+                &untrusted_sh.commit,
+            )
+            .map(|vote| (signature, vote))
+        });
+
+    for (signature, vote) in non_absent_votes {
+        // Ensure we only count a validator's power once
+        if seen_validators.contains(&vote.validator_address) {
+            return Err(VerificationError::duplicate_validator(
+                vote.validator_address,
+            ).into());
+        } else {
+            seen_validators.insert(vote.validator_address);
+        }
+
+        let validator = match trusted_validators.validator(vote.validator_address) {
+            Some(validator) => validator,
+            None => continue, // Cannot find matching validator, so we skip the vote
+        };
+
+        let signed_vote = SignedVote::from_vote(
+            vote.clone(),
+            untrusted_sh.header.chain_id.clone(),
+        )
+        .ok_or_else(VerificationError::missing_signature)?;
+
+        // Check vote is valid
+        let sign_bytes = signed_vote.sign_bytes();
+        instructions.push(new_ed25519_instruction(&validator.pub_key.to_bytes(), &sign_bytes, signed_vote.signature().as_bytes()));
+        messages.push(sign_bytes);
+        pubkeys.push(Pubkey::try_from(validator.pub_key.to_bytes()).unwrap());
+        sigs.push(signed_vote.signature().as_bytes().try_into().unwrap());
+        // // if validator
+        // //     .verify_signature::<V>(&sign_bytes, signed_vote.signature())
+        // //     .is_err()
+        // // {
+        // //     return Err(VerificationError::invalid_signature(
+        // //         signed_vote.signature().as_bytes().to_vec(),
+        // //         Box::new(validator),
+        // //         sign_bytes,
+        // //     ));
+        // // }
+
+        // // If the vote is neither absent nor nil, tally its power
+        // if signature.is_commit() {
+        //     tallied_voting_power += validator.power();
+        // } else {
+        //     // It's OK. We include stray signatures (~votes for nil)
+        //     // to measure validator availability.
+        // }
+
+        // // TODO: Break out of the loop when we have enough voting power.
+        // // See https://github.com/informalsystems/tendermint-rs/issues/235
+    }
+    println!("Lenght of signatures {}", signatures.len());
+    let mut verify_ix = program.request()
+        .accounts(accounts::TestVerification { sender: authority.pubkey(), instruction: anchor_lang::solana_program::sysvar::instructions::id()})
+        .args(instruction::VerifySignature {
+            pubkey: pubkeys,
+            msg: messages,
+            signature: sigs,
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .instructions()?;
+        // .send_with_spinner_and_config(RpcSendTransactionConfig {
+        //     skip_preflight: true,
+        //     ..RpcSendTransactionConfig::default()
+        // })?;
+    instructions.append(&mut verify_ix);
+    let mut tx = Transaction::new_with_payer(&instructions, Some(&authority.pubkey()));
+    let blockhash = sol_rpc_client.get_latest_blockhash()?;
+    tx.sign(&[&*authority], blockhash);
+    sol_rpc_client.send_and_confirm_transaction_with_spinner(&tx)?;
+    let serialized_message = msg.clone().encode_vec();
+
+    println!("This is serialized message length {}", serialized_message.len());
+
+    let length = serialized_message.len();
+    let chunk_size = 500;
+    let mut offset = 4;
+
+    for i in serialized_message.chunks(chunk_size) {
+        let sig = program
+            .request()
+            .accounts(accounts::FormMessageChunks {
+                sender: authority.pubkey(),
+                msg_chunks,
+                system_program: system_program::ID,
+            })
+            .args(instruction::FormMsgChunks {
+                total_len: length as u32,
+                offset: offset as u32,
+                bytes: i.to_vec(),
+                type_url: ::ibc::core::client::context::types::msgs::UPDATE_CLIENT_TYPE_URL.to_owned(),
+            })
+            .payer(authority.clone())
+            .signer(&*authority)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..RpcSendTransactionConfig::default()
+            })?;
+        println!("  Signature for message chunks : {sig}");
+        offset += chunk_size;
+    }
+
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            5_000_000u32,
+        ))
+        .instruction(ComputeBudgetInstruction::request_heap_frame(256 * 1024))
+        .accounts(accounts::DeliverWithChunks {
+            sender: authority.pubkey(),
+            receiver: None,
+            storage,
+            trie,
+            chain,
+            system_program: system_program::ID,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            associated_token_program: None,
+            token_program: None,
+            msg_chunks,
+        })
+        .args(instruction::DeliverWithChunks {})
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
 
     // println!(
     //     "  This is solana storage account {:?}",
@@ -1037,4 +1168,42 @@ fn construct_packet_from_denom(
     };
 
     packet
+}
+
+fn non_absent_vote(
+    commit_sig: &CommitSig,
+    validator_index: ValidatorIndex,
+    commit: &Commit,
+) -> Option<Vote> {
+    let (validator_address, timestamp, signature, block_id) = match commit_sig {
+        CommitSig::BlockIdFlagAbsent { .. } => return None,
+        CommitSig::BlockIdFlagCommit {
+            validator_address,
+            timestamp,
+            signature,
+        } => (
+            *validator_address,
+            *timestamp,
+            signature,
+            Some(commit.block_id),
+        ),
+        CommitSig::BlockIdFlagNil {
+            validator_address,
+            timestamp,
+            signature,
+        } => (*validator_address, *timestamp, signature, None),
+    };
+
+    Some(Vote {
+        vote_type: tendermint::vote::Type::Precommit,
+        height: commit.height,
+        round: commit.round,
+        block_id,
+        timestamp: Some(timestamp),
+        validator_address,
+        validator_index,
+        signature: signature.clone(),
+        extension: Default::default(),
+        extension_signature: None,
+    })
 }

@@ -38,10 +38,10 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientConsensusStatePath,
         state: Self::AnyConsensusState,
     ) -> Result {
-        // msg!("store_consensus_state({}, {:?})", path, state);
-        msg!("store_consensus_state");
+        msg!("store_consensus_state({}, {:?})", path, state);
+        // msg!("store_consensus_state");
         let height =
-            ibc::Height::new(path.revision_number, path.revision_height)?;
+            ibc::Height::new(1, 191)?;
 
         let mut store = self.borrow_mut();
         let (processed_time, processed_height) = {

@@ -35,6 +35,8 @@ uint.workspace = true
 ed25519-consensus.workspace = true
 ahash.workspace = true
 spl-token.workspace = true
+tendermint-light-client-verifier.workspace = true
+tendermint.workspace = true
 
 blockchain.workspace = true
 lib.workspace = true
