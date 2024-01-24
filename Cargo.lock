@@ -1426,6 +1426,21 @@ dependencies = [
 
 [[package]]
 name = "ed25519-consensus"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "758e2a0cd8a6cdf483e1d369e7d081647e00b88d8953e34d8f2cbba05ae28368"
+dependencies = [
+ "curve25519-dalek-ng",
+ "hex",
+ "rand_core 0.6.4",
+ "serde",
+ "sha2 0.9.9",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "ed25519-consensus"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
@@ -2889,7 +2904,7 @@ version = "3.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba8ee05284d79b367ae8966d558e1a305a781fc80c9df51f37775169117ba64f"
 dependencies = [
- "borsh 0.9.3",
+ "borsh 0.10.3",
  "num-derive 0.3.3",
  "num-traits",
  "solana-program",
@@ -4361,6 +4376,7 @@ dependencies = [
  "blockchain",
  "bytemuck",
  "derive_more",
+ "ed25519-consensus 1.2.1",
  "hex-literal",
  "ibc",
  "ibc-testkit",
@@ -5345,12 +5361,12 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.0"
-source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
+source = "git+https://github.com/dhruvja/tendermint-rs?branch=skip-sig-verification#ff66d6fa8402aaa113b4f1fa639e112720cfee2d"
 dependencies = [
  "bytes",
  "digest 0.10.7",
  "ed25519 2.2.3",
- "ed25519-consensus",
+ "ed25519-consensus 2.1.0",
  "flex-error",
  "futures",
  "num-traits",
@@ -5386,7 +5402,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.0"
-source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
+source = "git+https://github.com/dhruvja/tendermint-rs?branch=skip-sig-verification#ff66d6fa8402aaa113b4f1fa639e112720cfee2d"
 dependencies = [
  "bytes",
  "flex-error",
@@ -5406,7 +5422,7 @@ version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a19d4f02b7e38ce790da973fdc9edc71a0e35340ac57737bf278c8379037c1f5"
 dependencies = [
- "ed25519-consensus",
+ "ed25519-consensus 2.1.0",
  "gumdrop",
  "serde",
  "serde_json",

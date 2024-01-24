@@ -34,6 +34,7 @@ prost = { version = "0.12.3", default-features = false }
 prost-build = { version = "0.12.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
 derive_more = "0.99.17"
+ed25519-consensus = "1"
 hex-literal = "0.4.1"
 ibc = { version = "0.49.1", default-features = false, features = ["borsh", "serde"] }
 ibc-core-channel-types = { version = "0.49.1", default-features = false }
@@ -90,9 +91,7 @@ anyhow = "1.0.32"
 aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
 curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
 
-# eyre has a mutable global variable which is something Solana
-# programs cannot have.  tendermint 0.34 enables eyre unconditionally;
-# version which doesn’t do that hasn’t been released yet so we need to
-# refer to a commit on master.
-tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
+# Skips signature verification since solana programs dont have
+# compute budget to verify ed25519 signatures.
+tendermint = { git = "https://github.com/dhruvja/tendermint-rs", branch = "skip-sig-verification" }
+tendermint-proto = { git = "https://github.com/dhruvja/tendermint-rs", branch = "skip-sig-verification" }

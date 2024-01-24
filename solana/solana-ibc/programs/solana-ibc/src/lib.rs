@@ -11,6 +11,7 @@ use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use blockchain::Verifier;
 use lib::hash::CryptoHash;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
@@ -44,8 +45,6 @@ mod validation_context;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-    use ::ibc::core::client::types::error::ClientError;
 
     use super::*;
 
@@ -97,7 +96,7 @@ pub mod solana_ibc {
         signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar, -1)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -167,6 +166,61 @@ pub mod solana_ibc {
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
+    }
+
+    /// Method to verify ed25519 signatures and send update client message.
+    /// 
+    /// Since we cannot use ed25519 signature verification due to compute budget limit,
+    /// we have to call ed25519 program and pass the message, pubkey and signatures in 
+    /// the same transaction in which the below method would be called. We then verify
+    /// the signatures comparing to the data in the previous instructions. If they 
+    /// signature verification is success, we send the `UpdateClient` msg. This method
+    /// can only be called to send `UpdateClient` message. Calling otherwise would 
+    /// panic.
+    pub fn send_update_client(
+        ctx: Context<SendUpdateClient>,
+        update_client_msg: ibc::MsgEnvelope,
+        signatures_data: Vec<SignatureData>,
+    ) -> Result<()> {
+        let length = signatures_data.len() as i64;
+        let mut index = 0;
+        for signature_data in signatures_data {
+            let verifier = ed25519::Verifier::new(
+                &ctx.accounts.ix_sysvar,
+                index - length,
+            )?;
+            let result = verifier.verify(
+                &signature_data.message,
+                &signature_data.pubkey.into(),
+                &signature_data.signature.into(),
+            );
+            msg!("This is the result {}", result);
+            if !result {
+                return Err(error::Error::ContextError(
+                    ibc::ClientError::HeaderVerificationFailure { reason: "Signature Verification Failed".to_string() }.into(),
+                ).into());
+            }
+            index += 1;
+        }
+        if cfg!(not(feature = "mocks")) {
+            match update_client_msg.clone() {
+                ibc::MsgEnvelope::Client(msg) => match msg {
+                    ibc::ClientMsg::UpdateClient(_) => (),
+                    _ => panic!("Invalid instruction, expected MsgUpdateClient"),
+                },
+                _ => panic!("Invalid instruction, expected MsgUpdateClient"),
+            }
+            let mut store = storage::from_ctx!(ctx);
+            let mut router = store.clone();
+            ::ibc::core::entrypoint::dispatch(
+                &mut store,
+                &mut router,
+                update_client_msg,
+            )
+            .map_err(error::Error::ContextError)
+            .map_err(move |err| error!((&err)))?;
+        }
+        Ok(())
     }
 
     /// Called to set up a connection, channel and store the next
@@ -240,7 +294,7 @@ pub mod solana_ibc {
             .map_err(|e| error::Error::ContextError(e.into()))?;
         if !status.is_active() {
             return Err(error::Error::ContextError(
-                ClientError::ClientNotActive { status }.into(),
+                ibc::ClientError::ClientNotActive { status }.into(),
             )
             .into());
         }
@@ -512,6 +566,31 @@ pub struct SendPacket<'info> {
     system_program: Program<'info, System>,
 }
 
+/// Has the same structure as `Deliver` though we expect for accounts to be already initialized here.
+#[derive(Accounts)]
+pub struct SendUpdateClient<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// CHECK:
+    ix_sysvar: AccountInfo<'info>,
+}
+
 #[derive(Accounts)]
 #[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
@@ -549,6 +628,13 @@ pub struct SendTransfer<'info> {
     associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct SignatureData {
+    pub pubkey: Pubkey,
+    pub signature: [u8; 64],
+    pub message: Vec<u8>,
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {

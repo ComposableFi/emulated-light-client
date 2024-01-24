@@ -12,7 +12,7 @@ name = "solana_ibc"
 default = ["custom-heap"]
 cpi = ["no-entrypoint"]
 custom-heap = []
-mocks = ["ibc-testkit"]
+mocks = ["ibc-testkit", "ed25519-consensus"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
@@ -23,6 +23,7 @@ anchor-spl.workspace = true
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast"] }
 derive_more.workspace = true
+ed25519-consensus = { workspace = true, optional = true }
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
 linear-map.workspace = true
