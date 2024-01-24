@@ -20,6 +20,7 @@ use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use bytemuck::bytes_of;
+use ed25519_consensus::SigningKey;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
 
@@ -197,10 +198,10 @@ fn anchor_test_deliver() -> Result<()> {
     let msg1 = b"Hello";
     let private = authority.secret();
     let sig1 =
-        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg1);
+        SigningKey::from(private.to_bytes()).sign(msg1);
     let msg2 = b"bye";
     let sig2 =
-        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg2);
+        SigningKey::from(private.to_bytes()).sign(msg2);
 
     let signature_data1 = crate::SignatureData {
         message: msg1.to_vec(),

@@ -183,11 +183,11 @@ pub mod solana_ibc {
         signatures_data: Vec<SignatureData>,
     ) -> Result<()> {
         let length = signatures_data.len() as i64;
-        let mut index = 0;
-        for signature_data in signatures_data {
+        // let mut index = 0;
+        for (index, signature_data) in signatures_data.into_iter().enumerate() {
             let verifier = ed25519::Verifier::new(
                 &ctx.accounts.ix_sysvar,
-                index - length,
+                index as i64 - length,
             )?;
             let result = verifier.verify(
                 &signature_data.message,
@@ -204,7 +204,7 @@ pub mod solana_ibc {
                 )
                 .into());
             }
-            index += 1;
+            // index += 1;
         }
         if cfg!(not(feature = "mocks")) {
             match update_client_msg.clone() {
