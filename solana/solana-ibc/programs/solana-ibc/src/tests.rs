@@ -197,11 +197,9 @@ fn anchor_test_deliver() -> Result<()> {
 
     let msg1 = b"Hello";
     let private = authority.secret();
-    let sig1 =
-        SigningKey::from(private.to_bytes()).sign(msg1);
+    let sig1 = SigningKey::from(private.to_bytes()).sign(msg1);
     let msg2 = b"bye";
-    let sig2 =
-        SigningKey::from(private.to_bytes()).sign(msg2);
+    let sig2 = SigningKey::from(private.to_bytes()).sign(msg2);
 
     let signature_data1 = crate::SignatureData {
         message: msg1.to_vec(),

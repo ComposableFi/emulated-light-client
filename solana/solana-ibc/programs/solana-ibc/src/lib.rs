@@ -161,6 +161,16 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        match message.clone() {
+            ibc::MsgEnvelope::Client(msg) => match msg {
+                ibc::ClientMsg::UpdateClient(_) => panic!(
+                    "Invalid message, Update Client message cannot be passed \
+                     here. Call send_update_client instead."
+                ),
+                _ => (),
+            },
+            _ => (),
+        }
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
