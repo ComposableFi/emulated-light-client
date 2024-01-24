@@ -86,8 +86,14 @@ impl Verifier {
     /// Returns error if `ix_sysver` is not `AccountInfo` for the Instruction
     /// sysvar, there was no instruction prior to the current on or the previous
     /// instruction was not a call to the Ed25519 native program.
-    pub fn new(ix_sysvar: &AccountInfo<'_>, relative_index: i64) -> anchor_lang::Result<Self> {
-        let ix = sysvar::instructions::get_instruction_relative(relative_index, ix_sysvar)?;
+    pub fn new(
+        ix_sysvar: &AccountInfo<'_>,
+        relative_index: i64,
+    ) -> anchor_lang::Result<Self> {
+        let ix = sysvar::instructions::get_instruction_relative(
+            relative_index,
+            ix_sysvar,
+        )?;
         if ed25519_program::check_id(&ix.program_id) {
             Ok(Self(ix.data))
         } else {

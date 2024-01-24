@@ -10,8 +10,8 @@ use anchor_lang::solana_program;
 use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
-use borsh::BorshDeserialize;
 use blockchain::Verifier;
+use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
@@ -169,13 +169,13 @@ pub mod solana_ibc {
     }
 
     /// Method to verify ed25519 signatures and send update client message.
-    /// 
+    ///
     /// Since we cannot use ed25519 signature verification due to compute budget limit,
-    /// we have to call ed25519 program and pass the message, pubkey and signatures in 
+    /// we have to call ed25519 program and pass the message, pubkey and signatures in
     /// the same transaction in which the below method would be called. We then verify
-    /// the signatures comparing to the data in the previous instructions. If they 
+    /// the signatures comparing to the data in the previous instructions. If they
     /// signature verification is success, we send the `UpdateClient` msg. This method
-    /// can only be called to send `UpdateClient` message. Calling otherwise would 
+    /// can only be called to send `UpdateClient` message. Calling otherwise would
     /// panic.
     pub fn send_update_client(
         ctx: Context<SendUpdateClient>,
@@ -197,8 +197,12 @@ pub mod solana_ibc {
             msg!("This is the result {}", result);
             if !result {
                 return Err(error::Error::ContextError(
-                    ibc::ClientError::HeaderVerificationFailure { reason: "Signature Verification Failed".to_string() }.into(),
-                ).into());
+                    ibc::ClientError::HeaderVerificationFailure {
+                        reason: "Signature Verification Failed".to_string(),
+                    }
+                    .into(),
+                )
+                .into());
             }
             index += 1;
         }
@@ -206,7 +210,9 @@ pub mod solana_ibc {
             match update_client_msg.clone() {
                 ibc::MsgEnvelope::Client(msg) => match msg {
                     ibc::ClientMsg::UpdateClient(_) => (),
-                    _ => panic!("Invalid instruction, expected MsgUpdateClient"),
+                    _ => {
+                        panic!("Invalid instruction, expected MsgUpdateClient")
+                    }
                 },
                 _ => panic!("Invalid instruction, expected MsgUpdateClient"),
             }

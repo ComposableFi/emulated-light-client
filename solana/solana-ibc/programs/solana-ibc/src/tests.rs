@@ -9,10 +9,12 @@ use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
-use anchor_client::solana_sdk::ed25519_instruction::{PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE, DATA_START};
+use anchor_client::solana_sdk::ed25519_instruction::{
+    DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
+};
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
-use anchor_client::{Client, Cluster, solana_sdk};
+use anchor_client::{solana_sdk, Client, Cluster};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
@@ -189,51 +191,60 @@ fn anchor_test_deliver() -> Result<()> {
     );
 
     /*
-     * Verify signatures for update client 
+     * Verify signatures for update client
      */
 
-     let msg1 = b"Hello";
-     let private = authority.secret();
-     let sig1 =
-         ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg1);
-     let msg2 = b"bye";
-     let sig2 =
-         ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg2);
- 
-     let signature_data1 = crate::SignatureData {
+    let msg1 = b"Hello";
+    let private = authority.secret();
+    let sig1 =
+        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg1);
+    let msg2 = b"bye";
+    let sig2 =
+        ed25519_consensus::SigningKey::from(private.to_bytes()).sign(msg2);
+
+    let signature_data1 = crate::SignatureData {
         message: msg1.to_vec(),
         pubkey: authority.pubkey(),
         signature: sig1.into(),
-     };
+    };
 
-     let signature_data2 = crate::SignatureData {
+    let signature_data2 = crate::SignatureData {
         message: msg2.to_vec(),
         pubkey: authority.pubkey(),
         signature: sig2.into(),
-     };
-     let signatures_data = vec![signature_data1, signature_data2];
- 
-     let sig = program
-         .request()
-         .instruction(new_ed25519_instruction_with_signature(&authority.pubkey().to_bytes(),  &sig1.to_bytes(), msg1))
-         .instruction(new_ed25519_instruction_with_signature(&authority.pubkey().to_bytes(), &sig2.to_bytes(), msg2))
-         .accounts(accounts::SendUpdateClient { 
-            sender: authority.pubkey(), 
+    };
+    let signatures_data = vec![signature_data1, signature_data2];
+
+    let sig = program
+        .request()
+        .instruction(new_ed25519_instruction_with_signature(
+            &authority.pubkey().to_bytes(),
+            &sig1.to_bytes(),
+            msg1,
+        ))
+        .instruction(new_ed25519_instruction_with_signature(
+            &authority.pubkey().to_bytes(),
+            &sig2.to_bytes(),
+            msg2,
+        ))
+        .accounts(accounts::SendUpdateClient {
+            sender: authority.pubkey(),
             storage,
             trie,
             chain,
-            ix_sysvar: anchor_lang::solana_program::sysvar::instructions::id()})
-         .args(instruction::SendUpdateClient {
+            ix_sysvar: anchor_lang::solana_program::sysvar::instructions::id(),
+        })
+        .args(instruction::SendUpdateClient {
             signatures_data,
-            update_client_msg: message, 
-         })
-         .payer(authority.clone())
-         .signer(&*authority)
-         .send_with_spinner_and_config(RpcSendTransactionConfig {
-             skip_preflight: true,
-             ..RpcSendTransactionConfig::default()
-         })?;
-     println!("  Signature for Signature verification : {sig}");
+            update_client_msg: message,
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature for Signature verification : {sig}");
 
     /*
      * Create New Mock Connection Open Init
@@ -855,12 +866,16 @@ fn construct_transfer_packet_from_denom(
     }
 }
 
-/// Solana sdk only accepts a keypair to form ed25519 instruction. 
-/// Until they implement a method which accepts a pubkey and signature instead of keypair 
+/// Solana sdk only accepts a keypair to form ed25519 instruction.
+/// Until they implement a method which accepts a pubkey and signature instead of keypair
 /// we have to use the below method instead.
-/// 
+///
 /// Reference: https://github.com/solana-labs/solana/pull/32806
-pub fn new_ed25519_instruction_with_signature(pubkey: &[u8], signature: &[u8], message: &[u8]) -> Instruction {
+pub fn new_ed25519_instruction_with_signature(
+    pubkey: &[u8],
+    signature: &[u8],
+    message: &[u8],
+) -> Instruction {
     assert_eq!(pubkey.len(), PUBKEY_SERIALIZED_SIZE);
     assert_eq!(signature.len(), SIGNATURE_SERIALIZED_SIZE);
 
@@ -873,8 +888,10 @@ pub fn new_ed25519_instruction_with_signature(pubkey: &[u8], signature: &[u8], m
 
     let num_signatures: u8 = 1;
     let public_key_offset = DATA_START;
-    let signature_offset = public_key_offset.saturating_add(PUBKEY_SERIALIZED_SIZE);
-    let message_data_offset = signature_offset.saturating_add(SIGNATURE_SERIALIZED_SIZE);
+    let signature_offset =
+        public_key_offset.saturating_add(PUBKEY_SERIALIZED_SIZE);
+    let message_data_offset =
+        signature_offset.saturating_add(SIGNATURE_SERIALIZED_SIZE);
 
     // add padding byte so that offset structure is aligned
     instruction_data.extend_from_slice(bytes_of(&[num_signatures, 0]));
