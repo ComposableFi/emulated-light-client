@@ -459,6 +459,7 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 
+    #[account(address = solana_program::sysvar::instructions::ID)]
     ///CHECK:   
     pub instruction: AccountInfo<'info>,
 
@@ -618,6 +619,7 @@ pub struct SetService<'info> {
     pub stake_mint: Account<'info, Mint>,
 
     ///CHECK:   
+    #[account(address = solana_program::sysvar::instructions::ID)]
     pub instruction: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,
