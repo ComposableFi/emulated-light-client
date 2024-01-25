@@ -330,6 +330,10 @@ pub mod restaking {
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
+        let token_account = &ctx.accounts.receipt_token_account;
+        if token_account.amount < 1 {
+            return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
+        }
 
         vault_params.service = Some(service);
 
