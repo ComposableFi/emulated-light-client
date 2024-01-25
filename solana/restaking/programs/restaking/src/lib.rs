@@ -107,8 +107,7 @@ pub mod restaking {
                 instruction: ctx.accounts.instruction.to_account_info(),
             };
             let cpi_program = ctx.remaining_accounts[2].clone();
-            let cpi_ctx =
-                CpiContext::new(cpi_program, cpi_accounts);
+            let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
             solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
         }
 
