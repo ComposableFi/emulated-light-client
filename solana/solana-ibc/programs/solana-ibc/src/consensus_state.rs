@@ -1,8 +1,8 @@
+use ::ibc::derive::ConsensusState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
 
 use crate::ibc::Protobuf;
-use ::ibc::derive::ConsensusState;
 
 #[derive(
     Clone,
@@ -10,7 +10,7 @@ use ::ibc::derive::ConsensusState;
     PartialEq,
     derive_more::From,
     derive_more::TryInto,
-    ConsensusState
+    ConsensusState,
 )]
 pub enum AnyConsensusState {
     Tendermint(crate::ibc::tm::ConsensusState),
