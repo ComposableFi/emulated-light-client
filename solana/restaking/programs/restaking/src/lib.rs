@@ -52,7 +52,7 @@ pub mod restaking {
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
-        service: Option<Service>,
+        service: Service,
         amount: u64,
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
@@ -79,7 +79,7 @@ pub mod restaking {
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
         vault_params.service =
-            if guest_chain_program_id.is_some() { service } else { None };
+            if guest_chain_program_id.is_some() { Some(service) } else { None };
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
