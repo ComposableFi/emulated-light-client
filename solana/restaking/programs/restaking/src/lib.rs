@@ -328,7 +328,7 @@ pub mod restaking {
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
-        
+
 
         vault_params.service = Some(service);
 
