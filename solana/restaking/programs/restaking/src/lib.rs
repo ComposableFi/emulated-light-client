@@ -98,11 +98,6 @@ pub mod restaking {
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
             )?;
-            let bump = ctx.bumps.staking_params;
-            let seeds =
-                [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-            let seeds = seeds.as_ref();
-            let seeds = core::slice::from_ref(&seeds);
             let cpi_accounts = SetStake {
                 sender: ctx.accounts.depositor.to_account_info(),
                 stake_mint: ctx.accounts.token_mint.to_account_info(),
@@ -113,7 +108,7 @@ pub mod restaking {
             };
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
-                CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+                CpiContext::new(cpi_program, cpi_accounts);
             solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
         }
 
