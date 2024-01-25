@@ -318,16 +318,17 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
 
+        let token_account = &ctx.accounts.receipt_token_account;
+        if token_account.amount < 1 {
+            return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
+        }
         if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
         }
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
-        let token_account = &ctx.accounts.receipt_token_account;
-        if token_account.amount < 1 {
-            return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
-        }
+        
 
         vault_params.service = Some(service);
 
