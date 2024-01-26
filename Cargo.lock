@@ -5860,6 +5860,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "09cc8ee72d2a9becf2f2febe0205bbed8fc6615b7cb429ad062dc7b7ddd036a9"
 
 [[package]]
+name = "validator"
+version = "0.0.0"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "base64 0.21.5",
+ "borsh 0.10.3",
+ "solana-ibc",
+]
+
+[[package]]
 name = "vec_map"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
