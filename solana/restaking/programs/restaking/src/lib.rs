@@ -245,8 +245,10 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn update_admin(ctx: Context<UpdateStakingParams>, new_admin: Pubkey) -> Result<()> {
-
+    pub fn update_admin(
+        ctx: Context<UpdateStakingParams>,
+        new_admin: Pubkey,
+    ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
         msg!("Changing Admin from {} to {}", staking_params.admin, new_admin);
 
