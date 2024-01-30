@@ -10,11 +10,10 @@ use anchor_client::{
     },
     Cluster,
 };
+use anchor_lang::solana_program::log;
 use base64::Engine;
 
 fn main() {
-    let keypair_path = std::env::var("KEYPAIR_PATH")
-        .unwrap_or_else(|_| "../keypair.json".to_string());
     let rpc_url = std::env::var("RPC_URL")
         .unwrap_or_else(|_| "http://127.0.0.1:8899".to_string());
     let ws_url = std::env::var("WS_URL")
@@ -22,12 +21,8 @@ fn main() {
     let program_id = std::env::var("PROGRAM_ID").unwrap_or_else(|_| {
         "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX".to_string()
     });
-    println!("keypair path {}", keypair_path);
-    // let validator = read_keypair_file("./keypair.json").unwrap();
+    let validator = read_keypair_file("./validator/keypair.json").unwrap();
 
-    // let (tx, rx) = unbounded_channel();
-    // tokio::task::spawn_blocking(move || {
-    // let cluster = Cluster::from_str(&rpc_url).unwrap();
     let (_logs_subscription, receiver) = PubsubClient::logs_subscribe(
         &ws_url,
         RpcTransactionLogsFilter::Mentions(vec![program_id]),

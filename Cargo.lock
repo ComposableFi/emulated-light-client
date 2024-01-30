@@ -5867,6 +5867,7 @@ dependencies = [
  "anchor-lang",
  "base64 0.21.5",
  "borsh 0.10.3",
+ "log",
  "solana-ibc",
 ]
 
