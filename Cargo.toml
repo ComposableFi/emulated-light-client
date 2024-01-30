@@ -10,6 +10,7 @@ members = [
     "solana/restaking/programs/*",
     "solana/trie",
     "solana/trie-example",
+    "solana/write-account",
     "solana/solana-ibc/programs/*",
 ]
 resolver = "2"
