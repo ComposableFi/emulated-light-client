@@ -4,7 +4,7 @@ pub const VAULT_SEED: &[u8] = b"vault";
 pub const TEST_SEED: &[u8] = b"abcdefg2";
 pub const REWARDS_SEED: &[u8] = b"rewards";
 
-pub const TOKEN_NAME: &str = "Restaking Position";
-pub const TOKEN_SYMBOL: &str = "RST";
+pub const TOKEN_NAME: &str = "Composable Restaking Position";
+pub const TOKEN_SYMBOL: &str = "CRP";
 pub const TOKEN_URI: &str =
-    "https://arweave.net/E19ZNY2sqMqddm1Wx7mrXPUZ0ZZ5ISizhebb0UsVEws";
+    "https://arweave.net/QbxPlvN1nHFG0AVXfGNdlXUk-LEkrQxFffI3fOUDciA";
