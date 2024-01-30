@@ -498,7 +498,7 @@ describe("restaking", () => {
         .rpc();
       console.log("  Signature for Updating Admin: ", tx);
       const stakingParameters = await getStakingParameters(program);
-      assert.equal(stakingParameters.admin, depositor.publicKey);
+      assert.equal(stakingParameters.admin.toBase58(),depositor.publicKey.toBase58());
     } catch (error) {
       console.log(error);
       throw error;
