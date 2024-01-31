@@ -441,8 +441,9 @@ pub struct Deposit<'info> {
     #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
     pub staking_params: Box<Account<'info, StakingParams>>,
 
-    /// Only token mint with 9 decimals can be staked for now since the guest chain expects that.
-    /// If a whitelisted token has 6 decimals, it would just be invalid.
+    /// Only token mint with 9 decimals can be staked for now since
+    /// the guest chain expects that.  If a whitelisted token has 6
+    /// decimals, it would just be invalid.
     #[account(mut, mint::decimals = 9)]
     pub token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = token_mint, token::authority = depositor.key())]
