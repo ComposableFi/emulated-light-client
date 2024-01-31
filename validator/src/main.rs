@@ -31,7 +31,7 @@ fn main() {
     let program_id: String = std::env::var("PROGRAM_ID").unwrap_or_else(|_| {
         "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX".to_string()
     });
-    let genesis_hash = std::env::var("GENESIS_HASH").unwrap_or_else(|_| {
+    let genesis_hash_str = std::env::var("GENESIS_HASH").unwrap_or_else(|_| {
         "o0OboGSWBU0eJmu3A8mraKscUSOm5LaCKRWLW4IAANw=".to_string()
     });
     let validator =
@@ -63,6 +63,8 @@ fn main() {
 
     log::info!("Validator running");
 
+    let genesis_hash = &CryptoHash::from_base64(&genesis_hash_str).expect("Invalid Genesis Hash");
+
     loop {
         let logs = receiver
             .recv()
@@ -78,8 +80,7 @@ fn main() {
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
         let fingerprint = blockchain::block::Fingerprint::new(
-            &CryptoHash::from_base64(&genesis_hash)
-                .expect("Invalid Gensis hash"),
+            genesis_hash,
             &event.block_header.0,
         );
         let signature = validator.sign_message(fingerprint.as_slice());
