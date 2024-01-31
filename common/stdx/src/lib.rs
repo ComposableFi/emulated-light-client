@@ -29,9 +29,9 @@ pub fn split_array_mut<const L: usize, const R: usize, const N: usize>(
     (left.try_into().unwrap(), right.try_into().unwrap())
 }
 
-/// Splits `&[u8]` into `(&[u8; L], &[u8])`.  Returns `None` if input is too
+/// Splits `&[T]` into `(&[T; L], &[T])`.  Returns `None` if input is too
 /// shorter.
-pub fn split_at<const L: usize>(xs: &[u8]) -> Option<(&[u8; L], &[u8])> {
+pub fn split_at<const L: usize, T>(xs: &[T]) -> Option<(&[T; L], &[T])> {
     if xs.len() < L {
         return None;
     }
