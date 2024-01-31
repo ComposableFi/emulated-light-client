@@ -73,6 +73,7 @@ fn main() {
             continue;
         }
         // Since only 1 block would be created in a transaction
+        assert_eq!(events.len(), 1);
         let event = &events[0];
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
