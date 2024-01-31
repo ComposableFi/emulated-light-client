@@ -3,12 +3,13 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_ibc::chain::ChainData;
-use solana_ibc::cpi::accounts::Chain;
+use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::CHAIN_SEED;
 
 pub mod constants;
 mod token;
+mod validation;
 
 use constants::{
     REWARDS_SEED, STAKING_PARAMS_SEED, TEST_SEED, VAULT_PARAMS_SEED, VAULT_SEED,
@@ -24,29 +25,34 @@ pub mod restaking {
     pub fn initialize(
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<Pubkey>,
-        bounding_timestamp: i64,
+        staking_cap: u128,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
-        staking_params.bounding_timestamp_sec = bounding_timestamp;
+        staking_params.guest_chain_program_id = None;
+        staking_params.staking_cap = staking_cap;
         staking_params.rewards_token_mint =
             ctx.accounts.rewards_token_mint.key();
 
         Ok(())
     }
 
+    /// Stakes the amount in the vault and if guest chain is initialized, a CPI call to the service is being
+    /// made to update the stake.
+    ///
     /// We are sending the accounts needed for making CPI call to guest blockchain as [`remaining_accounts`]
-    /// since we were running out of stack memory. Since remaining accounts are not named, they have to be
+    /// since we were running out of stack memory. Note that these accounts dont need to be sent until the
+    /// guest chain is initialized since CPI calls wont be made during that period.
+    /// Since remaining accounts are not named, they have to be
     /// sent in the same order as given below
-    /// - SolanaIBCStorage
     /// - Chain Data
     /// - trie
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
-        service: Service,
+        service: Option<Service>,
         amount: u64,
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
@@ -64,39 +70,52 @@ pub mod restaking {
             .find(|&&token_mint| token_mint == ctx.accounts.token_mint.key())
             .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
 
-        vault_params.service = service;
-        vault_params.stake_timestamp_sec = Clock::get()?.unix_timestamp;
+        staking_params.total_deposited_amount += amount as u128;
+        if staking_params.total_deposited_amount > staking_params.staking_cap {
+            return Err(error!(ErrorCodes::StakingCapExceeded));
+        }
+
+        let current_time = Clock::get()?.unix_timestamp;
+        let guest_chain_program_id = staking_params.guest_chain_program_id;
+
+        vault_params.service =
+            if guest_chain_program_id.is_some() { service } else { None };
+        vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
         vault_params.last_received_rewards_height = 0;
 
         // Transfer tokens to escrow
 
-        let bump = ctx.bumps.staking_params;
-        let seeds =
-            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-        let seeds = seeds.as_ref();
-        let seeds = core::slice::from_ref(&seeds);
-
-        token::transfer(ctx.accounts.into(), seeds, amount)?;
+        token::transfer(ctx.accounts.into(), &[], amount)?;
 
         // Mint receipt tokens
-        token::mint_nft(ctx.accounts.into(), seeds)?;
+        token::mint_nft(ctx.accounts.into())?;
 
-        // Call Guest chain program to update the stake
-
-        let cpi_accounts = Chain {
-            sender: ctx.accounts.depositor.to_account_info(),
-            storage: ctx.remaining_accounts[0].clone(),
-            chain: ctx.remaining_accounts[1].clone(),
-            trie: ctx.remaining_accounts[2].clone(),
-            system_program: ctx.accounts.system_program.to_account_info(),
-            instruction: ctx.accounts.instruction.to_account_info(),
-        };
-        let cpi_program = ctx.remaining_accounts[3].clone();
-        let cpi_ctx =
-            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+        // Call Guest chain program to update the stake if the chain is initialized
+        if guest_chain_program_id.is_some() {
+            validation::validate_remaining_accounts(
+                ctx.remaining_accounts,
+                &guest_chain_program_id.unwrap(),
+            )?;
+            let bump = ctx.bumps.staking_params;
+            let seeds =
+                [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+            let seeds = seeds.as_ref();
+            let seeds = core::slice::from_ref(&seeds);
+            let cpi_accounts = SetStake {
+                sender: ctx.accounts.depositor.to_account_info(),
+                stake_mint: ctx.accounts.token_mint.to_account_info(),
+                chain: ctx.remaining_accounts[0].clone(),
+                trie: ctx.remaining_accounts[1].clone(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                instruction: ctx.accounts.instruction.to_account_info(),
+            };
+            let cpi_program = ctx.remaining_accounts[2].clone();
+            let cpi_ctx =
+                CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+            solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+        }
 
         Ok(())
     }
@@ -106,24 +125,25 @@ pub mod restaking {
         let staking_params = &mut ctx.accounts.staking_params;
         let stake_token_mint = ctx.accounts.token_mint.key();
 
-        let current_time = Clock::get()?.unix_timestamp as u64;
-        msg!(
-            "current {} bounding_timestamp {}",
-            current_time,
-            staking_params.bounding_timestamp_sec
-        );
-        // if current_time < staking_params.bounding_timestamp {
-        //     return Err(error!(ErrorCodes::CannotWithdrawDuringBoundingPeriod));
-        // };
+        if staking_params.guest_chain_program_id.is_none() {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
 
         if stake_token_mint != vault_params.stake_mint {
             return Err(error!(ErrorCodes::InvalidTokenMint));
         }
 
         let chain = &ctx.accounts.guest_chain;
-        let validator_key = match vault_params.service {
+        let service = vault_params
+            .service
+            .as_ref()
+            .ok_or(error!(ErrorCodes::MissingService))?;
+        let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
+
+        let amount = vault_params.stake_amount;
+        staking_params.total_deposited_amount -= amount as u128;
 
         /*
          * Get the rewards from guest blockchain.
@@ -131,17 +151,15 @@ pub mod restaking {
 
         let (rewards, _current_height) = chain.calculate_rewards(
             vault_params.last_received_rewards_height,
-            validator_key,
+            *validator_key,
             vault_params.stake_amount,
         )?;
-
 
         let bump = ctx.bumps.staking_params;
         let seeds =
             [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
-
 
         // Transfer rewards from platform wallet
         token::transfer(
@@ -167,7 +185,7 @@ pub mod restaking {
 
         // Burn receipt token
         burn_nft(
-            CpiContext::new_with_signer(
+            CpiContext::new(
                 ctx.accounts.metadata_program.to_account_info(),
                 BurnNft {
                     metadata: ctx.accounts.nft_metadata.to_account_info(),
@@ -180,7 +198,6 @@ pub mod restaking {
                         .master_edition_account
                         .to_account_info(),
                 },
-                seeds,
             ),
             None,
         )?;
@@ -190,8 +207,13 @@ pub mod restaking {
         Ok(())
     }
 
+    /// Whitelists new tokens
+    ///
+    /// This method checks if any of the new token mints which are to be whitelisted
+    /// are already whitelisted. If they are the method fails to update the
+    /// whitelisted token list.
     pub fn update_token_whitelist(
-        ctx: Context<UpdateTokenWhitelist>,
+        ctx: Context<UpdateStakingParams>,
         new_token_mints: Vec<Pubkey>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
@@ -204,10 +226,38 @@ pub mod restaking {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
         }
 
+        staking_params
+            .whitelisted_tokens
+            .append(&mut new_token_mints.as_slice().to_vec());
+
+        Ok(())
+    }
+
+    /// Sets guest chain program ID
+    ///
+    /// After this method is called, CPI calls would be made to guest chain during deposit and stake would be
+    /// set to the validators. Users can also claim rewards or withdraw their stake
+    /// when the chain is initialized.
+    pub fn update_guest_chain_initialization(
+        ctx: Context<UpdateStakingParams>,
+        guest_chain_program_id: Pubkey,
+    ) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+        if staking_params.guest_chain_program_id.is_some() {
+            return Err(error!(ErrorCodes::GuestChainAlreadyInitialized));
+        }
+        staking_params.guest_chain_program_id = Some(guest_chain_program_id);
+
         Ok(())
     }
 
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
+        let staking_params = &ctx.accounts.staking_params;
+
+        if staking_params.guest_chain_program_id.is_none() {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
+
         let token_account = &ctx.accounts.receipt_token_account;
         if token_account.amount < 1 {
             return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
@@ -216,7 +266,11 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
         let chain = &ctx.accounts.guest_chain;
 
-        let validator = match vault_params.service {
+        let service = vault_params
+            .service
+            .as_ref()
+            .ok_or(error!(ErrorCodes::MissingService))?;
+        let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
         let stake_amount = vault_params.stake_amount;
@@ -229,7 +283,7 @@ pub mod restaking {
 
         let (rewards, current_height) = chain.calculate_rewards(
             last_received_rewards_height,
-            validator,
+            *validator_key,
             stake_amount,
         )?;
 
@@ -252,6 +306,58 @@ pub mod restaking {
 
         // Transfer the tokens from the platfrom rewards token account to the user token account
         token::transfer(ctx.accounts.into(), seeds, rewards)?;
+
+        Ok(())
+    }
+
+    /// This method sets the service for the stake which was deposited before guest chain
+    /// initialization
+    ///
+    /// This method can only be called if the service was not set during the depositing and
+    /// can only be called once. Calling otherwise would panic.
+    ///
+    /// The accounts for CPI are sent as remaining accounts similar to `deposit` method.
+    pub fn set_service<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetService<'info>>,
+        service: Service,
+    ) -> Result<()> {
+        let vault_params = &mut ctx.accounts.vault_params;
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        if staking_params.guest_chain_program_id.is_none() {
+            return Err(error!(ErrorCodes::OperationNotAllowed));
+        }
+        if vault_params.service.is_some() {
+            return Err(error!(ErrorCodes::ServiceAlreadySet));
+        }
+
+        vault_params.service = Some(service);
+
+        let guest_chain_program_id =
+            staking_params.guest_chain_program_id.unwrap(); // Infallible
+        let amount = vault_params.stake_amount;
+
+        validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
+        let bump = ctx.bumps.staking_params;
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+        let cpi_accounts = SetStake {
+            sender: ctx.accounts.depositor.to_account_info(),
+            stake_mint: ctx.accounts.stake_mint.to_account_info(),
+            chain: ctx.remaining_accounts[0].clone(),
+            trie: ctx.remaining_accounts[1].clone(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            instruction: ctx.accounts.instruction.to_account_info(),
+        };
+        let cpi_program = ctx.remaining_accounts[2].clone();
+        let cpi_ctx =
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
 
         Ok(())
     }
@@ -280,6 +386,23 @@ pub mod restaking {
 
         Ok(())
     }
+
+    pub fn update_staking_cap(
+        ctx: Context<UpdateStakingParams>,
+        new_staking_cap: u128,
+    ) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        if staking_params.staking_cap >= new_staking_cap {
+            return Err(error!(
+                ErrorCodes::NewStakingCapShouldBeMoreThanExistingOne
+            ));
+        }
+
+        staking_params.staking_cap = new_staking_cap;
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -287,11 +410,11 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(init_if_needed, payer = admin, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, space = 1024)]
+    #[account(init, payer = admin, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, space = 1024)]
     pub staking_params: Account<'info, StakingParams>,
 
     pub rewards_token_mint: Account<'info, Mint>,
-    #[account(init_if_needed, payer = admin, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
+    #[account(init, payer = admin, seeds = [REWARDS_SEED, TEST_SEED], bump, token::mint = rewards_token_mint, token::authority = staking_params)]
     pub rewards_token_account: Account<'info, TokenAccount>,
 
     token_program: Program<'info, Token>,
@@ -369,7 +492,7 @@ pub struct Withdraw<'info> {
 
     #[account(mut, close = withdrawer, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
     pub vault_params: Box<Account<'info, Vault>>,
-    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = rewards_token_mint)]
     pub staking_params: Box<Account<'info, StakingParams>>,
 
     #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
@@ -433,11 +556,11 @@ pub struct Withdraw<'info> {
 }
 
 #[derive(Accounts)]
-pub struct UpdateTokenWhitelist<'info> {
+pub struct UpdateStakingParams<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
 
-    #[account(mut, seeds = [STAKING_PARAMS_SEED], bump)]
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump, has_one = admin)]
     pub staking_params: Account<'info, StakingParams>,
 }
 
@@ -473,6 +596,30 @@ pub struct Claim<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetService<'info> {
+    #[account(mut)]
+    depositor: Signer<'info>,
+
+    #[account(mut, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump, has_one = stake_mint)]
+    pub vault_params: Box<Account<'info, Vault>>,
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    pub staking_params: Box<Account<'info, StakingParams>>,
+
+    #[account(mut, mint::decimals = 0)]
+    pub receipt_token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = receipt_token_mint, token::authority = depositor)]
+    pub receipt_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut)]
+    pub stake_mint: Account<'info, Mint>,
+
+    ///CHECK:   
+    pub instruction: AccountInfo<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct WithdrawRewardFunds<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -495,8 +642,12 @@ pub struct StakingParams {
     pub admin: Pubkey,
     #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
-    pub bounding_timestamp_sec: i64,
+    /// None means the guest chain is not initialized yet.
+    pub guest_chain_program_id: Option<Pubkey>,
     pub rewards_token_mint: Pubkey,
+    // None means there is not staking cap
+    pub staking_cap: u128,
+    pub total_deposited_amount: u128,
 }
 
 /// Unused for now
@@ -510,7 +661,7 @@ pub struct Vault {
     pub stake_timestamp_sec: i64,
     // Program to which the amount is staked
     // unused for now
-    pub service: Service,
+    pub service: Option<Service>,
     pub stake_amount: u64,
     pub stake_mint: Pubkey,
     /// is 0 initially
@@ -523,12 +674,32 @@ pub enum ErrorCodes {
     TokenAlreadyWhitelisted,
     #[msg("Can only stake whitelisted tokens")]
     TokenNotWhitelisted,
-    #[msg("Cannot withdraw during bounding period")]
-    CannotWithdrawDuringBoundingPeriod,
+    #[msg(
+        "This operation is not allowed until the guest chain is initialized"
+    )]
+    OperationNotAllowed,
     #[msg("Subtraction overflow")]
     SubtractionOverflow,
     #[msg("Invalid Token Mint")]
     InvalidTokenMint,
     #[msg("Insufficient receipt token balance, expected balance 1")]
     InsufficientReceiptTokenBalance,
+    #[msg(
+        "Service is missing. Make sure you have assigned your stake to a \
+         service"
+    )]
+    MissingService,
+    #[msg(
+        "Staking cap has reached. You can stake only when the staking cap is \
+         increased"
+    )]
+    StakingCapExceeded,
+    #[msg("New staking cap should be more than existing one")]
+    NewStakingCapShouldBeMoreThanExistingOne,
+    #[msg("Guest chain can only be initialized once")]
+    GuestChainAlreadyInitialized,
+    #[msg("Account validation for CPI call to the guest chain")]
+    AccountValidationFailedForCPI,
+    #[msg("Service is already set.")]
+    ServiceAlreadySet,
 }

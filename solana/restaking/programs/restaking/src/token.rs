@@ -9,6 +9,12 @@ use anchor_spl::token::{mint_to, MintTo, Transfer};
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
 use crate::{Claim, Deposit, Withdraw, WithdrawRewardFunds};
 
+/// Performs token transfer based on the given accounts and amount
+///
+/// If the tokens are transferred from an account which is a signer,
+/// we dont need signed invocation. On the other hand, if
+/// the tokens are transferred from a PDA, then we need signed
+/// invocation
 pub fn transfer(
     accounts: TransferAccounts<'_>,
     seeds: &[&[&[u8]]],
@@ -20,35 +26,36 @@ pub fn transfer(
         authority: accounts.authority,
     };
 
-    let cpi_ctx = CpiContext::new_with_signer(
-        accounts.token_program,
-        transfer_instruction,
-        seeds, //signer PDA
-    );
+    let cpi_ctx = if seeds.is_empty() {
+        CpiContext::new(accounts.token_program, transfer_instruction)
+    } else {
+        CpiContext::new_with_signer(
+            accounts.token_program,
+            transfer_instruction,
+            seeds, //signer PDA
+        )
+    };
 
     anchor_spl::token::transfer(cpi_ctx, amount)?;
     Ok(())
 }
 
-pub fn mint_nft(
-    accounts: MintNftAccounts<'_>,
-    seeds: &[&[&[u8]]],
-) -> Result<()> {
+/// Mints NFT using the metaplex standard
+///
+/// Since the NFT is minted by the depositor who is a signer,
+/// we dont need signed invocation.
+pub fn mint_nft(accounts: MintNftAccounts<'_>) -> Result<()> {
     mint_to(
-        CpiContext::new_with_signer(
-            accounts.token_program.clone(),
-            MintTo {
-                authority: accounts.mint_authority.clone(),
-                to: accounts.to,
-                mint: accounts.token_mint.clone(),
-            },
-            seeds,
-        ),
+        CpiContext::new(accounts.token_program.clone(), MintTo {
+            authority: accounts.mint_authority.clone(),
+            to: accounts.to,
+            mint: accounts.token_mint.clone(),
+        }),
         1, // 1 token
     )?;
 
     create_metadata_accounts_v3(
-        CpiContext::new_with_signer(
+        CpiContext::new(
             accounts.metadata_program.clone(),
             CreateMetadataAccountsV3 {
                 payer: accounts.payer.clone(),
@@ -59,7 +66,6 @@ pub fn mint_nft(
                 system_program: accounts.system_program.clone(),
                 rent: accounts.rent.clone(),
             },
-            seeds,
         ),
         DataV2 {
             name: TOKEN_NAME.to_string(),
@@ -78,21 +84,17 @@ pub fn mint_nft(
     msg!("Run create master edition v3");
 
     create_master_edition_v3(
-        CpiContext::new_with_signer(
-            accounts.metadata_program,
-            CreateMasterEditionV3 {
-                edition: accounts.edition,
-                mint: accounts.token_mint,
-                update_authority: accounts.update_authority,
-                mint_authority: accounts.mint_authority,
-                payer: accounts.payer,
-                metadata: accounts.metadata,
-                token_program: accounts.token_program,
-                system_program: accounts.system_program,
-                rent: accounts.rent,
-            },
-            seeds,
-        ),
+        CpiContext::new(accounts.metadata_program, CreateMasterEditionV3 {
+            edition: accounts.edition,
+            mint: accounts.token_mint,
+            update_authority: accounts.update_authority,
+            mint_authority: accounts.mint_authority,
+            payer: accounts.payer,
+            metadata: accounts.metadata,
+            token_program: accounts.token_program,
+            system_program: accounts.system_program,
+            rent: accounts.rent,
+        }),
         Some(1),
     )?;
     Ok(())
@@ -162,7 +164,6 @@ impl<'a> From<&mut WithdrawRewardFunds<'a>> for TransferAccounts<'a> {
         }
     }
 }
-
 
 impl<'a> From<&mut Deposit<'a>> for MintNftAccounts<'a> {
     fn from(accounts: &mut Deposit<'a>) -> Self {
