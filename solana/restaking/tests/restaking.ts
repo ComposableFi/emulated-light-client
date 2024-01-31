@@ -2,20 +2,21 @@ import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { Program } from "@coral-xyz/anchor";
-import { Restaking, IDL } from "../../../target/types/restaking";
+import { IDL } from "../../../target/types/restaking";
 import assert from "assert";
 import bs58 from "bs58";
 import {
   getGuestChainAccounts,
-  getMasterEditionPDA,
-  getNftMetadataPDA,
-  getReceiptTokenMintPDA,
   getRewardsTokenAccountPDA,
   getStakingParamsPDA,
   getVaultParamsPDA,
-  getVaultTokenAccountPDA,
 } from "./helper";
 import { restakingProgramId } from "./constants";
+import {
+  claimRewardsInstruction,
+  depositInstruction,
+  withdrawInstruction,
+} from "./instructions";
 
 describe("restaking", () => {
   // Configure the client to use the local cluster.
@@ -216,13 +217,6 @@ describe("restaking", () => {
   
 
   it("Deposit tokens before chain is initialized", async () => {
-    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
-    const { stakingParamsPDA } = getStakingParamsPDA();
-    const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
-    const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(wSolMint);
-    const { masterEditionPDA } = getMasterEditionPDA(tokenMint);
-    const { nftMetadataPDA } = getNftMetadataPDA(tokenMint);
-
     const receiptTokenAccount = await spl.getAssociatedTokenAddress(
       tokenMint,
       depositor.publicKey
@@ -233,45 +227,23 @@ describe("restaking", () => {
       depositorWSolTokenAccount
     );
 
-    try {
-      const tx = await program.methods
-        .deposit(
-          { guestChain: { validator: depositor.publicKey } },
-          new anchor.BN(depositAmount) // amount how much they are staking
-        )
-        .preInstructions([
-          anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-            units: 1000000,
-          }),
-        ])
-        .accounts({
-          depositor: depositor.publicKey, // staker
-          vaultParams: vaultParamsPDA,
-          stakingParams: stakingParamsPDA,
-          tokenMint: wSolMint, // token which they are staking
-          depositorTokenAccount: depositorWSolTokenAccount,
-          vaultTokenAccount: vaultTokenAccountPDA,
-          receiptTokenMint: tokenMint, // NFT
-          receiptTokenAccount,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          masterEditionAccount: masterEditionPDA,
-          nftMetadata: nftMetadataPDA,
-          instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-          metadataProgram: new anchor.web3.PublicKey(
-            mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-          ),
-        })
-        .remainingAccounts([
-          { pubkey: guestChainPDA, isSigner: false, isWritable: true },
-          { pubkey: triePDA, isSigner: false, isWritable: true },
-          { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
-        ])
-        .signers([depositor, tokenMintKeypair])
-        .rpc();
+    const tx = await depositInstruction(
+      program,
+      wSolMint,
+      depositor.publicKey,
+      depositAmount,
+      tokenMintKeypair
+    );
 
-      console.log("  Signature for Depositing: ", tx);
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor, tokenMintKeypair]
+      );
+
+      console.log("  Signature for Depositing: ", sig);
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,
@@ -348,48 +320,26 @@ describe("restaking", () => {
   })
 
   it("Claim rewards", async () => {
-    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
-    const { stakingParamsPDA } = getStakingParamsPDA();
-    const { guestChainPDA } = getGuestChainAccounts();
-    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-
-    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-      tokenMint,
-      depositor.publicKey
-    );
-
     const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
       rewardsTokenMint,
       depositor.publicKey
     );
 
-    try {
-      const tx = await program.methods
-        .claimRewards()
-        .preInstructions([
-          anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-            units: 1000000,
-          }),
-        ])
-        .accounts({
-          claimer: depositor.publicKey,
-          vaultParams: vaultParamsPDA,
-          stakingParams: stakingParamsPDA,
-          guestChain: guestChainPDA,
-          rewardsTokenMint,
-          depositorRewardsTokenAccount,
-          platformRewardsTokenAccount: rewardsTokenAccountPDA,
-          receiptTokenMint: tokenMint,
-          receiptTokenAccount,
-          guestChainProgram: guestChainProgramId,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          associatedTokenProgram: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([depositor])
-        .rpc();
+    const tx = await claimRewardsInstruction(
+      program,
+      depositor.publicKey,
+      tokenMintKeypair.publicKey
+    );
 
-      console.log("  Signature for Claiming rewards: ", tx);
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
+
+      console.log("  Signature for Claiming rewards: ", sig);
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,
@@ -404,25 +354,11 @@ describe("restaking", () => {
   });
 
   it("Withdraw tokens", async () => {
-    // await sleep(boundingPeriod * 1000);
-    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
-    const { stakingParamsPDA } = getStakingParamsPDA();
-    const { guestChainPDA } = getGuestChainAccounts();
-    const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(wSolMint);
-    const { masterEditionPDA } = getMasterEditionPDA(tokenMint);
-    const { nftMetadataPDA } = getNftMetadataPDA(tokenMint);
-    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-
     const receiptTokenAccount = await spl.getAssociatedTokenAddress(
       tokenMint,
       depositor.publicKey
     );
 
-    // console.log("Withdrawer: ", depositor.publicKey);
-    const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
-      rewardsTokenMint,
-      depositor.publicKey
-    );
     const depositorBalanceBefore = await spl.getAccount(
       provider.connection,
       depositorWSolTokenAccount
@@ -432,40 +368,21 @@ describe("restaking", () => {
       receiptTokenAccount
     );
 
-    try {
-      const tx = await program.methods
-        .withdraw()
-        .preInstructions([
-          anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
-            units: 1000000,
-          }),
-        ])
-        .accounts({
-          withdrawer: depositor.publicKey,
-          vaultParams: vaultParamsPDA,
-          stakingParams: stakingParamsPDA,
-          guestChain: guestChainPDA,
-          tokenMint: wSolMint,
-          withdrawerTokenAccount: depositorWSolTokenAccount,
-          vaultTokenAccount: vaultTokenAccountPDA,
-          rewardsTokenMint,
-          depositorRewardsTokenAccount: depositorRewardsTokenAccount,
-          platformRewardsTokenAccount: rewardsTokenAccountPDA,
-          receiptTokenMint: tokenMint,
-          receiptTokenAccount,
-          guestChainProgram: guestChainProgramId,
-          tokenProgram: spl.TOKEN_PROGRAM_ID,
-          masterEditionAccount: masterEditionPDA,
-          nftMetadata: nftMetadataPDA,
-          systemProgram: anchor.web3.SystemProgram.programId,
-          metadataProgram: new anchor.web3.PublicKey(
-            mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-          ),
-        })
-        .signers([depositor])
-        .rpc();
+    const tx = await withdrawInstruction(
+      program,
+      depositor.publicKey,
+      tokenMint
+    );
 
-      console.log("  Signature for Withdrawing: ", tx);
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
+
+      console.log("  Signature for Withdrawing: ", sig);
 
       const depositorBalanceAfter = await spl.getAccount(
         provider.connection,

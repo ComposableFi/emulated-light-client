@@ -3,8 +3,8 @@ import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import { guestChainProgramId, restakingProgramId, testSeed } from "./constants";
 import { Restaking } from "../../../target/types/restaking";
 
-const guestChainProgramID = new anchor.web3.PublicKey(guestChainProgramId);
-const restakingProgramID = new anchor.web3.PublicKey(restakingProgramId);
+export const guestChainProgramID = new anchor.web3.PublicKey(guestChainProgramId);
+export const restakingProgramID = new anchor.web3.PublicKey(restakingProgramId);
 
 export const getStakingParamsPDA = () => {
   const [stakingParamsPDA, stakingParamsBump] =
