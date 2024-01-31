@@ -125,11 +125,7 @@ fn get_events_from_logs(
 ) -> Vec<solana_ibc::events::NewBlock<'static>> {
     logs.iter()
         .filter_map(|log| {
-            if log.starts_with("Program data: ") {
-                Some(log.strip_prefix("Program data: ").unwrap())
-            } else {
-                None
-            }
+            log.strip_prefix("Program data: ")
         })
         .filter_map(|event| {
             let decoded_event =
