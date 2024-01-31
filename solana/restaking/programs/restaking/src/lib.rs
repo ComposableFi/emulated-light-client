@@ -340,7 +340,6 @@ pub mod restaking {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
 
-
         vault_params.service = Some(service);
 
         let guest_chain_program_id =
