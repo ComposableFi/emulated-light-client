@@ -11,6 +11,11 @@ rust-version.workspace = true
 anchor-lang.workspace = true
 anchor-client.workspace = true
 base64.workspace = true
+blockchain.workspace = true
 borsh.workspace = true
+bytemuck.workspace = true
+env_logger.workspace = true
+lib.workspace = true
 log.workspace = true
 solana-ibc.workspace = true
+

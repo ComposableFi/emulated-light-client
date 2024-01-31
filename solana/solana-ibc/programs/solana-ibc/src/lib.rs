@@ -29,7 +29,7 @@ mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;
-mod ed25519;
+pub mod ed25519;
 mod error;
 pub mod events;
 mod execution_context;
