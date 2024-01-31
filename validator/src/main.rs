@@ -63,7 +63,8 @@ fn main() {
 
     log::info!("Validator running");
 
-    let genesis_hash = &CryptoHash::from_base64(&genesis_hash_str).expect("Invalid Genesis Hash");
+    let genesis_hash = &CryptoHash::from_base64(&genesis_hash_str)
+        .expect("Invalid Genesis Hash");
 
     loop {
         let logs = receiver
@@ -122,8 +123,7 @@ pub fn setup_logging() {
 fn get_events_from_logs(
     logs: Vec<String>,
 ) -> Vec<solana_ibc::events::NewBlock<'static>> {
-    let serialized_events: Vec<&str> = logs
-        .iter()
+    logs.iter()
         .filter_map(|log| {
             if log.starts_with("Program data: ") {
                 Some(log.strip_prefix("Program data: ").unwrap())
@@ -131,9 +131,6 @@ fn get_events_from_logs(
                 None
             }
         })
-        .collect();
-    let events: Vec<solana_ibc::events::NewBlock> = serialized_events
-        .iter()
         .filter_map(|event| {
             let decoded_event =
                 base64::prelude::BASE64_STANDARD.decode(event).unwrap();
@@ -148,8 +145,7 @@ fn get_events_from_logs(
                 }
             }
         })
-        .collect();
-    events
+        .collect()
 }
 
 /// Solana sdk only accepts a keypair to form ed25519 instruction.
