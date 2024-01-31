@@ -6099,7 +6099,7 @@ version = "0.0.0"
 dependencies = [
  "anchor-client",
  "anchor-lang",
- "base64 0.21.5",
+ "base64 0.21.7",
  "blockchain",
  "borsh 0.10.3",
  "bytemuck",

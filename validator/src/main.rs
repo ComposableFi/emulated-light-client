@@ -30,20 +30,20 @@ pub struct Config {
     pub ws_url: String,
     pub program_id: String,
     pub genesis_hash: String,
-    pub keypair: Vec<u8>
+    pub keypair: Vec<u8>,
 }
 
 fn main() {
     setup_logging();
 
-    let mut file = File::open("./validator/config.toml").expect("config file not found");
+    let mut file =
+        File::open("./validator/config.toml").expect("config file not found");
     let mut contents = String::new();
     file.read_to_string(&mut contents).unwrap();
     let config: Config = toml::from_str(&contents).unwrap();
     log::info!("Config: {:?}", config);
 
-    let validator =
-        Rc::new(Keypair::from_bytes(&config.keypair).unwrap());
+    let validator = Rc::new(Keypair::from_bytes(&config.keypair).unwrap());
     let client = Client::new_with_options(
         Cluster::from_str(&config.rpc_url).expect("Invalid cluster"),
         validator.clone(),
@@ -132,9 +132,7 @@ fn get_events_from_logs(
     logs: Vec<String>,
 ) -> Vec<solana_ibc::events::NewBlock<'static>> {
     logs.iter()
-        .filter_map(|log| {
-            log.strip_prefix("Program data: ")
-        })
+        .filter_map(|log| log.strip_prefix("Program data: "))
         .filter_map(|event| {
             let decoded_event =
                 base64::prelude::BASE64_STANDARD.decode(event).unwrap();
@@ -182,13 +180,9 @@ pub fn new_ed25519_instruction_with_signature(
         message_instruction_index: u16::MAX,
     };
 
-    let instruction = [
-        &[num_signatures, 0],
-        bytes_of(&offsets),
-        pubkey,
-        signature,
-        message
-    ].concat();
+    let instruction =
+        [&[num_signatures, 0], bytes_of(&offsets), pubkey, signature, message]
+            .concat();
 
     Instruction {
         program_id: solana_sdk::ed25519_program::id(),
