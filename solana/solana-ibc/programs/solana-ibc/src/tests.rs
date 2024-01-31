@@ -22,9 +22,7 @@ use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
 use crate::storage::PrivateStorage;
-use crate::{
-    accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED,
-};
+use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =

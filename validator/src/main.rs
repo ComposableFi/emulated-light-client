@@ -64,55 +64,51 @@ fn main() {
     log::info!("Validator running");
 
     loop {
-        match receiver.recv() {
-            Ok(logs) => {
-                let events = get_events_from_logs(logs.value.logs);
-                if !events.is_empty() {
-                    // Since only 1 block would be created in a transaction
-                    let event = &events[0];
-                    log::info!("Found New Block Event {:?}", event);
-                    // Fetching the pending block fingerprint
-                    let fingerprint = blockchain::block::Fingerprint::new(
-                        &CryptoHash::from_base64(&genesis_hash)
-                            .expect("Invalid Gensis hash"),
-                        &event.block_header.0,
-                    );
-                    let signature =
-                        validator.sign_message(fingerprint.as_slice());
+        let logs = receiver
+            .recv()
+            .unwrap_or_else(|err| panic!("{}", format!("Disconnected: {err}")));
 
-                    // Send the signature
-                    let tx = program
-                        .request()
-                        .instruction(new_ed25519_instruction_with_signature(&validator.pubkey().to_bytes(), signature.as_ref(), fingerprint.as_slice()))
-                        .accounts(accounts::ChainWithVerifier {
-                            sender: validator.pubkey(),
-                            chain,
-                            trie,
-                            ix_sysvar: anchor_lang::solana_program::sysvar::instructions::ID,
-                            system_program: anchor_lang::solana_program::system_program::ID,
-                        })
-                        .args(instruction::SignBlock {
-                            signature: signature.into(),
-                        })
-                        .payer(validator.clone())
-                        .signer(&*validator)
-                        .send_with_spinner_and_config(
-                            RpcSendTransactionConfig {
-                                skip_preflight: true,
-                                ..RpcSendTransactionConfig::default()
-                            },
-                        ).map_err(|e| log::error!("Failed to send the transaction {}", e));
-                    if tx.is_ok() {
-                        log::info!(
-                            "Block signed -> Transaction: {}",
-                            tx.unwrap()
-                        );
-                    }
-                }
-            }
-            Err(err) => {
-                panic!("{}", format!("Disconnected: {err}"));
-            }
+        let events = get_events_from_logs(logs.value.logs);
+        if events.is_empty() {
+            continue;
+        }
+        // Since only 1 block would be created in a transaction
+        let event = &events[0];
+        log::info!("Found New Block Event {:?}", event);
+        // Fetching the pending block fingerprint
+        let fingerprint = blockchain::block::Fingerprint::new(
+            &CryptoHash::from_base64(&genesis_hash)
+                .expect("Invalid Gensis hash"),
+            &event.block_header.0,
+        );
+        let signature = validator.sign_message(fingerprint.as_slice());
+
+        // Send the signature
+        let tx = program
+            .request()
+            .instruction(new_ed25519_instruction_with_signature(
+                &validator.pubkey().to_bytes(),
+                signature.as_ref(),
+                fingerprint.as_slice(),
+            ))
+            .accounts(accounts::ChainWithVerifier {
+                sender: validator.pubkey(),
+                chain,
+                trie,
+                ix_sysvar:
+                    anchor_lang::solana_program::sysvar::instructions::ID,
+                system_program: anchor_lang::solana_program::system_program::ID,
+            })
+            .args(instruction::SignBlock { signature: signature.into() })
+            .payer(validator.clone())
+            .signer(&*validator)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..RpcSendTransactionConfig::default()
+            })
+            .map_err(|e| log::error!("Failed to send the transaction {}", e));
+        if tx.is_ok() {
+            log::info!("Block signed -> Transaction: {}", tx.unwrap());
         }
     }
 }
