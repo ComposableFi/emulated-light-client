@@ -32,7 +32,7 @@ fn main() {
         "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX".to_string()
     });
     let genesis_hash_str = std::env::var("GENESIS_HASH").unwrap_or_else(|_| {
-        "o0OboGSWBU0eJmu3A8mraKscUSOm5LaCKRWLW4IAANw=".to_string()
+        "AXO4arKprlSJUQssh8aJxLIWFX5sObiG2Nd2817cfvY=".to_string()
     });
     let validator =
         Rc::new(read_keypair_file("./validator/keypair.json").unwrap());
@@ -157,22 +157,12 @@ pub fn new_ed25519_instruction_with_signature(
     assert_eq!(pubkey.len(), PUBKEY_SERIALIZED_SIZE);
     assert_eq!(signature.len(), SIGNATURE_SERIALIZED_SIZE);
 
-    let mut instruction_data = Vec::with_capacity(
-        DATA_START
-            .saturating_add(SIGNATURE_SERIALIZED_SIZE)
-            .saturating_add(PUBKEY_SERIALIZED_SIZE)
-            .saturating_add(message.len()),
-    );
-
     let num_signatures: u8 = 1;
     let public_key_offset = DATA_START;
     let signature_offset =
         public_key_offset.saturating_add(PUBKEY_SERIALIZED_SIZE);
     let message_data_offset =
         signature_offset.saturating_add(SIGNATURE_SERIALIZED_SIZE);
-
-    // add padding byte so that offset structure is aligned
-    instruction_data.extend_from_slice(bytes_of(&[num_signatures, 0]));
 
     let offsets = solana_ibc::ed25519::SignatureOffsets {
         signature_offset: signature_offset as u16,
@@ -184,23 +174,17 @@ pub fn new_ed25519_instruction_with_signature(
         message_instruction_index: u16::MAX,
     };
 
-    instruction_data.extend_from_slice(bytes_of(&offsets));
-
-    debug_assert_eq!(instruction_data.len(), public_key_offset);
-
-    instruction_data.extend_from_slice(pubkey);
-
-    debug_assert_eq!(instruction_data.len(), signature_offset);
-
-    instruction_data.extend_from_slice(signature);
-
-    debug_assert_eq!(instruction_data.len(), message_data_offset);
-
-    instruction_data.extend_from_slice(message);
+    let instruction = [
+        &[num_signatures, 0],
+        bytes_of(&offsets),
+        pubkey,
+        signature,
+        message
+    ].concat();
 
     Instruction {
         program_id: solana_sdk::ed25519_program::id(),
         accounts: vec![],
-        data: instruction_data,
+        data: instruction,
     }
 }
