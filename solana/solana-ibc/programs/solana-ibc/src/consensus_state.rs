@@ -1,3 +1,4 @@
+use ::ibc::derive::ConsensusState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
 
@@ -9,7 +10,7 @@ use crate::ibc::Protobuf;
     PartialEq,
     derive_more::From,
     derive_more::TryInto,
-    crate::ibc::ConsensusState,
+    ConsensusState,
 )]
 pub enum AnyConsensusState {
     Tendermint(crate::ibc::tm::ConsensusState),
