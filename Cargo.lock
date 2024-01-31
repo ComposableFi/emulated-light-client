@@ -5094,6 +5094,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-write-account"
+version = "0.0.0"
+dependencies = [
+ "solana-program",
+ "stdx",
+]
+
+[[package]]
 name = "solana-zk-token-sdk"
 version = "1.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"

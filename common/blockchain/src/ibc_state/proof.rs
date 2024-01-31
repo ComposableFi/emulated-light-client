@@ -189,7 +189,7 @@ pub fn verify(
             // big-endian.  We’re keeping sequence numbers together and we
             // need all of them to figure out the hash kept in the trie.
             let (head, tail) =
-                stdx::split_at::<16>(proof_bytes).ok_or_else(|| {
+                stdx::split_at::<16, u8>(proof_bytes).ok_or_else(|| {
                     VerifyError::ProofDecodingFailure(
                         "Missing sequences".into(),
                     )
