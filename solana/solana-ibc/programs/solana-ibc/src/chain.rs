@@ -186,7 +186,7 @@ impl ChainData {
 
     pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
         let inner = self.get()?;
-        Ok(inner.manager.genesis())
+        Ok(inner.manager.genesis().clone())
     }
 
     /// Checks whether given `program_id` matches expected staking program id.

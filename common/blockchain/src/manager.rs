@@ -290,7 +290,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }
 
-    pub fn genesis(&self) -> CryptoHash { self.genesis.clone() }
+    pub fn genesis(&self) -> &CryptoHash { &self.genesis }
 }
 
 #[test]
