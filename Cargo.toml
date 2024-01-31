@@ -65,6 +65,7 @@ spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 tokio = "1.35.1"
+toml = "0.8.8"
 uint = "0.9.5"
 
 blockchain = { path = "common/blockchain" }

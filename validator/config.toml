@@ -1,0 +1,4 @@
+rpc_url = "http://127.0.0.1:8899"
+ws_url = "ws://127.0.0.1:8900"
+program_id = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
+genesis_hash = "AXO4arKprlSJUQssh8aJxLIWFX5sObiG2Nd2817cfvY="

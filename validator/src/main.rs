@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::Read;
 use std::rc::Rc;
 use std::str::FromStr;
 
@@ -19,25 +21,30 @@ use anchor_lang::solana_program::pubkey::Pubkey;
 use base64::Engine;
 use bytemuck::bytes_of;
 use lib::hash::CryptoHash;
+use serde::Deserialize;
 use solana_ibc::{accounts, instruction};
+
+#[derive(Deserialize, Debug)]
+pub struct Config {
+    pub rpc_url: String,
+    pub ws_url: String,
+    pub program_id: String,
+    pub genesis_hash: String,
+}
 
 fn main() {
     setup_logging();
 
-    let rpc_url = std::env::var("RPC_URL")
-        .unwrap_or_else(|_| "http://127.0.0.1:8899".to_string());
-    let ws_url = std::env::var("WS_URL")
-        .unwrap_or_else(|_| "ws://127.0.0.1:8900".to_string());
-    let program_id: String = std::env::var("PROGRAM_ID").unwrap_or_else(|_| {
-        "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX".to_string()
-    });
-    let genesis_hash_str = std::env::var("GENESIS_HASH").unwrap_or_else(|_| {
-        "AXO4arKprlSJUQssh8aJxLIWFX5sObiG2Nd2817cfvY=".to_string()
-    });
+    let mut file = File::open("./validator/config.toml").expect("config file not found");
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).unwrap();
+    let config: Config = toml::from_str(&contents).unwrap();
+    log::info!("Config: {:?}", config);
+
     let validator =
         Rc::new(read_keypair_file("./validator/keypair.json").unwrap());
     let client = Client::new_with_options(
-        Cluster::from_str(&rpc_url).expect("Invalid cluster"),
+        Cluster::from_str(&config.rpc_url).expect("Invalid cluster"),
         validator.clone(),
         CommitmentConfig::processed(),
     );
@@ -53,8 +60,8 @@ fn main() {
     .0;
 
     let (_logs_subscription, receiver) = PubsubClient::logs_subscribe(
-        &ws_url,
-        RpcTransactionLogsFilter::Mentions(vec![program_id]),
+        &config.ws_url,
+        RpcTransactionLogsFilter::Mentions(vec![config.program_id]),
         RpcTransactionLogsConfig {
             commitment: Some(CommitmentConfig::processed()),
         },
@@ -63,7 +70,7 @@ fn main() {
 
     log::info!("Validator running");
 
-    let genesis_hash = &CryptoHash::from_base64(&genesis_hash_str)
+    let genesis_hash = &CryptoHash::from_base64(&config.genesis_hash)
         .expect("Invalid Genesis Hash");
 
     loop {
