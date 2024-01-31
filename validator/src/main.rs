@@ -12,7 +12,7 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
 };
-use anchor_client::solana_sdk::signer::keypair::read_keypair_file;
+use anchor_client::solana_sdk::signature::Keypair;
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::solana_sdk::{self};
 use anchor_client::{Client, Cluster};
@@ -30,6 +30,7 @@ pub struct Config {
     pub ws_url: String,
     pub program_id: String,
     pub genesis_hash: String,
+    pub keypair: Vec<u8>
 }
 
 fn main() {
@@ -42,7 +43,7 @@ fn main() {
     log::info!("Config: {:?}", config);
 
     let validator =
-        Rc::new(read_keypair_file("./validator/keypair.json").unwrap());
+        Rc::new(Keypair::from_bytes(&config.keypair).unwrap());
     let client = Client::new_with_options(
         Cluster::from_str(&config.rpc_url).expect("Invalid cluster"),
         validator.clone(),
