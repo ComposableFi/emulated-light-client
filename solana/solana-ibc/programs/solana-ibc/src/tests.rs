@@ -10,7 +10,9 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::{read_pubkey_file, Pubkey};
-use anchor_client::solana_sdk::signature::{read_keypair_file, Keypair, Signature, Signer};
+use anchor_client::solana_sdk::signature::{
+    read_keypair_file, Keypair, Signature, Signer,
+};
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
@@ -93,7 +95,10 @@ fn anchor_test_deliver() -> Result<()> {
     let native_token_mint_key = mint_keypair.pubkey();
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
-    let staking_program_id = read_keypair_file("../../../../target/deploy/restaking-keypair.json").unwrap().pubkey();
+    let staking_program_id =
+        read_keypair_file("../../../../target/deploy/restaking-keypair.json")
+            .unwrap()
+            .pubkey();
 
     /*
      * Initialise chain
@@ -154,7 +159,10 @@ fn anchor_test_deliver() -> Result<()> {
 
     let serialized_msg = message.try_to_vec().unwrap();
 
-    let write_account_program_id = read_keypair_file("../../../../target/deploy/write-keypair.json").unwrap().pubkey();
+    let write_account_program_id =
+        read_keypair_file("../../../../target/deploy/write-keypair.json")
+            .unwrap()
+            .pubkey();
 
     println!("\nCreating Account to store message chunks");
     let chunk_account = Keypair::new();
