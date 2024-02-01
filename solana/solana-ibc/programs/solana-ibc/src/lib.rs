@@ -169,7 +169,7 @@ pub mod solana_ibc {
     }
 
     /// Forms the message from the data stored in the chunks account
-    /// 
+    ///
     /// Since the instructions can only be of maximum 1232 bytes, for large messages,
     /// we need to split them into chunks and store them in accounts ( who have upto 10Mb)  
     /// of storage. We can then deserialize the message and send it to ibc-rs.

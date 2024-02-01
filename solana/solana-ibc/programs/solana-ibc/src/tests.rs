@@ -9,8 +9,8 @@ use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
-use anchor_client::solana_sdk::pubkey::Pubkey;
-use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
+use anchor_client::solana_sdk::pubkey::{read_pubkey_file, Pubkey};
+use anchor_client::solana_sdk::signature::{read_keypair_file, Keypair, Signature, Signer};
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
@@ -25,10 +25,6 @@ use crate::ibc::ClientStateCommon;
 use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
-pub const STAKING_PROGRAM_ID: &str =
-    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
-pub const WRITE_PROGRAM_ID: &str =
-    "BHgp5XwSmDpbVQXy5vFkExjEhKL86hBy1JBTHCYDtA4e";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;
@@ -97,6 +93,7 @@ fn anchor_test_deliver() -> Result<()> {
     let native_token_mint_key = mint_keypair.pubkey();
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
+    let staking_program_id = read_keypair_file("../../../../target/deploy/restaking-keypair.json").unwrap().pubkey();
 
     /*
      * Initialise chain
@@ -122,7 +119,7 @@ fn anchor_test_deliver() -> Result<()> {
                 min_block_length: 5.into(),
                 min_epoch_length: 200_000.into(),
             },
-            staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
+            staking_program_id,
             genesis_epoch: chain::Epoch::new(
                 vec![chain::Validator::new(
                     authority.pubkey().into(),
@@ -157,6 +154,8 @@ fn anchor_test_deliver() -> Result<()> {
 
     let serialized_msg = message.try_to_vec().unwrap();
 
+    let write_account_program_id = read_keypair_file("../../../../target/deploy/write-keypair.json").unwrap().pubkey();
+
     println!("\nCreating Account to store message chunks");
     let chunk_account = Keypair::new();
     let ix = create_account(
@@ -164,7 +163,7 @@ fn anchor_test_deliver() -> Result<()> {
         &chunk_account.pubkey(),
         350000000,
         serialized_msg.len().try_into().unwrap(),
-        &Pubkey::from_str(WRITE_PROGRAM_ID).unwrap(),
+        &write_account_program_id,
     );
 
     let blockhash = sol_rpc_client.get_latest_blockhash()?;
@@ -193,7 +192,7 @@ fn anchor_test_deliver() -> Result<()> {
 
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(
-                Pubkey::from_str(WRITE_PROGRAM_ID).unwrap(),
+                write_account_program_id,
                 &discriminant,
                 vec![AccountMeta::new(chunk_account.pubkey(), false)],
             )],
