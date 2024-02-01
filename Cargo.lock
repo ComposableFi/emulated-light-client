@@ -4384,6 +4384,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-allocator"
+version = "0.0.0"
+dependencies = [
+ "bytemuck",
+ "solana-program",
+]
+
+[[package]]
 name = "solana-clap-utils"
 version = "1.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4533,6 +4541,7 @@ dependencies = [
  "primitive-types",
  "serde",
  "serde_json",
+ "solana-allocator",
  "solana-trie",
  "spl-associated-token-account",
  "spl-token",
