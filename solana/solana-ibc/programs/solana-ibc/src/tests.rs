@@ -11,20 +11,24 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{Keypair, Signature, Signer};
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
+use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::system_instruction::create_account;
+use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
-use crate::storage::PrivateStorage;
 use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+pub const WRITE_PROGRAM_ID: &str =
+    "BHgp5XwSmDpbVQXy5vFkExjEhKL86hBy1JBTHCYDtA4e";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;
@@ -140,7 +144,6 @@ fn anchor_test_deliver() -> Result<()> {
      * Create New Mock Client
      */
 
-    println!("\nCreating Mock Client");
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let message = make_message!(
         ibc::MsgCreateClient::new(
@@ -151,14 +154,70 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::ClientMsg::CreateClient,
         ibc::MsgEnvelope::Client,
     );
+
+    let serialized_msg = message.try_to_vec().unwrap();
+
+    println!("\nCreating Account to store message chunks");
+    let chunk_account = Keypair::new();
+    let ix = create_account(
+        &authority.pubkey(),
+        &chunk_account.pubkey(),
+        350000000,
+        serialized_msg.len().try_into().unwrap(),
+        &Pubkey::from_str(WRITE_PROGRAM_ID).unwrap(),
+    );
+
+    let blockhash = sol_rpc_client.get_latest_blockhash()?;
+    let tx = Transaction::new_signed_with_payer(
+        &[ix],
+        Some(&authority.pubkey()),
+        &[&*authority, &chunk_account],
+        blockhash,
+    );
+    let sig =
+        sol_rpc_client.send_and_confirm_transaction_with_spinner(&tx).unwrap();
+    println!("  Signature {sig}");
+
+    let chunk_size = 100;
+    let mut offset: u32 = 0;
+
+    println!(
+        "\nSplitting the message into chunks and sending it to write-account \
+         program"
+    );
+    for chunk in serialized_msg.chunks(chunk_size) {
+        let mut offset_in_bytes = offset.to_le_bytes().to_vec();
+        let mut discriminant = vec![0];
+        discriminant.append(&mut offset_in_bytes);
+        discriminant.append(&mut chunk.to_vec());
+
+        let transaction = Transaction::new_signed_with_payer(
+            &[Instruction::new_with_bytes(
+                Pubkey::from_str(WRITE_PROGRAM_ID).unwrap(),
+                &discriminant,
+                vec![AccountMeta::new(chunk_account.pubkey(), false)],
+            )],
+            Some(&authority.pubkey()),
+            &[&*authority],
+            blockhash,
+        );
+        let sig = sol_rpc_client
+            .send_and_confirm_transaction_with_spinner(&transaction)
+            .unwrap();
+        println!("  Signature {sig}");
+        offset += chunk.len() as u32;
+    }
+
+    println!("\nCreating Mock Client");
     let sig = program
         .request()
-        .accounts(accounts::Deliver {
+        .accounts(accounts::DeliverWithChunks {
             sender: authority.pubkey(),
             receiver: None,
             storage,
             trie,
             chain,
+            chunks: chunk_account.pubkey(),
             system_program: system_program::ID,
             mint_authority: None,
             token_mint: None,
@@ -167,7 +226,7 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: None,
             token_program: None,
         })
-        .args(instruction::Deliver { message })
+        .args(instruction::DeliverWithChunks {})
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -175,15 +234,6 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
     println!("  Signature: {sig}");
-
-    // Retrieve and validate state
-    let solana_ibc_storage_account: PrivateStorage =
-        program.account(storage).unwrap();
-
-    println!(
-        "  This is solana storage account {:?}",
-        solana_ibc_storage_account
-    );
 
     /*
      * Create New Mock Connection Open Init
