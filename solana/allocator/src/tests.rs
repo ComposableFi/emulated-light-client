@@ -1,26 +1,25 @@
 use alloc::alloc::{GlobalAlloc, Layout};
+use core::cell::Cell;
 
-use crate::ptr::end_addr_of_val;
 use crate::{ptr, BumpAllocator};
 
-impl BumpAllocator {
+impl<G: bytemuck::Zeroable> BumpAllocator<G> {
     /// Creates a new allocator with given amount of available memory.
     fn new(size: usize) -> Self {
-        let layout = Layout::from_size_align(
-            size,
-            core::mem::align_of::<core::cell::Cell<usize>>(),
-        )
-        .unwrap();
+        let layout =
+            Layout::from_size_align(size, core::mem::align_of::<Cell<usize>>())
+                .unwrap();
         let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
         let ptr = core::ptr::NonNull::new(ptr).unwrap();
-        Self { ptr, layout, _private: () }
+        Self { ptr, layout, _ph: Default::default() }
     }
 
     /// Returns amount of used memory in bytes excluding space used for end
     /// position address stored at the start of the heap.
     fn used(&self) -> usize {
-        let end_pos = self.end_pos();
-        (end_pos.get() as usize).saturating_sub(end_addr_of_val(end_pos))
+        let header = self.header();
+        let end = ptr::end_addr_of_val(header);
+        (header.end_pos.get() as usize).saturating_sub(end)
     }
 
     /// Allocates region of memory and returns it as a slice; checks returned
@@ -36,8 +35,9 @@ impl BumpAllocator {
 }
 
 #[track_caller]
-fn assert_no_overlap(a: *mut u8, a_size: usize, b: *mut u8, b_size: usize) {
-    let (a, b) = (ptr::range(a, a_size), ptr::range(b, b_size));
+fn assert_no_overlap(a: *const u8, a_size: usize, b: *const u8, b_size: usize) {
+    let a = ptr::range(a as *mut u8, a_size);
+    let b = ptr::range(b as *mut u8, b_size);
     assert!(
         !a.contains(&b.start) && !a.contains(&b.end),
         "{a:?} and {b:?} overlap",
@@ -46,7 +46,7 @@ fn assert_no_overlap(a: *mut u8, a_size: usize, b: *mut u8, b_size: usize) {
 
 #[test]
 fn test_alloc() {
-    let allocator = BumpAllocator::new(64);
+    let allocator = BumpAllocator::<()>::new(64);
     assert_eq!(0, allocator.used());
 
     // Large allocation fails.
@@ -67,7 +67,7 @@ fn test_alloc() {
 
 #[test]
 fn test_dealloc() {
-    let allocator = BumpAllocator::new(64);
+    let allocator = BumpAllocator::<()>::new(64);
     assert_eq!(0, allocator.used());
 
     let layout = Layout::array::<u8>(10).unwrap();
@@ -96,7 +96,7 @@ fn test_dealloc() {
 
 #[test]
 fn test_realloc() {
-    let allocator = BumpAllocator::new(64);
+    let allocator = BumpAllocator::<()>::new(64);
     assert_eq!(0, allocator.used());
 
     let layout_5 = Layout::array::<u8>(5).unwrap();
@@ -117,9 +117,34 @@ fn test_realloc() {
     assert_eq!(15, allocator.used());
 
     // Growing region in the middle requires copying.
-    unsafe { core::slice::from_raw_parts_mut(first, 5) }.fill(42);
+    unsafe { first.write_bytes(42, 5) };
     let third = unsafe { allocator.realloc(first, layout_5, 10) };
     assert_ne!(first, third);
     let slice = unsafe { core::slice::from_raw_parts_mut(first, 10) };
     assert_eq!([42, 42, 42, 42, 42, 0, 0, 0, 0, 0], slice);
+}
+
+#[test]
+fn test_global() {
+    let allocator = BumpAllocator::<Cell<usize>>::new(64);
+
+    // Global state is always available
+    let global = allocator.global();
+    assert_eq!(0, global.get());
+    global.set(42);
+    assert_eq!(42, global.get());
+
+    // Global state consumes space so largest possible allocation shrinks.
+    let large = Layout::from_size_align(64 - 15, 1).unwrap();
+    assert_eq!(None, allocator.check_alloc(large));
+
+    // Global state doesn’t overlap with allocations.
+    let layout = Layout::from_size_align(8, 1).unwrap();
+    let ptr = allocator.check_alloc(layout).unwrap();
+    assert_eq!(8, allocator.used());
+    let global_ptr: *const _ = global;
+    assert_no_overlap(global_ptr.cast(), core::mem::size_of_val(global), ptr, 8);
+
+    // Global state doesn’t change location.
+    assert_eq!(global_ptr, allocator.global() as *const _);
 }

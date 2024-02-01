@@ -5,4 +5,8 @@ version = "0.0.0"
 edition = "2021"
 
 [target.'cfg(target_os = "solana")'.dependencies]
+bytemuck.workspace = true
 solana-program.workspace = true
+
+[dev-dependencies]
+bytemuck.workspace = true
