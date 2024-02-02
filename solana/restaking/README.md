@@ -69,6 +69,36 @@ can start staking.
   withdraw all the funds from the reward token account. This is a
   safety measure so it should be called only during emergency.
 
+## Verifying the code
+
+First, compile the programs code from the `emulated-light-client` Github repository to get its bytecode.
+```
+git clone https://github.com/ComposableFi/emulated-light-client.git
+```
+
+```
+anchor build
+```
+Now, install the [Ellipsis Labs verifiable build](https://crates.io/crates/solana-verify) crate.
+```
+cargo install solana-verify
+```
+Get the executable hash of the bytecode from the Restaking program that was compiled
+```
+solana-verify get-executable-hash target/deploy/restaking.so
+```
+Get the hash from the bytecode of the on-chain restaking program that you want to verify
+```
+solana-verify get-program-hash -u <cluster url> 8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3
+```
+**Note for multisig members:** If you want to verify the upgrade program buffer, then you need to get the bytecode from the buffer account using the below command. You can get the buffer account address from the squads.
+```
+solana-verify get-buffer-hash -u <cluster url> <buffer address> 
+```
+
+If the hash outputs of those two commands match, the code in the repository matches the on-chain programs code.
+
+
 ## Note
 
 - Since the rewards are not implemented yet on the `Guest Blockchain`,
