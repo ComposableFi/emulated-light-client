@@ -2,6 +2,7 @@ use alloc::alloc::{GlobalAlloc, Layout};
 
 use crate::ptr::end_addr_of_val;
 use crate::BumpAllocator;
+use crate::ptr;
 
 impl BumpAllocator {
     /// Creates a new allocator with given amount of available memory.
@@ -37,7 +38,7 @@ impl BumpAllocator {
 
 #[track_caller]
 fn assert_no_overlap(a: *mut u8, a_size: usize, b: *mut u8, b_size: usize) {
-    let (a, b) = unsafe { (a..a.add(a_size), b..b.add(b_size)) };
+    let (a, b) = (ptr::range(a, a_size), ptr::range(b, b_size));
     assert!(
         !a.contains(&b.start) && !a.contains(&b.end),
         "{a:?} and {b:?} overlap",
