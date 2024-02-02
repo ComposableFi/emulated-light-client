@@ -11,7 +11,7 @@ name = "solana_ibc"
 [features]
 default = ["custom-heap"]
 cpi = ["no-entrypoint"]
-custom-heap = []
+custom-heap = ["solana-allocator"]
 mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
@@ -38,6 +38,7 @@ uint.workspace = true
 blockchain.workspace = true
 lib.workspace = true
 memory.workspace = true
+solana-allocator = { workspace = true, optional = true }
 solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }

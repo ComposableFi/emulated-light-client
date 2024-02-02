@@ -1,0 +1,8 @@
+[package]
+name = "solana-allocator"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[target.'cfg(target_os = "solana")'.dependencies]
+solana-program.workspace = true

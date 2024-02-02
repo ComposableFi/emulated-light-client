@@ -7,11 +7,12 @@ rust-version = "1.71.0"
 [workspace]
 members = [
     "common/*",
+    "solana/allocator",
     "solana/restaking/programs/*",
+    "solana/solana-ibc/programs/*",
     "solana/trie",
     "solana/trie-example",
     "solana/write-account",
-    "solana/solana-ibc/programs/*",
 ]
 resolver = "2"
 
@@ -68,6 +69,7 @@ blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }
+solana-allocator = { path = "solana/allocator" }
 solana-ibc = { path = "solana/solana-ibc/programs/solana-ibc" }
 solana-trie = { path = "solana/trie" }
 stdx = { path = "common/stdx" }
