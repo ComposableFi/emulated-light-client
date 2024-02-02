@@ -56,7 +56,9 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
     /// allocator is present leads to undefined behaviour since the allocator
     /// needs to take ownership of the heap provided by Solana runtime.
     #[cfg(not(test))]
-    pub const unsafe fn new() -> Self { Self { _ph: Default::default() } }
+    pub const unsafe fn new() -> Self {
+        Self { _ph: core::marker::PhantomData }
+    }
 
     /// Returns range of addresses that are guaranteed to be valid and within
     /// the heap owned by us.

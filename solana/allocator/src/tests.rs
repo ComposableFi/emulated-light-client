@@ -11,7 +11,7 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
                 .unwrap();
         let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
         let ptr = core::ptr::NonNull::new(ptr).unwrap();
-        Self { ptr, layout, _ph: Default::default() }
+        Self { ptr, layout, _ph: core::marker::PhantomData }
     }
 
     /// Returns amount of used memory in bytes excluding space used for end
@@ -142,14 +142,13 @@ fn test_global() {
     let layout = Layout::from_size_align(8, 1).unwrap();
     let ptr = allocator.check_alloc(layout).unwrap();
     assert_eq!(8, allocator.used());
-    let global_ptr: *const _ = global;
     assert_no_overlap(
-        global_ptr.cast(),
+        core::ptr::addr_of!(*global).cast(),
         core::mem::size_of_val(global),
         ptr,
         8,
     );
 
     // Global state doesn’t change location.
-    assert_eq!(global_ptr, allocator.global() as *const _);
+    assert!(core::ptr::eq(global, allocator.global()));
 }
