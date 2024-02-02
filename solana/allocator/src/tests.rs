@@ -1,8 +1,7 @@
 use alloc::alloc::{GlobalAlloc, Layout};
 
 use crate::ptr::end_addr_of_val;
-use crate::BumpAllocator;
-use crate::ptr;
+use crate::{ptr, BumpAllocator};
 
 impl BumpAllocator {
     /// Creates a new allocator with given amount of available memory.
