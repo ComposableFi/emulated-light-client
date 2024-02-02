@@ -1,20 +1,18 @@
 //! Mostly polyfill pointer operations which are currently nightly.
-// TODO(mina86): Switch to using methods on pointer once they stabilise.
 
+/// Creates a new pointer with the given address.
+// TODO(mina86): Use ptr.with_addr once strict_provenance stabilises.
 #[inline]
 pub(super) fn with_addr(ptr: *mut u8, addr: usize) -> *mut u8 {
     let self_addr = ptr as usize as isize;
     let dest_addr = addr as isize;
-    let offset = dest_addr.wrapping_sub(self_addr);
-    // This is the canonical desugaring of this operation
-    ptr.wrapping_byte_offset(offset)
+    ptr.wrapping_offset(dest_addr.wrapping_sub(self_addr))
 }
 
+/// Creates a new pointer by mapping `self`’s address to a new one.
+// TODO(mina86): Use ptr.map_addr once strict_provenance stabilises.
 #[inline]
-pub(super) fn map_addr(
-    ptr: *mut u8,
-    f: impl FnOnce(usize) -> usize,
-) -> *mut u8 {
+fn map_addr(ptr: *mut u8, f: impl FnOnce(usize) -> usize) -> *mut u8 {
     with_addr(ptr, f(ptr as usize))
 }
 
@@ -24,7 +22,7 @@ pub(super) fn map_addr(
 #[inline]
 pub(super) fn align(ptr: *mut u8, align: usize) -> *mut u8 {
     let mask = align - 1;
-    debug_assert!(align != 0 && 0 == align & mask);
+    debug_assert!(align != 0 && align & mask == 0);
     map_addr(ptr, |addr| (addr + mask) & !mask)
 }
 

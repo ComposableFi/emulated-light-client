@@ -126,7 +126,7 @@ unsafe impl GlobalAlloc for BumpAllocator {
             // On first call, end_pos is null.  Start allocating past the
             // end_pos.
             ptr = ptr::with_addr(
-                self.ptr.as_ptr(),
+                self.heap_range().start,
                 ptr::end_addr_of_val(end_pos),
             );
         };
