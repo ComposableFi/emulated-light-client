@@ -143,7 +143,12 @@ fn test_global() {
     let ptr = allocator.check_alloc(layout).unwrap();
     assert_eq!(8, allocator.used());
     let global_ptr: *const _ = global;
-    assert_no_overlap(global_ptr.cast(), core::mem::size_of_val(global), ptr, 8);
+    assert_no_overlap(
+        global_ptr.cast(),
+        core::mem::size_of_val(global),
+        ptr,
+        8,
+    );
 
     // Global state doesn’t change location.
     assert_eq!(global_ptr, allocator.global() as *const _);
