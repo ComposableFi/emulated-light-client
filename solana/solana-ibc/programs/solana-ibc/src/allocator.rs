@@ -4,7 +4,7 @@
     not(feature = "no-entrypoint"),
 ))]
 #[global_allocator]
-static ALLOCATOR: solana_allocator::BumpAllocator = {
+static ALLOCATOR: solana_allocator::BumpAllocator<()> = {
     // SAFETY: We’re only instantiating the BumpAllocator once.
     unsafe { solana_allocator::BumpAllocator::new() }
 };
