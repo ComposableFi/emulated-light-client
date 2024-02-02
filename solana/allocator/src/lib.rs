@@ -74,7 +74,7 @@ impl BumpAllocator {
         // In release build on Solana, all of those numbers are known at compile
         // time so all this maths should be compiled out.
         let ptr = ptr::align(range.start, core::mem::align_of::<*mut u8>());
-        let end = ptr::end_addr(ptr, core::mem::size_of::<*mut u8>());
+        let end = ptr.wrapping_add(core::mem::size_of::<*mut u8>());
         assert!(end <= range.end);
         // SAFETY: 1. `ptr` is properly aligned and points to region within heap
         // owned by us.  2. The heap has been zero-initialised and Cell<*mut u8>
@@ -137,7 +137,7 @@ unsafe impl GlobalAlloc for BumpAllocator {
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         // If this is the last allocation, free it.  Otherwise this is bump
         // allocator and we leak memory.
-        if ptr::end_addr(ptr, layout.size()) == self.end_pos().get() {
+        if ptr.wrapping_add(layout.size()) == self.end_pos().get() {
             self.end_pos().set(ptr);
         }
     }
@@ -149,7 +149,7 @@ unsafe impl GlobalAlloc for BumpAllocator {
         layout: Layout,
         new_size: usize,
     ) -> *mut u8 {
-        if ptr::end_addr(ptr, layout.size()) == self.end_pos().get() {
+        if ptr.wrapping_add(layout.size()) == self.end_pos().get() {
             // If this is the last allocation, resize.
             self.update_end_pos(ptr, new_size)
         } else if new_size <= layout.size() {
