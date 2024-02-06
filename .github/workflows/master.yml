@@ -24,7 +24,12 @@ jobs:
         id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly
+          # Pin nightly to specific version to avoid ahash breakage.
+          # See https://github.com/tkaitchuck/aHash/issues/200
+          # TODO(mina86): Unpin once situation with ahash is resolved.
+          # Hopefully we won’t need to patch.
+          #toolchain: nightly
+          toolchain: nightly-2024-02-05
           components: clippy rustfmt miri
 
       - name: Install Protoc
@@ -112,7 +117,7 @@ jobs:
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
-       
+
       - name: Installing node modules
         run : yarn
 
