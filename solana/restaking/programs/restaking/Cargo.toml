@@ -18,7 +18,6 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-ahash.workspace = true
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
 anchor-spl = { workspace = true, features = ["metadata"] }
 solana-ibc = { workspace = true, features = ["cpi"] }
