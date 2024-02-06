@@ -29,7 +29,6 @@ mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;
-mod ed25519;
 mod error;
 pub mod events;
 mod execution_context;
@@ -97,7 +96,7 @@ pub mod solana_ibc {
         signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let verifier = solana_ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
