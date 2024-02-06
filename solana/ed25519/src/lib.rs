@@ -1,8 +1,8 @@
 use core::fmt;
 
 use solana_program::account_info::AccountInfo;
-use solana_program::{ed25519_program, sysvar};
 use solana_program::program_error::ProgramError;
+use solana_program::{ed25519_program, sysvar};
 
 /// An Ed25519 public key used by guest validators to sign guest blocks.
 #[derive(
@@ -15,7 +15,10 @@ use solana_program::program_error::ProgramError;
     derive_more::From,
     derive_more::Into,
 )]
-#[cfg_attr(feature = "borsh", derive(borsh::BorshSerialize, borsh::BorshDeserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub struct PubKey([u8; 32]);
 
 impl PubKey {
@@ -58,7 +61,10 @@ impl blockchain::PubKey for PubKey {
     derive_more::From,
     derive_more::Into,
 )]
-#[cfg_attr(feature = "borsh", derive(borsh::BorshSerialize, borsh::BorshDeserialize))]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
+)]
 pub struct Signature([u8; 64]);
 
 impl Signature {
@@ -97,7 +103,12 @@ impl Verifier {
 
     /// Verifies that the signature exists in the instruction data.
     #[inline]
-    pub fn exists(&self, message: &[u8], pubkey: &PubKey, signature: &Signature) -> bool {
+    pub fn exists(
+        &self,
+        message: &[u8],
+        pubkey: &PubKey,
+        signature: &Signature,
+    ) -> bool {
         exists_impl(self.0.as_slice(), message, &pubkey.0, &signature.0)
     }
 }
@@ -215,7 +226,7 @@ macro_rules! fmt_impl {
                 base64_display(&self.0, fmtr)
             }
         }
-    }
+    };
 }
 
 fmt_impl!(impl Display for PubKey);
