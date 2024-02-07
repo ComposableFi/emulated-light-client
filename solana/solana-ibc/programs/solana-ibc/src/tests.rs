@@ -100,8 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
     let (chunk_account, chunk_account_bump) = Pubkey::find_program_address(
         &[&authority.pubkey().to_bytes(), WRITE_ACCOUNT_SEED],
         &write_account_program_id,
-    )
-    ;
+    );
 
     let mint_keypair = Keypair::new();
     let native_token_mint_key = mint_keypair.pubkey();
@@ -217,7 +216,10 @@ fn anchor_test_deliver() -> Result<()> {
             &[Instruction::new_with_bytes(
                 write_account_program_id,
                 &discriminant,
-                vec![AccountMeta::new(chunk_account, false), AccountMeta::new(authority.pubkey(), true)],
+                vec![
+                    AccountMeta::new(chunk_account, false),
+                    AccountMeta::new(authority.pubkey(), true),
+                ],
             )],
             Some(&authority.pubkey()),
             &[&*authority],
@@ -514,9 +516,9 @@ fn anchor_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap()
-            - account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap() -
+            account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -589,8 +591,8 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before)
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -652,9 +654,9 @@ fn anchor_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap()
-            - account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap() -
+            account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -741,16 +743,16 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_native_token_address)
         .unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap()
-            - escrow_account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((escrow_account_balance_before.ui_amount.unwrap() -
+            escrow_account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap()
-            - receiver_account_balance_before)
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((receiver_account_balance_after.ui_amount.unwrap() -
+            receiver_account_balance_before) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
