@@ -4386,6 +4386,7 @@ dependencies = [
 name = "solana-allocator"
 version = "0.0.0"
 dependencies = [
+ "bytemuck",
  "solana-program",
 ]
 
