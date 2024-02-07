@@ -3811,7 +3811,6 @@ dependencies = [
 name = "restaking"
 version = "0.1.0"
 dependencies = [
- "ahash 0.8.6",
  "anchor-lang",
  "anchor-spl",
  "home",
@@ -4477,6 +4476,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-ed25519"
+version = "0.0.0"
+dependencies = [
+ "base64 0.21.7",
+ "blockchain",
+ "borsh 0.10.3",
+ "bytemuck",
+ "derive_more",
+ "solana-program",
+]
+
+[[package]]
 name = "solana-frozen-abi"
 version = "1.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4541,6 +4552,7 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-allocator",
+ "solana-ed25519",
  "solana-trie",
  "spl-associated-token-account",
  "spl-token",
