@@ -142,8 +142,8 @@ pub fn parse_config() -> Option<Config> {
         Commands::Run(cmd) => {
             let config_file = config_file();
             let config_data = fs::read_to_string(config_file).expect(
-                "Failed to read config file, make sure u run init command \
-                 before you try to run.",
+                "Failed to read config file; make sure you’ve run init command \
+                 first.",
             );
             let default_config: Config = toml::from_str(&config_data).unwrap();
             let keypair = if cmd.keypair_path.is_some() {
