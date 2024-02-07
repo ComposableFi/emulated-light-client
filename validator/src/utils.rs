@@ -11,8 +11,12 @@ use bytemuck::bytes_of;
 use directories::ProjectDirs;
 
 fn project_dirs() -> ProjectDirs {
-    ProjectDirs::from("com", "Composable Finance", "Solana Guest Chain Validator")
-        .expect("Invalid Home directory!")
+    ProjectDirs::from(
+        "com",
+        "Composable Finance",
+        "Solana Guest Chain Validator",
+    )
+    .expect("Invalid Home directory!")
 }
 
 pub fn config_file() -> PathBuf {
@@ -20,14 +24,11 @@ pub fn config_file() -> PathBuf {
     let config_dir = proj_dirs.config_dir();
     fs::create_dir_all(config_dir).unwrap();
     let config_dir = config_dir.join("config.toml");
-    config_dir.to_path_buf()
+    config_dir
 }
 
 pub fn setup_logging(log_level: log::LevelFilter) {
-    env_logger::builder()
-        .filter_level(log_level)
-        .format_timestamp(None)
-        .init();
+    env_logger::builder().filter_level(log_level).format_timestamp(None).init();
 }
 
 pub(crate) fn get_events_from_logs(

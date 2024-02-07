@@ -1,3 +1,4 @@
+use core::fmt;
 use std::fmt::{Debug, Display};
 use std::fs;
 use std::str::FromStr;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::{config_file, setup_logging};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub rpc_url: String,
     pub ws_url: String,
@@ -36,6 +37,20 @@ impl Display for Config {
             keypair.pubkey(),
             self.log_level
         )
+    }
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let keypair = Keypair::from_bytes(&self.keypair).unwrap();
+        fmt.debug_struct("Config")
+            .field("rpc_url", &self.rpc_url)
+            .field("ws_url", &self.ws_url)
+            .field("program_id", &self.program_id)
+            .field("genesis_hash", &self.genesis_hash)
+            .field("validator_public_key", &keypair.pubkey())
+            .field("log_level", &self.log_level)
+            .finish()
     }
 }
 
@@ -142,8 +157,8 @@ pub fn parse_config() -> Option<Config> {
         Commands::Run(cmd) => {
             let config_file = config_file();
             let config_data = fs::read_to_string(config_file).expect(
-                "Failed to read config file; make sure you’ve run init command \
-                 first.",
+                "Failed to read config file; make sure you’ve run init \
+                 command first.",
             );
             let default_config: Config = toml::from_str(&config_data).unwrap();
             let keypair = if cmd.keypair_path.is_some() {
