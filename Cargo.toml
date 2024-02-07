@@ -35,7 +35,10 @@ borsh = { version = "0.10.3", default-features = false }
 prost = { version = "0.12.3", default-features = false }
 prost-build = { version = "0.12.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
+clap = { version = "4.4.18", features = ["derive"] }
 derive_more = "0.99.17"
+dialoguer = "0.10"
+directories = "5.0"
 env_logger = "0.7.1"
 hex-literal = "0.4.1"
 ibc = { version = "0.50.0", default-features = false, features = ["borsh", "serde"] }
