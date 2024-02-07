@@ -23,8 +23,7 @@ pub fn config_file() -> PathBuf {
     let proj_dirs = project_dirs();
     let config_dir = proj_dirs.config_dir();
     fs::create_dir_all(config_dir).unwrap();
-    let config_dir = config_dir.join("config.toml");
-    config_dir
+    config_dir.join("config.toml")
 }
 
 pub fn setup_logging(log_level: log::LevelFilter) {
