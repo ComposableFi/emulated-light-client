@@ -33,7 +33,7 @@ impl Display for Config {
             self.ws_url,
             self.program_id,
             self.genesis_hash,
-            keypair.pubkey().to_string(),
+            keypair.pubkey(),
             self.log_level
         )
     }
@@ -125,7 +125,7 @@ impl FromStr for Values {
         } else if s.eq_ignore_ascii_case("no") {
             Ok(Values::No)
         } else {
-            Err(format!("Can not parse {}", s).into())
+            Err(format!("Can not parse {}", s))
         }
     }
 }

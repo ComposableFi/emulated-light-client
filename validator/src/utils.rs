@@ -21,7 +21,7 @@ pub fn config_file() -> PathBuf {
     let mut data_file = PathBuf::from(proj_dirs.config_dir());
     fs::create_dir_all(&data_file).unwrap();
     data_file.push("config.toml");
-    return data_file;
+    data_file
 }
 
 pub fn setup_logging(log_level: &str) {
