@@ -1,12 +1,12 @@
-use std::{
-    fmt::{Debug, Display},
-    fs,
-    str::FromStr,
-};
+use std::fmt::{Debug, Display};
+use std::fs;
+use std::str::FromStr;
 
-use anchor_client::solana_sdk::{signature::{read_keypair_file, Keypair}, signer::Signer};
+use anchor_client::solana_sdk::signature::{read_keypair_file, Keypair};
+use anchor_client::solana_sdk::signer::Signer;
 use clap::{arg, command, Args, Parser, Subcommand};
-use dialoguer::{theme::ColorfulTheme, Input};
+use dialoguer::theme::ColorfulTheme;
+use dialoguer::Input;
 use log::LevelFilter;
 use serde::{Deserialize, Serialize};
 
@@ -25,7 +25,17 @@ pub struct Config {
 impl Display for Config {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let keypair = Keypair::from_bytes(&self.keypair).unwrap();
-        write!(f, "\nrpc_url: {}\nws_url: {}\nprogram_id: {}\ngenesis_hash: {}\nvalidator_public_key: {}\nlog_level: {}", self.rpc_url, self.ws_url, self.program_id, self.genesis_hash, keypair.pubkey().to_string(), self.log_level)
+        write!(
+            f,
+            "\nrpc_url: {}\nws_url: {}\nprogram_id: {}\ngenesis_hash: \
+             {}\nvalidator_public_key: {}\nlog_level: {}",
+            self.rpc_url,
+            self.ws_url,
+            self.program_id,
+            self.genesis_hash,
+            keypair.pubkey().to_string(),
+            self.log_level
+        )
     }
 }
 
@@ -137,10 +147,11 @@ pub fn parse_config() -> Option<Config> {
             );
             let default_config: Config = toml::from_str(&config_data).unwrap();
             let keypair = if cmd.keypair_path.is_some() {
-              let keypair = read_keypair_file(&cmd.keypair_path.unwrap()).expect("Unable to read keypair file");
-              keypair.to_bytes().to_vec()
+                let keypair = read_keypair_file(&cmd.keypair_path.unwrap())
+                    .expect("Unable to read keypair file");
+                keypair.to_bytes().to_vec()
             } else {
-              default_config.keypair
+                default_config.keypair
             };
             let config = Config {
                 rpc_url: cmd.rpc_url.unwrap_or(default_config.rpc_url),
@@ -175,7 +186,8 @@ pub fn parse_config() -> Option<Config> {
                 }
                 log::info!("Overwriting config file");
             }
-            let keypair = read_keypair_file(&cmd.keypair_path).expect("Unable to read keypair file");
+            let keypair = read_keypair_file(&cmd.keypair_path)
+                .expect("Unable to read keypair file");
             let keypair = keypair.to_bytes().to_vec();
             let config = Config {
                 rpc_url: cmd.rpc_url,

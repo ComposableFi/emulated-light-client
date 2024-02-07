@@ -27,8 +27,7 @@ fn main() {
 
     let config = config.unwrap();
 
-    let validator =
-        Rc::new(Keypair::from_bytes(&config.keypair).unwrap());
+    let validator = Rc::new(Keypair::from_bytes(&config.keypair).unwrap());
     let client = Client::new_with_options(
         Cluster::from_str(&config.rpc_url).expect("Invalid cluster"),
         validator.clone(),
