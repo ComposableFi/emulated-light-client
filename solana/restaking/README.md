@@ -14,7 +14,7 @@ The high level flow of the program is given in the image below.
 - Receipt Token Mint: The receipt token mint is a NFT which is the
   seed for the PDA storing information about stake amout, validator
   and rewards. For more information, refer: 
-  https://docs.google.com/document/d/1qXEvgYL6MrBQEbt_oFc8NW2znkOApevqz9u7yyA-cgw/edit?usp=sharing
+  https://docs.composable.finance/technology/solana-restaking/vaults/#receipt-token
 
 - Staking Params: This is a PDA which stores the staking parameters
   and also is the authority to `Receipt Token Mint` and `Vaults`.
