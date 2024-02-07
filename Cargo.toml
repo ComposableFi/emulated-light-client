@@ -7,11 +7,13 @@ rust-version = "1.71.0"
 [workspace]
 members = [
     "common/*",
+    "solana/allocator",
+    "solana/ed25519",
     "solana/restaking/programs/*",
+    "solana/solana-ibc/programs/*",
     "solana/trie",
     "solana/trie-example",
     "solana/write-account",
-    "solana/solana-ibc/programs/*",
     "validator",
 ]
 resolver = "2"
@@ -26,14 +28,11 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-ahash = "0.8.6"
 anchor-lang = {version = "0.29.0", features = ["init-if-needed"]}
 anchor-spl = "0.29.0"
 ascii = "1.1.0"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
-prost = { version = "0.12.3", default-features = false }
-prost-build = { version = "0.12.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
 clap = { version = "4.4.18", features = ["derive"] }
 derive_more = "0.99.17"
@@ -58,6 +57,8 @@ linear-map = { git = "https://github.com/contain-rs/linear-map", rev = "57f1432e
 log = "0.4.20"
 pretty_assertions = "1.4.0"
 primitive-types = "0.12.2"
+prost = { version = "0.12.3", default-features = false }
+prost-build = { version = "0.12.3", default-features = false }
 rand = { version = "0.8.5" }
 serde = "1"
 serde_json = "1"
@@ -76,6 +77,8 @@ blockchain = { path = "common/blockchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 sealable-trie = { path = "common/sealable-trie" }
+solana-allocator = { path = "solana/allocator" }
+solana-ed25519 = { path = "solana/ed25519" }
 solana-ibc = { path = "solana/solana-ibc/programs/solana-ibc" }
 solana-trie = { path = "solana/trie" }
 stdx = { path = "common/stdx" }

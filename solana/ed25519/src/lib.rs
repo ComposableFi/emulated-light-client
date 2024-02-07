@@ -1,6 +1,7 @@
-use anchor_lang::prelude::{borsh, err};
-use anchor_lang::solana_program;
+use core::fmt;
+
 use solana_program::account_info::AccountInfo;
+use solana_program::program_error::ProgramError;
 use solana_program::{ed25519_program, sysvar};
 
 /// An Ed25519 public key used by guest validators to sign guest blocks.
@@ -11,10 +12,12 @@ use solana_program::{ed25519_program, sysvar};
     PartialOrd,
     Ord,
     Hash,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
     derive_more::From,
     derive_more::Into,
+)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct PubKey([u8; 32]);
 
@@ -42,6 +45,7 @@ impl PartialEq<PubKey> for solana_program::pubkey::Pubkey {
     fn eq(&self, other: &PubKey) -> bool { self.as_ref() == &other.0[..] }
 }
 
+#[cfg(feature = "guest")]
 impl blockchain::PubKey for PubKey {
     type Signature = Signature;
 }
@@ -54,10 +58,12 @@ impl blockchain::PubKey for PubKey {
     PartialOrd,
     Ord,
     Hash,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
     derive_more::From,
     derive_more::Into,
+)]
+#[cfg_attr(
+    feature = "borsh",
+    derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
 pub struct Signature([u8; 64]);
 
@@ -86,16 +92,28 @@ impl Verifier {
     /// Returns error if `ix_sysver` is not `AccountInfo` for the Instruction
     /// sysvar, there was no instruction prior to the current on or the previous
     /// instruction was not a call to the Ed25519 native program.
-    pub fn new(ix_sysvar: &AccountInfo<'_>) -> anchor_lang::Result<Self> {
+    pub fn new(ix_sysvar: &AccountInfo<'_>) -> Result<Self, ProgramError> {
         let ix = sysvar::instructions::get_instruction_relative(-1, ix_sysvar)?;
         if ed25519_program::check_id(&ix.program_id) {
             Ok(Self(ix.data))
         } else {
-            err!(anchor_lang::error::ErrorCode::InstructionMissing)
+            Err(ProgramError::IncorrectProgramId)
         }
+    }
+
+    /// Verifies that the signature exists in the instruction data.
+    #[inline]
+    pub fn exists(
+        &self,
+        message: &[u8],
+        pubkey: &PubKey,
+        signature: &Signature,
+    ) -> bool {
+        exists_impl(self.0.as_slice(), message, &pubkey.0, &signature.0)
     }
 }
 
+#[cfg(feature = "guest")]
 impl blockchain::Verifier<PubKey> for Verifier {
     #[inline]
     fn verify(
@@ -104,7 +122,7 @@ impl blockchain::Verifier<PubKey> for Verifier {
         pubkey: &PubKey,
         signature: &Signature,
     ) -> bool {
-        verify_impl(self.0.as_slice(), message, &pubkey.0, &signature.0)
+        self.exists(message, pubkey, signature)
     }
 }
 
@@ -113,7 +131,7 @@ impl blockchain::Verifier<PubKey> for Verifier {
 ///
 /// `data` must be aligned to two bytes.  This is in practice guaranteed if data
 /// comes from a vector or in general points at a beginning of an allocation.
-fn verify_impl(
+fn exists_impl(
     data: &[u8],
     message: &[u8],
     pubkey: &[u8; PubKey::LENGTH],
@@ -200,46 +218,38 @@ impl SignatureOffsets {
     }
 }
 
-impl core::fmt::Display for PubKey {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        <&lib::hash::CryptoHash>::from(&self.0).fmt(fmtr)
-    }
+macro_rules! fmt_impl {
+    (impl $trait:ident for $ty:ident) => {
+        impl fmt::$trait for $ty {
+            #[inline]
+            fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+                base64_display(&self.0, fmtr)
+            }
+        }
+    };
 }
 
-impl core::fmt::Debug for PubKey {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        core::fmt::Display::fmt(self, fmtr)
-    }
+fmt_impl!(impl Display for PubKey);
+fmt_impl!(impl Debug for PubKey);
+fmt_impl!(impl Display for Signature);
+fmt_impl!(impl Debug for Signature);
+
+/// Displays slice using base64 encoding.  Slice must be at most 64 bytes
+/// (i.e. length of a signature).
+fn base64_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
+    use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+    use base64::Engine;
+
+    let mut buf = [0u8; (64 + 2) / 3 * 4];
+    let len = BASE64_ENGINE.encode_slice(bytes, &mut buf[..]).unwrap();
+    // SAFETY: base64 fills the buffer with ASCII characters only.
+    fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
 }
 
-impl core::fmt::Display for Signature {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
-        use base64::Engine;
 
-        const ENCODED_LENGTH: usize = (Signature::LENGTH + 2) / 3 * 4;
-        let mut buf = [0u8; ENCODED_LENGTH];
-        let len = BASE64_ENGINE
-            .encode_slice(self.0.as_slice(), &mut buf[..])
-            .unwrap();
-        // SAFETY: base64 fills the buffer with ASCII characters only.
-        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
-    }
-}
-
-impl core::fmt::Debug for Signature {
-    #[inline]
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        core::fmt::Display::fmt(self, fmtr)
-    }
-}
 
 #[test]
 fn test_verify() {
-    use blockchain::Verifier;
-
     // Construct signatures.
     let pk = PubKey([128; 32]);
     let msg1 = &b"hello, world"[..];
@@ -280,10 +290,10 @@ fn test_verify() {
 
     // Test verification
     let verifier = Verifier(data);
-    assert!(verifier.verify(msg1, &pk, &sig1));
-    assert!(verifier.verify(msg2, &pk, &sig2));
+    assert!(verifier.exists(msg1, &pk, &sig1));
+    assert!(verifier.exists(msg2, &pk, &sig2));
     // Wrong signature
-    assert!(!verifier.verify(msg1, &pk, &sig2));
+    assert!(!verifier.exists(msg1, &pk, &sig2));
     // Wrong public key
-    assert!(!verifier.verify(msg1, &PubKey([129; 32]), &sig1));
+    assert!(!verifier.exists(msg1, &PubKey([129; 32]), &sig1));
 }
