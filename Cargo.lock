@@ -4534,6 +4534,7 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-trie",
+ "solana-write-account",
  "spl-associated-token-account",
  "spl-token",
  "stdx",
@@ -5097,6 +5098,7 @@ dependencies = [
 name = "solana-write-account"
 version = "0.0.0"
 dependencies = [
+ "borsh 0.10.3",
  "solana-program",
  "stdx",
 ]

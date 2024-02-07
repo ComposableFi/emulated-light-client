@@ -9,6 +9,7 @@ name = "write"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
+borsh.workspace = true
 solana-program.workspace = true
 
 stdx.workspace = true

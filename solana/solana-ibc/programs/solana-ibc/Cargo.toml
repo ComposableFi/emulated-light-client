@@ -48,5 +48,6 @@ anyhow.workspace = true
 hex-literal.workspace = true
 ibc-testkit.workspace = true
 insta.workspace = true
+solana-write-account.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }

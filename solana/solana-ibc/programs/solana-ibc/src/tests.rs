@@ -9,7 +9,7 @@ use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
-use anchor_client::solana_sdk::pubkey::{read_pubkey_file, Pubkey};
+use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
@@ -29,6 +29,7 @@ use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+pub const WRITE_ACCOUNT_SEED: &[u8] = b"write_account";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;
@@ -78,6 +79,10 @@ fn anchor_test_deliver() -> Result<()> {
         CommitmentConfig::processed(),
     );
     let program = client.program(crate::ID).unwrap();
+    let write_account_program_id =
+        read_keypair_file("../../../../target/deploy/write-keypair.json")
+            .unwrap()
+            .pubkey();
 
     let sol_rpc_client = program.rpc();
     let _airdrop_signature =
@@ -92,6 +97,11 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
+    let (chunk_account, chunk_account_bump) = Pubkey::find_program_address(
+        &[&authority.pubkey().to_bytes(), WRITE_ACCOUNT_SEED],
+        &write_account_program_id,
+    )
+    ;
 
     let mint_keypair = Keypair::new();
     let native_token_mint_key = mint_keypair.pubkey();
@@ -156,34 +166,34 @@ fn anchor_test_deliver() -> Result<()> {
     );
 
     let serialized_msg = message.try_to_vec().unwrap();
-
-    let write_account_program_id =
-        read_keypair_file("../../../../target/deploy/write-keypair.json")
-            .unwrap()
-            .pubkey();
+    let serialized_msg_len = serialized_msg.len() as u32;
 
     println!("\nCreating Account to store message chunks");
-    let chunk_account = Keypair::new();
-    let ix = create_account(
-        &authority.pubkey(),
-        &chunk_account.pubkey(),
-        350000000,
-        serialized_msg.len().try_into().unwrap(),
-        &write_account_program_id,
-    );
 
-    let blockhash = sol_rpc_client.get_latest_blockhash()?;
-    let tx = Transaction::new_signed_with_payer(
-        &[ix],
+    let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
+    let mut discriminant = vec![0];
+    let data_size_in_bytes = serialized_msg_len.to_le_bytes().to_vec();
+    discriminant.extend(data_size_in_bytes);
+    discriminant.extend(WRITE_ACCOUNT_SEED.to_vec());
+    println!("This is message {:?}", WRITE_ACCOUNT_SEED);
+    let transaction = Transaction::new_signed_with_payer(
+        &[Instruction::new_with_bytes(
+            write_account_program_id,
+            &discriminant,
+            vec![
+                AccountMeta::new(chunk_account, false),
+                AccountMeta::new(authority.pubkey(), true),
+                AccountMeta::new(system_program::ID, false),
+            ],
+        )],
         Some(&authority.pubkey()),
-        &[&*authority, &chunk_account],
+        &[&*authority],
         blockhash,
     );
-    let sig =
-        sol_rpc_client.send_and_confirm_transaction_with_spinner(&tx).unwrap();
+    let sig = sol_rpc_client
+        .send_and_confirm_transaction_with_spinner(&transaction)
+        .unwrap();
     println!("  Signature {sig}");
-
-
 
     let chunk_size = 100;
     let mut offset: u32 = 0;
@@ -194,15 +204,20 @@ fn anchor_test_deliver() -> Result<()> {
     );
     for chunk in serialized_msg.chunks(chunk_size) {
         let mut offset_in_bytes = offset.to_le_bytes().to_vec();
-        let mut discriminant = vec![0];
+        let mut discriminant = vec![1];
         discriminant.append(&mut offset_in_bytes);
-        discriminant.append(&mut chunk.to_vec());
+        let state = write::State {
+            seed: WRITE_ACCOUNT_SEED.to_vec(),
+            bump: chunk_account_bump,
+            data: chunk.to_vec(),
+        };
+        discriminant.extend(state.try_to_vec().unwrap());
 
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(
                 write_account_program_id,
                 &discriminant,
-                vec![AccountMeta::new(chunk_account.pubkey(), false)],
+                vec![AccountMeta::new(chunk_account, false), AccountMeta::new(authority.pubkey(), true)],
             )],
             Some(&authority.pubkey()),
             &[&*authority],
@@ -224,7 +239,7 @@ fn anchor_test_deliver() -> Result<()> {
             storage,
             trie,
             chain,
-            chunks: chunk_account.pubkey(),
+            chunks: chunk_account,
             system_program: system_program::ID,
             mint_authority: None,
             token_mint: None,
@@ -499,9 +514,9 @@ fn anchor_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -574,8 +589,8 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before)
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -637,9 +652,9 @@ fn anchor_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -726,16 +741,16 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_native_token_address)
         .unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap() -
-            escrow_account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((escrow_account_balance_before.ui_amount.unwrap()
+            - escrow_account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap() -
-            receiver_account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((receiver_account_balance_after.ui_amount.unwrap()
+            - receiver_account_balance_before)
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
