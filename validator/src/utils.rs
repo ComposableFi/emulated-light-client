@@ -17,10 +17,10 @@ fn project_dirs() -> ProjectDirs {
 
 pub fn config_file() -> PathBuf {
     let proj_dirs = project_dirs();
-    let mut data_file = PathBuf::from(proj_dirs.config_dir());
-    fs::create_dir_all(&data_file).unwrap();
-    data_file.push("config.toml");
-    data_file
+    let config_dir = proj_dirs.config_dir();
+    fs::create_dir_all(config_dir).unwrap();
+    let config_dir = config_dir.join("config.toml");
+    config_dir.to_path_buf()
 }
 
 pub fn setup_logging(log_level: log::LevelFilter) {
