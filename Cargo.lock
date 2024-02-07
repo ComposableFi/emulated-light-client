@@ -6279,6 +6279,7 @@ dependencies = [
  "lib",
  "log",
  "serde",
+ "solana-ed25519",
  "solana-ibc",
  "toml 0.8.8",
 ]

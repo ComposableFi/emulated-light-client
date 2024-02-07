@@ -21,6 +21,7 @@ env_logger.workspace = true
 lib.workspace = true
 log.workspace = true
 solana-ibc.workspace = true
+solana-ed25519.workspace = true
 serde.workspace = true
 toml.workspace = true
 

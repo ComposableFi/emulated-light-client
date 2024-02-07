@@ -73,7 +73,7 @@ pub fn new_ed25519_instruction_with_signature(
     let message_data_offset =
         signature_offset.saturating_add(SIGNATURE_SERIALIZED_SIZE);
 
-    let offsets = solana_ibc::ed25519::SignatureOffsets {
+    let offsets = solana_ed25519::SignatureOffsets {
         signature_offset: signature_offset as u16,
         signature_instruction_index: u16::MAX,
         public_key_offset: public_key_offset as u16,
