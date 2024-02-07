@@ -1,6 +1,5 @@
 use std::fs;
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
@@ -24,9 +23,9 @@ pub fn config_file() -> PathBuf {
     data_file
 }
 
-pub fn setup_logging(log_level: &str) {
+pub fn setup_logging(log_level: log::LevelFilter) {
     env_logger::builder()
-        .filter_level(log::LevelFilter::from_str(log_level).unwrap())
+        .filter_level(log_level)
         .format_timestamp(None)
         .init();
 }

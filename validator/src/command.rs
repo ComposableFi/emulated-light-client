@@ -166,15 +166,13 @@ pub fn parse_config() -> Option<Config> {
                     .unwrap_or(LevelFilter::Info)
                     .to_string(),
             };
-            setup_logging(&config.log_level);
+            setup_logging(LevelFilter::from_str(&config.log_level).unwrap());
             Some(config)
         }
         Commands::Init(cmd) => {
             let config_file = config_file();
             let file = fs::metadata(config_file.clone());
-            setup_logging(
-                &cmd.log_level.unwrap_or(LevelFilter::Info).to_string(),
-            );
+            setup_logging(cmd.log_level.unwrap_or(LevelFilter::Info));
             if file.is_ok() {
                 let value = prompt(
                     "Do you really want to overwrite. Enter yes or no.",
