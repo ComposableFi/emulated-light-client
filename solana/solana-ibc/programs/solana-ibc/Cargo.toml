@@ -21,7 +21,7 @@ no-log-ix-name = []
 anchor-lang.workspace = true
 anchor-spl.workspace = true
 base64.workspace = true
-bytemuck = { workspace = true, features = ["must_cast"] }
+bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true

@@ -41,6 +41,9 @@ mod tests;
 mod transfer;
 mod validation_context;
 
+#[allow(unused_imports)]
+pub(crate) use allocator::global;
+
 #[anchor_lang::program]
 pub mod solana_ibc {
 
