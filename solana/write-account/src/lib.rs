@@ -5,7 +5,7 @@ use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
 use solana_program::sysvar::Sysvar;
-use solana_program::{msg, system_instruction};
+use solana_program::system_instruction;
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 
@@ -105,7 +105,7 @@ fn handle_create(
         .ok_or(ProgramError::InvalidInstructionData)
         .and_then(usize_from_bytes)?;
     let lamports_required = (Rent::get()?).minimum_balance(account_span);
-    let (pubkey, bump) =
+    let (_pubkey, bump) =
         Pubkey::find_program_address(&[payer.key.as_ref(), data], program_id);
 
     invoke_signed(
