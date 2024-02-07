@@ -13,7 +13,7 @@ use directories::ProjectDirs;
 
 fn project_dirs() -> ProjectDirs {
     ProjectDirs::from("com", "Composable Finance", "Solana Guest Chain Validator")
-        .unwrap_or_else(|| panic!("Invalid home directory!"))
+        .expect("Invalid Home directory!")
 }
 
 pub fn config_file() -> PathBuf {
