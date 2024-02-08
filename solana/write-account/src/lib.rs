@@ -4,8 +4,8 @@ use solana_program::program::invoke_signed;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
-use solana_program::sysvar::Sysvar;
 use solana_program::system_instruction;
+use solana_program::sysvar::Sysvar;
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 
