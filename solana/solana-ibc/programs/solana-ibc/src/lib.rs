@@ -166,6 +166,13 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
+
+        if let Some(ix_sysvar) = ctx.accounts.ix_sysvar.as_ref() {
+            if let Ok(verifier) = solana_ed25519::Verifier::new(ix_sysvar) {
+                global().set_verifier(verifier)
+            }
+        }
+
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
