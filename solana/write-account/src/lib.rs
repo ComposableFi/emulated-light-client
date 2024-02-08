@@ -26,12 +26,14 @@ solana_program::entrypoint!(process_instruction);
 /// +-----+---------------+------------+
 /// ```
 ///
-/// It create a Program Derived Address with the signer key and a constant seed
-/// provided by the user.
+/// It creates a Program Derived Address (PDA) with the signer key and
+/// provided seed.
+///
 /// Requires 3 accounts in the following order
 /// - Write Account PDA: PDA with seeds as [payer_pubkey, seed].
 /// - Payer account: Should be a signer.
-/// - System program: Account used to create PDA. Should be `11111111111111111111111111111111`
+/// - System program: Account used to create PDA.
+///   Should be `11111111111111111111111111111111`
 ///
 /// # Write
 ///
