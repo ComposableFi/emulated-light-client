@@ -168,7 +168,7 @@ pub mod solana_ibc {
         let mut router = store.clone();
 
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
-            if let Some(verifier) = solana_ed25519::Verifier::new(last).ok() {
+            if let Ok(verifier) = solana_ed25519::Verifier::new(last) {
                 global().set_verifier(verifier);
                 ctx.remaining_accounts = rest;
             }
