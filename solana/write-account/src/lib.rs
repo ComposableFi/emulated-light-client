@@ -19,6 +19,7 @@ solana_program::entrypoint!(process_instruction);
 /// # Create PDA Account
 ///
 /// Instruction with discriminant zero is Create and its format is as follows:
+///
 /// ```ignore,text
 /// +-----+---------------+------------+
 /// | 0u8 | account_size: u32 | seed: [u8] |
