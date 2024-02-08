@@ -6,6 +6,7 @@ import { IDL } from "../../../target/types/restaking";
 import assert from "assert";
 import bs58 from "bs58";
 import {
+  guestChainProgramID,
   getGuestChainAccounts,
   getRewardsTokenAccountPDA,
   getStakingParamsPDA,
@@ -36,10 +37,6 @@ describe("restaking", () => {
   let initialMintAmount = 100000000;
   let stakingCap = 30000;
   const depositAmount = 4000;
-
-  const guestChainProgramId = new anchor.web3.PublicKey(
-    "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
-  );
 
   let tokenMintKeypair = anchor.web3.Keypair.generate();
   let tokenMint = tokenMintKeypair.publicKey;
@@ -214,8 +211,6 @@ describe("restaking", () => {
     }
   });
 
-  
-
   it("Deposit tokens before chain is initialized", async () => {
     const receiptTokenAccount = await spl.getAssociatedTokenAddress(
       tokenMint,
@@ -269,7 +264,7 @@ describe("restaking", () => {
     const { stakingParamsPDA } = getStakingParamsPDA();
     try {
       const tx = await program.methods
-        .updateGuestChainInitialization(guestChainProgramId)
+        .updateGuestChainInitialization(guestChainProgramID)
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
@@ -308,7 +303,7 @@ describe("restaking", () => {
         .remainingAccounts([
           { pubkey: guestChainPDA, isSigner: false, isWritable: true },
           { pubkey: triePDA, isSigner: false, isWritable: true },
-          { pubkey: guestChainProgramId, isSigner: false, isWritable: true },
+          { pubkey: guestChainProgramID, isSigner: false, isWritable: true },
         ])
         .signers([depositor])
         .rpc();
