@@ -42,10 +42,10 @@ mod imp {
         }
     }
 
-    // SAFETY: Global is in fact not Sync so technically this is unsound.
-    // However, Solana is single-threaded so we don’t need to worry about thread
-    // safety.  Since this implementation is used when building for Solana, we
-    // can safely lie to the compiler about Global being Sync.
+    // SAFETY: Global is in fact not Sync.  However, Solana is single-threaded
+    // so we don’t need to worry about thread safety.  Since this implementation
+    // is used when building for Solana, we can safely lie to the compiler about
+    // Global being Sync.
     //
     // We need Global to be Sync because it’s !Sync status peculates to
     // BumpAllocator<Global> and since that’s a static variable, Rust requires
@@ -69,25 +69,40 @@ mod imp {
     test,
 ))]
 mod imp {
-    use core::sync::atomic::{AtomicPtr, Ordering};
-
     use solana_ed25519::Verifier;
 
     /// Mutable global state.
     pub(crate) struct Global;
 
-    static VERIFIER: AtomicPtr<Verifier> =
+    // Make sure we’re not using AtomicPtr when compiling for CPI.  I’m not
+    // entirely sure why this is a problem, but just having AtomicPtr::store in
+    // the code (whether it’s executed or not) causes CPI to fail.
+    #[cfg(not(all(target_os = "solana", feature = "cpi")))]
+    static VERIFIER: core::sync::atomic::AtomicPtr<Verifier> =
         core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
 
+    #[cfg(not(all(target_os = "solana", feature = "cpi")))]
     impl Global {
         pub(super) fn verifier_ptr(&self) -> *const Verifier {
-            VERIFIER.load(Ordering::SeqCst)
+            VERIFIER.load(core::sync::atomic::Ordering::SeqCst)
         }
 
         pub(super) fn set_verifier_ptr(&self, verifier: *const Verifier) {
-            // Allocate the verifier on heap so it has fixed address and leak so it
-            // has 'static lifetime.
-            VERIFIER.store(verifier as *mut Verifier, Ordering::SeqCst);
+            VERIFIER.store(
+                verifier as *mut Verifier,
+                core::sync::atomic::Ordering::SeqCst,
+            );
+        }
+    }
+
+    #[cfg(all(target_os = "solana", feature = "cpi"))]
+    impl Global {
+        pub(super) fn verifier_ptr(&self) -> *const Verifier {
+            core::ptr::null()
+        }
+
+        pub(super) fn set_verifier_ptr(&self, verifier: *const Verifier) {
+            panic!();
         }
     }
 
