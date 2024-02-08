@@ -161,15 +161,16 @@ pub mod solana_ibc {
 
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
+        mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
-        if let Some(ix_sysvar) = ctx.accounts.ix_sysvar.as_ref() {
-            if let Ok(verifier) = solana_ed25519::Verifier::new(ix_sysvar) {
-                global().set_verifier(verifier)
+        if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
+            if let Some(verifier) = solana_ed25519::Verifier::new(last).ok() {
+                global().set_verifier(verifier);
+                ctx.remaining_accounts = rest;
             }
         }
 
@@ -472,10 +473,6 @@ pub struct Deliver<'info> {
     associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
-
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    /// CHECK:
-    ix_sysvar: Option<AccountInfo<'info>>,
 }
 
 #[derive(Accounts)]

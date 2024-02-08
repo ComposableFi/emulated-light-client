@@ -166,7 +166,6 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: None,
             associated_token_program: None,
             token_program: None,
-            ix_sysvar: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -229,7 +228,6 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: None,
             associated_token_program: None,
             token_program: None,
-            ix_sysvar: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -505,7 +503,6 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: Some(receiver_token_address),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
-            ix_sysvar: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
@@ -656,7 +653,6 @@ fn anchor_test_deliver() -> Result<()> {
             receiver_token_account: Some(receiver_native_token_address),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
-            ix_sysvar: None,
         })
         .args(instruction::Deliver { message })
         .payer(authority.clone())
