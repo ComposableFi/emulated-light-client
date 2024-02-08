@@ -465,6 +465,10 @@ pub struct Deliver<'info> {
     associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
+
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK:
+    ix_sysvar: Option<AccountInfo<'info>>,
 }
 
 #[derive(Accounts)]
