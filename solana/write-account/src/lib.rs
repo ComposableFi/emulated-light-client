@@ -141,7 +141,7 @@ fn handle_write(
         .ok_or(ProgramError::InvalidInstructionData)
         .and_then(usize_from_bytes)?;
 
-    let state = State::try_from_slice(&data)
+    let state = State::try_from_slice(data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
 
     let (pubkey, _bump) = Pubkey::find_program_address(
