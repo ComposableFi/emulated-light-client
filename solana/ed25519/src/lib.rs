@@ -12,6 +12,7 @@ use solana_program::{ed25519_program, sysvar};
     PartialOrd,
     Ord,
     Hash,
+    bytemuck::TransparentWrapper,
     derive_more::From,
     derive_more::Into,
 )]
@@ -19,10 +20,19 @@ use solana_program::{ed25519_program, sysvar};
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[repr(transparent)]
 pub struct PubKey([u8; 32]);
 
 impl PubKey {
     pub const LENGTH: usize = 32;
+}
+
+impl<'a> TryFrom<&'a [u8]> for &'a PubKey {
+    type Error = core::array::TryFromSliceError;
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        <&[u8; PubKey::LENGTH]>::try_from(bytes)
+            .map(bytemuck::TransparentWrapper::wrap_ref)
+    }
 }
 
 impl From<solana_program::pubkey::Pubkey> for PubKey {
@@ -58,6 +68,7 @@ impl blockchain::PubKey for PubKey {
     PartialOrd,
     Ord,
     Hash,
+    bytemuck::TransparentWrapper,
     derive_more::From,
     derive_more::Into,
 )]
@@ -65,10 +76,19 @@ impl blockchain::PubKey for PubKey {
     feature = "borsh",
     derive(borsh::BorshSerialize, borsh::BorshDeserialize)
 )]
+#[repr(transparent)]
 pub struct Signature([u8; 64]);
 
 impl Signature {
     pub const LENGTH: usize = 64;
+}
+
+impl<'a> TryFrom<&'a [u8]> for &'a Signature {
+    type Error = core::array::TryFromSliceError;
+    fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+        <&[u8; Signature::LENGTH]>::try_from(bytes)
+            .map(bytemuck::TransparentWrapper::wrap_ref)
+    }
 }
 
 /// Implementation for validating Ed25519 signatures.

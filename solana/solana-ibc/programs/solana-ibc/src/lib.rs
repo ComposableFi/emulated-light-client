@@ -41,6 +41,9 @@ mod tests;
 mod transfer;
 mod validation_context;
 
+#[allow(unused_imports)]
+pub(crate) use allocator::global;
+
 #[anchor_lang::program]
 pub mod solana_ibc {
 
@@ -158,11 +161,19 @@ pub mod solana_ibc {
 
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
+        mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
+
+        if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
+            if let Ok(verifier) = solana_ed25519::Verifier::new(last) {
+                global().set_verifier(verifier);
+                ctx.remaining_accounts = rest;
+            }
+        }
+
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
