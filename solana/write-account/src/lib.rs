@@ -21,7 +21,7 @@ solana_program::entrypoint!(process_instruction);
 /// Instruction with discriminant zero is Create and its format is as follows:
 /// ```ignore,text
 /// +-----+---------------+------------+
-/// | 0u8 | data_len: u32 | data: [u8] |
+/// | 0u8 | account_size: u32 | seed: [u8] |
 /// +-----+---------------+------------+
 /// ```
 ///
