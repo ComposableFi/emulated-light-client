@@ -107,7 +107,7 @@ fn handle_create(
         .unshift_n::<4>()
         .ok_or(ProgramError::InvalidInstructionData)
         .and_then(usize_from_bytes)?;
-    let lamports_required = (Rent::get()?).minimum_balance(account_span);
+    let lamports_required = Rent::get()?.minimum_balance(account_span);
     let (_pubkey, bump) =
         Pubkey::find_program_address(&[payer.key.as_ref(), data], program_id);
 
