@@ -192,9 +192,8 @@ pub fn parse_config() -> Option<Config> {
         }
         Commands::Init(cmd) => {
             let config_file = config_file();
-            let file = fs::metadata(config_file.clone());
             setup_logging(cmd.log_level.unwrap_or(LevelFilter::Info));
-            if file.is_ok() {
+            if config_file.exists() {
                 let value = prompt(
                     "Do you really want to overwrite. Enter yes or no.",
                     Some(Values::No),
