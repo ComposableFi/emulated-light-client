@@ -97,10 +97,10 @@ fn main() {
             .send_with_spinner_and_config(RpcSendTransactionConfig {
                 skip_preflight: true,
                 ..RpcSendTransactionConfig::default()
-            })
-            .map_err(|e| log::error!("Failed to send the transaction {}", e));
-        if tx.is_ok() {
-            log::info!("Block signed -> Transaction: {}", tx.unwrap());
+            });
+        match tx {
+            Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),
+            Err(err) => log::error!("Failed to send the transaction {err}"),
         }
     }
 }
