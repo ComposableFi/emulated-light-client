@@ -50,7 +50,7 @@ impl<'d> Deserialize<'d> for InnerKeypair {
 
 impl Display for InnerKeypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.pubkey())
+        Display::fmt(&self.0.pubkey(), f)
     }
 }
 
