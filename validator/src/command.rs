@@ -25,7 +25,6 @@ pub struct Config {
     pub log_level: String,
 }
 
-#[derive(Debug)]
 pub struct InnerKeypair(Keypair);
 
 impl Serialize for InnerKeypair {
@@ -61,6 +60,12 @@ impl From<InnerKeypair> for Keypair {
 impl Display for InnerKeypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.pubkey())
+    }
+}
+
+impl Debug for InnerKeypair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("InnerKeypair").field(&self.0.pubkey()).finish()
     }
 }
 
