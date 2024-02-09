@@ -29,7 +29,6 @@ mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;
-mod ed25519;
 mod error;
 pub mod events;
 mod execution_context;
@@ -41,6 +40,9 @@ pub mod storage;
 mod tests;
 mod transfer;
 mod validation_context;
+
+#[allow(unused_imports)]
+pub(crate) use allocator::global;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
@@ -97,7 +99,7 @@ pub mod solana_ibc {
         signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let verifier = solana_ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -158,11 +160,19 @@ pub mod solana_ibc {
     }
 
     pub fn deliver<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
+        mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
+
+        if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
+            if let Ok(verifier) = solana_ed25519::Verifier::new(last) {
+                global().set_verifier(verifier);
+                ctx.remaining_accounts = rest;
+            }
+        }
+
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))

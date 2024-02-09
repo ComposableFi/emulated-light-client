@@ -3,6 +3,7 @@ use core::num::NonZeroU64;
 use anchor_lang::prelude::*;
 pub use blockchain::Config;
 use lib::hash::CryptoHash;
+pub use solana_ed25519::{PubKey, Signature, Verifier};
 
 use crate::error::Error;
 use crate::{events, ibc, storage};
@@ -14,7 +15,6 @@ pub type Block = blockchain::Block<PubKey>;
 pub type BlockHeader = blockchain::BlockHeader;
 pub type Manager = blockchain::ChainManager<PubKey>;
 pub type Validator = blockchain::Validator<PubKey>;
-pub use crate::ed25519::{PubKey, Signature, Verifier};
 
 /// Guest blockchain data held in Solana account.
 #[account]
@@ -182,6 +182,11 @@ impl ChainData {
         // Call the method to get the rewards
         let current_height = inner.manager.epoch_height();
         Ok((0, u64::from(current_height)))
+    }
+
+    pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.genesis().clone())
     }
 
     /// Checks whether given `program_id` matches expected staking program id.

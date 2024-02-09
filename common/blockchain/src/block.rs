@@ -303,7 +303,8 @@ impl Fingerprint {
     }
 
     /// Returns the fingerprint as bytes slice.
-    fn as_slice(&self) -> &[u8] { &self.0[..] }
+    #[inline]
+    pub fn as_slice(&self) -> &[u8] { &self.0[..] }
 
     /// Signs the fingerprint
     #[inline]

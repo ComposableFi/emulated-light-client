@@ -13,7 +13,6 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
-use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::system_instruction::create_account;
@@ -69,7 +68,7 @@ macro_rules! make_message {
 #[test]
 #[ignore = "Requires local validator to run"]
 fn anchor_test_deliver() -> Result<()> {
-    let authority = Rc::new(Keypair::new());
+    let authority = Rc::new(read_keypair_file("../../keypair.json").unwrap());
     println!("This is pubkey {}", authority.pubkey().to_string());
     let lamports = 2_000_000_000;
 
@@ -110,7 +109,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Initialise chain
      */
-
     println!("\nInitialising");
     let sig = program
         .request()
@@ -149,10 +147,15 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
+    let chain_account: chain::ChainData = program.account(chain).unwrap();
+
+    let genesis_hash = chain_account.genesis().unwrap();
+    println!("This is genesis hash {}", genesis_hash.to_string());
+
     /*
      * Create New Mock Client
      */
-
+    println!("\nCreating Mock Client");
     let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
     let message = make_message!(
         ibc::MsgCreateClient::new(
@@ -263,7 +266,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Create New Mock Connection Open Init
      */
-
     println!("\nIssuing Connection Open Init");
     let client_id = mock_client_state.client_type().build_client_id(0);
     let counter_party_client_id =
@@ -333,7 +335,6 @@ fn anchor_test_deliver() -> Result<()> {
      *  - Create PDAs for the above keys,
      *  - Get token account for receiver and sender
      */
-
     println!("\nSetting up mock connection and channel");
     let receiver = Keypair::new();
 
@@ -374,7 +375,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Setup deliver escrow.
      */
-
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -409,7 +409,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Creating Token Mint
      */
-
     println!("\nCreating a token mint");
 
     let create_account_ix = create_account(
@@ -463,7 +462,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Sending transfer on source chain
      */
-
     println!("\nSend Transfer On Source Chain");
 
     let msg_transfer = construct_transfer_packet_from_denom(
@@ -527,7 +525,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * On Destination chain
      */
-
     println!("\nRecving on destination chain");
     let account_balance_before = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
@@ -601,7 +598,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Sending transfer on destination chain
      */
-
     println!("\nSend Transfer On Destination Chain");
 
     let msg_transfer = construct_transfer_packet_from_denom(
@@ -665,7 +661,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * On Source chain
      */
-
     println!("\nRecving on source chain");
 
     let receiver_native_token_address = get_associated_token_address(
@@ -761,7 +756,6 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Send Packets
      */
-
     println!("\nSend packet");
     let packet = construct_packet_from_denom(
         &base_denom,

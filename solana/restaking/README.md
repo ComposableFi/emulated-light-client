@@ -14,7 +14,7 @@ The high level flow of the program is given in the image below.
 - Receipt Token Mint: The receipt token mint is a NFT which is the
   seed for the PDA storing information about stake amout, validator
   and rewards. For more information, refer: 
-  https://docs.google.com/document/d/1qXEvgYL6MrBQEbt_oFc8NW2znkOApevqz9u7yyA-cgw/edit?usp=sharing
+  https://docs.composable.finance/technology/solana-restaking/vaults/#receipt-token
 
 - Staking Params: This is a PDA which stores the staking parameters
   and also is the authority to `Receipt Token Mint` and `Vaults`.
@@ -69,17 +69,49 @@ can start staking.
   withdraw all the funds from the reward token account. This is a
   safety measure so it should be called only during emergency.
 
+## Verifying the code
+
+First, compile the programs code from the `emulated-light-client` Github
+repository to get its bytecode.
+
+    git clone https://github.com/ComposableFi/emulated-light-client.git
+    anchor build
+
+Now, install the [Ellipsis Labs verifiable
+build](https://crates.io/crates/solana-verify) crate.
+
+    cargo install solana-verify
+
+Get the executable hash of the bytecode from the Restaking program that was
+compiled
+
+    solana-verify get-executable-hash target/deploy/restaking.so
+
+Get the hash from the bytecode of the on-chain restaking program that you want
+to verify
+
+    solana-verify get-program-hash -u <cluster url> \
+        8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3
+
+**Note for multisig members:** If you want to verify the upgrade program buffer,
+then you need to get the bytecode from the buffer account using the below
+command. You can get the buffer account address from the squads.
+
+    solana-verify get-buffer-hash -u <cluster url> <buffer address>
+
+If the hash outputs of those two commands match, the code in the
+repository matches the on-chain programs code.
+
 ## Note
 
-- Since the rewards are not implemented yet on the `Guest Blockchain`,
-  a nil value is returned for now.
+- Since the rewards are not implemented yet on the Guest Chain, a nil value is
+  returned for now.
 
-- Oracle interface is yet to be added to fetch the current price of 
-  staked tokens as well as the governance token in the `Guest Blockchain`.
+- Oracle interface is yet to be added to fetch the current price of staked
+  tokens as well as the governance token in the Guest Chain.
 
-- Users who have deposited before the `guest chain` is initialized can choose
-  the validator in one of three ways(Yet to be implemented):
-  - Choose a validator randomly
-  - Choose a validator from the list of top 10 validators chosen by us
-  - Choose a particular validator.
-  
+- Users who have deposited before the Guest Chain is initialized can choose the
+  validator in one of three ways(Yet to be implemented):
+  - choose a validator randomly,
+  - choose a validator from the list of top 10 validators chosen by us or
+  - choose a particular validator.
