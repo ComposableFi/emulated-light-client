@@ -182,7 +182,7 @@ pub mod solana_ibc {
                 chunks.get(..u32::from_le_bytes(*len) as usize)
             })
             .ok_or(error::Error::InvalidChunksData)?;
-        let message = ibc::MsgEnvelope::try_from_slice(&chunks).unwrap();
+        let message = ibc::MsgEnvelope::try_from_slice(chunks).unwrap();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
