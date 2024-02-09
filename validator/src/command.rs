@@ -65,7 +65,7 @@ impl Display for InnerKeypair {
 
 impl Debug for InnerKeypair {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("InnerKeypair").field(&self.0.pubkey()).finish()
+        f.debug_tuple("PublicKey").field(&self.0.pubkey()).finish()
     }
 }
 
