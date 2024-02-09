@@ -166,23 +166,21 @@ fn anchor_test_deliver() -> Result<()> {
 
     let serialized_msg = message.try_to_vec().unwrap();
     let serialized_msg_len = serialized_msg.len() as u32;
-    let serialized_msg = [
-        &(serialized_msg_len).to_le_bytes()[..],
-        serialized_msg.as_slice(),
-    ].concat();
+    let serialized_msg =
+        [&(serialized_msg_len).to_le_bytes()[..], serialized_msg.as_slice()]
+            .concat();
 
     println!("\nCreating Account to store message chunks");
 
     let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
-    let mut discriminant = vec![0];
-    let data_size_in_bytes = (serialized_msg.len() as u32).to_le_bytes().to_vec();
-    discriminant.extend(data_size_in_bytes);
-    discriminant.extend(WRITE_ACCOUNT_SEED.to_vec());
+    let data_size_in_bytes = (serialized_msg.len() as u32).to_le_bytes();
+    let instruction_data =
+        [&[0][..], &data_size_in_bytes, &WRITE_ACCOUNT_SEED[..]].concat();
     println!("This is message {:?}", WRITE_ACCOUNT_SEED);
     let transaction = Transaction::new_signed_with_payer(
         &[Instruction::new_with_bytes(
             write_account_program_id,
-            &discriminant,
+            &instruction_data,
             vec![
                 AccountMeta::new(chunk_account, false),
                 AccountMeta::new(authority.pubkey(), true),
@@ -206,20 +204,20 @@ fn anchor_test_deliver() -> Result<()> {
          program"
     );
     for chunk in serialized_msg.chunks(chunk_size) {
-        let mut offset_in_bytes = offset.to_le_bytes().to_vec();
-        let mut discriminant = vec![1];
-        discriminant.append(&mut offset_in_bytes);
+        let offset_in_bytes = offset.to_le_bytes();
         let state = write::State {
             seed: WRITE_ACCOUNT_SEED.to_vec(),
             bump: chunk_account_bump,
             data: chunk.to_vec(),
         };
-        discriminant.extend(state.try_to_vec().unwrap());
+        let instruction_data =
+            [&[1][..], &offset_in_bytes, &state.try_to_vec().unwrap()[..]]
+                .concat();
 
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(
                 write_account_program_id,
-                &discriminant,
+                &instruction_data,
                 vec![
                     AccountMeta::new(chunk_account, false),
                     AccountMeta::new(authority.pubkey(), true),
