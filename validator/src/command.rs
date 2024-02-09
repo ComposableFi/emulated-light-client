@@ -43,9 +43,7 @@ impl<'d> Deserialize<'d> for InnerKeypair {
         D: Deserializer<'d>,
     {
         let bytes = <SerdeByteBuf>::deserialize(deserializer)?;
-        let keypair =
-            Keypair::from_bytes(bytes.as_ref()).map_err(SerdeError::custom)?;
-        Ok(Self(keypair))
+        Keypair::from_bytes(bytes.as_ref()).map(Self).map_err(SerdeError::custom)
     }
 }
 
