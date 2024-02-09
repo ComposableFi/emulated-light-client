@@ -166,12 +166,16 @@ fn anchor_test_deliver() -> Result<()> {
 
     let serialized_msg = message.try_to_vec().unwrap();
     let serialized_msg_len = serialized_msg.len() as u32;
+    let serialized_msg = [
+        &(serialized_msg_len).to_le_bytes()[..],
+        serialized_msg.as_slice(),
+    ].concat();
 
     println!("\nCreating Account to store message chunks");
 
     let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
     let mut discriminant = vec![0];
-    let data_size_in_bytes = serialized_msg_len.to_le_bytes().to_vec();
+    let data_size_in_bytes = (serialized_msg.len() as u32).to_le_bytes().to_vec();
     discriminant.extend(data_size_in_bytes);
     discriminant.extend(WRITE_ACCOUNT_SEED.to_vec());
     println!("This is message {:?}", WRITE_ACCOUNT_SEED);

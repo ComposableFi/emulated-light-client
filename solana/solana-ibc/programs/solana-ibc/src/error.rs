@@ -61,6 +61,9 @@ pub enum Error {
 
     // CPI call from an unidentified program
     InvalidCPICall,
+
+    // If chunks data is misaligned
+    InvalidChunksData,
 }
 
 impl Error {

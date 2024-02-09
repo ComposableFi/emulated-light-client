@@ -177,6 +177,9 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, DeliverWithChunks<'info>>,
     ) -> Result<()> {
         let chunks = ctx.accounts.chunks.try_borrow_data().unwrap();
+        let chunks = stdx::split_at::<4, u8>(&chunks).and_then(|(len, chunks)| {
+            chunks.get(..u32::from_le_bytes(*len) as usize)
+        }).ok_or(error::Error::InvalidChunksData)?;
         let message = ibc::MsgEnvelope::try_from_slice(&chunks).unwrap();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
