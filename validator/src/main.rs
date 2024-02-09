@@ -19,13 +19,10 @@ mod utils;
 
 
 fn main() {
-    let config = command::parse_config();
-
-    if config.is_none() {
-        return;
-    }
-
-    let config = config.unwrap();
+    let config = match command::parse_config() {
+        None => return,
+        Some(config) => config
+    };
 
     let validator = Rc::new(Keypair::from(config.keypair));
     let client = Client::new_with_options(
