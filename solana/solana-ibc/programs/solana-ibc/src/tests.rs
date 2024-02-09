@@ -204,15 +204,14 @@ fn anchor_test_deliver() -> Result<()> {
          program"
     );
     for chunk in serialized_msg.chunks(chunk_size) {
-        let offset_in_bytes = offset.to_le_bytes();
         let state = write::State {
+            offset,
             seed: WRITE_ACCOUNT_SEED.to_vec(),
             bump: chunk_account_bump,
             data: chunk.to_vec(),
         };
         let instruction_data =
-            [&[1][..], &offset_in_bytes, &state.try_to_vec().unwrap()[..]]
-                .concat();
+            [&[1][..], &state.try_to_vec().unwrap()[..]].concat();
 
         let transaction = Transaction::new_signed_with_payer(
             &[Instruction::new_with_bytes(

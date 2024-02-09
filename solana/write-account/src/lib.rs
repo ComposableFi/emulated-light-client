@@ -21,9 +21,9 @@ solana_program::entrypoint!(process_instruction);
 /// Instruction with discriminant zero is Create and its format is as follows:
 ///
 /// ```ignore,text
-/// +-----+---------------+------------+
+/// +-----+-------------------+------------+
 /// | 0u8 | account_size: u32 | seed: [u8] |
-/// +-----+---------------+------------+
+/// +-----+-------------------+------------+
 /// ```
 ///
 /// It creates a Program Derived Address (PDA) with the signer key and
@@ -40,9 +40,9 @@ solana_program::entrypoint!(process_instruction);
 /// Instruction with discriminant zero is Write and its format is as follows:
 ///
 /// ```ignore,text
-/// +-----+-------------+-----------------------+
-/// | 1u8 | offset: u32 | serialized_data: [u8] |
-/// +-----+-------------+-----------------------+
+/// +-----+-----------------------+
+/// | 1u8 | serialized_data: [u8] |
+/// +-----+-----------------------+
 /// ```
 ///
 /// It writes specified `data` at given `offset` in the first account included
@@ -52,6 +52,8 @@ solana_program::entrypoint!(process_instruction);
 /// Requires 2 accounts in the following order
 /// - Write Account PDA: PDA with seeds as [payer_pubkey, seed].
 /// - Payer account: Should be a signer.
+/// The serialized_data is borsh serialized data of the `State` struct defined
+/// below.
 ///
 /// # Copy
 ///
@@ -129,7 +131,7 @@ fn handle_create(
 fn handle_write(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
-    mut data: &[u8],
+    data: &[u8],
 ) -> Result {
     let accounts_iter = &mut accounts.iter();
     let write_account = next_account_info(accounts_iter)?;
@@ -138,11 +140,6 @@ fn handle_write(
     if !payer.is_signer {
         return Err(ProgramError::MissingRequiredSignature);
     }
-
-    let offset = data
-        .unshift_n::<4>()
-        .ok_or(ProgramError::InvalidInstructionData)
-        .and_then(usize_from_bytes)?;
 
     let state = State::try_from_slice(data)
         .map_err(|_| ProgramError::InvalidInstructionData)?;
@@ -155,6 +152,7 @@ fn handle_write(
     if write_account.key != &pubkey {
         return Err(ProgramError::InvalidSeeds);
     }
+    let offset = state.offset as usize;
     let end = offset
         .checked_add(state.data.len())
         .ok_or(ProgramError::ArithmeticOverflow)?;
@@ -204,6 +202,7 @@ fn handle_copy_null(dst: &mut [u8], src: &[u8]) -> Result {
 
 #[derive(BorshDeserialize, BorshSerialize, Debug)]
 pub struct State {
+    pub offset: u32,
     pub seed: Vec<u8>,
     pub bump: u8,
     pub data: Vec<u8>,
