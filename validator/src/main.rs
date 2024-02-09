@@ -58,7 +58,7 @@ fn main() {
     loop {
         let logs = receiver
             .recv()
-            .unwrap_or_else(|err| panic!("{}", format!("Disconnected: {err}")));
+            .unwrap_or_else(|err| panic!("Disconnected: {err}"));
 
         let events = utils::get_events_from_logs(logs.value.logs);
         if events.is_empty() {
