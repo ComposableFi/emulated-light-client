@@ -1,56 +1,66 @@
-use core::fmt;
 use std::fmt::{Debug, Display};
 use std::fs;
 use std::str::FromStr;
 
-use anchor_client::solana_sdk::signature::{read_keypair_file, Keypair};
-use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::solana_sdk::signature::{
+    read_keypair_file, Keypair, Signer,
+};
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
 use log::LevelFilter;
-use serde::{Deserialize, Serialize};
+use serde::de::Error as SerdeError;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 
 use crate::utils::{config_file, setup_logging};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub rpc_url: String,
     pub ws_url: String,
     pub program_id: String,
     pub genesis_hash: String,
-    pub keypair: Vec<u8>,
+    pub keypair: InnerKeypair,
     pub log_level: String,
 }
 
-impl Display for Config {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let keypair = Keypair::from_bytes(&self.keypair).unwrap();
-        write!(
-            f,
-            "\nrpc_url: {}\nws_url: {}\nprogram_id: {}\ngenesis_hash: \
-             {}\nvalidator_public_key: {}\nlog_level: {}",
-            self.rpc_url,
-            self.ws_url,
-            self.program_id,
-            self.genesis_hash,
-            keypair.pubkey(),
-            self.log_level
-        )
+#[derive(Debug)]
+pub struct InnerKeypair(Keypair);
+
+impl Serialize for InnerKeypair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bytes = &self.0.to_bytes()[..];
+        SerdeBytes::new(bytes).serialize(serializer)
     }
 }
 
-impl fmt::Debug for Config {
-    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let keypair = Keypair::from_bytes(&self.keypair).unwrap();
-        fmt.debug_struct("Config")
-            .field("rpc_url", &self.rpc_url)
-            .field("ws_url", &self.ws_url)
-            .field("program_id", &self.program_id)
-            .field("genesis_hash", &self.genesis_hash)
-            .field("validator_public_key", &keypair.pubkey())
-            .field("log_level", &self.log_level)
-            .finish()
+impl<'d> Deserialize<'d> for InnerKeypair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'d>,
+    {
+        let bytes = <SerdeByteBuf>::deserialize(deserializer)?;
+        let keypair =
+            Keypair::from_bytes(bytes.as_ref()).map_err(SerdeError::custom)?;
+        Ok(Self(keypair))
+    }
+}
+
+impl From<Keypair> for InnerKeypair {
+    fn from(value: Keypair) -> Self { InnerKeypair(value) }
+}
+
+impl From<InnerKeypair> for Keypair {
+    fn from(value: InnerKeypair) -> Self { value.0 }
+}
+
+impl Display for InnerKeypair {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.pubkey())
     }
 }
 
@@ -164,7 +174,7 @@ pub fn parse_config() -> Option<Config> {
             let keypair = if cmd.keypair_path.is_some() {
                 let keypair = read_keypair_file(&cmd.keypair_path.unwrap())
                     .expect("Unable to read keypair file");
-                keypair.to_bytes().to_vec()
+                keypair.into()
             } else {
                 default_config.keypair
             };
@@ -201,13 +211,13 @@ pub fn parse_config() -> Option<Config> {
             }
             let keypair = read_keypair_file(&cmd.keypair_path)
                 .expect("Unable to read keypair file");
-            let keypair = keypair.to_bytes().to_vec();
+            // let keypair = keypair.to_bytes().to_vec();
             let config = Config {
                 rpc_url: cmd.rpc_url,
                 ws_url: cmd.ws_url,
                 program_id: cmd.program_id,
                 genesis_hash: cmd.genesis_hash,
-                keypair,
+                keypair: keypair.into(),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
@@ -215,7 +225,7 @@ pub fn parse_config() -> Option<Config> {
             };
             let toml_in_string = toml::to_string(&config).unwrap();
             fs::write(config_file, toml_in_string).unwrap();
-            log::info!("New Config {}", config);
+            log::info!("New Config {:?}", config);
             None
         }
     }
