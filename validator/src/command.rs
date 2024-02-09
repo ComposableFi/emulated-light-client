@@ -25,6 +25,7 @@ pub struct Config {
     pub log_level: String,
 }
 
+#[derive(derive_more::From, derive_more::Into)]
 pub struct InnerKeypair(Keypair);
 
 impl Serialize for InnerKeypair {
@@ -45,14 +46,6 @@ impl<'d> Deserialize<'d> for InnerKeypair {
         let bytes = <SerdeByteBuf>::deserialize(deserializer)?;
         Keypair::from_bytes(bytes.as_ref()).map(Self).map_err(SerdeError::custom)
     }
-}
-
-impl From<Keypair> for InnerKeypair {
-    fn from(value: Keypair) -> Self { InnerKeypair(value) }
-}
-
-impl From<InnerKeypair> for Keypair {
-    fn from(value: InnerKeypair) -> Self { value.0 }
 }
 
 impl Display for InnerKeypair {

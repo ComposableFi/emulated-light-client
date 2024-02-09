@@ -6273,6 +6273,7 @@ dependencies = [
  "borsh 0.10.3",
  "bytemuck",
  "clap 4.4.18",
+ "derive_more",
  "dialoguer",
  "directories",
  "env_logger 0.7.1",

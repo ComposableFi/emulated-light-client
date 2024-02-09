@@ -15,6 +15,7 @@ blockchain.workspace = true
 borsh.workspace = true
 bytemuck.workspace = true
 clap.workspace = true
+derive_more.workspace = true
 directories.workspace = true
 dialoguer.workspace = true
 env_logger.workspace = true
