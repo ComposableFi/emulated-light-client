@@ -167,8 +167,8 @@ pub fn parse_config() -> Option<Config> {
                  command first.",
             );
             let default_config: Config = toml::from_str(&config_data).unwrap();
-            let keypair = if cmd.keypair_path.is_some() {
-                let keypair = read_keypair_file(&cmd.keypair_path.unwrap())
+            let keypair = if let Some(keypair_path) = cmd.keypair_path {
+                let keypair = read_keypair_file(keypair_path)
                     .expect("Unable to read keypair file");
                 keypair.into()
             } else {
