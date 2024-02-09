@@ -11,7 +11,6 @@ use dialoguer::Input;
 use log::LevelFilter;
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_bytes::{ByteBuf as SerdeByteBuf, Bytes as SerdeBytes};
 
 use crate::utils::{config_file, setup_logging};
 
@@ -34,7 +33,7 @@ impl Serialize for InnerKeypair {
         S: Serializer,
     {
         let bytes = &self.0.to_bytes()[..];
-        SerdeBytes::new(bytes).serialize(serializer)
+        serde_bytes::Bytes::new(bytes).serialize(serializer)
     }
 }
 
@@ -43,8 +42,10 @@ impl<'d> Deserialize<'d> for InnerKeypair {
     where
         D: Deserializer<'d>,
     {
-        let bytes = <SerdeByteBuf>::deserialize(deserializer)?;
-        Keypair::from_bytes(bytes.as_ref()).map(Self).map_err(SerdeError::custom)
+        let bytes = <serde_bytes::ByteBuf>::deserialize(deserializer)?;
+        Keypair::from_bytes(bytes.as_ref())
+            .map(Self)
+            .map_err(SerdeError::custom)
     }
 }
 

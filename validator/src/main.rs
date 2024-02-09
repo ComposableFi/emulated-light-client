@@ -21,7 +21,7 @@ mod utils;
 fn main() {
     let config = match command::parse_config() {
         None => return,
-        Some(config) => config
+        Some(config) => config,
     };
 
     let validator = Rc::new(Keypair::from(config.keypair));
@@ -56,9 +56,8 @@ fn main() {
         .expect("Invalid Genesis Hash");
 
     loop {
-        let logs = receiver
-            .recv()
-            .unwrap_or_else(|err| panic!("Disconnected: {err}"));
+        let logs =
+            receiver.recv().unwrap_or_else(|err| panic!("Disconnected: {err}"));
 
         let events = utils::get_events_from_logs(logs.value.logs);
         if events.is_empty() {
