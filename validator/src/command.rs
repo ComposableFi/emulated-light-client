@@ -222,7 +222,7 @@ pub fn process_command() {
             let toml_in_string = toml::to_string(&config).unwrap();
             fs::write(config_file, toml_in_string).unwrap();
             log::info!("New Config {:?}", config);
-        },
+        }
     }
 }
 
