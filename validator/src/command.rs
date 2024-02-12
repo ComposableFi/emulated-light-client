@@ -13,6 +13,7 @@ use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::utils::{config_file, setup_logging};
+use crate::validator::run_validator;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
@@ -158,7 +159,7 @@ impl Display for Values {
     }
 }
 
-pub fn parse_config() -> Option<Config> {
+pub fn process_command() {
     let args = Cli::parse();
     match args.command {
         Commands::Run(cmd) => {
@@ -189,7 +190,7 @@ pub fn parse_config() -> Option<Config> {
                     .to_string(),
             };
             setup_logging(LevelFilter::from_str(&config.log_level).unwrap());
-            Some(config)
+            run_validator(config)
         }
         Commands::Init(cmd) => {
             let config_file = config_file();
@@ -201,7 +202,6 @@ pub fn parse_config() -> Option<Config> {
                 );
                 if matches!(value, Values::No) {
                     log::info!("Skipped overwriting the config file");
-                    return None;
                 }
                 log::info!("Overwriting config file");
             }
@@ -222,8 +222,7 @@ pub fn parse_config() -> Option<Config> {
             let toml_in_string = toml::to_string(&config).unwrap();
             fs::write(config_file, toml_in_string).unwrap();
             log::info!("New Config {:?}", config);
-            None
-        }
+        },
     }
 }
 
