@@ -26,6 +26,7 @@ solana_program::entrypoint!(process_instruction);
 ///     discriminant: u8,  // always 0u8,
 ///     seed_len: u8,
 ///     seed: [u8; seed_len],
+///     bump: u8,
 ///     offset: u32,
 ///     data: [u8],
 /// }
@@ -49,6 +50,8 @@ solana_program::entrypoint!(process_instruction);
 ///
 /// Note: `data` may be empty in which case the instruction will just create or
 /// resize the Write account.
+// TODO(mina86): Add option to truncate the account and to free the account
+// returning lamports to payer.
 fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -69,6 +72,7 @@ fn handle_write(
     // Parse instruction data
     let seed_len = read_usize(&mut data, u8::from_le_bytes)?;
     let seed = read_slice(&mut data, seed_len)?;
+    let bump = read(&mut data, u8::from_le_bytes)?;
     let start = read_usize(&mut data, u32::from_le_bytes)?;
     let end = start
         .checked_add(data.len())
@@ -94,7 +98,15 @@ fn handle_write(
     }
 
     // Initialise write account as necessary
-    setup_write_account(program_id, payer, write_account, seed, end, system)?;
+    setup_write_account(
+        program_id,
+        payer,
+        write_account,
+        seed,
+        bump,
+        end,
+        system,
+    )?;
 
     // Write the data.  Once we reached this point, we should never fail.
     // try_borrow_mut should succeed since no one else is borrowing
@@ -108,30 +120,11 @@ fn handle_write(
     Ok(())
 }
 
-/// Verifies Write account’s address.
-///
-/// If account’s address is correct, returns bump.
-fn check_write_id(
-    program_id: &Pubkey,
-    payer: &AccountInfo,
-    write_account: &AccountInfo,
-    seed: &[u8],
-) -> Result<u8> {
-    // Check that key matches expected PDA address
-    let (pda, bump) =
-        Pubkey::find_program_address(&[payer.key.as_ref(), seed], program_id);
-    if &pda == write_account.key {
-        Ok(bump)
-    } else {
-        Err(ProgramError::InvalidSeeds)
-    }
-}
-
 /// Verifies and sets up the write account.
 ///
 /// Firstly, checks that the write accounts address corresponds to the PDA which
-/// we’d get by using `[payer.key, seed]` as seeds.  If it doesn’t, returns
-/// `InvalidSeeds` error.
+/// we’d get by using `[payer.key, seed]` as seeds with given `bump`.  If it
+/// doesn’t, returns `InvalidSeeds` error.
 ///
 /// Secondly, if the account doesn’t exist, creates it with size of `size`.
 /// Note that due to Solana limitations, `size` may be at most 10 KiB in this
@@ -148,38 +141,39 @@ fn setup_write_account<'info>(
     payer: &AccountInfo<'info>,
     write_account: &AccountInfo<'info>,
     seed: &[u8],
+    bump: u8,
     size: usize,
     system: Option<&AccountInfo<'info>>,
 ) -> Result {
-    let bump = check_write_id(program_id, payer, write_account, seed)?;
+    let seeds = &[payer.key.as_ref(), seed, &[bump]];
+    match Pubkey::create_program_address(seeds, program_id) {
+        Ok(pda) if &pda == write_account.key => (),
+        _ => return Err(ProgramError::InvalidSeeds),
+    }
 
     let lamports = write_account.lamports();
     let get_required_lamports =
         || Rent::get().map(|rent| rent.minimum_balance(size));
 
-    // If the account has zero lamports it needs to be created first.
     if lamports == 0 {
+        // If the account has zero lamports it needs to be created first.
         let _ = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
-        let lamports = get_required_lamports()?;
         let instruction = solana_program::system_instruction::create_account(
             payer.key,
             write_account.key,
-            lamports,
+            get_required_lamports()?,
             size as u64,
             program_id,
         );
-        return solana_program::program::invoke_signed(
+        solana_program::program::invoke_signed(
             &instruction,
             &[payer.clone(), write_account.clone()],
-            &[&[payer.key.as_ref(), seed, core::slice::from_ref(&bump)]],
-        );
-    }
-
-    // If size is less than required, reallocate.
-    if write_account.data_len() < size {
+            &[seeds],
+        )
+    } else if write_account.data_len() < size {
+        // If size is less than required, reallocate.  We may need to transfer
+        // more lamports to keep the account as rent-exempt.
         let system = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
-
-        // If we need more lamports for rent exempt status, transfer them first.
         let lamports = get_required_lamports()?.saturating_sub(lamports);
         if lamports > 0 {
             solana_program::program::invoke(
@@ -191,14 +185,13 @@ fn setup_write_account<'info>(
                 &[payer.clone(), write_account.clone(), system.clone()],
             )?;
         }
-
-        return write_account.realloc(size, false);
+        write_account.realloc(size, false)
+    } else {
+        // Otherwise, the account exists and is large enough.  There’s nothing
+        // we need to do.
+        Ok(())
     }
-
-    // Account exists and has correct size.
-    Ok(())
 }
-
 
 /// Reads given object from the start of the slice advancing it.
 ///
