@@ -87,8 +87,8 @@ fn handle_write(
     if !payer.is_writable || !write_account.is_writable {
         return Err(ProgramError::InvalidAccountData);
     }
-    if let Some(ref system) = system {
-        if !system_program::check_id(&system.key) {
+    if let Some(system) = system {
+        if !system_program::check_id(system.key) {
             return Err(ProgramError::InvalidAccountData);
         }
     }
@@ -162,8 +162,8 @@ fn setup_write_account<'info>(
         let _ = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
         let lamports = get_required_lamports()?;
         let instruction = solana_program::system_instruction::create_account(
-            &payer.key,
-            &write_account.key,
+            payer.key,
+            write_account.key,
             lamports,
             size as u64,
             program_id,
@@ -207,7 +207,7 @@ fn read<const N: usize, T>(
     bytes: &mut &[u8],
     convert: impl FnOnce([u8; N]) -> T,
 ) -> Result<T> {
-    if let Some((head, tail)) = stdx::split_at::<N, u8>(*bytes) {
+    if let Some((head, tail)) = stdx::split_at::<N, u8>(bytes) {
         *bytes = tail;
         Ok(convert(*head))
     } else {
@@ -242,9 +242,4 @@ fn read_slice<'a>(bytes: &mut &'a [u8], len: usize) -> Result<&'a [u8]> {
     let (head, tail) = bytes.split_at(len);
     *bytes = tail;
     Ok(head)
-}
-
-/// Checks whether if there’s no data left.
-fn check_empty(bytes: &[u8]) -> Result {
-    bytes.is_empty().then_some(()).ok_or(ProgramError::InvalidInstructionData)
 }
