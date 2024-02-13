@@ -173,7 +173,7 @@ fn setup_write_account<'info>(
     } else if write_account.data_len() < size {
         // If size is less than required, reallocate.  We may need to transfer
         // more lamports to keep the account as rent-exempt.
-        let system = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
+        let _ = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
         let lamports = get_required_lamports()?.saturating_sub(lamports);
         if lamports > 0 {
             solana_program::program::invoke(
@@ -182,7 +182,7 @@ fn setup_write_account<'info>(
                     write_account.key,
                     lamports,
                 ),
-                &[payer.clone(), write_account.clone(), system.clone()],
+                &[payer.clone(), write_account.clone()],
             )?;
         }
         write_account.realloc(size, false)
