@@ -6,7 +6,7 @@
 //! data.  Unfortunately, with IBC we may need to encode instructions which
 //! don’t fit in that limit.
 //!
-//! To address this, Solana IBc smart contract supports reading instruction data
+//! To address this, Solana IBC smart contract supports reading instruction data
 //! from an account.  To take advantage of this feature, the smart contract
 //! needs to be called with an empty instruction data and additional account
 //! (passed as the last account) whose data is interpreted as the instruction.
