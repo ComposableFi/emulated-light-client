@@ -78,8 +78,11 @@ pub mod restaking {
         let current_time = Clock::get()?.unix_timestamp;
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
-        vault_params.service =
-            if guest_chain_program_id.is_some() { service } else { None };
+        vault_params.service = if guest_chain_program_id.is_some() {
+            service.clone()
+        } else {
+            None
+        };
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
@@ -94,6 +97,11 @@ pub mod restaking {
 
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
+            let service =
+                service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+            let validator_key = match service {
+                Service::GuestChain { validator } => validator,
+            };
             validation::validate_remaining_accounts(
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
@@ -114,7 +122,7 @@ pub mod restaking {
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+            solana_ibc::cpi::set_stake(cpi_ctx, validator_key.clone(), amount as u128)?;
         }
 
         Ok(())
@@ -337,6 +345,10 @@ pub mod restaking {
             staking_params.guest_chain_program_id.unwrap(); // Infallible
         let amount = vault_params.stake_amount;
 
+        let validator_key = match service {
+            Service::GuestChain { validator } => validator,
+        };
+
         validation::validate_remaining_accounts(
             ctx.remaining_accounts,
             &guest_chain_program_id,
@@ -357,7 +369,7 @@ pub mod restaking {
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        solana_ibc::cpi::set_stake(cpi_ctx, amount as u128)?;
+        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount as u128)?;
 
         Ok(())
     }
@@ -651,7 +663,7 @@ pub struct StakingParams {
 }
 
 /// Unused for now
-#[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug)]
+#[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug, Copy)]
 pub enum Service {
     GuestChain { validator: Pubkey },
 }

@@ -123,7 +123,7 @@ pub mod solana_ibc {
     ///
     /// Can only be called through CPI from our staking program whose
     /// id is stored in chain account.
-    pub fn set_stake(ctx: Context<SetStake>, amount: u128) -> Result<()> {
+    pub fn set_stake(ctx: Context<SetStake>, validator: Pubkey, amount: u128) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
         let ixns = ctx.accounts.instruction.to_account_info();
         let current_index =
@@ -139,7 +139,13 @@ pub mod solana_ibc {
         chain.check_staking_program(&current_ixn.program_id)?;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         chain.maybe_generate_block(&provable)?;
-        chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+        // Setting the stake to 0 removes the validator from the next
+        // epoch so the validator key passed in argument should be the 
+        // signer.
+        if amount == 0 {
+            assert_eq!(ctx.accounts.sender.key(), validator);
+        }
+        chain.set_stake((validator).into(), amount)
     }
 
     /// Called to set up escrow and mint accounts for given channel
