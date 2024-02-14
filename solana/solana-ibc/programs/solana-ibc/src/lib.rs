@@ -7,11 +7,11 @@ extern crate alloc;
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
+use solana_program::sysvar::instructions as tx_instructions;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -33,6 +33,7 @@ mod error;
 pub mod events;
 mod execution_context;
 mod ibc;
+pub mod ix_data_account;
 #[cfg_attr(not(feature = "mocks"), path = "no-mocks.rs")]
 mod mocks;
 pub mod storage;
@@ -43,6 +44,37 @@ mod validation_context;
 
 #[allow(unused_imports)]
 pub(crate) use allocator::global;
+
+/// Solana smart contract entrypoint.
+///
+/// We’re using a custom entrypoint which has special handling for instruction
+/// data account.  See [`ix_data_account`] module.
+///
+/// # Safety
+///
+/// Must be called with pointer to properly serialised instruction such as done
+/// by the Solana runtime.  See [`solana_program::entrypoint::deserialize`].
+#[cfg(not(feature = "no-entrypoint"))]
+#[no_mangle]
+pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
+    let (program_id, mut accounts, mut instruction_data) =
+        unsafe { solana_program::entrypoint::deserialize(input) };
+
+    // If instruction data is empty, the actual instruction data comes from the
+    // last account passed in the call.
+    if instruction_data.is_empty() {
+        match ix_data_account::get_ix_data(&mut accounts) {
+            Ok(data) => instruction_data = data,
+            Err(err) => return err.into(),
+        }
+    }
+
+    // `entry` function is defined by Anchor via `program` macro.
+    match entry(program_id, &accounts, instruction_data) {
+        Ok(()) => solana_program::entrypoint::SUCCESS,
+        Err(error) => error.into(),
+    }
+}
 
 #[anchor_lang::program]
 pub mod solana_ibc {
