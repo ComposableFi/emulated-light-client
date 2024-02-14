@@ -37,7 +37,9 @@
 //! account’s pubkey is `ix_data_account`.  With that, the invocation becomes:
 //!
 //! ```ignore
-//! let mut instruction_data = instruction::Foo { ... }.data();
+//! let mut instruction_data = anchor_lang::InstructionData::data(
+//!     &instruction::Foo { ... },
+//! );
 //! let instruction_len = instruction_data.len() as u32;
 //! instruction_data.splice(..0, instruction_len.to_le_bytes());
 //!
@@ -125,4 +127,42 @@ impl borsh::BorshSerialize for Instruction {
 
 impl anchor_lang::InstructionData for Instruction {
     fn data(&self) -> Vec<u8> { Vec::new() }
+}
+
+
+#[test]
+fn test_get_ix_data() {
+    assert_eq!(
+        Err(ProgramError::NotEnoughAccountKeys),
+        get_ix_data(&mut Vec::new())
+    );
+
+    let key1 = Pubkey::new_unique();
+    let key2 = Pubkey::new_unique();
+
+    fn account_info<'a>(
+        key: &'a Pubkey,
+        lamports: &'a mut u64,
+        data: &'a mut [u8],
+    ) -> AccountInfo<'a> {
+        AccountInfo::new(key, false, false, lamports, data, key, false, 0)
+    }
+
+    let check = |want, data: &[u8]| {
+        let mut lamports1 = 0u64;
+        let mut lamports2 = 0u64;
+        let mut data = data.to_vec();
+        let mut accounts = vec![
+            account_info(&key1, &mut lamports1, &mut []),
+            account_info(&key2, &mut lamports2, &mut data),
+        ];
+        assert_eq!(want, get_ix_data(&mut accounts));
+        assert_eq!(1, accounts.len());
+        assert_eq!(&key1, accounts[0].key);
+    };
+
+    check(Err(ProgramError::InvalidInstructionData), &[][..]);
+    check(Ok(&[][..]), &[0, 0, 0, 0, 1, 2, 3, 4][..]);
+    check(Ok(&[1][..]), &[1, 0, 0, 0, 1, 2, 3, 4][..]);
+    check(Err(ProgramError::InvalidInstructionData), &[1, 0, 0, 0][..]);
 }
