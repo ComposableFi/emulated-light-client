@@ -79,7 +79,7 @@ pub mod restaking {
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
         vault_params.service = if guest_chain_program_id.is_some() {
-            service.clone()
+            service
         } else {
             None
         };
@@ -124,7 +124,7 @@ pub mod restaking {
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
             solana_ibc::cpi::set_stake(
                 cpi_ctx,
-                validator_key.clone(),
+                *validator_key,
                 amount as u128,
             )?;
         }
