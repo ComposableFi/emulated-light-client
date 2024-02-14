@@ -78,11 +78,8 @@ pub mod restaking {
         let current_time = Clock::get()?.unix_timestamp;
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
-        vault_params.service = if guest_chain_program_id.is_some() {
-            service
-        } else {
-            None
-        };
+        vault_params.service =
+            if guest_chain_program_id.is_some() { service } else { None };
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
