@@ -15,6 +15,7 @@ ibc-primitives.workspace = true
 ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
 strum.workspace = true
+solana-program.workspace = true
 
 lib = { workspace = true, features = ["borsh"] }
 trie-ids.workspace = true

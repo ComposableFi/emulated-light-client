@@ -133,6 +133,7 @@ impl ChainData {
 
         let mut hash = None;
         if res.got_new_signature() {
+            msg!("Got new signature");
             let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
             events::emit(events::BlockSigned {
                 block_hash: hash.clone(),
@@ -141,6 +142,7 @@ impl ChainData {
             .map_err(ProgramError::BorshIoError)?;
         }
         if res.got_quorum() {
+            msg!("Got Quorum, finalizing now");
             let hash = hash.unwrap_or_else(|| manager.head().1.calc_hash());
             events::emit(events::BlockFinalised { block_hash: hash })
                 .map_err(ProgramError::BorshIoError)?;
@@ -218,7 +220,9 @@ impl ChainData {
         self.inner.as_deref_mut().ok_or(ChainNotInitialised)
     }
 
-    pub fn has_pending_block(&self) -> Result<Option<PendingBlock<PubKey>>, ChainNotInitialised> {
+    pub fn has_pending_block(
+        &self,
+    ) -> Result<Option<PendingBlock<PubKey>>, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.pending_block.clone())
     }
@@ -288,7 +292,7 @@ impl ChainInner {
                 Ok(())
             }
             Err(err) if force => Err(into_error(err)),
-            Err(_) => Ok(()),
+            Err(err) => { msg!("Error: {:?}", err); Ok(()) },
         }
     }
 }

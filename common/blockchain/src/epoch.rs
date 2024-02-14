@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use alloc::format;
 use core::num::NonZeroU128;
 
 use borsh::maybestd::io;
@@ -72,10 +73,13 @@ impl<PK> Epoch<PK> {
         }
         let total_stake = NonZeroU128::new(total)?;
         let quorum_stake = quorum_stake(total_stake);
+        // solana_program::msg!("This is quorum stake {:?} {:?}", quorum_stake, total_stake);
         if quorum_stake <= total_stake {
+            // solana_program::msg!("I am inside");
             let version = crate::common::VersionZero;
             Some(Self { version, validators, quorum_stake, total_stake })
         } else {
+            // solana_program::msg!("I am none");
             None
         }
     }
@@ -103,7 +107,9 @@ impl<PK> Epoch<PK> {
     where
         PK: Eq,
     {
-        self.validators.iter().find(|validator| validator.pubkey() == pk)
+        self.validators.iter().find(|validator| {
+            validator.pubkey() == pk
+        })
     }
 }
 

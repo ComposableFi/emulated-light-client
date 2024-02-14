@@ -1,5 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
+use solana_program::msg;
+use alloc::format;
 use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
@@ -176,6 +178,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         //     // &&
         //     // state_root == self.header.state_root
         // {
+        //     msg!("This is next epoch {}", next_epoch.is_none());
         //     return Err(GenerateError::UnchangedState);
         // }
 
@@ -215,11 +218,11 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         &mut self,
         host_height: crate::HostHeight,
     ) -> Option<crate::Epoch<PK>> {
-        if !host_height
-            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
-        {
-            return None;
-        }
+        // if !host_height
+        //     .check_delta_from(self.epoch_height, self.config.min_epoch_length)
+        // {
+        //     return None;
+        // }
         crate::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
             let quorum = NonZeroU128::new(total.get() / 2 + 1).unwrap();
             // min_quorum_stake may be greater than total_stake so we’re not
@@ -255,6 +258,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         }
 
         pending.signing_stake += validator_stake;
+        msg!("This is pending and validator {} {} {}", pending.signing_stake, validator_stake, self.next_epoch.quorum_stake().get());
         if pending.signing_stake < self.next_epoch.quorum_stake().get() {
             return Ok(AddSignatureEffect::NoQuorumYet);
         }
@@ -262,6 +266,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         let block = self.pending_block.take().unwrap().next_block;
         self.header = block.header;
         if let Some(epoch) = block.next_epoch {
+            msg!("I am changing the epoch");
             self.next_epoch = epoch;
             self.epoch_height = self.header.host_height;
         }

@@ -72,15 +72,16 @@ fn anchor_test_deliver() -> Result<()> {
 
     let client = Client::new_with_options(
         // Cluster::Custom("https://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned(), "wss://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned()),
-        Cluster::Devnet,
+        // Cluster::Devnet,
+        Cluster::Localnet,
         authority.clone(),
         CommitmentConfig::processed(),
     );
     let program = client.program(crate::ID).unwrap();
 
     let sol_rpc_client = program.rpc();
-    // let _airdrop_signature =
-    //     airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    let _airdrop_signature =
+        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
 
     // Build, sign, and send program instruction
     let storage = Pubkey::find_program_address(
@@ -99,7 +100,7 @@ fn anchor_test_deliver() -> Result<()> {
     let max_tries = 5;
 
     loop {
-        sleep(Duration::from_secs(2));
+        sleep(Duration::from_secs(5));
         let mut tries = 0;
         while tries < max_tries {
             let mut status = true;
@@ -183,14 +184,14 @@ fn anchor_test_deliver() -> Result<()> {
                     ),
                     chain::Validator::new(
                         Pubkey::from_str(
-                            "CYgotRU1mQBjELkPLU3YeLguu6FN58tyyKywu5DDmgUe",
+                            "oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb",
                         )
                         .unwrap()
                         .into(),
                         NonZeroU128::new(2000).unwrap(),
                     ),
                 ],
-                NonZeroU128::new(1000).unwrap(),
+                NonZeroU128::new(3000).unwrap(),
             )
             .unwrap(),
         })

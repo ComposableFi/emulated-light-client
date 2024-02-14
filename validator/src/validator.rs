@@ -182,9 +182,9 @@ pub fn run_validator(config: Config) {
                 });
             match tx {
                 Ok(tx) => {
-                  log::info!("Block signed -> Transaction: {}", tx);
-                  break;
-                } ,
+                    log::info!("Block signed -> Transaction: {}", tx);
+                    break;
+                }
                 Err(err) => log::error!("Failed to send the transaction {err}"),
             }
             sleep(Duration::from_millis(500));
