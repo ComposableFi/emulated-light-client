@@ -8,6 +8,9 @@ edition = "2021"
 name = "write"
 crate-type = ["cdylib", "lib"]
 
+[features]
+no-entrypoint = []
+
 [dependencies]
 solana-program.workspace = true
 
