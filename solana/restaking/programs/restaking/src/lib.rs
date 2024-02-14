@@ -122,7 +122,11 @@ pub mod restaking {
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(cpi_ctx, validator_key.clone(), amount as u128)?;
+            solana_ibc::cpi::set_stake(
+                cpi_ctx,
+                validator_key.clone(),
+                amount as u128,
+            )?;
         }
 
         Ok(())
