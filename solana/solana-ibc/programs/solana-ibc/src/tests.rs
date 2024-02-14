@@ -189,7 +189,7 @@ fn anchor_test_deliver() -> Result<()> {
     for instruction in chunks {
         let transaction = Transaction::new_signed_with_payer(
             &[instruction],
-            Some(&chunks.payer),
+            Some(&authority.pubkey()),
             &[&*authority],
             blockhash,
         );
