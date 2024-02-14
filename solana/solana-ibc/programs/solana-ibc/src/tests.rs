@@ -72,16 +72,16 @@ fn anchor_test_deliver() -> Result<()> {
 
     let client = Client::new_with_options(
         // Cluster::Custom("https://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned(), "wss://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned()),
-        // Cluster::Devnet,
-        Cluster::Localnet,
+        Cluster::Devnet,
+        // Cluster::Localnet,
         authority.clone(),
         CommitmentConfig::processed(),
     );
     let program = client.program(crate::ID).unwrap();
 
     let sol_rpc_client = program.rpc();
-    let _airdrop_signature =
-        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    // let _airdrop_signature =
+    //     airdrop(&sol_rpc_client, authority.pubkey(), lamports);
 
     // Build, sign, and send program instruction
     let storage = Pubkey::find_program_address(
@@ -99,53 +99,53 @@ fn anchor_test_deliver() -> Result<()> {
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
     let max_tries = 5;
 
-    loop {
-        sleep(Duration::from_secs(5));
-        let mut tries = 0;
-        while tries < max_tries {
-            let mut status = true;
-            let sig = program
-                .request()
-                .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-                    1_000_000,
-                ))
-                .accounts(accounts::Chain {
-                    sender: authority.pubkey(),
-                    storage,
-                    chain,
-                    trie,
-                    system_program: system_program::ID,
-                    instruction:
-                        anchor_lang::solana_program::sysvar::instructions::ID,
-                })
-                .args(instruction::GenerateBlock {})
-                .payer(authority.clone())
-                .signer(&*authority)
-                .send_with_spinner_and_config(RpcSendTransactionConfig {
-                    skip_preflight: true,
-                    ..RpcSendTransactionConfig::default()
-                })
-                .or_else(|e| {
-                    println!("This is error {:?}", e);
-                    status = false;
-                    Err(e)
-                });
-            match sig {
-                Ok(tx) => {
-                    println!("Block signed -> Transaction: {}", tx);
-                    break;
-                }
-                Err(err) => {
-                    println!("Failed to send the transaction {err}")
-                }
-            }
-            sleep(Duration::from_millis(500));
-            tries += 1;
-            if tries == max_tries {
-                panic!("Max retries reached for chunks in solana");
-            }
-        }
-    }
+    // loop {
+    //     sleep(Duration::from_secs(5));
+    //     let mut tries = 0;
+    //     while tries < max_tries {
+    //         let mut status = true;
+    //         let sig = program
+    //             .request()
+    //             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+    //                 1_000_000,
+    //             ))
+    //             .accounts(accounts::Chain {
+    //                 sender: authority.pubkey(),
+    //                 storage,
+    //                 chain,
+    //                 trie,
+    //                 system_program: system_program::ID,
+    //                 instruction:
+    //                     anchor_lang::solana_program::sysvar::instructions::ID,
+    //             })
+    //             .args(instruction::GenerateBlock {})
+    //             .payer(authority.clone())
+    //             .signer(&*authority)
+    //             .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //                 skip_preflight: true,
+    //                 ..RpcSendTransactionConfig::default()
+    //             })
+    //             .or_else(|e| {
+    //                 println!("This is error {:?}", e);
+    //                 status = false;
+    //                 Err(e)
+    //             });
+    //         match sig {
+    //             Ok(tx) => {
+    //                 println!("Block signed -> Transaction: {}", tx);
+    //                 break;
+    //             }
+    //             Err(err) => {
+    //                 println!("Failed to send the transaction {err}")
+    //             }
+    //         }
+    //         sleep(Duration::from_millis(500));
+    //         tries += 1;
+    //         if tries == max_tries {
+    //             panic!("Max retries reached for chunks in solana");
+    //         }
+    //     }
+    // }
 
     /*
      * Initialise chain
@@ -184,7 +184,7 @@ fn anchor_test_deliver() -> Result<()> {
                     ),
                     chain::Validator::new(
                         Pubkey::from_str(
-                            "oxyzEsUj9CV6HsqPCUZqVwrFJJvpd9iCBrPdzTBWLBb",
+                            "CYgotRU1mQBjELkPLU3YeLguu6FN58tyyKywu5DDmgUe",
                         )
                         .unwrap()
                         .into(),

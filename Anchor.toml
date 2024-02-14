@@ -4,17 +4,17 @@ skip-lint = false
 
 [programs.devnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "7j1F11e2fcVWEBEZLtc4ebRT5k2ZXAMYM9t7iBn1aAFZ"
+solana_ibc = "65hva64yGowCq1Xor6duyBpLkKRWDXeBqEgKyAZcY8Gp"
 
 [programs.localnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "7j1F11e2fcVWEBEZLtc4ebRT5k2ZXAMYM9t7iBn1aAFZ"
+solana_ibc = "65hva64yGowCq1Xor6duyBpLkKRWDXeBqEgKyAZcY8Gp"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Devnet"
 wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]
