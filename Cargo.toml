@@ -110,6 +110,9 @@ curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dal
 tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 
+# Adds support for custom-entrypoint feature
+anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
+
 # We need to patch ibc-client-tendermint to support custom verifier.
 # Unfortunately, because that crate refers to other ibc-rs crates by
 # path, we then need to patch all the other crates in ibc-rs as well.

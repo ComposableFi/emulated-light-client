@@ -76,7 +76,7 @@ mod imp {
 
     // Make sure we’re not using AtomicPtr when compiling for CPI.  I’m not
     // entirely sure why this is a problem, but just having AtomicPtr::store in
-    // the code (whether it’s executed or not) causes CPI to fail.
+    // the code (whether it’s executed or not) causes CPI builds to fail.
     #[cfg(not(all(target_os = "solana", feature = "cpi")))]
     static VERIFIER: core::sync::atomic::AtomicPtr<Verifier> =
         core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
@@ -101,7 +101,7 @@ mod imp {
             core::ptr::null()
         }
 
-        pub(super) fn set_verifier_ptr(&self, verifier: *const Verifier) {
+        pub(super) fn set_verifier_ptr(&self, _verifier: *const Verifier) {
             panic!();
         }
     }
