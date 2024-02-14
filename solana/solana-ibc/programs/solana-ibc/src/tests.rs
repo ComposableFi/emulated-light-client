@@ -15,7 +15,6 @@ use anchor_client::solana_sdk::signature::{
 };
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
-use anchor_lang::solana_program::instruction::{AccountMeta, Instruction};
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
@@ -99,10 +98,6 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
-    let (chunk_account, chunk_account_bump) = Pubkey::find_program_address(
-        &[authority.pubkey().as_ref(), WRITE_ACCOUNT_SEED],
-        &write_account_program_id,
-    );
 
     let mint_keypair = Keypair::new();
     let native_token_mint_key = mint_keypair.pubkey();
@@ -170,6 +165,10 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::MsgEnvelope::Client,
     );
 
+    println!(
+        "\nSplitting the message into chunks and sending it to write-account \
+         program"
+    );
     let mut instruction_data =
         anchor_lang::InstructionData::data(&instruction::Deliver { message });
     let instruction_len = instruction_data.len() as u32;
@@ -177,36 +176,20 @@ fn anchor_test_deliver() -> Result<()> {
 
     let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
 
-    println!(
-        "\nSplitting the message into chunks and sending it to write-account \
-         program"
-    );
+    let (mut chunks, chunk_account, _) = write::instruction::WriteIter::new(
+        &write_account_program_id,
+        authority.pubkey(),
+        WRITE_ACCOUNT_SEED,
+        instruction_data,
+    )
+    .unwrap();
     // Note: We’re using small chunks size on purpose to test the behaviour of
     // the write account program.
-    let chunk_size = 50;
-    let mut offset: u32 = 0;
-    for chunk in instruction_data.chunks(chunk_size) {
-        let seed_len = u8::try_from(WRITE_ACCOUNT_SEED.len()).unwrap();
-        let instruction_data = [
-            /* discriminant: */ b"\0",
-            /* seed_len: */ &[seed_len][..],
-            /* seed: */ WRITE_ACCOUNT_SEED,
-            /* bump: */ &[chunk_account_bump],
-            /* offset: */ &offset.to_le_bytes()[..],
-            /* data: */ chunk,
-        ]
-        .concat();
+    chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
+    for instruction in chunks {
         let transaction = Transaction::new_signed_with_payer(
-            &[Instruction::new_with_bytes(
-                write_account_program_id,
-                instruction_data.as_slice(),
-                vec![
-                    AccountMeta::new(authority.pubkey(), true),
-                    AccountMeta::new(chunk_account, false),
-                    AccountMeta::new(system_program::ID, false),
-                ],
-            )],
-            Some(&authority.pubkey()),
+            &[instruction],
+            Some(&chunks.payer),
             &[&*authority],
             blockhash,
         );
@@ -214,7 +197,6 @@ fn anchor_test_deliver() -> Result<()> {
             .send_and_confirm_transaction_with_spinner(&transaction)
             .unwrap();
         println!("  Signature {sig}");
-        offset += chunk.len() as u32;
     }
 
     println!("\nCreating Mock Client");

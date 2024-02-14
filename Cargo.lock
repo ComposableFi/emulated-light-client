@@ -4705,6 +4705,7 @@ dependencies = [
  "solana-allocator",
  "solana-ed25519",
  "solana-trie",
+ "solana-write-account",
  "spl-associated-token-account",
  "spl-token",
  "stdx",
