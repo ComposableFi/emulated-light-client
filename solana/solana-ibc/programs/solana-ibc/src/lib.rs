@@ -23,7 +23,7 @@ pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("7j1F11e2fcVWEBEZLtc4ebRT5k2ZXAMYM9t7iBn1aAFZ");
 
 mod allocator;
 pub mod chain;
@@ -78,7 +78,7 @@ pub mod solana_ibc {
     /// currently not implemented and will be added at a later time.
     pub fn generate_block(ctx: Context<Chain>) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        ctx.accounts.chain.generate_block(&provable)
+        ctx.accounts.chain.maybe_generate_block(&provable)
     }
 
     /// Accepts pending block’s signature from the validator.

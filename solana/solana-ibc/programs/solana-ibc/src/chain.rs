@@ -218,9 +218,7 @@ impl ChainData {
         self.inner.as_deref_mut().ok_or(ChainNotInitialised)
     }
 
-    pub fn has_pending_block(
-        &self,
-    ) -> Result<Option<PendingBlock<PubKey>>, ChainNotInitialised> {
+    pub fn has_pending_block(&self) -> Result<Option<PendingBlock<PubKey>>, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.pending_block.clone())
     }

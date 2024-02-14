@@ -1,5 +1,7 @@
 use std::rc::Rc;
 use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
 
 use anchor_client::solana_client::pubsub_client::PubsubClient;
 use anchor_client::solana_client::rpc_config::{
@@ -50,6 +52,7 @@ pub fn run_validator(config: Config) {
 
     let genesis_hash = &CryptoHash::from_base64(&config.genesis_hash)
         .expect("Invalid Genesis Hash");
+    let max_tries = 5;
 
     loop {
         let chain_account: ChainData = program.account(chain).unwrap();
@@ -71,9 +74,12 @@ pub fn run_validator(config: Config) {
                 let signature = validator.sign_message(fingerprint.as_slice());
 
                 // Send the signature
-                let tx = program
+                let mut tries = 0;
+                while tries < max_tries {
+                    let mut status = true;
+                    let tx = program
           .request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000_000))
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
           .instruction(utils::new_ed25519_instruction_with_signature(
               &validator.pubkey().to_bytes(),
               signature.as_ref(),
@@ -93,11 +99,24 @@ pub fn run_validator(config: Config) {
           .send_with_spinner_and_config(RpcSendTransactionConfig {
               skip_preflight: true,
               ..RpcSendTransactionConfig::default()
+          }).or_else(|e| {
+            println!("This is error {:?}", e);
+            status = false;
+            Err(e)
           });
-                match tx {
-                    Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),
-                    Err(err) => {
-                        log::error!("Failed to send the transaction {err}")
+                    match tx {
+                        Ok(tx) => {
+                            log::info!("Block signed -> Transaction: {}", tx);
+                            break;
+                        }
+                        Err(err) => {
+                            log::error!("Failed to send the transaction {err}")
+                        }
+                    }
+                    sleep(Duration::from_millis(500));
+                    tries += 1;
+                    if tries == max_tries {
+                        panic!("Max retries reached for chunks in solana");
                     }
                 }
             } else {
@@ -127,34 +146,52 @@ pub fn run_validator(config: Config) {
         let signature = validator.sign_message(fingerprint.as_slice());
 
         // Send the signature
-        let tx = program
-            .request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-                1_000_000_000,
-            ))
-            .instruction(utils::new_ed25519_instruction_with_signature(
-                &validator.pubkey().to_bytes(),
-                signature.as_ref(),
-                fingerprint.as_slice(),
-            ))
-            .accounts(accounts::ChainWithVerifier {
-                sender: validator.pubkey(),
-                chain,
-                trie,
-                ix_sysvar:
-                    anchor_lang::solana_program::sysvar::instructions::ID,
-                system_program: anchor_lang::solana_program::system_program::ID,
-            })
-            .args(instruction::SignBlock { signature: signature.into() })
-            .payer(validator.clone())
-            .signer(&*validator)
-            .send_with_spinner_and_config(RpcSendTransactionConfig {
-                skip_preflight: true,
-                ..RpcSendTransactionConfig::default()
-            });
-        match tx {
-            Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),
-            Err(err) => log::error!("Failed to send the transaction {err}"),
+        let mut tries = 0;
+        while tries < max_tries {
+            let mut status = true;
+            let tx = program
+                .request()
+                .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                    1_000_000,
+                ))
+                .instruction(utils::new_ed25519_instruction_with_signature(
+                    &validator.pubkey().to_bytes(),
+                    signature.as_ref(),
+                    fingerprint.as_slice(),
+                ))
+                .accounts(accounts::ChainWithVerifier {
+                    sender: validator.pubkey(),
+                    chain,
+                    trie,
+                    ix_sysvar:
+                        anchor_lang::solana_program::sysvar::instructions::ID,
+                    system_program:
+                        anchor_lang::solana_program::system_program::ID,
+                })
+                .args(instruction::SignBlock { signature: signature.into() })
+                .payer(validator.clone())
+                .signer(&*validator)
+                .send_with_spinner_and_config(RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    ..RpcSendTransactionConfig::default()
+                })
+                .or_else(|e| {
+                    println!("This is error {:?}", e);
+                    status = false;
+                    Err(e)
+                });
+            match tx {
+                Ok(tx) => {
+                  log::info!("Block signed -> Transaction: {}", tx);
+                  break;
+                } ,
+                Err(err) => log::error!("Failed to send the transaction {err}"),
+            }
+            sleep(Duration::from_millis(500));
+            tries += 1;
+            if tries == max_tries {
+                panic!("Max retries reached for chunks in solana");
+            }
         }
     }
 }

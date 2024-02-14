@@ -160,15 +160,15 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         state_root: CryptoHash,
         force: bool,
     ) -> Result<bool, GenerateError> {
-        // if self.pending_block.is_some() {
-        //     return Err(GenerateError::HasPendingBlock);
-        // }
-        // if !host_height.check_delta_from(
-        //     self.header.host_height,
-        //     self.config.min_block_length,
-        // ) {
-        //     return Err(GenerateError::BlockTooYoung);
-        // }
+        if self.pending_block.is_some() {
+            return Err(GenerateError::HasPendingBlock);
+        }
+        if !host_height.check_delta_from(
+            self.header.host_height,
+            self.config.min_block_length,
+        ) {
+            return Err(GenerateError::BlockTooYoung);
+        }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
         // if next_epoch.is_none() &&
