@@ -25,7 +25,7 @@ pub struct ChainManager<PK> {
     next_epoch: crate::Epoch<PK>,
 
     /// Next block which is waiting for quorum of validators to sign.
-    pending_block: Option<PendingBlock<PK>>,
+    pub pending_block: Option<PendingBlock<PK>>,
 
     /// Height at which current epoch was defined.
     epoch_height: crate::HostHeight,
@@ -38,7 +38,7 @@ pub struct ChainManager<PK> {
 ///
 /// Once quorum of validators sign the block it’s promoted to the current block.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
-struct PendingBlock<PK> {
+pub struct PendingBlock<PK> {
     /// The block that waits for signatures.
     next_block: crate::Block<PK>,
 
@@ -47,10 +47,10 @@ struct PendingBlock<PK> {
     /// This is what validators are signing.  It equals `Fingerprint(&genesis,
     /// &next_block)` and we’re keeping it as a field to avoid having to hash
     /// the block each time.
-    fingerprint: crate::block::Fingerprint,
+    pub fingerprint: crate::block::Fingerprint,
 
     /// Validators who so far submitted valid signatures for the block.
-    signers: Set<PK>,
+    pub signers: Set<PK>,
 
     /// Sum of stake of validators who have signed the block.
     signing_stake: u128,
@@ -160,23 +160,24 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         state_root: CryptoHash,
         force: bool,
     ) -> Result<bool, GenerateError> {
-        if self.pending_block.is_some() {
-            return Err(GenerateError::HasPendingBlock);
-        }
-        if !host_height.check_delta_from(
-            self.header.host_height,
-            self.config.min_block_length,
-        ) {
-            return Err(GenerateError::BlockTooYoung);
-        }
+        // if self.pending_block.is_some() {
+        //     return Err(GenerateError::HasPendingBlock);
+        // }
+        // if !host_height.check_delta_from(
+        //     self.header.host_height,
+        //     self.config.min_block_length,
+        // ) {
+        //     return Err(GenerateError::BlockTooYoung);
+        // }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
-        if next_epoch.is_none() &&
-            !force &&
-            state_root == self.header.state_root
-        {
-            return Err(GenerateError::UnchangedState);
-        }
+        // if next_epoch.is_none() &&
+        //     !force
+        //     // &&
+        //     // state_root == self.header.state_root
+        // {
+        //     return Err(GenerateError::UnchangedState);
+        // }
 
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(

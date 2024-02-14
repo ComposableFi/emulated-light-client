@@ -1,6 +1,7 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
+use blockchain::manager::PendingBlock;
 pub use blockchain::Config;
 use lib::hash::CryptoHash;
 pub use solana_ed25519::{PubKey, Signature, Verifier};
@@ -207,7 +208,7 @@ impl ChainData {
 
     /// Returns a shared reference the inner chain data if it has been
     /// initialised.
-    fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
+    pub fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
         self.inner.as_deref().ok_or(ChainNotInitialised)
     }
 
@@ -216,11 +217,18 @@ impl ChainData {
     fn get_mut(&mut self) -> Result<&mut ChainInner, ChainNotInitialised> {
         self.inner.as_deref_mut().ok_or(ChainNotInitialised)
     }
+
+    pub fn has_pending_block(
+        &self,
+    ) -> Result<Option<PendingBlock<PubKey>>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.pending_block.clone())
+    }
 }
 
 /// The inner chain data
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
-struct ChainInner {
+pub struct ChainInner {
     /// Last Solana block at which last check for new guest block generation was
     /// performed.
     last_check_height: blockchain::HostHeight,
