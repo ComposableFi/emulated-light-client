@@ -93,7 +93,7 @@ impl<'a> WriteIter<'a> {
         check_seed(seed)?;
         let (write_account, bump) = Pubkey::find_program_address(
             &[payer.as_ref(), seed],
-            &write_program,
+            write_program,
         );
         let iter = Self {
             write_program,
@@ -136,7 +136,7 @@ impl core::iter::Iterator for WriteIter<'_> {
         .concat();
 
         Some(solana_program::instruction::Instruction {
-            program_id: self.write_program.clone(),
+            program_id: *self.write_program,
             accounts: vec![
                 AccountMeta::new(self.payer, true),
                 AccountMeta::new(self.write_account, false),
