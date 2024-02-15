@@ -89,7 +89,7 @@ pub fn run_validator(config: Config) {
                     }
                 }
             } else {
-                log::info!("You have already signed the pending block");
+                log::info!("Pending block is already signed");
             }
         } else {
             log::info!("No pending blocks");
