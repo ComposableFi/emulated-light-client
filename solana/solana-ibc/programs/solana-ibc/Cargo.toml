@@ -9,9 +9,10 @@ crate-type = ["cdylib", "lib"]
 name = "solana_ibc"
 
 [features]
-default = ["custom-heap"]
+default = ["custom-entrypoint", "custom-heap"]
 cpi = ["no-entrypoint"]
 custom-heap = ["solana-allocator"]
+custom-entrypoint = ["custom-heap"]
 mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
@@ -51,3 +52,4 @@ ibc-testkit.workspace = true
 insta.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
+solana-write-account = { workspace = true, features = ["no-entrypoint"] }
