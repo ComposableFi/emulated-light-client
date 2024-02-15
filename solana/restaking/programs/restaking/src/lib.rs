@@ -95,7 +95,7 @@ pub mod restaking {
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
             let service =
-                service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
+                service.as_ref().ok_or_else(|| ErrorCodes::MissingService)?;
             let validator_key = match service {
                 Service::GuestChain { validator } => validator,
             };
