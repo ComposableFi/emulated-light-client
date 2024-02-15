@@ -1,14 +1,21 @@
 use std::fs;
 use std::path::PathBuf;
+use std::rc::Rc;
 
-use anchor_client::solana_sdk;
+use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
+use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::{solana_sdk, ClientError, Program};
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
 };
+use anchor_client::solana_sdk::signature::Keypair;
 use anchor_lang::solana_program::instruction::Instruction;
+use anchor_lang::solana_program::pubkey::Pubkey;
 use base64::Engine;
 use bytemuck::bytes_of;
 use directories::ProjectDirs;
+use solana_ibc::{accounts, instruction};
+use anchor_client::solana_sdk::signature::Signature;
 
 fn project_dirs() -> ProjectDirs {
     ProjectDirs::from(
@@ -91,4 +98,29 @@ pub fn new_ed25519_instruction_with_signature(
         accounts: vec![],
         data: instruction,
     }
+}
+
+pub fn submit_call(program: &Program<Rc<Keypair>>, signature: Signature, message: &[u8], validator: &Rc<Keypair>, chain: Pubkey, trie: Pubkey) -> Result<Signature, ClientError> {
+    program
+    .request()
+    .instruction(new_ed25519_instruction_with_signature(
+        &validator.pubkey().to_bytes(),
+        signature.as_ref(),
+        message,
+    ))
+    .accounts(accounts::ChainWithVerifier {
+        sender: validator.pubkey(),
+        chain,
+        trie,
+        ix_sysvar:
+            anchor_lang::solana_program::sysvar::instructions::ID,
+        system_program: anchor_lang::solana_program::system_program::ID,
+    })
+    .args(instruction::SignBlock { signature: signature.into() })
+    .payer(validator.clone())
+    .signer(&*validator)
+    .send_with_spinner_and_config(RpcSendTransactionConfig {
+        skip_preflight: true,
+        ..RpcSendTransactionConfig::default()
+    })
 }

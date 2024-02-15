@@ -1,6 +1,7 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
+use blockchain::manager::PendingBlock;
 pub use blockchain::Config;
 use lib::hash::CryptoHash;
 pub use solana_ed25519::{PubKey, Signature, Verifier};
@@ -167,6 +168,12 @@ impl ChainData {
             .iter()
             .find(|c| c.pubkey == validator)
             .cloned())
+    }
+
+    // Returns a pending block if present
+    pub fn pending_block(&self) -> Result<Option<&PendingBlock<PubKey>>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.pending_block())
     }
 
     /// Gets the rewards from the mentioned epoch height for the validator with specified stake along with the current epoch height
