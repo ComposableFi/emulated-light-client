@@ -100,7 +100,7 @@ pub mod restaking {
                 Service::GuestChain { validator } => validator,
             };
             let borrowed_chain_data =
-                ctx.remaining_accounts[0].data.try_borrow_mut().unwrap();
+                ctx.remaining_accounts[0].data.try_borrow().unwrap();
             let mut chain_data: &[u8] = &borrowed_chain_data;
             let chain =
                 solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
@@ -187,7 +187,7 @@ pub mod restaking {
         let validator = chain
             .candidate(*validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?
-            .ok_or(ErrorCodes::AccountValidationFailedForCPI)?;
+            .ok_or(ErrorCodes::MissingService)?;
         let validator_stake = u128::from(validator.stake)
             .checked_sub(amount as u128)
             .ok_or(ErrorCodes::SubtractionOverflow)?;
