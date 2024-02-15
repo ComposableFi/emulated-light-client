@@ -365,9 +365,6 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
         let guest_chain = &ctx.remaining_accounts[0];
-        msg!("Before");
-
-        msg!("After 1");
 
         if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
@@ -403,7 +400,6 @@ pub mod restaking {
         } else {
             amount as u128
         };
-        msg!("After 2");
         // Drop refcount on chain data so we can use it in CPI call
         core::mem::drop(borrowed_chain_data);
 
@@ -422,9 +418,7 @@ pub mod restaking {
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        msg!("After 3 with amount {:?}", amount);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
-        msg!("After 4");
 
         Ok(())
     }
