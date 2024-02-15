@@ -78,7 +78,10 @@ pub fn run_validator(config: Config) {
                 );
                 match tx {
                     Ok(tx) => {
-                        log::info!("Pending Block signed -> Transaction: {}", tx);
+                        log::info!(
+                            "Pending Block signed -> Transaction: {}",
+                            tx
+                        );
                         break;
                     }
                     Err(err) => {
