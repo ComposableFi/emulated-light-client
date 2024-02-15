@@ -131,17 +131,17 @@ pub fn submit_call(
             })
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
-            .signer(&*validator)
+            .signer(validator)
             .send_with_spinner_and_config(RpcSendTransactionConfig {
                 skip_preflight: true,
                 ..RpcSendTransactionConfig::default()
             })
-            .or_else(|e| {
+            .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
                     log::error!("{:?}", e);
                     status = false;
                 }
-                Err(e)
+               e
             });
         if status {
             return tx;
