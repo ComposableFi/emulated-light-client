@@ -146,7 +146,7 @@ export const withdrawInstruction = async (
 ) => {
   const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
   const { stakingParamsPDA } = getStakingParamsPDA();
-  const { guestChainPDA } = getGuestChainAccounts();
+  const { guestChainPDA, triePDA } = getGuestChainAccounts();
 
   const vaultParams = await program.account.vault.fetch(vaultParamsPDA);
   const stakedTokenMint = vaultParams.stakeMint;
@@ -189,6 +189,7 @@ export const withdrawInstruction = async (
       vaultParams: vaultParamsPDA,
       stakingParams: stakingParamsPDA,
       guestChain: guestChainPDA,
+      trie: triePDA,
       tokenMint: stakedTokenMint,
       withdrawerTokenAccount: withdrawerStakedTokenAccount,
       vaultTokenAccount: vaultTokenAccountPDA,
@@ -205,6 +206,7 @@ export const withdrawInstruction = async (
       metadataProgram: new anchor.web3.PublicKey(
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
       ),
+      instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
     })
     .transaction();
 

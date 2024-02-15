@@ -19,7 +19,7 @@ pub struct Candidates<PK> {
     /// blockchain.
     ///
     /// The vector is kept sorted with candidates with most stake first.
-    candidates: Vec<Candidate<PK>>,
+    pub candidates: Vec<Candidate<PK>>,
 
     /// Whether the set changed in a way which affects the epoch.
     ///
@@ -34,12 +34,12 @@ pub struct Candidates<PK> {
 #[derive(
     Clone, PartialEq, Eq, borsh::BorshSerialize, borsh::BorshDeserialize,
 )]
-struct Candidate<PK> {
+pub struct Candidate<PK> {
     /// Public key of the candidate.
-    pubkey: PK,
+    pub pubkey: PK,
 
     /// Candidate’s stake.
-    stake: NonZeroU128,
+    pub stake: NonZeroU128,
 }
 
 /// Error while updating candidate.

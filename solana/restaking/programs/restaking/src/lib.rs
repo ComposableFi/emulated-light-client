@@ -5,7 +5,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
-use solana_ibc::CHAIN_SEED;
+use solana_ibc::{CHAIN_SEED, TRIE_SEED};
 
 pub mod constants;
 mod token;
@@ -19,6 +19,8 @@ declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
 
 #[program]
 pub mod restaking {
+
+    use std::borrow::Borrow;
 
     use super::*;
 
@@ -99,9 +101,9 @@ pub mod restaking {
             let validator_key = match service {
                 Service::GuestChain { validator } => validator,
             };
-            let chain =
+            let borrowed_chain_data =
                 ctx.remaining_accounts[0].data.try_borrow_mut().unwrap();
-            let mut chain_data: &[u8] = &chain;
+            let mut chain_data: &[u8] = &borrowed_chain_data;
             let chain =
                 solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                     .unwrap();
@@ -117,6 +119,7 @@ pub mod restaking {
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
             )?;
+            core::mem::drop(borrowed_chain_data);
             let bump = ctx.bumps.staking_params;
             let seeds =
                 [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
@@ -124,7 +127,6 @@ pub mod restaking {
             let seeds = core::slice::from_ref(&seeds);
             let cpi_accounts = SetStake {
                 sender: ctx.accounts.depositor.to_account_info(),
-                stake_mint: ctx.accounts.token_mint.to_account_info(),
                 chain: ctx.remaining_accounts[0].clone(),
                 trie: ctx.remaining_accounts[1].clone(),
                 system_program: ctx.accounts.system_program.to_account_info(),
@@ -180,6 +182,29 @@ pub mod restaking {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
+        // Call Guest chain to update the stake
+        let validator_key = match service {
+            Service::GuestChain { validator } => validator,
+        };
+        let validator = chain
+            .candidate(*validator_key)
+            .map_err(|_| ErrorCodes::OperationNotAllowed)?
+            .ok_or(ErrorCodes::AccountValidationFailedForCPI)?;
+        let validator_stake = u128::from(validator.stake)
+            .checked_sub(amount as u128)
+            .ok_or(ErrorCodes::SubtractionOverflow)?;
+        let cpi_accounts = SetStake {
+            sender: ctx.accounts.withdrawer.to_account_info(),
+            chain: chain.to_account_info(),
+            trie: ctx.accounts.trie.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            instruction: ctx.accounts.instruction.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.guest_chain_program.to_account_info();
+        let cpi_ctx =
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        solana_ibc::cpi::set_stake(cpi_ctx, *validator_key, validator_stake)?;
+
         // Transfer rewards from platform wallet
         token::transfer(
             token::TransferAccounts {
@@ -199,7 +224,6 @@ pub mod restaking {
         )?;
 
         // Transfer tokens from escrow
-        let amount = vault_params.stake_amount;
         token::transfer(ctx.accounts.into(), seeds, amount)?;
 
         // Burn receipt token
@@ -220,8 +244,6 @@ pub mod restaking {
             ),
             None,
         )?;
-
-        // Call Guest chain to update the stake
 
         Ok(())
     }
@@ -342,6 +364,10 @@ pub mod restaking {
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
+        let guest_chain = &ctx.remaining_accounts[0];
+        msg!("Before");
+
+        msg!("After 1");
 
         if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
@@ -356,11 +382,16 @@ pub mod restaking {
             staking_params.guest_chain_program_id.unwrap(); // Infallible
         let amount = vault_params.stake_amount;
 
+        validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
+
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
-        let chain = ctx.remaining_accounts[0].data.try_borrow_mut().unwrap();
-        let mut chain_data: &[u8] = &chain;
+        let borrowed_chain_data = guest_chain.data.try_borrow().unwrap();
+        let mut chain_data: &[u8] = &borrowed_chain_data;
         let chain =
             solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                 .unwrap();
@@ -372,11 +403,10 @@ pub mod restaking {
         } else {
             amount as u128
         };
+        msg!("After 2");
+        // Drop refcount on chain data so we can use it in CPI call
+        core::mem::drop(borrowed_chain_data);
 
-        validation::validate_remaining_accounts(
-            ctx.remaining_accounts,
-            &guest_chain_program_id,
-        )?;
         let bump = ctx.bumps.staking_params;
         let seeds =
             [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
@@ -384,8 +414,7 @@ pub mod restaking {
         let seeds = core::slice::from_ref(&seeds);
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
-            stake_mint: ctx.accounts.stake_mint.to_account_info(),
-            chain: ctx.remaining_accounts[0].clone(),
+            chain: guest_chain.to_account_info(),
             trie: ctx.remaining_accounts[1].clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
             instruction: ctx.accounts.instruction.to_account_info(),
@@ -393,7 +422,9 @@ pub mod restaking {
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        msg!("After 3 with amount {:?}", amount);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
+        msg!("After 4");
 
         Ok(())
     }
@@ -492,6 +523,7 @@ pub struct Deposit<'info> {
     pub rent: Sysvar<'info, Rent>,
 
     ///CHECK:   
+    #[account(address = solana_program::sysvar::instructions::ID)]
     pub instruction: AccountInfo<'info>,
 
     #[account(
@@ -533,6 +565,9 @@ pub struct Withdraw<'info> {
 
     #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
     pub guest_chain: Box<Account<'info, ChainData>>,
+    #[account(mut, seeds = [TRIE_SEED], bump, seeds::program = guest_chain_program.key())]
+    /// CHECK:
+    pub trie: AccountInfo<'info>,
 
     pub token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = token_mint, token::authority = withdrawer.key())]
@@ -589,6 +624,10 @@ pub struct Withdraw<'info> {
     )]
     /// CHECK:
     pub nft_metadata: UncheckedAccount<'info>,
+
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK:
+    pub instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -650,6 +689,7 @@ pub struct SetService<'info> {
     pub stake_mint: Account<'info, Mint>,
 
     ///CHECK:   
+    #[account(address = solana_program::sysvar::instructions::ID)]
     pub instruction: AccountInfo<'info>,
 
     pub system_program: Program<'info, System>,

@@ -16,7 +16,7 @@ pub mod proto;
 pub mod validators;
 
 pub use block::{Block, BlockHeader};
-pub use candidates::Candidates;
+pub use candidates::{Candidate, Candidates};
 pub use config::Config;
 pub use epoch::Epoch;
 pub use height::{BlockDelta, BlockHeight, HostDelta, HostHeight};

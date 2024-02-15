@@ -384,10 +384,6 @@ pub struct SetStake<'info> {
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
-    /// We would support only SOL as stake which has decimal of 9
-    #[account(mut, mint::decimals = 9)]
-    stake_mint: Account<'info, Mint>,
-
     system_program: Program<'info, System>,
 
     /// CHECK: Used for getting the caller program id to verify if the right
