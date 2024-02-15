@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use ::ibc::core::client::types::error::ClientError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
@@ -46,8 +47,6 @@ pub(crate) use allocator::global;
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-    use ::ibc::core::client::types::error::ClientError;
 
     use super::*;
 

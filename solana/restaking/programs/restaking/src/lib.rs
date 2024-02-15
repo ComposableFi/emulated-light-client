@@ -20,8 +20,6 @@ declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
 #[program]
 pub mod restaking {
 
-    use std::borrow::Borrow;
-
     use super::*;
 
     pub fn initialize(
