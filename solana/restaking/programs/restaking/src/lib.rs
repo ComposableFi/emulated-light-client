@@ -109,7 +109,7 @@ pub mod restaking {
                 .validator(*validator_key)
                 .map_err(|_| ErrorCodes::OperationNotAllowed)?;
             let amount = if let Some(val) = validator {
-                u128::from(val.stake)
+                u128::from(val.stake) + amount as u128
             } else {
                 amount as u128
             };
@@ -368,7 +368,7 @@ pub mod restaking {
             .validator(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
         let amount = if let Some(val) = validator {
-            u128::from(val.stake)
+            u128::from(val.stake) + amount as u128
         } else {
             amount as u128
         };
