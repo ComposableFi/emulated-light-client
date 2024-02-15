@@ -171,7 +171,9 @@ impl ChainData {
     }
 
     // Returns a pending block if present
-    pub fn pending_block(&self) -> Result<Option<&PendingBlock<PubKey>>, ChainNotInitialised> {
+    pub fn pending_block(
+        &self,
+    ) -> Result<Option<&PendingBlock<PubKey>>, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.pending_block())
     }

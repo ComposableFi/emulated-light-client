@@ -77,11 +77,14 @@ pub fn run_validator(config: Config) {
                     &validator,
                     chain,
                     trie,
-                    max_retries
+                    max_retries,
                 );
                 match tx {
                     Ok(tx) => {
-                        log::info!("Pending Block signed -> Transaction: {}", tx);
+                        log::info!(
+                            "Pending Block signed -> Transaction: {}",
+                            tx
+                        );
                         break;
                     }
                     Err(err) => {
@@ -120,7 +123,7 @@ pub fn run_validator(config: Config) {
             &validator,
             chain,
             trie,
-            max_retries
+            max_retries,
         );
         match tx {
             Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),

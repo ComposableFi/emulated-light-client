@@ -8,8 +8,7 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
 };
-use anchor_client::solana_sdk::signature::Keypair;
-use anchor_client::solana_sdk::signature::Signature;
+use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{solana_sdk, ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
@@ -148,9 +147,9 @@ pub fn submit_call(
             return tx;
         }
         sleep(Duration::from_millis(500));
-	    tries += 1;	
+        tries += 1;
         log::info!("Retrying to send the transaction: Attempt {}", tries);
     }
     log::error!("Max retries for signing the block exceeded");
-    tx 
+    tx
 }
