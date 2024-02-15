@@ -43,6 +43,8 @@ pub fn run_validator(config: Config) {
     )
     .unwrap();
 
+    let max_retries = 5;
+
     log::info!("Validator running");
 
     let genesis_hash = &CryptoHash::from_base64(&config.genesis_hash)
@@ -75,6 +77,7 @@ pub fn run_validator(config: Config) {
                     &validator,
                     chain,
                     trie,
+                    max_retries
                 );
                 match tx {
                     Ok(tx) => {
@@ -117,6 +120,7 @@ pub fn run_validator(config: Config) {
             &validator,
             chain,
             trie,
+            max_retries
         );
         match tx {
             Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),
