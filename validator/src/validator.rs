@@ -3,8 +3,7 @@ use std::str::FromStr;
 
 use anchor_client::solana_client::pubsub_client::PubsubClient;
 use anchor_client::solana_client::rpc_config::{
-    RpcSendTransactionConfig, RpcTransactionLogsConfig,
-    RpcTransactionLogsFilter,
+    RpcTransactionLogsConfig, RpcTransactionLogsFilter,
 };
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::signature::Keypair;
@@ -12,7 +11,7 @@ use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::pubkey::Pubkey;
 use lib::hash::CryptoHash;
-use solana_ibc::{accounts, instruction};
+use solana_ibc::chain::ChainData;
 
 use crate::command::Config;
 use crate::utils;
@@ -50,6 +49,51 @@ pub fn run_validator(config: Config) {
         .expect("Invalid Genesis Hash");
 
     loop {
+        // Check if there is a pending block to sign
+        let chain_account: ChainData = program.account(chain).unwrap();
+        if chain_account.pending_block().unwrap().is_some() {
+            if chain_account
+                .pending_block()
+                .unwrap()
+                .unwrap()
+                .signers
+                .get(&validator.pubkey().into())
+                .is_none()
+            {
+                log::info!("Found Pending block");
+                let fingerprint = &chain_account
+                    .pending_block()
+                    .unwrap()
+                    .unwrap()
+                    .fingerprint;
+                let signature = validator.sign_message(fingerprint.as_slice());
+
+                let tx = utils::submit_call(
+                    &program,
+                    signature,
+                    fingerprint.as_slice(),
+                    &validator,
+                    chain,
+                    trie,
+                );
+                match tx {
+                    Ok(tx) => {
+                        log::info!(
+                            "Pending Block signed -> Transaction: {}",
+                            tx
+                        );
+                        break;
+                    }
+                    Err(err) => {
+                        log::error!("Failed to send the transaction {err}")
+                    }
+                }
+            } else {
+                log::info!("Pending block is already signed");
+            }
+        } else {
+            log::info!("No pending blocks");
+        }
         let logs =
             receiver.recv().unwrap_or_else(|err| panic!("Disconnected: {err}"));
 
@@ -69,28 +113,14 @@ pub fn run_validator(config: Config) {
         let signature = validator.sign_message(fingerprint.as_slice());
 
         // Send the signature
-        let tx = program
-            .request()
-            .instruction(utils::new_ed25519_instruction_with_signature(
-                &validator.pubkey().to_bytes(),
-                signature.as_ref(),
-                fingerprint.as_slice(),
-            ))
-            .accounts(accounts::ChainWithVerifier {
-                sender: validator.pubkey(),
-                chain,
-                trie,
-                ix_sysvar:
-                    anchor_lang::solana_program::sysvar::instructions::ID,
-                system_program: anchor_lang::solana_program::system_program::ID,
-            })
-            .args(instruction::SignBlock { signature: signature.into() })
-            .payer(validator.clone())
-            .signer(&*validator)
-            .send_with_spinner_and_config(RpcSendTransactionConfig {
-                skip_preflight: true,
-                ..RpcSendTransactionConfig::default()
-            });
+        let tx = utils::submit_call(
+            &program,
+            signature,
+            fingerprint.as_slice(),
+            &validator,
+            chain,
+            trie,
+        );
         match tx {
             Ok(tx) => log::info!("Block signed -> Transaction: {}", tx),
             Err(err) => log::error!("Failed to send the transaction {err}"),
