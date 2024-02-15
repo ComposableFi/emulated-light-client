@@ -60,7 +60,7 @@ pub fn run_validator(config: Config) {
                 .get(&validator.pubkey().into())
                 .is_none()
             {
-                log::info!("it has a pending block");
+                log::info!("Found Pending block");
                 let fingerprint = &chain_account
                     .pending_block()
                     .unwrap()
