@@ -185,7 +185,7 @@ pub mod restaking {
             .map_err(|_| ErrorCodes::OperationNotAllowed)?
             .ok_or(ErrorCodes::MissingService)?;
         let validator_stake = u128::from(validator.stake)
-            .checked_sub(amount as u128)
+            .checked_sub(u128::from(amount))
             .ok_or(ErrorCodes::SubtractionOverflow)?;
         let cpi_accounts = SetStake {
             sender: ctx.accounts.withdrawer.to_account_info(),
