@@ -99,6 +99,20 @@ pub mod restaking {
             let validator_key = match service {
                 Service::GuestChain { validator } => validator,
             };
+            let chain =
+                ctx.remaining_accounts[0].data.try_borrow_mut().unwrap();
+            let mut chain_data: &[u8] = &chain;
+            let chain =
+                solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
+                    .unwrap();
+            let validator = chain
+                .validator(*validator_key)
+                .map_err(|_| ErrorCodes::OperationNotAllowed)?;
+            let amount = if let Some(val) = validator {
+                u128::from(val.stake)
+            } else {
+                amount as u128
+            };
             validation::validate_remaining_accounts(
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
@@ -119,11 +133,7 @@ pub mod restaking {
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(
-                cpi_ctx,
-                *validator_key,
-                amount as u128,
-            )?;
+            solana_ibc::cpi::set_stake(cpi_ctx, *validator_key, amount)?;
         }
 
         Ok(())
@@ -349,6 +359,19 @@ pub mod restaking {
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
+        let chain = ctx.remaining_accounts[0].data.try_borrow_mut().unwrap();
+        let mut chain_data: &[u8] = &chain;
+        let chain =
+            solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
+                .unwrap();
+        let validator = chain
+            .validator(validator_key)
+            .map_err(|_| ErrorCodes::OperationNotAllowed)?;
+        let amount = if let Some(val) = validator {
+            u128::from(val.stake)
+        } else {
+            amount as u128
+        };
 
         validation::validate_remaining_accounts(
             ctx.remaining_accounts,
@@ -370,7 +393,7 @@ pub mod restaking {
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount as u128)?;
+        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
 
         Ok(())
     }

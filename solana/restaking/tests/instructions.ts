@@ -77,7 +77,6 @@ export const depositInstruction = async (
       ),
     })
     .remainingAccounts([
-      { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
       { pubkey: guestChainPDA, isSigner: false, isWritable: true },
       { pubkey: triePDA, isSigner: false, isWritable: true },
       { pubkey: guestChainProgramID, isSigner: false, isWritable: true },
