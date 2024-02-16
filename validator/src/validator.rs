@@ -203,6 +203,7 @@ pub fn run_validator(config: Config) {
         let event = &events[0];
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
+        let chain_account: ChainData = program.account(chain).unwrap();
         let fingerprint =
             if let Some(pending) = chain_account.has_pending_block().unwrap() {
                 log::info!("Fetching fingerprint from contract");
