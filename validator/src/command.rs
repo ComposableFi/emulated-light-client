@@ -5,6 +5,7 @@ use std::str::FromStr;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signer,
 };
+use anchor_lang::solana_program::pubkey::Pubkey;
 use clap::{arg, command, Args, Parser, Subcommand};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
@@ -12,6 +13,7 @@ use log::LevelFilter;
 use serde::de::Error as SerdeError;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
+use crate::stake::stake;
 use crate::utils::{config_file, setup_logging};
 use crate::validator::run_validator;
 
@@ -76,6 +78,8 @@ enum Commands {
     Run(RunArgs),
     /// Command to run the validator for the first time where the config is set.
     Init(InitArgs),
+    /// Command to stake on the validator
+    Stake(StakeArgs),
 }
 
 #[derive(Args, Debug)]
@@ -118,6 +122,41 @@ struct InitArgs {
     /// Private key
     #[arg(long)]
     keypair_path: String,
+
+    /// Log Level
+    #[arg(short, long)]
+    log_level: Option<LevelFilter>,
+}
+
+#[derive(Args, Debug)]
+struct StakeArgs {
+    /// Total amount to stake including decimals
+    #[arg(short, long)]
+    amount: u64,
+
+    /// Mint of the token to be staked
+    #[arg(short, long)]
+    token_mint: String,
+
+    /// rpc url
+    #[arg(short, long)]
+    rpc_url: Option<String>,
+
+    /// websocket url
+    #[arg(short, long)]
+    ws_url: Option<String>,
+
+    /// program ID
+    #[arg(long)]
+    program_id: Option<String>,
+
+    /// genesis hash
+    #[arg(short, long)]
+    genesis_hash: Option<String>,
+
+    /// Private key
+    #[arg(long)]
+    keypair_path: Option<String>,
 
     /// Log Level
     #[arg(short, long)]
@@ -209,6 +248,37 @@ pub fn process_command() {
             let toml_in_string = toml::to_string(&config).unwrap();
             fs::write(config_file, toml_in_string).unwrap();
             log::info!("New Config {:?}", config);
+        }
+        Commands::Stake(cmd) => {
+            let config_file = config_file();
+            let config_data = fs::read_to_string(config_file).expect(
+                "Failed to read config file; make sure you’ve run init \
+                 command first.",
+            );
+            let default_config: Config = toml::from_str(&config_data).unwrap();
+            let keypair = if let Some(keypair_path) = cmd.keypair_path {
+                let keypair = read_keypair_file(keypair_path)
+                    .expect("Unable to read keypair file");
+                keypair.into()
+            } else {
+                default_config.keypair
+            };
+            let config = Config {
+                rpc_url: cmd.rpc_url.unwrap_or(default_config.rpc_url),
+                ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
+                program_id: cmd.program_id.unwrap_or(default_config.program_id),
+                genesis_hash: cmd
+                    .genesis_hash
+                    .unwrap_or(default_config.genesis_hash),
+                keypair,
+                log_level: cmd
+                    .log_level
+                    .unwrap_or(LevelFilter::Info)
+                    .to_string(),
+            };
+            setup_logging(LevelFilter::from_str(&config.log_level).unwrap());
+            let token_mint = Pubkey::from_str(&cmd.token_mint).unwrap();
+            stake(config, cmd.amount, token_mint);
         }
     }
 }
