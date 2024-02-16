@@ -36,7 +36,8 @@ pub fn run_validator(config: Config) {
     let max_tries = 5;
 
     loop {
-        sleep(Duration::from_secs(5));
+        log::info!("Sleeping for 30 seconds before signing next block");
+        sleep(Duration::from_secs(30));
         let chain_account: ChainData = program.account(chain).unwrap();
         if chain_account.has_pending_block().unwrap().is_some() {
             if chain_account
