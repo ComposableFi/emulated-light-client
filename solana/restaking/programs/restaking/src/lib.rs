@@ -108,8 +108,9 @@ pub mod restaking {
             let validator = chain
                 .validator(*validator_key)
                 .map_err(|_| ErrorCodes::OperationNotAllowed)?;
-            let amount = validator
-                .map_or(u128::from(amount), |val| u128::from(val.stake) + u128::from(amount));
+            let amount = validator.map_or(u128::from(amount), |val| {
+                u128::from(val.stake) + u128::from(amount)
+            });
             validation::validate_remaining_accounts(
                 ctx.remaining_accounts,
                 &guest_chain_program_id.unwrap(),
@@ -390,8 +391,9 @@ pub mod restaking {
         let validator = chain
             .validator(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
-        let amount = validator
-            .map_or(u128::from(amount), |val| u128::from(val.stake) + u128::from(amount));
+        let amount = validator.map_or(u128::from(amount), |val| {
+            u128::from(val.stake) + u128::from(amount)
+        });
         // Drop refcount on chain data so we can use it in CPI call
         core::mem::drop(borrowed_chain_data);
 
