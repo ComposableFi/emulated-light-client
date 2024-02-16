@@ -103,11 +103,11 @@ pub fn run_validator(config: Config) {
                 //         log::error!("Failed to send the transaction {err}")
                 //     }
                 // }
-                      // Send the signature
-                      let mut tries = 0;
-                      while tries < max_tries {
-                          let mut status = true;
-                          let tx = program
+                // Send the signature
+                let mut tries = 0;
+                while tries < max_tries {
+                    let mut status = true;
+                    let tx = program
                .request()
                  .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
                .instruction(utils::new_ed25519_instruction_with_signature(
@@ -136,21 +136,25 @@ pub fn run_validator(config: Config) {
                 }
                 e
             });
-                          match tx {
-                              Ok(tx) => {
-                                  log::info!("Block signed -> Transaction: {}", tx);
-                                  break;
-                              }
-                              Err(err) => {
-                                  log::error!("Failed to send the transaction {err}")
-                              }
-                          }
-                          sleep(Duration::from_millis(500));
-                          tries += 1;
-                          if tries == max_tries {
-                              panic!("Max retries reached for chunks in solana");
-                          }
-                      }
+                    match tx {
+                        Ok(tx) => {
+                            log::info!("Block signed -> Transaction: {}", tx);
+                            break;
+                        }
+                        Err(err) => {
+                            log::error!("Failed to send the transaction {err}")
+                        }
+                    }
+                    sleep(Duration::from_millis(500));
+                    tries += 1;
+                    log::info!(
+                        "Retrying to send the transaction: Attempt {}",
+                        tries
+                    );
+                    if tries == max_tries {
+                        panic!("Max retries reached for chunks in solana");
+                    }
+                }
             } else {
                 log::info!("You have already signed the pending block");
             }
@@ -160,29 +164,31 @@ pub fn run_validator(config: Config) {
         let logs = loop {
             let recv = receiver.recv();
             if recv.is_ok() {
-              log::info!("Seems to be okay");
-              break recv.unwrap();
+                log::info!("Seems to be okay");
+                break recv.unwrap();
             } else {
-              log::error!("{:?}", recv);
-              log::error!("Did not succeed to get a msg");
+                log::error!("{:?}", recv);
+                log::error!("Did not succeed to get a msg");
             }
             sleep(Duration::from_secs(1));
             log::info!("Websocket disconnected, retrying now");
             let (_logs_subscription, rcv) = PubsubClient::logs_subscribe(
                 &config.ws_url,
-                RpcTransactionLogsFilter::Mentions(vec![config.program_id.clone()]),
+                RpcTransactionLogsFilter::Mentions(vec![config
+                    .program_id
+                    .clone()]),
                 RpcTransactionLogsConfig {
                     commitment: Some(CommitmentConfig::processed()),
                 },
             )
             .unwrap();
-          match rcv.recv() {
-            Ok(logs) => {
-              log::info!("reconnection worked"); 
-              break logs
-            },
-            Err(_) => receiver = rcv
-          };
+            match rcv.recv() {
+                Ok(logs) => {
+                    log::info!("reconnection worked");
+                    break logs;
+                }
+                Err(_) => receiver = rcv,
+            };
         };
 
         let events = utils::get_events_from_logs(logs.value.logs);
@@ -197,29 +203,82 @@ pub fn run_validator(config: Config) {
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
         let fingerprint = blockchain::block::Fingerprint::new(
-          &chain_account.genesis().unwrap(),
-          &event.block_header.0,
-      );
-        
+            &chain_account.genesis().unwrap(),
+            &event.block_header.0,
+        );
+
         let signature = validator.sign_message(fingerprint.as_slice());
         log::info!("This is the signature {:?}", signature.to_string());
 
-        // // Send the signature
-        let tx = utils::submit_call(
-            &program,
-            signature,
-            fingerprint.as_slice(),
-            &validator,
-            chain,
-            trie,
-            max_tries,
-        );
-        match tx {
-            Ok(tx) => {
-                log::info!("Block signed -> Transaction: {}", tx);
-                break;
+        // // // Send the signature
+        // let tx = utils::submit_call(
+        //     &program,
+        //     signature,
+        //     fingerprint.as_slice(),
+        //     &validator,
+        //     chain,
+        //     trie,
+        //     max_tries,
+        // );
+        // match tx {
+        //     Ok(tx) => {
+        //         log::info!("Block signed -> Transaction: {}", tx);
+        //         break;
+        //     }
+        //     Err(err) => log::error!("Failed to send the transaction {err}"),
+        // }
+        let mut tries = 0;
+        while tries < max_tries {
+            let mut status = true;
+            let tx = program
+                .request()
+                .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                    1_000_000,
+                ))
+                .instruction(utils::new_ed25519_instruction_with_signature(
+                    &validator.pubkey().to_bytes(),
+                    signature.as_ref(),
+                    fingerprint.as_slice(),
+                ))
+                .accounts(accounts::ChainWithVerifier {
+                    sender: validator.pubkey(),
+                    chain,
+                    trie,
+                    ix_sysvar:
+                        anchor_lang::solana_program::sysvar::instructions::ID,
+                    system_program:
+                        anchor_lang::solana_program::system_program::ID,
+                })
+                .args(instruction::SignBlock { signature: signature.into() })
+                .payer(validator.clone())
+                .signer(&*validator)
+                .send_with_spinner_and_config(RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    ..RpcSendTransactionConfig::default()
+                })
+                .map_err(|e| {
+                    if matches!(e, ClientError::SolanaClientError(_)) {
+                        log::error!("{:?}", e);
+                        status = false;
+                    }
+                    e
+                });
+            match tx {
+                Ok(tx) => {
+                    log::info!("Block signed -> Transaction: {}", tx);
+                    break;
+                }
+                Err(err) => {
+                    log::error!("Failed to send the transaction {err}")
+                }
             }
-            Err(err) => log::error!("Failed to send the transaction {err}"),
+            sleep(Duration::from_millis(500));
+            tries += 1;
+            log::info!("Retrying to send the transaction: Attempt {}", tries);
+            if tries == max_tries {
+                // panic!("Max retries reached for chunks in solana");
+                log::error!("Max retries for signing the block exceeded");
+            }
         }
     }
 }
