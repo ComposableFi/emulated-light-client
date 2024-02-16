@@ -155,7 +155,9 @@ fn anchor_test_deliver() -> Result<()> {
     println!("\nInitialising");
     let sig = program
         .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+            1_000_000,
+        ))
         .accounts(accounts::Initialise {
             sender: authority.pubkey(),
             storage,

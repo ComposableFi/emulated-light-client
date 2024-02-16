@@ -14,7 +14,7 @@ solana_ibc = "65hva64yGowCq1Xor6duyBpLkKRWDXeBqEgKyAZcY8Gp"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "mainnet"
+cluster = "Localnet"
 wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]

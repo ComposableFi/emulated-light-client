@@ -292,7 +292,10 @@ impl ChainInner {
                 Ok(())
             }
             Err(err) if force => Err(into_error(err)),
-            Err(err) => { msg!("Error: {:?}", err); Ok(()) },
+            Err(err) => {
+                msg!("Error: {:?}", err);
+                Ok(())
+            }
         }
     }
 }

@@ -1,12 +1,12 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use solana_program::msg;
 use alloc::format;
 use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
 
 use lib::hash::CryptoHash;
+use solana_program::msg;
 
 pub use crate::candidates::UpdateCandidateError;
 use crate::Validator;
@@ -259,7 +259,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         }
 
         pending.signing_stake += validator_stake;
-        msg!("This is pending and validator {} {} {}", pending.signing_stake, validator_stake, self.next_epoch.quorum_stake().get());
+        msg!(
+            "This is pending and validator {} {} {}",
+            pending.signing_stake,
+            validator_stake,
+            self.next_epoch.quorum_stake().get()
+        );
         if pending.signing_stake < self.next_epoch.quorum_stake().get() {
             return Ok(AddSignatureEffect::NoQuorumYet);
         }

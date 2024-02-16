@@ -39,7 +39,7 @@ pub fn setup_logging(log_level: log::LevelFilter) {
     env_logger::builder().filter_level(log_level).format_timestamp(None).init();
 }
 
-pub(crate) fn get_events_from_logs(
+pub(crate) fn _get_events_from_logs(
     logs: Vec<String>,
 ) -> Vec<solana_ibc::events::NewBlock<'static>> {
     logs.iter()
@@ -117,12 +117,14 @@ pub fn submit_call(
         let mut status = true;
         tx = program
             .request()
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                10_000,
+            ))
             .instruction(new_ed25519_instruction_with_signature(
                 &validator.pubkey().to_bytes(),
                 signature.as_ref(),
                 message,
             ))
-            .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
             .accounts(accounts::ChainWithVerifier {
                 sender: validator.pubkey(),
                 chain,
@@ -133,10 +135,9 @@ pub fn submit_call(
             })
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
-            .signer(validator)
+            .signer(&*validator)
             .send_with_spinner_and_config(RpcSendTransactionConfig {
                 skip_preflight: true,
-                max_retries: Some(5),
                 ..RpcSendTransactionConfig::default()
             })
             .map_err(|e| {

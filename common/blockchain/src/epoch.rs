@@ -1,5 +1,5 @@
-use alloc::vec::Vec;
 use alloc::format;
+use alloc::vec::Vec;
 use core::num::NonZeroU128;
 
 use borsh::maybestd::io;
@@ -107,9 +107,7 @@ impl<PK> Epoch<PK> {
     where
         PK: Eq,
     {
-        self.validators.iter().find(|validator| {
-            validator.pubkey() == pk
-        })
+        self.validators.iter().find(|validator| validator.pubkey() == pk)
     }
 }
 
