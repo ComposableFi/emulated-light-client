@@ -1,14 +1,23 @@
 use std::fs;
 use std::path::PathBuf;
+use std::rc::Rc;
+use std::thread::sleep;
+use std::time::Duration;
 
-use anchor_client::solana_sdk;
+use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
+use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
 };
+use anchor_client::solana_sdk::signature::{Keypair, Signature};
+use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::{solana_sdk, ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
+use anchor_lang::solana_program::pubkey::Pubkey;
 use base64::Engine;
 use bytemuck::bytes_of;
 use directories::ProjectDirs;
+use solana_ibc::{accounts, instruction};
 
 fn project_dirs() -> ProjectDirs {
     ProjectDirs::from(
@@ -91,4 +100,59 @@ pub fn new_ed25519_instruction_with_signature(
         accounts: vec![],
         data: instruction,
     }
+}
+
+pub fn submit_call(
+    program: &Program<Rc<Keypair>>,
+    signature: Signature,
+    message: &[u8],
+    validator: &Rc<Keypair>,
+    chain: Pubkey,
+    trie: Pubkey,
+    max_retries: u8,
+) -> Result<Signature, ClientError> {
+    let mut tries = 0;
+    let mut tx = Ok(signature);
+    while tries < max_retries {
+        let mut status = true;
+        tx = program
+            .request()
+            .instruction(new_ed25519_instruction_with_signature(
+                &validator.pubkey().to_bytes(),
+                signature.as_ref(),
+                message,
+            ))
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
+            .accounts(accounts::ChainWithVerifier {
+                sender: validator.pubkey(),
+                chain,
+                trie,
+                ix_sysvar:
+                    anchor_lang::solana_program::sysvar::instructions::ID,
+                system_program: anchor_lang::solana_program::system_program::ID,
+            })
+            .args(instruction::SignBlock { signature: signature.into() })
+            .payer(validator.clone())
+            .signer(validator)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                max_retries: Some(5),
+                ..RpcSendTransactionConfig::default()
+            })
+            .map_err(|e| {
+                if matches!(e, ClientError::SolanaClientError(_)) {
+                    // log::error!("{:?}", e);
+                    status = false;
+                }
+                e
+            });
+        if status {
+            return tx;
+        }
+        sleep(Duration::from_millis(500));
+        tries += 1;
+        log::info!("Retrying to send the transaction: Attempt {}", tries);
+    }
+    log::error!("Max retries for signing the block exceeded");
+    tx
 }
