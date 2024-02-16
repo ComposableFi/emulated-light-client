@@ -5,6 +5,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
+use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::ed25519_instruction::{
     DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
 };
@@ -116,6 +117,7 @@ pub fn submit_call(
         let mut status = true;
         tx = program
             .request()
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(10_000))
             .instruction(new_ed25519_instruction_with_signature(
                 &validator.pubkey().to_bytes(),
                 signature.as_ref(),
