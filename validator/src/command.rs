@@ -150,10 +150,6 @@ struct StakeArgs {
     #[arg(long)]
     program_id: Option<String>,
 
-    /// genesis hash
-    #[arg(short, long)]
-    genesis_hash: Option<String>,
-
     /// Private key
     #[arg(long)]
     keypair_path: Option<String>,
@@ -267,9 +263,6 @@ pub fn process_command() {
                 rpc_url: cmd.rpc_url.unwrap_or(default_config.rpc_url),
                 ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
                 program_id: cmd.program_id.unwrap_or(default_config.program_id),
-                genesis_hash: cmd
-                    .genesis_hash
-                    .unwrap_or(default_config.genesis_hash),
                 keypair,
                 log_level: cmd
                     .log_level
