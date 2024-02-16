@@ -55,7 +55,7 @@ pub fn run_validator(config: Config) {
     let max_tries = 5;
 
     loop {
-        sleep(Duration::from_millis(200));
+        sleep(Duration::from_secs(5));
         // let (_logs_subscription, receiver) = PubsubClient::logs_subscribe(
         //     &config.ws_url,
         //     RpcTransactionLogsFilter::Mentions(vec![config.program_id]),

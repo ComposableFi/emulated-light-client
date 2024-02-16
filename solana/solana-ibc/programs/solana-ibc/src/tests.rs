@@ -72,9 +72,10 @@ fn anchor_test_deliver() -> Result<()> {
 
     let client = Client::new_with_options(
         // Cluster::Custom("https://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned(), "wss://lively-quaint-fog.solana-testnet.quiknode.pro/2b5adcbe75e8c8cf5de874db6d5d91acf14ff4ea/".to_owned()),
-        Cluster::Devnet,
+        // Cluster::Devnet,
         // Cluster::Localnet,
         // Cluster::Custom("https://solana-validator-devnet-01.composablenodes.tech".to_owned(), "wss://solana-validator-devnet-01.composablenodes.tech/ws".to_owned()),
+        Cluster::Mainnet,
         authority.clone(),
         CommitmentConfig::processed(),
     );
@@ -154,7 +155,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("\nInitialising");
     let sig = program
         .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_price(1000000))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(1_000_000))
         .accounts(accounts::Initialise {
             sender: authority.pubkey(),
             storage,
