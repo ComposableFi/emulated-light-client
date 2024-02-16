@@ -109,53 +109,53 @@ fn anchor_test_deliver() -> Result<()> {
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
     let max_tries = 5;
 
-    // loop {
-    //     sleep(Duration::from_secs(5));
-    //     let mut tries = 0;
-    //     while tries < max_tries {
-    //         let mut status = true;
-    //         let sig = program
-    //             .request()
-    //             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-    //                 1_000_000,
-    //             ))
-    //             .accounts(accounts::Chain {
-    //                 sender: authority.pubkey(),
-    //                 storage,
-    //                 chain,
-    //                 trie,
-    //                 system_program: system_program::ID,
-    //                 instruction:
-    //                     anchor_lang::solana_program::sysvar::instructions::ID,
-    //             })
-    //             .args(instruction::GenerateBlock {})
-    //             .payer(authority.clone())
-    //             .signer(&*authority)
-    //             .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //                 skip_preflight: true,
-    //                 ..RpcSendTransactionConfig::default()
-    //             })
-    //             .or_else(|e| {
-    //                 println!("This is error {:?}", e);
-    //                 status = false;
-    //                 Err(e)
-    //             });
-    //         match sig {
-    //             Ok(tx) => {
-    //                 println!("Block signed -> Transaction: {}", tx);
-    //                 break;
-    //             }
-    //             Err(err) => {
-    //                 println!("Failed to send the transaction {err}")
-    //             }
-    //         }
-    //         sleep(Duration::from_millis(500));
-    //         tries += 1;
-    //         if tries == max_tries {
-    //             panic!("Max retries reached for chunks in solana");
-    //         }
-    //     }
-    // }
+    loop {
+        sleep(Duration::from_secs(5));
+        let mut tries = 0;
+        while tries < max_tries {
+            let mut status = true;
+            let sig = program
+                .request()
+                .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                    10_000,
+                ))
+                .accounts(accounts::Chain {
+                    sender: authority.pubkey(),
+                    storage,
+                    chain,
+                    trie,
+                    system_program: system_program::ID,
+                    instruction:
+                        anchor_lang::solana_program::sysvar::instructions::ID,
+                })
+                .args(instruction::GenerateBlock {})
+                .payer(authority.clone())
+                .signer(&*authority)
+                .send_with_spinner_and_config(RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    ..RpcSendTransactionConfig::default()
+                })
+                .or_else(|e| {
+                    println!("This is error {:?}", e);
+                    status = false;
+                    Err(e)
+                });
+            match sig {
+                Ok(tx) => {
+                    println!("Block signed -> Transaction: {}", tx);
+                    break;
+                }
+                Err(err) => {
+                    println!("Failed to send the transaction {err}")
+                }
+            }
+            sleep(Duration::from_millis(500));
+            tries += 1;
+            if tries == max_tries {
+                panic!("Max retries reached for chunks in solana");
+            }
+        }
+    }
 
     /*
      * Initialise chain

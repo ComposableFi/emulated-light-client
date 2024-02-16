@@ -4,7 +4,7 @@
 
 1. Install the validator CLI using the below command (From `validator-testing` branch) 
 ```
-cargo install --git https://github.com/composableFi/emulated-light-client#validator-testing
+cargo install --git https://github.com/composableFi/emulated-light-client --branch validator-testing
 ```
 2. Check if the validator CLI is installed using the below command. The current version would print indicating successful installation.
 ```
