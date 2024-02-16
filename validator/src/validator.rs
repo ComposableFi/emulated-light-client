@@ -196,8 +196,11 @@ pub fn run_validator(config: Config) {
         let event = &events[0];
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
-        let fingerprint =
-            chain_account.has_pending_block().unwrap().unwrap().fingerprint;
+        let fingerprint = blockchain::block::Fingerprint::new(
+          &chain_account.genesis().unwrap(),
+          &event.block_header.0,
+      );
+        
         let signature = validator.sign_message(fingerprint.as_slice());
         log::info!("This is the signature {:?}", signature.to_string());
 
