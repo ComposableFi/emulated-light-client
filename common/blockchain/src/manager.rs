@@ -250,6 +250,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             .stake()
             .get();
         if !pending.fingerprint.verify(&pubkey, signature, verifier) {
+            msg!("fingerprint {:?}", pending.fingerprint);
             return Err(AddSignatureError::BadSignature);
         }
 

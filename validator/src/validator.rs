@@ -85,6 +85,7 @@ pub fn run_validator(config: Config) {
                     "This is the signature in pending {:?}",
                     signature.to_string()
                 );
+                log::info!("This is the fingerprint in pending {:?}", fingerprint);
                 // let tx = utils::submit_call(
                 //     &program,
                 //     signature,
@@ -204,8 +205,10 @@ pub fn run_validator(config: Config) {
         // Fetching the pending block fingerprint
         let fingerprint =
             if let Some(pending) = chain_account.has_pending_block().unwrap() {
+                log::info!("Fetching fingerprint from contract");
                 pending.fingerprint
             } else {
+                log::info!("Creating own fingerprint");
                 blockchain::block::Fingerprint::new(
                     &chain_account.genesis().unwrap(),
                     &event.block_header.0,
@@ -218,6 +221,7 @@ pub fn run_validator(config: Config) {
 
         let signature = validator.sign_message(fingerprint.as_slice());
         log::info!("This is the signature {:?}", signature.to_string());
+        log::info!("This is the fingerprint in pending {:?}", fingerprint);
 
         // // // Send the signature
         // let tx = utils::submit_call(
