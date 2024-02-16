@@ -2,8 +2,8 @@ use solana_program::account_info::{next_account_info, AccountInfo};
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 use solana_program::rent::Rent;
+use solana_program::system_instruction;
 use solana_program::sysvar::Sysvar;
-use solana_program::{system_instruction, system_program};
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 
@@ -11,37 +11,37 @@ solana_program::entrypoint!(process_instruction);
 
 /// Processes the Solana instruction.
 ///
-/// The first byte of the `instruction` determines operation to perform.  Format
-/// of the instruction and required accounts depend on that.  Integers are
-/// encoded using Solana’s native endianess which is little-endian.
-///
-/// # Write
-///
-/// Instruction with discriminant zero is Write.  Its format is represented by
-/// the following pseudo-Rust structure:
+/// The instruction supported by the program is represented by the following
+/// pseudo-Rust structure:
 ///
 /// ```ignore
 /// #[repr(C, packed)]
-/// struct CreateAccount {
-///     discriminant: u8,  // always 0u8,
+/// struct Instruction {
+///     always_zero: u8,  // always 0u8,
 ///     seed_len: u8,
 ///     seed: [u8; seed_len],
 ///     bump: u8,
-///     offset: u32,
-///     data: [u8],
+///     offset_and_data: Option<(u32, [u8])>,
 /// }
 /// ```
+/// All integers are encoded using Solana’s native endianess which is
+/// little-endian.  `Option` in the above representation indicates that the
+/// instruction may be shorter.
 ///
 /// It takes three accounts with the first two required:
 /// 1. Payer account (signer, writable),
 /// 2. Write account (writable) and
 /// 3. System program (optional; should be `11111111111111111111111111111111`).
 ///
-/// It writes `data` into a Write account at given offset.  The Write account is
-/// a PDA owned by this program constructed with seeds `[payer.key, seed]`.
-/// Since payer’s key is included in the seeds, only payer can modify the
-/// account and from this program’s point of view, payer is considered an owner
-/// of the write account.
+/// If `offset_and_data` is not specified, executes a Free operation which
+/// deletes the account and transfers all lamports back to the Payer.  This
+/// operation requires that System program is given with accounts.
+///
+/// Otherwise, it writes `data` into a Write account at given offset.  The Write
+/// account is a PDA owned by this program constructed with seeds `[payer.key,
+/// seed]`.  Since payer’s key is included in the seeds, only payer can modify
+/// the account and from this program’s point of view, payer is considered an
+/// owner of the write account.
 ///
 /// If the Write account doesn’t exist, creates the account.  Similarly, if it’s
 /// too small, increases its size.  Note that due to Solana’s limitations,
@@ -50,69 +50,43 @@ solana_program::entrypoint!(process_instruction);
 ///
 /// Note: `data` may be empty in which case the instruction will just create or
 /// resize the Write account.
-// TODO(mina86): Add option to truncate the account and to free the account
-// returning lamports to payer.
-fn process_instruction(
+fn process_instruction<'a>(
     program_id: &Pubkey,
-    accounts: &[AccountInfo],
-    mut instruction: &[u8],
+    accounts: &'a [AccountInfo],
+    mut instruction: &'a [u8],
 ) -> Result {
-    match read(&mut instruction, u8::from_le_bytes)? {
-        0 => handle_write(program_id, accounts, instruction),
-        _ => Err(ProgramError::InvalidInstructionData),
+    if read(&mut instruction, u8::from_le_bytes)? != 0 {
+        return Err(ProgramError::InvalidInstructionData);
+    }
+    let accounts = Accounts::get(program_id, accounts, &mut instruction)?;
+    if instruction.is_empty() {
+        handle_free(accounts)
+    } else {
+        handle_write(program_id, accounts, instruction)
     }
 }
 
-/// Handles Write operation.  See [`process_instruction`].
+
+/// Handles the Write operation.
 fn handle_write(
     program_id: &Pubkey,
-    accounts: &[AccountInfo],
+    accounts: Accounts,
     mut data: &[u8],
 ) -> Result {
-    // Parse instruction data
-    let seed_len = read_usize(&mut data, u8::from_le_bytes)?;
-    let seed = read_slice(&mut data, seed_len)?;
-    let bump = read(&mut data, u8::from_le_bytes)?;
     let start = read_usize(&mut data, u32::from_le_bytes)?;
     let end = start
         .checked_add(data.len())
         .ok_or(ProgramError::ArithmeticOverflow)?;
 
-    // Get accounts
-    let accounts = &mut accounts.iter();
-    let payer = next_account_info(accounts)?;
-    let write_account = next_account_info(accounts)?;
-    let system = accounts.next();
-
-    // Verify accounts
-    if !payer.is_signer {
-        return Err(ProgramError::MissingRequiredSignature);
-    }
-    if !payer.is_writable || !write_account.is_writable {
-        return Err(ProgramError::InvalidAccountData);
-    }
-    if let Some(system) = system {
-        if !system_program::check_id(system.key) {
-            return Err(ProgramError::InvalidAccountData);
-        }
-    }
-
     // Initialise write account as necessary
-    setup_write_account(
-        program_id,
-        payer,
-        write_account,
-        seed,
-        bump,
-        end,
-        system,
-    )?;
+    setup_write_account(program_id, accounts, end)?;
 
     // Write the data.  Once we reached this point, we should never fail.
     // try_borrow_mut should succeed since no one else is borrowing
     // write_account’s data and get_mut should succeed since setup_write_account
     // made sure account is large enough.
-    write_account
+    accounts
+        .write
         .try_borrow_mut_data()?
         .get_mut(start..end)
         .ok_or(ProgramError::AccountDataTooSmall)?
@@ -120,7 +94,7 @@ fn handle_write(
     Ok(())
 }
 
-/// Verifies and sets up the write account.
+/// Sets up the write account ensuring its minimal size.
 ///
 /// Firstly, checks that the write accounts address corresponds to the PDA which
 /// we’d get by using `[payer.key, seed]` as seeds with given `bump`.  If it
@@ -136,62 +110,138 @@ fn handle_write(
 /// this may lead to lamports being transferred from `payer` to the
 /// `write_account`.
 ///
-fn setup_write_account<'info>(
+fn setup_write_account(
     program_id: &Pubkey,
-    payer: &AccountInfo<'info>,
-    write_account: &AccountInfo<'info>,
-    seed: &[u8],
-    bump: u8,
+    accounts: Accounts,
     size: usize,
-    system: Option<&AccountInfo<'info>>,
 ) -> Result {
-    let seeds = &[payer.key.as_ref(), seed, &[bump]];
-    match Pubkey::create_program_address(seeds, program_id) {
-        Ok(pda) if &pda == write_account.key => (),
-        _ => return Err(ProgramError::InvalidSeeds),
-    }
-
-    let lamports = write_account.lamports();
+    let lamports = accounts.write.lamports();
     let get_required_lamports =
         || Rent::get().map(|rent| rent.minimum_balance(size));
 
     if lamports == 0 {
         // If the account has zero lamports it needs to be created first.
-        let _ = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
-        let instruction = solana_program::system_instruction::create_account(
-            payer.key,
-            write_account.key,
+        let instruction = system_instruction::create_account(
+            accounts.payer.key,
+            accounts.write.key,
             get_required_lamports()?,
             size as u64,
             program_id,
         );
         solana_program::program::invoke_signed(
             &instruction,
-            &[payer.clone(), write_account.clone()],
-            &[seeds],
+            &[accounts.payer.clone(), accounts.write.clone()],
+            &[&accounts.write_seeds()],
         )
-    } else if write_account.data_len() < size {
+    } else if accounts.write.data_len() < size {
         // If size is less than required, reallocate.  We may need to transfer
         // more lamports to keep the account as rent-exempt.
-        let _ = system.ok_or(ProgramError::NotEnoughAccountKeys)?;
         let lamports = get_required_lamports()?.saturating_sub(lamports);
         if lamports > 0 {
             solana_program::program::invoke(
                 &system_instruction::transfer(
-                    payer.key,
-                    write_account.key,
+                    accounts.payer.key,
+                    accounts.write.key,
                     lamports,
                 ),
-                &[payer.clone(), write_account.clone()],
+                &[accounts.payer.clone(), accounts.write.clone()],
             )?;
         }
-        write_account.realloc(size, false)
+        accounts.write.realloc(size, false)
     } else {
         // Otherwise, the account exists and is large enough.  There’s nothing
         // we need to do.
         Ok(())
     }
 }
+
+
+/// Handles Free operation.
+fn handle_free(accounts: Accounts) -> Result {
+    {
+        let mut payer = accounts.payer.try_borrow_mut_lamports()?;
+        let mut write = accounts.write.try_borrow_mut_lamports()?;
+        let lamports = payer
+            .checked_add(**write)
+            .ok_or(ProgramError::ArithmeticOverflow)?;
+        **payer = lamports;
+        **write = 0;
+    }
+
+    accounts.write.assign(&solana_program::system_program::ID);
+    accounts.write.realloc(0, false)
+}
+
+
+/// Accounts used when processing instruction.
+#[derive(Clone, Copy)]
+struct Accounts<'a, 'info> {
+    /// The Payer account which pays and ‘owns’ the Write account.
+    payer: &'a AccountInfo<'info>,
+
+    /// The Write account.  It’s address is a PDA using `[payer.key,
+    /// seed_and_bump]` seeds.
+    write: &'a AccountInfo<'info>,
+
+    /// Seed and bump used in PDA of the Write account.
+    seed_and_bump: &'a [u8],
+}
+
+impl<'a, 'info> Accounts<'a, 'info> {
+    /// Gets and verifies accounts for handling the instruction.
+    ///
+    /// Expects the following accounts in the `accounts` slice:
+    /// 1. Payer account which is signer and writable,
+    /// 2. Write account which is writable and a PDA using `[payer.key, seed,
+    ///    bump]` seeds.
+    ///
+    /// Reads seed and bump from `instruction` advancing it.  Specifically,
+    /// reads the following dynamically-sized structure:
+    ///
+    /// ```ignore
+    /// #[repr(C, packed)]
+    /// struct SeedAndBump {
+    ///     seed_len: u8,
+    ///     seed: [u8; seed_len],
+    ///     bump: u8,
+    /// }
+    /// ```
+    fn get(
+        program_id: &Pubkey,
+        accounts: &'a [AccountInfo<'info>],
+        instruction: &mut &'a [u8],
+    ) -> Result<Self> {
+        let accounts = &mut accounts.iter();
+
+        // Payer.  Must be signer and writable.
+        let payer = next_account_info(accounts)?;
+        if !payer.is_signer {
+            return Err(ProgramError::MissingRequiredSignature);
+        } else if !payer.is_writable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        // Write account.  Must be writable and PDA.
+        let write = next_account_info(accounts)?;
+        if !write.is_writable {
+            return Err(ProgramError::InvalidAccountData);
+        }
+        let seed_len = read(instruction, u8::from_le_bytes)?;
+        let seed_and_bump = read_slice(instruction, seed_len as usize + 1)?;
+        let this = Self { payer, write, seed_and_bump };
+
+        match Pubkey::create_program_address(&this.write_seeds(), program_id) {
+            Ok(pda) if &pda == this.write.key => Ok(this),
+            _ => Err(ProgramError::InvalidSeeds),
+        }
+    }
+
+    /// Returns seeds used to generate Write account PDA.
+    fn write_seeds(&self) -> [&'a [u8]; 2] {
+        [self.payer.key.as_ref(), self.seed_and_bump]
+    }
+}
+
 
 /// Reads given object from the start of the slice advancing it.
 ///

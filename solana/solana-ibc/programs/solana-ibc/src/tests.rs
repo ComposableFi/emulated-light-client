@@ -186,7 +186,7 @@ fn anchor_test_deliver() -> Result<()> {
     // Note: We’re using small chunks size on purpose to test the behaviour of
     // the write account program.
     chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
-    for instruction in chunks {
+    for instruction in &mut chunks {
         let transaction = Transaction::new_signed_with_payer(
             &[instruction],
             Some(&authority.pubkey()),
@@ -198,6 +198,7 @@ fn anchor_test_deliver() -> Result<()> {
             .unwrap();
         println!("  Signature {sig}");
     }
+    let (write_account, write_account_bump) = chunks.into_account();
 
     println!("\nCreating Mock Client");
     let sig = program
@@ -757,6 +758,28 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
     println!("  Signature: {sig}");
+
+
+    /*
+     * Free Write account
+     */
+    println!("\nFreeing Write account");
+    let sig = program
+        .request()
+        .instruction(write::instruction::free(
+            write_account_program_id,
+            authority.pubkey(),
+            Some(write_account),
+            WRITE_ACCOUNT_SEED,
+            write_account_bump,
+        )?)
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature {sig}");
 
     Ok(())
 }

@@ -1,37 +1,8 @@
-use solana_program::instruction::AccountMeta;
+use solana_program::instruction::{AccountMeta, Instruction};
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
-
-/// Generates instruction data for a Write operation.
-///
-/// `seed` and `bump` specifies seed and bump of the Write PDA.  Note that the
-/// actual seed used to create the PDA is `[payer.key, seed]` rather than just
-/// `seed`.  Use [`write_find_account`] to figure out the correct Write account
-/// with bump and generate the instruction data.
-///
-/// `offset` specifies offset in the write account to write data at and `data`
-/// is the data to write.
-pub fn write(
-    seed: &[u8],
-    bump: u8,
-    offset: usize,
-    data: &[u8],
-) -> Result<Vec<u8>> {
-    let seed_len = check_seed(seed)?;
-    let offset = u32::try_from(offset)
-        .map_err(|_| ProgramError::ArithmeticOverflow)?
-        .to_le_bytes();
-    Ok([
-        /* discriminant, seed_len: */ &[0, seed_len],
-        /* seed: */ seed,
-        /* bump, offset: */
-        &[bump, offset[0], offset[1], offset[2], offset[3]],
-        /* data: */ data,
-    ]
-    .concat())
-}
 
 /// Iterator generating Solana instructions calling the write-account program
 /// filling given account with given data.
@@ -109,6 +80,11 @@ impl<'a> WriteIter<'a> {
         };
         Ok((iter, write_account, bump))
     }
+
+    /// Consumes the iterator and returns Write account address and bump.
+    pub fn into_account(self) -> (Pubkey, u8) {
+        (self.write_account, self.bump)
+    }
 }
 
 impl core::iter::Iterator for WriteIter<'_> {
@@ -145,6 +121,45 @@ impl core::iter::Iterator for WriteIter<'_> {
             data,
         })
     }
+}
+
+/// Generates instruction data for Free operation.
+///
+/// `seed` and `bump` specifies seed and bump of the Write PDA.  Note that the
+/// actual seed used to create the PDA is `[payer.key, seed]` rather than just
+/// `seed`.
+///
+/// If `write_account` is not given, it’s going to be generated from provided
+/// Write program id, Payer account, seed and bump.
+pub fn free(
+    write_program_id: Pubkey,
+    payer: Pubkey,
+    write_account: Option<Pubkey>,
+    seed: &[u8],
+    bump: u8,
+) -> Result<Instruction> {
+    let mut buf = [0; { solana_program::pubkey::MAX_SEED_LEN + 3 }];
+    buf[1] = check_seed(seed)?;
+    buf[2..seed.len() + 2].copy_from_slice(seed);
+    buf[seed.len() + 2] = bump;
+
+    let write_account = match write_account {
+        None => Pubkey::create_program_address(
+            &[payer.as_ref(), seed, &[bump]],
+            &write_program_id,
+        )?,
+        Some(acc) => acc,
+    };
+
+    Ok(Instruction {
+        program_id: write_program_id,
+        accounts: vec![
+            AccountMeta::new(payer, true),
+            AccountMeta::new(write_account, false),
+            AccountMeta::new(solana_program::system_program::ID, false),
+        ],
+        data: buf[..seed.len() + 3].to_vec(),
+    })
 }
 
 /// Checks that seed is below the maximum length; returns length cast to `u8`.
