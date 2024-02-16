@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use ::ibc::core::client::types::error::ClientError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
@@ -82,8 +83,6 @@ solana_program::custom_panic_default!();
 #[anchor_lang::program]
 pub mod solana_ibc {
 
-    use ::ibc::core::client::types::error::ClientError;
-
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -158,7 +157,11 @@ pub mod solana_ibc {
     ///
     /// Can only be called through CPI from our staking program whose
     /// id is stored in chain account.
-    pub fn set_stake(ctx: Context<SetStake>, amount: u128) -> Result<()> {
+    pub fn set_stake(
+        ctx: Context<SetStake>,
+        validator: Pubkey,
+        amount: u128,
+    ) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
         let ixns = ctx.accounts.instruction.to_account_info();
         let current_index =
@@ -174,7 +177,7 @@ pub mod solana_ibc {
         chain.check_staking_program(&current_ixn.program_id)?;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         chain.maybe_generate_block(&provable)?;
-        chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+        chain.set_stake((validator).into(), amount)
     }
 
     /// Called to set up escrow and mint accounts for given channel
@@ -414,10 +417,6 @@ pub struct SetStake<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
-
-    /// We would support only SOL as stake which has decimal of 9
-    #[account(mut, mint::decimals = 9)]
-    stake_mint: Account<'info, Mint>,
 
     system_program: Program<'info, System>,
 
