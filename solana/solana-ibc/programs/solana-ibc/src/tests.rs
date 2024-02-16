@@ -13,6 +13,7 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
@@ -21,12 +22,15 @@ use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
 
 use crate::ibc::ClientStateCommon;
-use crate::storage::PrivateStorage;
-use crate::{accounts, chain, ibc, instruction, CryptoHash, MINT_ESCROW_SEED};
+use crate::{
+    accounts, chain, ibc, instruction, ix_data_account, CryptoHash,
+    MINT_ESCROW_SEED,
+};
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1000000;
@@ -80,6 +84,10 @@ fn anchor_test_deliver() -> Result<()> {
         CommitmentConfig::processed(),
     );
     let program = client.program(crate::ID).unwrap();
+    let write_account_program_id =
+        read_keypair_file("../../../../target/deploy/write-keypair.json")
+            .unwrap()
+            .pubkey();
 
     let sol_rpc_client = program.rpc();
     // let _airdrop_signature =
@@ -790,6 +798,28 @@ fn anchor_test_deliver() -> Result<()> {
     //         ..RpcSendTransactionConfig::default()
     //     })?;
     // println!("  Signature: {sig}");
+
+
+    // /*
+    //  * Free Write account
+    //  */
+    // println!("\nFreeing Write account");
+    // let sig = program
+    //     .request()
+    //     .instruction(write::instruction::free(
+    //         write_account_program_id,
+    //         authority.pubkey(),
+    //         Some(write_account),
+    //         WRITE_ACCOUNT_SEED,
+    //         write_account_bump,
+    //     )?)
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature {sig}");
 
     Ok(())
 }

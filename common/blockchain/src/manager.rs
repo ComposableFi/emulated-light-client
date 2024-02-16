@@ -146,6 +146,11 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.pending_block.as_ref().map(|_| &self.next_epoch)
     }
 
+    /// Returns the pending block
+    pub fn pending_block(&self) -> Option<&PendingBlock<PK>> {
+        self.pending_block.as_ref()
+    }
+
     /// Generates a new block and sets it as pending.
     ///
     /// Returns an error if there’s already a pending block (previous pending

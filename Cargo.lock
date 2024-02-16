@@ -276,8 +276,7 @@ dependencies = [
 [[package]]
 name = "anchor-syn"
 version = "0.29.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9101b84702fed2ea57bd22992f75065da5648017135b844283a2f6d74f27825"
+source = "git+https://github.com/mina86/anchor?branch=custom-entrypoint#788c61c2d72aad374457d7619d8fe37d6ac2c0e9"
 dependencies = [
  "anyhow",
  "bs58 0.5.0",
@@ -4707,6 +4706,7 @@ dependencies = [
  "solana-allocator",
  "solana-ed25519",
  "solana-trie",
+ "solana-write-account",
  "spl-associated-token-account",
  "spl-token",
  "stdx",
