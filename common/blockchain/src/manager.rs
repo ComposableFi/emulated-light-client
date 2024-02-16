@@ -8,6 +8,7 @@ use std::collections::HashSet as Set;
 use lib::hash::CryptoHash;
 use solana_program::msg;
 
+use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
 use crate::Validator;
 
@@ -303,6 +304,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     pub fn validators(&self) -> &[Validator<PK>] {
         self.next_epoch.validators()
+    }
+
+    pub fn candidates(&self) -> &[Candidate<PK>] {
+        self.candidates.candidates.as_slice()
     }
 
     pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }

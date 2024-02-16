@@ -16,6 +16,7 @@ pub type Block = blockchain::Block<PubKey>;
 pub type BlockHeader = blockchain::BlockHeader;
 pub type Manager = blockchain::ChainManager<PubKey>;
 pub type Validator = blockchain::Validator<PubKey>;
+pub type Candidate = blockchain::Candidate<PubKey>;
 
 /// Guest blockchain data held in Solana account.
 #[account]
@@ -172,6 +173,19 @@ impl ChainData {
             .cloned())
     }
 
+    /// Returns the Candidate data with stake and rewards
+    pub fn candidate(
+        &self,
+        candidate: Pubkey,
+    ) -> Result<Option<Candidate>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner
+            .manager
+            .candidates()
+            .iter()
+            .find(|c| c.pubkey == candidate)
+            .cloned())
+    }
     // Returns a pending block if present
     pub fn pending_block(
         &self,
@@ -308,7 +322,6 @@ impl ChainInner {
     }
 }
 
-
 /// Returns Solana’s slot number (what we call host height) and timestamp.
 ///
 /// Note that even though Solana has a concept of a block height, this is not
@@ -330,7 +343,6 @@ fn get_host_head() -> Result<(blockchain::HostHeight, NonZeroU64)> {
         .unwrap();
     Ok((clock.slot.into(), timestamp))
 }
-
 
 impl From<ChainNotInitialised> for Error {
     fn from(_: ChainNotInitialised) -> Self { Error::ChainNotInitialised }
@@ -354,7 +366,6 @@ impl From<ChainNotInitialised> for ibc::ContextError {
             .into()
     }
 }
-
 
 impl core::fmt::Debug for ChainData {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
