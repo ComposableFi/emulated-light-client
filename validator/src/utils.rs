@@ -117,7 +117,9 @@ pub fn submit_call(
         let mut status = true;
         tx = program
             .request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_price(10_000))
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                10_000,
+            ))
             .instruction(new_ed25519_instruction_with_signature(
                 &validator.pubkey().to_bytes(),
                 signature.as_ref(),
