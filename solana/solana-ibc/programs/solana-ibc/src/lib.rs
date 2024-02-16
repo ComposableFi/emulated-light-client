@@ -76,6 +76,9 @@ pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
     }
 }
 
+#[cfg(not(feature = "no-entrypoint"))]
+solana_program::custom_panic_default!();
+
 #[anchor_lang::program]
 pub mod solana_ibc {
 
