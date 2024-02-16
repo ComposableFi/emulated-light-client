@@ -6241,6 +6241,7 @@ version = "0.0.0"
 dependencies = [
  "anchor-client",
  "anchor-lang",
+ "anchor-spl",
  "base64 0.21.7",
  "blockchain",
  "borsh 0.10.3",
@@ -6252,6 +6253,7 @@ dependencies = [
  "env_logger 0.7.1",
  "lib",
  "log",
+ "restaking",
  "serde",
  "serde_bytes",
  "solana-ed25519",

@@ -1,4 +1,5 @@
 mod command;
+mod stake;
 mod utils;
 mod validator;
 
