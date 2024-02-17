@@ -12,7 +12,6 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
-use solana_program::sysvar::instructions as tx_instructions;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -163,18 +162,13 @@ pub mod solana_ibc {
         amount: u128,
     ) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
-        let ixns = ctx.accounts.instruction.to_account_info();
-        let current_index =
-            tx_instructions::load_current_index_checked(&ixns)? as usize;
-        let current_ixn =
-            tx_instructions::load_instruction_at_checked(current_index, &ixns)?;
-
-        msg!(
-            " staking program ID: {} Current program ID: {}",
-            current_ixn.program_id,
-            *ctx.program_id
-        );
-        chain.check_staking_program(&current_ixn.program_id)?;
+        let caller_program_id =
+            solana_program::sysvar::instructions::get_instruction_relative(
+                0,
+                &ctx.accounts.instruction.to_account_info(),
+            )?
+            .program_id;
+        chain.check_staking_program(&caller_program_id)?;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((validator).into(), amount)
