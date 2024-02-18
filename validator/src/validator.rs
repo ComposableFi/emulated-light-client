@@ -50,53 +50,47 @@ pub fn run_validator(config: Config) {
     let genesis_hash = &CryptoHash::from_base64(&config.genesis_hash)
         .expect("Invalid Genesis Hash");
 
-    loop {
-        // Check if there is a pending block to sign
-        let chain_account: ChainData = program.account(chain).unwrap();
-        if chain_account.pending_block().unwrap().is_some() {
-            if chain_account
-                .pending_block()
-                .unwrap()
-                .unwrap()
-                .signers
-                .get(&validator.pubkey().into())
-                .is_none()
-            {
-                log::info!("Found Pending block");
-                let fingerprint = &chain_account
-                    .pending_block()
-                    .unwrap()
-                    .unwrap()
-                    .fingerprint;
-                let signature = validator.sign_message(fingerprint.as_slice());
+    // Check if there is a pending block to sign
+    let chain_account: ChainData = program.account(chain).unwrap();
+    if chain_account.pending_block().unwrap().is_some() {
+        if chain_account
+            .pending_block()
+            .unwrap()
+            .unwrap()
+            .signers
+            .get(&validator.pubkey().into())
+            .is_none()
+        {
+            log::info!("Found Pending block");
+            let fingerprint =
+                &chain_account.pending_block().unwrap().unwrap().fingerprint;
+            let signature = validator.sign_message(fingerprint.as_slice());
 
-                let tx = utils::submit_call(
-                    &program,
-                    signature,
-                    fingerprint.as_slice(),
-                    &validator,
-                    chain,
-                    trie,
-                    max_retries,
-                );
-                match tx {
-                    Ok(tx) => {
-                        log::info!(
-                            "Pending Block signed -> Transaction: {}",
-                            tx
-                        );
-                        break;
-                    }
-                    Err(err) => {
-                        log::error!("Failed to send the transaction {err}")
-                    }
+            let tx = utils::submit_call(
+                &program,
+                signature,
+                fingerprint.as_slice(),
+                &validator,
+                chain,
+                trie,
+                max_retries,
+            );
+            match tx {
+                Ok(tx) => {
+                    log::info!("Pending Block signed -> Transaction: {}", tx);
                 }
-            } else {
-                log::info!("Pending block is already signed");
+                Err(err) => {
+                    log::error!("Failed to send the transaction {err}")
+                }
             }
         } else {
-            log::info!("No pending blocks");
+            log::info!("Pending block is already signed");
         }
+    } else {
+        log::info!("No pending blocks");
+    }
+
+    loop {
         let logs =
             receiver.recv().unwrap_or_else(|err| panic!("Disconnected: {err}"));
 
