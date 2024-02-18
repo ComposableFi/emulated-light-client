@@ -241,9 +241,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             guest_chain_program_id: solana_ibc::ID,
         })
         .args(restaking::instruction::Deposit {
-            service: Some(Service::GuestChain {
-                validator: validator.pubkey(),
-            }),
+            service: Service::GuestChain { validator: validator.pubkey() },
             amount,
         })
         .payer(validator.clone())
