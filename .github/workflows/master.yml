@@ -18,17 +18,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly
+          # Pin nightly to specific version to avoid ahash breakage.
+          # See https://github.com/tkaitchuck/aHash/issues/200
+          # TODO(mina86): Unpin once situation with ahash is resolved.
+          # Hopefully we won’t need to patch.
+          #toolchain: nightly
+          toolchain: nightly-2024-02-05
           components: clippy rustfmt miri
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -37,7 +42,7 @@ jobs:
 
       - name: Cache cargo-deny
         id: cache-cargo-deny
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/bin/cargo-deny
           key: ${{ runner.os }}-${{ steps.install-rust.outputs.cachekey }}-cargo-deny
@@ -63,10 +68,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Node JS 16
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 16.14.2
           cache: "yarn"
@@ -79,13 +84,13 @@ jobs:
           components: rustfmt
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Anchor
         id: cache-anchor
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.avm
@@ -112,7 +117,7 @@ jobs:
           cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
-       
+
       - name: Installing node modules
         run : yarn
 
@@ -130,7 +135,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
@@ -139,7 +144,7 @@ jobs:
           components: rustfmt
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 

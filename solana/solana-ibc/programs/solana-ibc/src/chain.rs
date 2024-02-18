@@ -1,8 +1,10 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
+use blockchain::manager::PendingBlock;
 pub use blockchain::Config;
 use lib::hash::CryptoHash;
+pub use solana_ed25519::{PubKey, Signature, Verifier};
 
 use crate::error::Error;
 use crate::{events, ibc, storage};
@@ -14,7 +16,7 @@ pub type Block = blockchain::Block<PubKey>;
 pub type BlockHeader = blockchain::BlockHeader;
 pub type Manager = blockchain::ChainManager<PubKey>;
 pub type Validator = blockchain::Validator<PubKey>;
-pub use crate::ed25519::{PubKey, Signature, Verifier};
+pub type Candidate = blockchain::Candidate<PubKey>;
 
 /// Guest blockchain data held in Solana account.
 #[account]
@@ -169,6 +171,27 @@ impl ChainData {
             .cloned())
     }
 
+    /// Returns the Candidate data with stake and rewards
+    pub fn candidate(
+        &self,
+        candidate: Pubkey,
+    ) -> Result<Option<Candidate>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner
+            .manager
+            .candidates()
+            .iter()
+            .find(|c| c.pubkey == candidate)
+            .cloned())
+    }
+    // Returns a pending block if present
+    pub fn pending_block(
+        &self,
+    ) -> Result<Option<&PendingBlock<PubKey>>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.pending_block())
+    }
+
     /// Gets the rewards from the mentioned epoch height for the validator with specified stake along with the current epoch height
     ///
     /// Right now, returning 0 for rewards until calculating rewards is implemented.
@@ -182,6 +205,11 @@ impl ChainData {
         // Call the method to get the rewards
         let current_height = inner.manager.epoch_height();
         Ok((0, u64::from(current_height)))
+    }
+
+    pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.genesis().clone())
     }
 
     /// Checks whether given `program_id` matches expected staking program id.
@@ -282,7 +310,6 @@ impl ChainInner {
     }
 }
 
-
 /// Returns Solana’s slot number (what we call host height) and timestamp.
 ///
 /// Note that even though Solana has a concept of a block height, this is not
@@ -304,7 +331,6 @@ fn get_host_head() -> Result<(blockchain::HostHeight, NonZeroU64)> {
         .unwrap();
     Ok((clock.slot.into(), timestamp))
 }
-
 
 impl From<ChainNotInitialised> for Error {
     fn from(_: ChainNotInitialised) -> Self { Error::ChainNotInitialised }
@@ -328,7 +354,6 @@ impl From<ChainNotInitialised> for ibc::ContextError {
             .into()
     }
 }
-
 
 impl core::fmt::Debug for ChainData {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {

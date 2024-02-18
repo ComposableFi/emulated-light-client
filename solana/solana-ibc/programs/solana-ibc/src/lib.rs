@@ -5,9 +5,9 @@
 
 extern crate alloc;
 
+use ::ibc::core::client::types::error::ClientError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
-use anchor_lang::solana_program::sysvar::instructions as tx_instructions;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
@@ -29,11 +29,11 @@ mod allocator;
 pub mod chain;
 pub mod client_state;
 pub mod consensus_state;
-mod ed25519;
 mod error;
 pub mod events;
 mod execution_context;
 mod ibc;
+pub mod ix_data_account;
 #[cfg_attr(not(feature = "mocks"), path = "no-mocks.rs")]
 mod mocks;
 pub mod storage;
@@ -42,10 +42,45 @@ mod tests;
 mod transfer;
 mod validation_context;
 
+#[allow(unused_imports)]
+pub(crate) use allocator::global;
+
+/// Solana smart contract entrypoint.
+///
+/// We’re using a custom entrypoint which has special handling for instruction
+/// data account.  See [`ix_data_account`] module.
+///
+/// # Safety
+///
+/// Must be called with pointer to properly serialised instruction such as done
+/// by the Solana runtime.  See [`solana_program::entrypoint::deserialize`].
+#[cfg(not(feature = "no-entrypoint"))]
+#[no_mangle]
+pub unsafe extern "C" fn entrypoint(input: *mut u8) -> u64 {
+    let (program_id, mut accounts, mut instruction_data) =
+        unsafe { solana_program::entrypoint::deserialize(input) };
+
+    // If instruction data is empty, the actual instruction data comes from the
+    // last account passed in the call.
+    if instruction_data.is_empty() {
+        match ix_data_account::get_ix_data(&mut accounts) {
+            Ok(data) => instruction_data = data,
+            Err(err) => return err.into(),
+        }
+    }
+
+    // `entry` function is defined by Anchor via `program` macro.
+    match entry(program_id, &accounts, instruction_data) {
+        Ok(()) => solana_program::entrypoint::SUCCESS,
+        Err(error) => error.into(),
+    }
+}
+
+#[cfg(not(feature = "no-entrypoint"))]
+solana_program::custom_panic_default!();
+
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-    use ::ibc::core::client::types::error::ClientError;
 
     use super::*;
 
@@ -97,7 +132,7 @@ pub mod solana_ibc {
         signature: [u8; 64],
     ) -> Result<()> {
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
-        let verifier = ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let verifier = solana_ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -121,23 +156,22 @@ pub mod solana_ibc {
     ///
     /// Can only be called through CPI from our staking program whose
     /// id is stored in chain account.
-    pub fn set_stake(ctx: Context<SetStake>, amount: u128) -> Result<()> {
+    pub fn set_stake(
+        ctx: Context<SetStake>,
+        validator: Pubkey,
+        amount: u128,
+    ) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
-        let ixns = ctx.accounts.instruction.to_account_info();
-        let current_index =
-            tx_instructions::load_current_index_checked(&ixns)? as usize;
-        let current_ixn =
-            tx_instructions::load_instruction_at_checked(current_index, &ixns)?;
-
-        msg!(
-            " staking program ID: {} Current program ID: {}",
-            current_ixn.program_id,
-            *ctx.program_id
-        );
-        chain.check_staking_program(&current_ixn.program_id)?;
+        let caller_program_id =
+            solana_program::sysvar::instructions::get_instruction_relative(
+                0,
+                &ctx.accounts.instruction.to_account_info(),
+            )?
+            .program_id;
+        chain.check_staking_program(&caller_program_id)?;
         let provable = storage::get_provable_from(&ctx.accounts.trie)?;
         chain.maybe_generate_block(&provable)?;
-        chain.set_stake((*ctx.accounts.sender.key).into(), amount)
+        chain.set_stake((validator).into(), amount)
     }
 
     /// Called to set up escrow and mint accounts for given channel
@@ -159,11 +193,19 @@ pub mod solana_ibc {
 
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
+        mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
+
+        if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
+            if let Ok(verifier) = solana_ed25519::Verifier::new(last) {
+                global().set_verifier(verifier);
+                ctx.remaining_accounts = rest;
+            }
+        }
+
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))
@@ -370,10 +412,6 @@ pub struct SetStake<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
-
-    /// We would support only SOL as stake which has decimal of 9
-    #[account(mut, mint::decimals = 9)]
-    stake_mint: Account<'info, Mint>,
 
     system_program: Program<'info, System>,
 

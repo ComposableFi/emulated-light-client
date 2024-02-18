@@ -9,9 +9,10 @@ crate-type = ["cdylib", "lib"]
 name = "solana_ibc"
 
 [features]
-default = ["custom-heap"]
+default = ["custom-entrypoint", "custom-heap"]
 cpi = ["no-entrypoint"]
-custom-heap = []
+custom-heap = ["solana-allocator"]
+custom-entrypoint = ["custom-heap"]
 mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
@@ -21,7 +22,7 @@ no-log-ix-name = []
 anchor-lang.workspace = true
 anchor-spl.workspace = true
 base64.workspace = true
-bytemuck = { workspace = true, features = ["must_cast"] }
+bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
@@ -31,13 +32,14 @@ serde.workspace = true
 serde_json.workspace = true
 spl-associated-token-account.workspace = true
 spl-token.workspace = true
-
 strum.workspace = true
 uint.workspace = true
 
 blockchain.workspace = true
 lib.workspace = true
 memory.workspace = true
+solana-allocator = { workspace = true, optional = true }
+solana-ed25519 = { workspace = true, features = ["borsh", "guest"] }
 solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }
@@ -50,3 +52,4 @@ ibc-testkit.workspace = true
 insta.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
+solana-write-account = { workspace = true, features = ["no-entrypoint"] }
