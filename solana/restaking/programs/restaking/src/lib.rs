@@ -286,14 +286,42 @@ pub mod restaking {
         Ok(())
     }
 
-    pub fn update_admin(
+    /// Updating admin proposal created by the existing admin. Admin would only be changed
+    /// if the new admin accepts it in `accept_admin_change` instruction.
+    pub fn change_admin_proposal(
         ctx: Context<UpdateStakingParams>,
         new_admin: Pubkey,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
-        msg!("Changing Admin from {} to {}", staking_params.admin, new_admin);
+        msg!(
+            "Proposal for changing Admin from {} to {}",
+            staking_params.admin,
+            new_admin
+        );
 
+        staking_params.new_admin_proposal = Some(new_admin);
+        Ok(())
+    }
+
+    /// Accepting new admin change signed by the proposed admin. Admin would be changed if the
+    /// proposed admin calls the method. Would fail if there is no proposed admin and if the
+    /// signer is not the proposed admin.
+    pub fn accept_admin_change(ctx: Context<UpdateAdmin>) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+        let new_admin = staking_params
+            .new_admin_proposal
+            .ok_or(ErrorCodes::NoProposedAdmin)?;
+        if new_admin != ctx.accounts.new_admin.key() {
+            return Err(error!(ErrorCode::ConstraintSigner));
+        }
+
+        msg!(
+            "Changing Admin from {} to {}",
+            staking_params.admin,
+            staking_params.new_admin_proposal.unwrap()
+        );
         staking_params.admin = new_admin;
+
         Ok(())
     }
 
@@ -645,6 +673,16 @@ pub struct UpdateStakingParams<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateAdmin<'info> {
+    #[account(mut)]
+    pub new_admin: Signer<'info>,
+
+    /// Validation would be done in the method
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    pub staking_params: Account<'info, StakingParams>,
+}
+
+#[derive(Accounts)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub claimer: Signer<'info>,
@@ -729,6 +767,7 @@ pub struct StakingParams {
     // None means there is not staking cap
     pub staking_cap: u128,
     pub total_deposited_amount: u128,
+    pub new_admin_proposal: Option<Pubkey>,
 }
 
 /// Unused for now
@@ -783,4 +822,6 @@ pub enum ErrorCodes {
     AccountValidationFailedForCPI,
     #[msg("Service is already set.")]
     ServiceAlreadySet,
+    #[msg("There is no proposal for changing admin")]
+    NoProposedAdmin,
 }

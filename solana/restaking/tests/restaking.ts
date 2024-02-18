@@ -400,15 +400,24 @@ describe("restaking", () => {
   it("Update admin", async () => {
     const { stakingParamsPDA } = getStakingParamsPDA();
     try {
-      const tx = await program.methods
-        .updateAdmin(depositor.publicKey)
+      let tx = await program.methods
+        .changeAdminProposal(depositor.publicKey)
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
         })
         .signers([admin])
         .rpc();
-      console.log("  Signature for Updating Admin: ", tx);
+      console.log("  Signature for Updating Admin Proposal: ", tx);
+      tx = await program.methods
+        .acceptAdminChange()
+        .accounts({
+          newAdmin: depositor.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Accepting Admin Proposal: ", tx);
       const stakingParameters = await getStakingParameters(program);
       assert.equal(stakingParameters.admin.toBase58(),depositor.publicKey.toBase58());
     } catch (error) {
