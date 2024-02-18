@@ -136,16 +136,15 @@ fn setup_write_account(
     } else if accounts.write.data_len() < size {
         // If size is less than required, reallocate.  We may need to transfer
         // more lamports to keep the account as rent-exempt.
-        let lamports = get_required_lamports()?.saturating_sub(lamports);
+        let required = get_required_lamports()?;
+        let lamports = required.saturating_sub(lamports);
         if lamports > 0 {
-            solana_program::program::invoke(
-                &system_instruction::transfer(
-                    accounts.payer.key,
-                    accounts.write.key,
-                    lamports,
-                ),
-                &[accounts.payer.clone(), accounts.write.clone()],
-            )?;
+            let mut payer = accounts.payer.try_borrow_mut_lamports()?;
+            let mut write = accounts.write.try_borrow_mut_lamports()?;
+            *payer = payer
+                .checked_sub(lamports)
+                .ok_or(ProgramError::InsufficientFunds)?;
+            *write = required;
         }
         accounts.write.realloc(size, false)
     } else {
