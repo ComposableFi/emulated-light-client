@@ -94,8 +94,6 @@ pub mod restaking {
 
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
-            let service =
-                service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
             let validator_key = match service {
                 Service::GuestChain { validator } => validator,
             };
@@ -106,7 +104,7 @@ pub mod restaking {
                 solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                     .unwrap();
             let validator = chain
-                .validator(*validator_key)
+                .validator(validator_key)
                 .map_err(|_| ErrorCodes::OperationNotAllowed)?;
             let amount = validator.map_or(u128::from(amount), |val| {
                 u128::from(val.stake) + u128::from(amount)
@@ -131,7 +129,7 @@ pub mod restaking {
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(cpi_ctx, *validator_key, amount)?;
+            solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
         }
 
         Ok(())
@@ -531,7 +529,6 @@ pub struct Deposit<'info> {
 
     #[account(address = solana_program::sysvar::instructions::ID)]
     ///CHECK:   
-    #[account(address = solana_program::sysvar::instructions::ID)]
     pub instruction: AccountInfo<'info>,
 
     #[account(
