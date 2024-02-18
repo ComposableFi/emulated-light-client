@@ -331,31 +331,25 @@ impl PrivateStorage {
 }
 
 /// Provable storage, i.e. the trie, held in an account.
-pub type AccountTrie<'a, 'b> =
-    solana_trie::AccountTrie<RefMut<'a, &'b mut [u8]>>;
+pub type TrieAccount<'a, 'b> =
+    solana_trie::TrieAccount<RefMut<'a, &'b mut [u8]>>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
 /// The account needs to be owned by [`crate::ID`] and
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
-) -> Result<AccountTrie<'a, 'info>> {
-    fn get<'a, 'info>(
-        info: &'a AccountInfo<'info>,
-    ) -> Result<AccountTrie<'a, 'info>> {
-        if info.owner == &anchor_lang::system_program::ID &&
-            info.lamports() == 0
-        {
-            Err(Error::from(ErrorCode::AccountNotInitialized))
-        } else if info.owner != &crate::ID {
-            Err(Error::from(ErrorCode::AccountOwnedByWrongProgram)
-                .with_pubkeys((*info.owner, crate::ID)))
+) -> Result<TrieAccount<'a, 'info>> {
+    TrieAccount::from_account_info(info, &crate::ID).map_err(|err| {
+        let bad_owner = matches!(err, ProgramError::InvalidAccountOwner);
+        let err = Error::from(err);
+        let err = if bad_owner {
+            err.with_pubkeys((*info.owner, crate::ID))
         } else {
-            AccountTrie::new(info.try_borrow_mut_data()?)
-                .ok_or(Error::from(ProgramError::InvalidAccountData))
-        }
-    }
-    get(info).map_err(|err| err.with_account_name("trie"))
+            err
+        };
+        err.with_account_name("trie")
+    })
 }
 
 /// Used for finding the account info from the keys.
@@ -378,7 +372,7 @@ pub struct TransferAccounts<'a> {
 #[derive(Debug)]
 pub(crate) struct IbcStorageInner<'a, 'b> {
     pub private: &'a mut PrivateStorage,
-    pub provable: AccountTrie<'a, 'b>,
+    pub provable: TrieAccount<'a, 'b>,
     pub accounts: TransferAccounts<'b>,
     pub chain: &'a mut crate::chain::ChainData,
 }
