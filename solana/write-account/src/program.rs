@@ -137,14 +137,13 @@ fn setup_write_account(
         // If size is less than required, reallocate.  We may need to transfer
         // more lamports to keep the account as rent-exempt.
         let required = get_required_lamports()?;
-        let lamports = required.saturating_sub(lamports);
-        if lamports > 0 {
+        if required > lamports {
             let mut payer = accounts.payer.try_borrow_mut_lamports()?;
             let mut write = accounts.write.try_borrow_mut_lamports()?;
-            *payer = payer
-                .checked_sub(lamports)
+            **payer = payer
+                .checked_sub(required - lamports)
                 .ok_or(ProgramError::InsufficientFunds)?;
-            *write = required;
+            **write = required;
         }
         accounts.write.realloc(size, false)
     } else {
