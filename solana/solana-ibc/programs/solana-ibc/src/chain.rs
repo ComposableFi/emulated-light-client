@@ -55,7 +55,7 @@ impl ChainData {
     /// Fails if the chain is already initialised.
     pub fn initialise(
         &mut self,
-        trie: &mut storage::AccountTrie,
+        trie: &mut storage::TrieAccount,
         config: Config,
         genesis_epoch: Epoch,
         staking_program_id: Pubkey,
@@ -99,7 +99,7 @@ impl ChainData {
     /// a new block.  In contrast, [`Self::maybe_generate_block`] is intended to
     /// create a new block opportunistically at the beginning of handling any
     /// smart contract request.
-    pub fn generate_block(&mut self, trie: &storage::AccountTrie) -> Result {
+    pub fn generate_block(&mut self, trie: &storage::TrieAccount) -> Result {
         self.get_mut()?.generate_block(trie, true)
     }
 
@@ -111,7 +111,7 @@ impl ChainData {
     /// beginning of handling any smart contract request.
     pub fn maybe_generate_block(
         &mut self,
-        trie: &storage::AccountTrie,
+        trie: &storage::TrieAccount,
     ) -> Result {
         self.get_mut()?.generate_block(trie, false)
     }
@@ -265,7 +265,7 @@ impl ChainInner {
     /// changed) is silently ignored.
     fn generate_block(
         &mut self,
-        trie: &storage::AccountTrie,
+        trie: &storage::TrieAccount,
         force: bool,
     ) -> Result {
         let (host_height, host_timestamp) = get_host_head()?;

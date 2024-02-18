@@ -19,7 +19,7 @@ pub fn process_instruction(
         return Err(ProgramError::IncorrectProgramId);
     }
     let mut trie =
-        solana_trie::AccountTrie::new(account.try_borrow_mut_data()?)
+        solana_trie::TrieAccount::new(account.try_borrow_mut_data()?)
             .ok_or(ProgramError::InvalidAccountData)?;
     match Instruction::decode(instruction)? {
         Instruction::Get { key, include_proof } => {
@@ -36,7 +36,7 @@ pub fn process_instruction(
 }
 
 fn handle_get(
-    trie: solana_trie::AccountTrie<core::cell::RefMut<'_, &'_ mut [u8]>>,
+    trie: solana_trie::TrieAccount<core::cell::RefMut<'_, &'_ mut [u8]>>,
     key: &[u8],
     include_proof: bool,
 ) -> Result {
