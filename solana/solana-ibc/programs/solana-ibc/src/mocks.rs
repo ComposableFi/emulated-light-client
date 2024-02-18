@@ -13,7 +13,10 @@ pub(crate) fn mock_deliver<'a, 'info>(
 ) -> Result<()> {
     let mut store = storage::IbcStorage::new(storage::IbcStorageInner {
         private: &mut ctx.accounts.storage,
-        provable: storage::get_provable_from(&ctx.accounts.trie)?,
+        provable: storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?,
         chain: &mut ctx.accounts.chain,
         accounts: Default::default(),
     });

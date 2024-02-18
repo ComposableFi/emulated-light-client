@@ -92,7 +92,10 @@ pub mod solana_ibc {
         genesis_epoch: chain::Epoch,
         staking_program_id: Pubkey,
     ) -> Result<()> {
-        let mut provable = storage::get_provable_from(&ctx.accounts.trie)?;
+        let mut provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
         ctx.accounts.chain.initialise(
             &mut provable,
             config,
@@ -110,7 +113,10 @@ pub mod solana_ibc {
     /// should offer rewards to account making the generate block call.  This is
     /// currently not implemented and will be added at a later time.
     pub fn generate_block(ctx: Context<Chain>) -> Result<()> {
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
         ctx.accounts.chain.generate_block(&provable)
     }
 
@@ -131,7 +137,10 @@ pub mod solana_ibc {
         // non-literals in array sizes.  Yeah, it’s dumb.
         signature: [u8; 64],
     ) -> Result<()> {
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
         let verifier = solana_ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
@@ -169,7 +178,10 @@ pub mod solana_ibc {
             )?
             .program_id;
         chain.check_staking_program(&caller_program_id)?;
-        let provable = storage::get_provable_from(&ctx.accounts.trie)?;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((validator).into(), amount)
     }

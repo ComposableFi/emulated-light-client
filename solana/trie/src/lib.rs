@@ -4,10 +4,12 @@ use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
 
+mod account;
 mod alloc;
 mod data_ref;
 mod header;
 
+pub use account::ResizableAccount;
 pub use data_ref::DataRef;
 pub use sealable_trie::Trie;
 
@@ -31,29 +33,60 @@ impl<D: DataRef + Sized> TrieAccount<D> {
 }
 
 impl<'a, 'b> TrieAccount<core::cell::RefMut<'a, &'b mut [u8]>> {
-    /// Creates a new TrieAccount from data in an account specified by given info.
+    /// Creates a new TrieAccount from data in an account specified by given
+    /// info.
     ///
     /// Returns an error if the account isn’t owned by given `owner`.
     ///
     /// Created TrieAccount holds exclusive reference on the account’s data thus
     /// no other code can access it while this object is alive.
     pub fn from_account_info(
-        info: &'a AccountInfo<'b>,
+        account: &'a AccountInfo<'b>,
         owner: &Pubkey,
     ) -> Result<Self, ProgramError> {
-        if !solana_program::system_program::check_id(info.owner) &&
-            info.lamports() == 0
-        {
-            Err(ProgramError::UninitializedAccount)
-        } else if info.owner != owner {
-            Err(ProgramError::InvalidAccountOwner)
-        } else {
-            let data = info.try_borrow_mut_data()?;
-            Self::new(data).ok_or(ProgramError::InvalidAccountData)
-        }
+        check_account(account, owner)?;
+        let data = account.try_borrow_mut_data()?;
+        Self::new(data).ok_or(ProgramError::InvalidAccountData)
     }
 }
 
+impl<'a, 'b> TrieAccount<ResizableAccount<'a, 'b>> {
+    /// Creates a new TrieAccount from data in an account specified by given
+    /// info.
+    ///
+    /// Returns an error if the account isn’t owned by given `owner`.
+    ///
+    /// Created TrieAccount holds exclusive reference on the account’s data thus
+    /// no other code can access it while this object is alive.
+    ///
+    /// If the account needs to increase in size, `payer`’s account is used to
+    /// transfer lamports necessary to keep the account rent-exempt.
+    pub fn from_account_with_payer(
+        account: &'a AccountInfo<'b>,
+        owner: &Pubkey,
+        payer: &'a AccountInfo<'b>,
+    ) -> Result<Self, ProgramError> {
+        check_account(account, owner)?;
+        let data = ResizableAccount::new(account, payer)?;
+        Self::new(data).ok_or(ProgramError::InvalidAccountData)
+    }
+}
+
+/// Checks ownership information of the account.
+fn check_account(
+    account: &AccountInfo,
+    owner: &Pubkey,
+) -> Result<(), ProgramError> {
+    if !solana_program::system_program::check_id(account.owner) &&
+        account.lamports() == 0
+    {
+        Err(ProgramError::UninitializedAccount)
+    } else if account.owner != owner {
+        Err(ProgramError::InvalidAccountOwner)
+    } else {
+        Ok(())
+    }
+}
 
 impl<D: DataRef + Sized> core::ops::Drop for TrieAccount<D> {
     /// Updates the header in the Solana account.
@@ -117,4 +150,30 @@ fn test_trie_sanity() {
         assert_eq!(Ok(()), trie.seal(&[0]));
         assert_eq!(Err(sealable_trie::Error::Sealed), trie.get(&[0]));
     }
+}
+
+#[test]
+fn test_trie_resize() {
+    const ONE: lib::hash::CryptoHash = lib::hash::CryptoHash([1; 32]);
+
+    let mut data = vec![0; 64];
+    {
+        let mut trie = TrieAccount::new(&mut data).unwrap();
+        assert_eq!(Ok(None), trie.get(&[0]));
+        assert_eq!(Ok(()), trie.set(&[0], &ONE));
+        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+    }
+    #[rustfmt::skip]
+    assert_eq!([
+        /* magic: */ 0xd2, 0x97, 0x1f, 0x41, 0x20, 0x4a, 0xd6, 0xed,
+        /* header: */ 64, 0, 0, 0, 81, 213, 137, 123, 111, 170, 61, 119, 192,
+                      61, 179, 52, 117, 154, 26, 215, 15, 164, 52, 114, 30, 39,
+                      201, 248, 29, 213, 251, 45, 245, 93, 239, 40, 136,
+        /* padding: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        /* root node */
+        128, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1,
+    ], data.as_slice());
 }

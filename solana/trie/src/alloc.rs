@@ -51,10 +51,12 @@ impl<D: DataRef> Allocator<D> {
         let ptr = Ptr::new(self.next_block).ok().flatten()?;
         let len = u32::try_from(self.data.len()).unwrap_or(u32::MAX);
         let end = self.next_block.checked_add(SZ as u32)?;
-        (end <= len).then(|| {
+        if end > len && !self.data.enlarge(usize::try_from(end).ok()?) {
+            None
+        } else {
             self.next_block = end;
-            ptr
-        })
+            Some(ptr)
+        }
     }
 }
 
