@@ -9,6 +9,7 @@ import {
   guestChainProgramID,
   getGuestChainAccounts,
   getRewardsTokenAccountPDA,
+  getStakingParameters,
   getStakingParamsPDA,
   getVaultParamsPDA,
 } from "./helper";
@@ -36,6 +37,7 @@ describe("restaking", () => {
 
   let initialMintAmount = 100000000;
   let stakingCap = 30000;
+  let newStakingCap = 60000;
   const depositAmount = 4000;
 
   let tokenMintKeypair = anchor.web3.Keypair.generate();
@@ -394,4 +396,54 @@ describe("restaking", () => {
       throw error;
     }
   });
+
+  it("Update admin", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      let tx = await program.methods
+        .changeAdminProposal(depositor.publicKey)
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Admin Proposal: ", tx);
+      tx = await program.methods
+        .acceptAdminChange()
+        .accounts({
+          newAdmin: depositor.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Accepting Admin Proposal: ", tx);
+      const stakingParameters = await getStakingParameters(program);
+      assert.equal(stakingParameters.admin.toBase58(),depositor.publicKey.toBase58());
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
+
+  it("Update staking cap after updating admin", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateStakingCap(new anchor.BN(newStakingCap))
+        .accounts({
+          admin: depositor.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Updating staking cap: ", tx);
+      const stakingParameters = await getStakingParameters(program);
+      assert.equal(stakingParameters.stakingCap.toNumber(), newStakingCap);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  })
+
 });

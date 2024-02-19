@@ -52,7 +52,7 @@ pub mod restaking {
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
-        service: Option<Service>,
+        service: Service,
         amount: u64,
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
@@ -79,7 +79,7 @@ pub mod restaking {
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
         vault_params.service =
-            if guest_chain_program_id.is_some() { service } else { None };
+            if guest_chain_program_id.is_some() { Some(service) } else { None };
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
@@ -94,8 +94,6 @@ pub mod restaking {
 
         // Call Guest chain program to update the stake if the chain is initialized
         if guest_chain_program_id.is_some() {
-            let service =
-                service.as_ref().ok_or(error!(ErrorCodes::MissingService))?;
             let validator_key = match service {
                 Service::GuestChain { validator } => validator,
             };
@@ -106,7 +104,7 @@ pub mod restaking {
                 solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                     .unwrap();
             let validator = chain
-                .validator(*validator_key)
+                .validator(validator_key)
                 .map_err(|_| ErrorCodes::OperationNotAllowed)?;
             let amount = validator.map_or(u128::from(amount), |val| {
                 u128::from(val.stake) + u128::from(amount)
@@ -131,7 +129,7 @@ pub mod restaking {
             let cpi_program = ctx.remaining_accounts[2].clone();
             let cpi_ctx =
                 CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(cpi_ctx, *validator_key, amount)?;
+            solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
         }
 
         Ok(())
@@ -288,6 +286,45 @@ pub mod restaking {
         Ok(())
     }
 
+    /// Updating admin proposal created by the existing admin. Admin would only be changed
+    /// if the new admin accepts it in `accept_admin_change` instruction.
+    pub fn change_admin_proposal(
+        ctx: Context<UpdateStakingParams>,
+        new_admin: Pubkey,
+    ) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+        msg!(
+            "Proposal for changing Admin from {} to {}",
+            staking_params.admin,
+            new_admin
+        );
+
+        staking_params.new_admin_proposal = Some(new_admin);
+        Ok(())
+    }
+
+    /// Accepting new admin change signed by the proposed admin. Admin would be changed if the
+    /// proposed admin calls the method. Would fail if there is no proposed admin and if the
+    /// signer is not the proposed admin.
+    pub fn accept_admin_change(ctx: Context<UpdateAdmin>) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+        let new_admin = staking_params
+            .new_admin_proposal
+            .ok_or(ErrorCodes::NoProposedAdmin)?;
+        if new_admin != ctx.accounts.new_admin.key() {
+            return Err(error!(ErrorCode::ConstraintSigner));
+        }
+
+        msg!(
+            "Changing Admin from {} to {}",
+            staking_params.admin,
+            staking_params.new_admin_proposal.unwrap()
+        );
+        staking_params.admin = new_admin;
+
+        Ok(())
+    }
+
     pub fn claim_rewards(ctx: Context<Claim>) -> Result<()> {
         let staking_params = &ctx.accounts.staking_params;
 
@@ -362,6 +399,10 @@ pub mod restaking {
         let staking_params = &mut ctx.accounts.staking_params;
         let guest_chain = &ctx.remaining_accounts[0];
 
+        let token_account = &ctx.accounts.receipt_token_account;
+        if token_account.amount < 1 {
+            return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
+        }
         if staking_params.guest_chain_program_id.is_none() {
             return Err(error!(ErrorCodes::OperationNotAllowed));
         }
@@ -486,6 +527,10 @@ pub struct Deposit<'info> {
     #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
     pub staking_params: Box<Account<'info, StakingParams>>,
 
+    /// Only token mint with 9 decimals can be staked for now since
+    /// the guest chain expects that.  If a whitelisted token has 6
+    /// decimals, it would just be invalid.
+    #[account(mut, mint::decimals = 9)]
     pub token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = token_mint, token::authority = depositor.key())]
     pub depositor_token_account: Box<Account<'info, TokenAccount>>,
@@ -510,8 +555,8 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 
-    ///CHECK:   
     #[account(address = solana_program::sysvar::instructions::ID)]
+    ///CHECK:   
     pub instruction: AccountInfo<'info>,
 
     #[account(
@@ -628,6 +673,16 @@ pub struct UpdateStakingParams<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateAdmin<'info> {
+    #[account(mut)]
+    pub new_admin: Signer<'info>,
+
+    /// Validation would be done in the method
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    pub staking_params: Account<'info, StakingParams>,
+}
+
+#[derive(Accounts)]
 pub struct Claim<'info> {
     #[account(mut)]
     pub claimer: Signer<'info>,
@@ -712,6 +767,7 @@ pub struct StakingParams {
     // None means there is not staking cap
     pub staking_cap: u128,
     pub total_deposited_amount: u128,
+    pub new_admin_proposal: Option<Pubkey>,
 }
 
 /// Unused for now
@@ -766,4 +822,6 @@ pub enum ErrorCodes {
     AccountValidationFailedForCPI,
     #[msg("Service is already set.")]
     ServiceAlreadySet,
+    #[msg("There is no proposal for changing admin")]
+    NoProposedAdmin,
 }

@@ -402,6 +402,7 @@ pub struct Chain<'info> {
 
     system_program: Program<'info, System>,
 
+    #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
     instruction: AccountInfo<'info>,
@@ -426,6 +427,7 @@ pub struct SetStake<'info> {
 
     system_program: Program<'info, System>,
 
+    #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
     instruction: AccountInfo<'info>,
