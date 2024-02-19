@@ -239,20 +239,20 @@ impl SignatureOffsets {
 }
 
 macro_rules! fmt_impl {
-    (impl $trait:ident for $ty:ident) => {
+    (impl $trait:ident for $ty:ident, $func_name:ident) => {
         impl fmt::$trait for $ty {
             #[inline]
             fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
-                base64_display(&self.0, fmtr)
+                $func_name(&self.0, fmtr)
             }
         }
     };
 }
 
-fmt_impl!(impl Display for PubKey);
-fmt_impl!(impl Debug for PubKey);
-fmt_impl!(impl Display for Signature);
-fmt_impl!(impl Debug for Signature);
+fmt_impl!(impl Display for PubKey, base58_display);
+fmt_impl!(impl Debug for PubKey, base58_display);
+fmt_impl!(impl Display for Signature, base64_display);
+fmt_impl!(impl Debug for Signature, base64_display);
 
 /// Displays slice using base64 encoding.  Slice must be at most 64 bytes
 /// (i.e. length of a signature).
@@ -264,6 +264,13 @@ fn base64_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
     let len = BASE64_ENGINE.encode_slice(bytes, &mut buf[..]).unwrap();
     // SAFETY: base64 fills the buffer with ASCII characters only.
     fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
+}
+
+/// Displays slice using base58 encoding.
+fn base58_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
+    let data = bs58::encode(bytes).into_string();
+    // SAFETY: base58 fills the buffer with ASCII characters only.
+    fmtr.write_str(&data)
 }
 
 
