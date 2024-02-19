@@ -256,7 +256,7 @@ fmt_impl!(impl Debug for Signature, base64_display);
 
 /// Displays slice using base64 encoding.  Slice must be at most 64 bytes
 /// (i.e. length of a signature).
-fn base64_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
+fn base64_display(bytes: &[u8; 64], fmtr: &mut fmt::Formatter) -> fmt::Result {
     use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
     use base64::Engine;
 
