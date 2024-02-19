@@ -4,6 +4,7 @@ use solana_program::account_info::AccountInfo;
 use solana_program::entrypoint::MAX_PERMITTED_DATA_INCREASE;
 use solana_program::program_error::ProgramError;
 use solana_program::rent::Rent;
+use solana_program::system_instruction::MAX_PERMITTED_DATA_LENGTH;
 use solana_program::sysvar::Sysvar;
 
 #[derive(Debug)]
@@ -93,8 +94,11 @@ impl<'a, 'info> crate::data_ref::DataRef for ResizableAccount<'a, 'info> {
         // Solana’s runtime data.  Note that AccountInfo::realloc isn’t marked
         // `unsafe` even though it makes the same assumption.  Solana is weird.
         let original_data_len = unsafe { self.account.original_data_len() };
-        let new_len =
-            original_data_len.saturating_add(MAX_PERMITTED_DATA_INCREASE);
+        // To minimise number of reallocations, always increase by maximum
+        // allowable step, i.e. 10 KiB.  This gives us space for ~142 additional
+        // nodes.
+        let new_len = (original_data_len + MAX_PERMITTED_DATA_INCREASE)
+            .min(MAX_PERMITTED_DATA_LENGTH as usize);
         if min_size > new_len {
             return false;
         }
