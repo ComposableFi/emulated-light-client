@@ -111,7 +111,9 @@ impl<'a, 'info> crate::data_ref::DataRef for ResizableAccount<'a, 'info> {
             Ok(data) => data,
             Err(_) => return false,
         };
-        // SAFETY: This is copied from AccountInfo::realloc.
+        // SAFETY: Just like above, we’re assuming self.account has been
+        // constructed from Solana runtime data.  This code has been copied
+        // from AccountInfo::realloc.
         unsafe {
             let data_ptr = data.as_mut_ptr();
             // First set new length in the serialised data
