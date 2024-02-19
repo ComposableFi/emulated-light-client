@@ -336,7 +336,13 @@ pub type TrieAccount<'a, 'b> =
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
-/// The account needs to be owned by [`crate::ID`] and
+/// The account needs to be owned by [`crate::ID`] and either uninitialised or
+/// initialised with trie data.  In the former case it’s size must be at least
+/// 64 bytes.
+///
+/// The returned trie will automatically increase in size if it runs out of
+/// memory to hold nodes with `payer` covering costs of rent exemption.  The
+/// account will never be shrunk.
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
     payer: &'a Signer<'info>,
@@ -471,7 +477,8 @@ macro_rules! from_ctx {
         $crate::storage::from_ctx!($ctx, accounts = accounts)
     }};
     ($ctx:expr, accounts = $accounts:expr) => {{
-        let provable = $crate::storage::get_provable_from(&$ctx.accounts.trie, &$ctx.accounts.sender)?;
+        let provable = $crate::storage::get_provable_from(
+            &$ctx.accounts.trie, &$ctx.accounts.sender)?;
         let chain = &mut $ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
