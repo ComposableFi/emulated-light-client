@@ -14,6 +14,7 @@ use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{solana_sdk, ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
+use anchor_lang::solana_program::system_program;
 use base64::Engine;
 use bytemuck::bytes_of;
 use directories::ProjectDirs;
@@ -134,6 +135,57 @@ pub fn submit_call(
                 system_program: anchor_lang::solana_program::system_program::ID,
             })
             .args(instruction::SignBlock { signature: signature.into() })
+            .payer(validator.clone())
+            .signer(&*validator)
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..RpcSendTransactionConfig::default()
+            })
+            .map_err(|e| {
+                if matches!(e, ClientError::SolanaClientError(_)) {
+                    // log::error!("{:?}", e);
+                    status = false;
+                }
+                e
+            });
+        if status {
+            return tx;
+        }
+        sleep(Duration::from_millis(500));
+        tries += 1;
+        log::info!("Retrying to send the transaction: Attempt {}", tries);
+    }
+    log::error!("Max retries for signing the block exceeded");
+    tx
+}
+
+pub fn submit_generate_block_call(
+    program: &Program<Rc<Keypair>>,
+    validator: &Rc<Keypair>,
+    chain: Pubkey,
+    trie: Pubkey,
+    storage: Pubkey,
+    max_retries: u8,
+) -> Result<Signature, ClientError> {
+    let mut tries = 0;
+    let mut tx = Ok(Signature::new_unique());
+    while tries < max_retries {
+        let mut status = true;
+        tx = program
+            .request()
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                10_000,
+            ))
+            .accounts(accounts::Chain {
+                sender: validator.pubkey(),
+                storage,
+                chain,
+                trie,
+                system_program: system_program::ID,
+                instruction:
+                    anchor_lang::solana_program::sysvar::instructions::ID,
+            })
+            .args(instruction::GenerateBlock {})
             .payer(validator.clone())
             .signer(&*validator)
             .send_with_spinner_and_config(RpcSendTransactionConfig {

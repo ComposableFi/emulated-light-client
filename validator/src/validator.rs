@@ -30,6 +30,11 @@ pub fn run_validator(config: Config) {
         &solana_ibc::ID,
     )
     .0;
+    let private_storage = Pubkey::find_program_address(
+        &[solana_ibc::SOLANA_IBC_STORAGE_SEED],
+        &solana_ibc::ID,
+    )
+    .0;
 
     log::info!("Validator running");
 
@@ -83,6 +88,23 @@ pub fn run_validator(config: Config) {
             }
         } else {
             log::info!("No pending blocks");
+            // Trying to generate a new block
+            let tx = utils::submit_generate_block_call(
+                &program,
+                &validator,
+                chain,
+                trie,
+                private_storage,
+                max_tries,
+            );
+            match tx {
+                Ok(tx) => {
+                    log::info!("New block created -> Transaction: {}", tx);
+                }
+                Err(err) => {
+                    log::error!("Failed to send the transaction {err}")
+                }
+            }
         }
     }
 }
