@@ -23,6 +23,10 @@ pub trait DataRef {
         &mut self,
         index: I,
     ) -> Option<&mut I::Output>;
+
+    /// Increases the size of the data to at least given size; returns whether
+    /// resizing was successful.
+    fn enlarge(&mut self, min_size: usize) -> bool;
 }
 
 impl DataRef for [u8] {
@@ -42,6 +46,9 @@ impl DataRef for [u8] {
     ) -> Option<&mut I::Output> {
         self.get_mut(index)
     }
+
+    #[inline]
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }
 
 impl<const N: usize> DataRef for [u8; N] {
@@ -61,6 +68,9 @@ impl<const N: usize> DataRef for [u8; N] {
     ) -> Option<&mut I::Output> {
         self[..].get_mut(index)
     }
+
+    #[inline]
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }
 
 impl DataRef for Vec<u8> {
@@ -80,6 +90,19 @@ impl DataRef for Vec<u8> {
     ) -> Option<&mut I::Output> {
         (**self).get_mut(index)
     }
+
+    #[inline]
+    fn enlarge(&mut self, min_size: usize) -> bool {
+        let additional = min_size.saturating_sub(self.len());
+        if additional == 0 {
+            true
+        } else if self.try_reserve(additional).is_ok() {
+            self.resize(min_size, 0);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 impl<D: DataRef + ?Sized> DataRef for &'_ mut D {
@@ -97,6 +120,11 @@ impl<D: DataRef + ?Sized> DataRef for &'_ mut D {
         index: I,
     ) -> Option<&mut I::Output> {
         (**self).get_mut(index)
+    }
+
+    #[inline]
+    fn enlarge(&mut self, min_size: usize) -> bool {
+        (**self).enlarge(min_size)
     }
 }
 
@@ -117,4 +145,7 @@ impl<D: DataRef + ?Sized> DataRef for core::cell::RefMut<'_, D> {
     ) -> Option<&mut I::Output> {
         (**self).get_mut(index)
     }
+
+    #[inline]
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }

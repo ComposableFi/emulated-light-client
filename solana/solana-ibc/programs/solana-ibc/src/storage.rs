@@ -1,5 +1,5 @@
 use alloc::rc::Rc;
-use core::cell::{RefCell, RefMut};
+use core::cell::RefCell;
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
@@ -332,24 +332,33 @@ impl PrivateStorage {
 
 /// Provable storage, i.e. the trie, held in an account.
 pub type TrieAccount<'a, 'b> =
-    solana_trie::TrieAccount<RefMut<'a, &'b mut [u8]>>;
+    solana_trie::TrieAccount<solana_trie::ResizableAccount<'a, 'b>>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
-/// The account needs to be owned by [`crate::ID`] and
+/// The account needs to be owned by [`crate::ID`] and either uninitialised or
+/// initialised with trie data.  In the former case it’s size must be at least
+/// 64 bytes.
+///
+/// The returned trie will automatically increase in size if it runs out of
+/// memory to hold nodes with `payer` covering costs of rent exemption.  The
+/// account will never be shrunk.
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
+    payer: &'a Signer<'info>,
 ) -> Result<TrieAccount<'a, 'info>> {
-    TrieAccount::from_account_info(info, &crate::ID).map_err(|err| {
-        let bad_owner = matches!(err, ProgramError::InvalidAccountOwner);
-        let err = Error::from(err);
-        let err = if bad_owner {
-            err.with_pubkeys((*info.owner, crate::ID))
-        } else {
-            err
-        };
-        err.with_account_name("trie")
-    })
+    TrieAccount::from_account_with_payer(info, &crate::ID, payer).map_err(
+        |err| {
+            let bad_owner = matches!(err, ProgramError::InvalidAccountOwner);
+            let err = Error::from(err);
+            let err = if bad_owner {
+                err.with_pubkeys((*info.owner, crate::ID))
+            } else {
+                err
+            };
+            err.with_account_name("trie")
+        },
+    )
 }
 
 /// Used for finding the account info from the keys.
@@ -468,7 +477,8 @@ macro_rules! from_ctx {
         $crate::storage::from_ctx!($ctx, accounts = accounts)
     }};
     ($ctx:expr, accounts = $accounts:expr) => {{
-        let provable = $crate::storage::get_provable_from(&$ctx.accounts.trie)?;
+        let provable = $crate::storage::get_provable_from(
+            &$ctx.accounts.trie, &$ctx.accounts.sender)?;
         let chain = &mut $ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
