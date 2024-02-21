@@ -4633,6 +4633,7 @@ dependencies = [
  "base64 0.21.7",
  "blockchain",
  "borsh 0.10.3",
+ "bs58 0.5.0",
  "bytemuck",
  "derive_more",
  "solana-program",

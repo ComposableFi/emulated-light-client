@@ -239,24 +239,24 @@ impl SignatureOffsets {
 }
 
 macro_rules! fmt_impl {
-    (impl $trait:ident for $ty:ident) => {
+    (impl $trait:ident for $ty:ident, $func_name:ident) => {
         impl fmt::$trait for $ty {
             #[inline]
             fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
-                base64_display(&self.0, fmtr)
+                $func_name(&self.0, fmtr)
             }
         }
     };
 }
 
-fmt_impl!(impl Display for PubKey);
-fmt_impl!(impl Debug for PubKey);
-fmt_impl!(impl Display for Signature);
-fmt_impl!(impl Debug for Signature);
+fmt_impl!(impl Display for PubKey, base58_display);
+fmt_impl!(impl Debug for PubKey, base58_display);
+fmt_impl!(impl Display for Signature, base64_display);
+fmt_impl!(impl Debug for Signature, base64_display);
 
 /// Displays slice using base64 encoding.  Slice must be at most 64 bytes
 /// (i.e. length of a signature).
-fn base64_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
+fn base64_display(bytes: &[u8; 64], fmtr: &mut fmt::Formatter) -> fmt::Result {
     use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
     use base64::Engine;
 
@@ -266,6 +266,20 @@ fn base64_display(bytes: &[u8], fmtr: &mut fmt::Formatter) -> fmt::Result {
     fmtr.write_str(unsafe { core::str::from_utf8_unchecked(&buf[..len]) })
 }
 
+/// Displays slice using base58 encoding.
+// TODO(mina86): Get rid of this once bs58 has this feature.  There’s currently
+// PR for that: https://github.com/Nullus157/bs58-rs/pull/97
+fn base58_display(bytes: &[u8; 32], fmtr: &mut fmt::Formatter) -> fmt::Result {
+    // The largest buffer we’re ever encoding is 32-byte long.  Base58
+    // increases size of the value by less than 40%.  45-byte buffer is
+    // therefore enough to fit 32-byte values.
+    let mut buf = [0u8; 45];
+    let len = bs58::encode(bytes).onto(&mut buf[..]).unwrap();
+    let output = &buf[..len];
+    // SAFETY: We know that alphabet can only include ASCII characters
+    // thus our result is an ASCII string.
+    fmtr.write_str(unsafe { std::str::from_utf8_unchecked(output) })
+}
 
 
 #[test]
