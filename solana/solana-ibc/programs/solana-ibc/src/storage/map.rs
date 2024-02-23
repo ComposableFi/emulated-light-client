@@ -8,7 +8,7 @@ use anchor_lang::prelude::borsh::maybestd::io;
 /// Lookup operations on the map take linear time but for small maps that might
 /// actually be faster than hash maps or B trees.
 #[derive(Clone, derive_more::Deref, derive_more::DerefMut)]
-pub struct Map<K: Eq, V>(linear_map::LinearMap<K, V>);
+pub struct Map<K: Eq, V>(pub linear_map::LinearMap<K, V>);
 
 impl<K: Eq, V> Default for Map<K, V> {
     fn default() -> Self { Self(Default::default()) }
