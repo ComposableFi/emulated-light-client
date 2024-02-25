@@ -35,3 +35,10 @@ The first version of the program will not include:
 Said that CVM is no operation without implementing both, and heavy realie on IBC relayer and IBC core impementation to support above flows and enabling CVM.
 
 This specification delineates the functional blueprint for a program enabling cross-chain transactions via the ICS27 protocol, specifying the workflow, requirements, and current limitations while acknowledging potential areas for future development.
+
+## Anchor usage
+
+I am not sure of anchor usage. I actutually never coded Anchor. If Achor exprert will 
+As of now it has (after 3 years in dev) limitation - reason why Michal forked Anchor and not supporting some scenarios like we dicussing https://forum.solana.com/t/srfc-00002-off-chain-instruction-account-resolution/25/3
+
+So I do not plan to use Anchor to avoid issues.
