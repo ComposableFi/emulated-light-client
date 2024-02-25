@@ -42,3 +42,14 @@ I am not sure of anchor usage. I actutually never coded Anchor. If Achor exprert
 As of now it has (after 3 years in dev) limitation - reason why Michal forked Anchor and not supporting some scenarios like we dicussing https://forum.solana.com/t/srfc-00002-off-chain-instruction-account-resolution/25/3
 
 So I do not plan to use Anchor to avoid issues.
+
+
+## ALT reuse
+
+Seems not possible https://docs.solanalabs.com/proposals/versioned-transactions#lookup-table-re-initialization , so LUT to be always part of IBC packet, making it huge. At least not optimal variant. Futher researche needed.
+
+## Grants
+
+Composable after can apply for GRANTs from Solana as IBC + relayer + LUT implemement 2 of 5 imprvement https://docs.solanalabs.com/proposals/versioned-transactions#other-proposals
+
+ 
