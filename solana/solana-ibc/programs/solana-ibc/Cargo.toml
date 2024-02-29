@@ -52,4 +52,4 @@ ibc-testkit.workspace = true
 insta.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }
-solana-write-account = { workspace = true, features = ["no-entrypoint"] }
+solana-write-account = { workspace = true, features = ["library"] }

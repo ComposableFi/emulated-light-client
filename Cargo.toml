@@ -10,6 +10,7 @@ members = [
     "solana/allocator",
     "solana/ed25519",
     "solana/restaking/programs/*",
+    "solana/signature-verifier",
     "solana/solana-ibc/programs/*",
     "solana/trie",
     "solana/trie-example",

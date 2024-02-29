@@ -47,8 +47,27 @@ pub fn rsplit_at<const R: usize>(xs: &[u8]) -> Option<(&[u8], &[u8; R])> {
     Some((head, tail.try_into().unwrap()))
 }
 
+/// Splits a slice into a slice of N-element arrays.
+pub fn as_chunks<const N: usize, T>(slice: &[T]) -> (&[[T; N]], &[T]) {
+    let () = AssertNonZero::<N>::OK;
+
+    let len = slice.len() / N;
+    let (head, tail) = slice.split_at(len * N);
+
+    // SAFETY: We cast a slice of `len * N` elements into a slice of `len` many
+    // `N` elements chunks.
+    let head = unsafe { std::slice::from_raw_parts(head.as_ptr().cast(), len) };
+    (head, tail)
+}
+
 /// Asserts, at compile time, that `A + B == S`.
 struct AssertEqSum<const A: usize, const B: usize, const S: usize>;
 impl<const A: usize, const B: usize, const S: usize> AssertEqSum<A, B, S> {
     const OK: () = assert!(S == A + B);
+}
+
+/// Asserts, at compile time, that `N` is non-zero.
+struct AssertNonZero<const N: usize>;
+impl<const N: usize> AssertNonZero<N> {
+    const OK: () = assert!(N != 0);
 }

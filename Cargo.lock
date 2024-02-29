@@ -5094,6 +5094,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-signature-verifier"
+version = "0.0.0"
+dependencies = [
+ "bytemuck",
+ "derive_more",
+ "lib",
+ "solana-program",
+ "stdx",
+]
+
+[[package]]
 name = "solana-streamer"
 version = "1.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
