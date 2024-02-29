@@ -11,7 +11,7 @@ cargo install --git https://github.com/composableFi/emulated-light-client#valida
 validator --version
 > 0.0.1
 ```
-3. Set up the rpc url with validator keypair using the command below. 
+3. Set up the rpc url with validator keypair using the command below. The validator keypair can be any solana keypair which has enough SOL to pay for transaction fees.
 ```
 validator init --rpc-url <RPC_URL> --ws-url <WS_URL> --program-id <PROGRAM_ID> --genesis-hash <GENESIS_HASH> --keypair-path <KEYPAIR_PATH>
 ```
