@@ -170,10 +170,9 @@ fn test_ed25519() {
     let sig2 = SignatureHash::new_ed25519(&[21; 32], &[22; 64], b"bar");
     let sig3 = SignatureHash::new_ed25519(&[31; 32], &[32; 64], b"baz");
 
-    let mut data = [0; 100];
+    let mut data = [0; 68];
     data[4..36].copy_from_slice(&sig1.0);
-    data[36..68].copy_from_slice(&sig2.0);
-    let data_ptr = data.as_mut_ptr();
+    data[36..].copy_from_slice(&sig2.0);
 
     let key = Pubkey::new_unique();
     let owner = Pubkey::new_unique();
@@ -182,7 +181,7 @@ fn test_ed25519() {
     let account = AccountInfo {
         key: &key,
         lamports: alloc::rc::Rc::new(core::cell::RefCell::new(&mut lamports)),
-        data: alloc::rc::Rc::new(core::cell::RefCell::new(&mut data[..68])),
+        data: alloc::rc::Rc::new(core::cell::RefCell::new(&mut data[..])),
         owner: &owner,
         rent_epoch: 42,
         is_signer: false,
@@ -215,10 +214,12 @@ fn test_ed25519() {
     assert_eq!(nah, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
     assert_eq!(yes, signatures.find_ed25519(&[31; 32], &[32; 64], b"baz"));
 
+    let mut new_data = [0u8; 100];
     signatures
         .write_signature(2, &sig2, || {
-            *signatures.try_borrow_mut_data().unwrap() =
-                unsafe { core::slice::from_raw_parts_mut(data_ptr, 100) };
+            let mut data = signatures.try_borrow_mut_data().unwrap();
+            new_data[..data.len()].copy_from_slice(&data);
+            *data = &mut new_data[..];
             Ok(())
         })
         .unwrap();
