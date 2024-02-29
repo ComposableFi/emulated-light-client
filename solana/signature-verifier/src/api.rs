@@ -74,7 +74,7 @@ impl SignatureHash {
     /// This does *not* support fetching keys, signatures or messages from other
     /// instructions (which is something Ed25519 native program supports) and if
     /// that feature is used this method returns an error.
-    pub fn from_ed25519_signature_entry(
+    pub(crate) fn from_ed25519_signature_entry(
         data: &[u8],
         entry: &[u8; 14],
     ) -> Result<Self, SigEntryError> {
