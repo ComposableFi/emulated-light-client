@@ -4,4 +4,4 @@ mod api;
 #[cfg(not(feature = "library"))]
 mod program;
 
-pub use api::{SignatureHash, SignaturesAccount};
+pub use api::{SigEntryError, SignatureHash, SignaturesAccount};

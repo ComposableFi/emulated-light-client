@@ -12,9 +12,13 @@ crate-type = ["cdylib", "lib"]
 library = []
 
 [dependencies]
-bytemuck.workspace = true
+bytemuck = { workspace = true, features = ["must_cast"] }
 derive_more.workspace = true
 solana-program.workspace = true
 
 lib.workspace = true
 stdx.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+solana-sdk.workspace = true

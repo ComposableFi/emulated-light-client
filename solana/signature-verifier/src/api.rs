@@ -29,9 +29,19 @@ type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 #[repr(transparent)]
 pub struct SignatureHash([u8; 32]);
 
+/// Error when parsing entry from Ed25519 native program instruction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SigEntryError {
+    /// Entry uses unsupported feature.
+    UnsupportedFeature,
+    /// The instruction data is invalid.
+    BadData,
+}
+
 impl SignatureHash {
     const ED25519_HASH_MAGIC: [u8; 8] = *b"ed25519\0";
 
+    /// Constructs a new SignatureHash for given Ed25519 signature.
     #[inline]
     pub fn new_ed25519(
         key: &[u8; 32],
@@ -39,6 +49,67 @@ impl SignatureHash {
         message: &[u8],
     ) -> Self {
         Self::new(Self::ED25519_HASH_MAGIC, key, signature, message)
+    }
+
+    /// Constructs a new SignatureHash for Ed25519 signature described by given
+    /// SignatureOffsets entry of Ed25519 native program.
+    ///
+    /// `data` is the instruction data for the Ed25519 native program call.
+    /// This is typically fetched from the instructions sysvar account.
+    /// `offsets` is a 14-byte signature descriptor as understood by the Ed25519
+    /// native program.  The format of the instruction is:
+    ///
+    /// ```ignore
+    /// count:   u8
+    /// unused:  u8
+    /// offsets: [SignatureOffsets; count]
+    /// rest:    [u8]
+    /// ```
+    ///
+    /// where `SignatureOffsets` is 14-byte record.  The way to parse the
+    /// instruction data is to read count from the first byte, verify the second
+    /// byte is zero and then iterate over the next count 14-byte blocks passing
+    /// them to this method.
+    ///
+    /// This does *not* support fetching keys, signatures or messages from other
+    /// instructions (which is something Ed25519 native program supports) and if
+    /// that feature is used this method returns an error.
+    pub fn from_ed25519_signature_entry(
+        data: &[u8],
+        entry: &[u8; 14],
+    ) -> Result<Self, SigEntryError> {
+        let entry: &[[u8; 2]; 7] = bytemuck::must_cast_ref(entry);
+        let entry = entry.map(u16::from_le_bytes);
+        // See SignatureOffsets struct defined in
+        // https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs
+        // We're simply decomposing it as a [u16; 7] rather than defining the struct.
+        let [sig_offset, sig_ix_idx, key_offset, key_ix_idx, msg_offset, msg_size, msg_ix_idx] =
+            entry;
+
+        if sig_ix_idx != u16::MAX ||
+            key_ix_idx != u16::MAX ||
+            msg_ix_idx != u16::MAX
+        {
+            return Err(SigEntryError::UnsupportedFeature);
+        }
+
+        fn get_array<'a, const N: usize>(
+            data: &'a [u8],
+            offset: u16,
+        ) -> Option<&'a [u8; N]> {
+            Some(stdx::split_at::<N, u8>(data.get(usize::from(offset)..)?)?.0)
+        }
+
+        let sig =
+            get_array::<64>(data, sig_offset).ok_or(SigEntryError::BadData)?;
+        let key =
+            get_array::<32>(data, key_offset).ok_or(SigEntryError::BadData)?;
+        let msg = data
+            .get(usize::from(msg_offset)..)
+            .and_then(|data| data.get(..usize::from(msg_size)))
+            .ok_or(SigEntryError::BadData)?;
+
+        Ok(SignatureHash::new_ed25519(key, sig, msg))
     }
 
     fn new(
@@ -227,4 +298,31 @@ fn test_ed25519() {
     assert_eq!(yes, signatures.find_ed25519(&[11; 32], &[12; 64], b"foo"));
     assert_eq!(yes, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
     assert_eq!(yes, signatures.find_ed25519(&[31; 32], &[32; 64], b"baz"));
+}
+
+#[test]
+fn test_hash_from_ed25519() {
+    use ed25519_dalek::Signer;
+    use solana_sdk::ed25519_instruction::new_ed25519_instruction;
+
+    const KEYPAIR: [u8; 64] = [
+        99, 241, 33, 162, 28, 57, 15, 190, 246, 156, 30, 188, 100, 125, 110,
+        174, 37, 123, 198, 137, 90, 220, 247, 230, 191, 238, 71, 217, 207, 176,
+        67, 112, 18, 10, 242, 85, 239, 109, 138, 32, 37, 117, 17, 6, 184, 125,
+        216, 16, 222, 201, 241, 41, 225, 95, 171, 115, 85, 114, 249, 152, 205,
+        71, 25, 89,
+    ];
+    const MESSAGE: &[u8] = b"message";
+
+    let keypair = ed25519_dalek::Keypair::from_bytes(&KEYPAIR).unwrap();
+
+    let pubkey = keypair.public.to_bytes();
+    let signature = keypair.sign(MESSAGE).to_bytes();
+    let want = SignatureHash::new_ed25519(&pubkey, &signature, MESSAGE);
+
+    let data = new_ed25519_instruction(&keypair, MESSAGE).data;
+    let entry = data.get(2..16).unwrap().try_into().unwrap();
+    let got = SignatureHash::from_ed25519_signature_entry(&data, entry);
+
+    assert_eq!(Ok(want), got);
 }

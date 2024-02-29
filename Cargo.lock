@@ -5099,8 +5099,10 @@ version = "0.0.0"
 dependencies = [
  "bytemuck",
  "derive_more",
+ "ed25519-dalek",
  "lib",
  "solana-program",
+ "solana-sdk",
  "stdx",
 ]
 

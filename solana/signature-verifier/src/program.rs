@@ -10,7 +10,7 @@ use solana_program::sysvar::{instructions, Sysvar};
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 
-use crate::{SignatureHash, SignaturesAccount};
+use crate::{SigEntryError, SignatureHash, SignaturesAccount};
 
 solana_program::entrypoint!(process_instruction);
 
@@ -148,72 +148,27 @@ fn process_ed25519_instruction(
     }
     let data = instruction.data.as_slice();
 
-    fn make_u16(bytes: &[u8; 2]) -> u16 {
-        if cfg!(target_os = "solana") {
-            // SAFETY: Solana runtime guarantees data is aligned to two bytes
-            // and we’re always reading two bytes at a time.
-            unsafe { *bytes.as_ptr().cast() }
-        } else {
-            u16::from_le_bytes(*bytes)
-        }
-    }
-
-    fn get_array<'a, const N: usize>(
-        data: &'a [u8],
-        offset: &[u8; 2],
-    ) -> Option<&'a [u8; N]> {
-        let start = usize::from(make_u16(offset));
-        Some(data.get(start..).and_then(stdx::split_at::<N, u8>)?.0)
-    }
-
     // The instruction data is:
     //   count:   u8
     //   unused:  u8
     //   offsets: [SignatureOffsets; count]
     //   rest:    [u8]
-
-    let entries = stdx::split_at::<2, u8>(data)
-        .and_then(|([count, zero], tail)| {
-            if *zero != 0 {
-                return None;
-            }
-            let tail = stdx::as_chunks::<2, u8>(tail).0;
-            let tail = stdx::as_chunks::<7, [u8; 2]>(tail).0;
-            tail.get(..usize::from(*count))
+    stdx::split_at::<2, u8>(data)
+        .filter(|([_, zero], _)| *zero == 0)
+        .and_then(|([count, _], tail)| {
+            stdx::as_chunks::<14, u8>(tail).0.get(..usize::from(*count))
         })
-        .unwrap_or(&[]);
-    for entry in entries {
-        // See https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs
-        let [sig_offset, sig_instruction_idx, key_offset, key_instruction_idx, msg_offset, msg_size, msg_instruction_idx] =
-            entry;
-
-        let sig_instruction_idx = make_u16(sig_instruction_idx);
-        let key_instruction_idx = make_u16(key_instruction_idx);
-        let msg_instruction_idx = make_u16(msg_instruction_idx);
-
-        if sig_instruction_idx != u16::MAX ||
-            key_instruction_idx != u16::MAX ||
-            msg_instruction_idx != u16::MAX
-        {
-            continue;
-        }
-
-        let sig = get_array::<64>(data, sig_offset)
-            .ok_or(ProgramError::AccountDataTooSmall)?;
-        let key = get_array::<32>(data, key_offset)
-            .ok_or(ProgramError::AccountDataTooSmall)?;
-
-        let msg_offset = usize::from(make_u16(msg_offset));
-        let msg_size = usize::from(make_u16(msg_size));
-        let msg = data
-            .get(msg_offset..)
-            .and_then(|data| data.get(..msg_size))
-            .ok_or(ProgramError::AccountDataTooSmall)?;
-
-        callback(SignatureHash::new_ed25519(key, sig, msg))?;
-    }
-
-    Ok(())
+        .ok_or(ProgramError::InvalidInstructionData)?
+        .iter()
+        .map(|entry| SignatureHash::from_ed25519_signature_entry(data, entry))
+        .map(|sig| match sig {
+            Ok(signature) => callback(signature),
+            Err(SigEntryError::UnsupportedFeature) => Ok(()),
+            Err(SigEntryError::BadData) => {
+                Err(ProgramError::InvalidInstructionData)
+            }
+        })
+        .collect()
 }
 
 /// Accounts used when processing instruction.
