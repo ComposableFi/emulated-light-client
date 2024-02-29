@@ -74,6 +74,7 @@ impl SignatureHash {
     /// This does *not* support fetching keys, signatures or messages from other
     /// instructions (which is something Ed25519 native program supports) and if
     /// that feature is used this method returns an error.
+    #[cfg(any(test, not(feature = "library")))]
     pub(crate) fn from_ed25519_signature_entry(
         data: &[u8],
         entry: &[u8; 14],
@@ -93,10 +94,10 @@ impl SignatureHash {
             return Err(SigEntryError::UnsupportedFeature);
         }
 
-        fn get_array<'a, const N: usize>(
-            data: &'a [u8],
+        fn get_array<const N: usize>(
+            data: &[u8],
             offset: u16,
-        ) -> Option<&'a [u8; N]> {
+        ) -> Option<&[u8; N]> {
             Some(stdx::split_at::<N, u8>(data.get(usize::from(offset)..)?)?.0)
         }
 
