@@ -78,6 +78,15 @@ export const getNftMetadataPDA = (token_mint: anchor.web3.PublicKey) => {
   return { nftMetadataPDA, nftMetadataBump };
 };
 
+export const getEscrowReceiptTokenPDA = (token_mint: anchor.web3.PublicKey) => {
+  const [escrowReceiptTokenPDA, escrowReceiptTokenBump] =
+    anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("escrow_receipt"), token_mint.toBuffer()],
+      restakingProgramID
+    );
+  return { escrowReceiptTokenPDA, escrowReceiptTokenBump };
+}
+
 export const getGuestChainAccounts = () => {
   const [guestChainPDA, guestChainBump] =
     anchor.web3.PublicKey.findProgramAddressSync(

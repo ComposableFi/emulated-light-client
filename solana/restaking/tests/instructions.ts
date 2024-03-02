@@ -3,6 +3,7 @@ import * as mpl from "@metaplex-foundation/mpl-token-metadata";
 import * as spl from "@solana/spl-token";
 import { Restaking } from "../../../target/types/restaking";
 import {
+  getEscrowReceiptTokenPDA,
   getGuestChainAccounts,
   getMasterEditionPDA,
   getNftMetadataPDA,
@@ -154,28 +155,14 @@ export const withdrawInstruction = async (
   const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(stakedTokenMint);
   const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
   const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
-  const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-
-  const stakingParams = await program.account.stakingParams.fetch(
-    stakingParamsPDA
-  );
-
-  const { rewardsTokenMint } = stakingParams;
-
-  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-    receiptTokenMint,
-    withdrawer
-  );
-
-  const withdrawerRewardsTokenAccount = await spl.getAssociatedTokenAddress(
-    rewardsTokenMint,
-    withdrawer
-  );
+  const { escrowReceiptTokenPDA } = getEscrowReceiptTokenPDA(receiptTokenMint);
 
   const withdrawerStakedTokenAccount = await spl.getAssociatedTokenAddress(
     stakedTokenMint,
     withdrawer
   );
+
+  console.log("This is escro receipt token pda", escrowReceiptTokenPDA);
 
   const tx = await program.methods
     .withdraw()
@@ -193,11 +180,8 @@ export const withdrawInstruction = async (
       tokenMint: stakedTokenMint,
       withdrawerTokenAccount: withdrawerStakedTokenAccount,
       vaultTokenAccount: vaultTokenAccountPDA,
-      rewardsTokenMint,
-      depositorRewardsTokenAccount: withdrawerRewardsTokenAccount,
-      platformRewardsTokenAccount: rewardsTokenAccountPDA,
       receiptTokenMint,
-      receiptTokenAccount,
+      escrowReceiptTokenAccount: escrowReceiptTokenPDA,
       guestChainProgram: guestChainProgramID,
       tokenProgram: spl.TOKEN_PROGRAM_ID,
       masterEditionAccount: masterEditionPDA,
@@ -207,6 +191,127 @@ export const withdrawInstruction = async (
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
       ),
       instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+    })
+    .transaction();
+
+  return tx;
+};
+
+export const withdrawalRequestInstruction = async (
+  program: anchor.Program<Restaking>,
+  withdrawer: anchor.web3.PublicKey,
+  receiptTokenMint: anchor.web3.PublicKey
+) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
+  const { stakingParamsPDA } = getStakingParamsPDA();
+  const { guestChainPDA, triePDA } = getGuestChainAccounts();
+
+  const vaultParams = await program.account.vault.fetch(vaultParamsPDA);
+  const stakedTokenMint = vaultParams.stakeMint;
+
+  const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(stakedTokenMint);
+  const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
+  const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
+  const { escrowReceiptTokenPDA } = getEscrowReceiptTokenPDA(receiptTokenMint);
+
+  const withdrawerStakedTokenAccount = await spl.getAssociatedTokenAddress(
+    stakedTokenMint,
+    withdrawer
+  );
+
+  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+    receiptTokenMint,
+    withdrawer
+  );
+
+  const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+
+  const stakingParams = await program.account.stakingParams.fetch(
+    stakingParamsPDA
+  );
+
+  const { rewardsTokenMint } = stakingParams;
+
+  const withdrawerRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+    rewardsTokenMint,
+    withdrawer
+  );
+
+  const tx = await program.methods
+    .withdrawalRequest()
+    .preInstructions([
+      anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+        units: 1000000,
+      }),
+    ])
+    .accounts({
+      withdrawer,
+      vaultParams: vaultParamsPDA,
+      stakingParams: stakingParamsPDA,
+      guestChain: guestChainPDA,
+      trie: triePDA,
+      tokenMint: stakedTokenMint,
+      withdrawerTokenAccount: withdrawerStakedTokenAccount,
+      vaultTokenAccount: vaultTokenAccountPDA,
+      receiptTokenMint,
+      receiptTokenAccount,
+      rewardsTokenMint,
+      depositorRewardsTokenAccount: withdrawerRewardsTokenAccount,
+      platformRewardsTokenAccount: rewardsTokenAccountPDA,
+      escrowReceiptTokenAccount: escrowReceiptTokenPDA,
+      guestChainProgram: guestChainProgramID,
+      tokenProgram: spl.TOKEN_PROGRAM_ID,
+      masterEditionAccount: masterEditionPDA,
+      nftMetadata: nftMetadataPDA,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      metadataProgram: new anchor.web3.PublicKey(
+        mpl.MPL_TOKEN_METADATA_PROGRAM_ID
+      ),
+      instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+    })
+    .transaction();
+
+  return tx;
+};
+
+export const cancelWithdrawalRequestInstruction = async (
+  program: anchor.Program<Restaking>,
+  withdrawer: anchor.web3.PublicKey,
+  receiptTokenMint: anchor.web3.PublicKey
+) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
+  const { stakingParamsPDA } = getStakingParamsPDA();
+
+  const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
+  const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
+  const { escrowReceiptTokenPDA } = getEscrowReceiptTokenPDA(receiptTokenMint);
+
+  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+    receiptTokenMint,
+    withdrawer
+  );
+
+  const tx = await program.methods
+    .cancelWithdrawalRequest()
+    .preInstructions([
+      anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
+        units: 1000000,
+      }),
+    ])
+    .accounts({
+      withdrawer,
+      vaultParams: vaultParamsPDA,
+      stakingParams: stakingParamsPDA,
+      receiptTokenMint,
+      receiptTokenAccount,
+      escrowReceiptTokenAccount: escrowReceiptTokenPDA,
+      tokenProgram: spl.TOKEN_PROGRAM_ID,
+      masterEditionAccount: masterEditionPDA,
+      nftMetadata: nftMetadataPDA,
+      systemProgram: anchor.web3.SystemProgram.programId,
+      metadataProgram: new anchor.web3.PublicKey(
+        mpl.MPL_TOKEN_METADATA_PROGRAM_ID
+      ),
     })
     .transaction();
 
