@@ -103,7 +103,7 @@ pub fn run_validator(config: Config) {
         let event = &events[0];
         log::info!("Found New Block Event {:?}", event);
         // Fetching the pending block fingerprint
-        let fingerprint = blockchain::block::Fingerprint::new(
+        let fingerprint = guestchain::block::Fingerprint::new(
             genesis_hash,
             &event.block_header.0,
         );

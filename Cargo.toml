@@ -75,7 +75,7 @@ tokio = "1.35.1"
 toml = "0.8.8"
 uint = "0.9.5"
 
-blockchain = { path = "common/blockchain" }
+guestchain = { path = "common/guestchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 restaking = { path = "solana/restaking/programs/restaking" }

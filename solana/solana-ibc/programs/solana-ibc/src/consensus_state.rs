@@ -14,7 +14,7 @@ use crate::ibc::Protobuf;
 )]
 pub enum AnyConsensusState {
     Tendermint(crate::ibc::tm::ConsensusState),
-    Guest(blockchain::ibc_state::ConsensusState),
+    Guest(guestchain::ibc_state::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(crate::ibc::mock::MockConsensusState),
 }
@@ -49,7 +49,7 @@ impl AnyConsensusState {
         crate::ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest consensus state used in Any message.
     const GUEST_TYPE: &'static str =
-        blockchain::proto::ConsensusState::TYPE_URL;
+        guestchain::proto::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str =
@@ -77,7 +77,7 @@ impl AnyConsensusState {
             AnyConsensusState::Guest(state) => (
                 AnyConsensusStateTag::Guest,
                 Self::GUEST_TYPE,
-                Protobuf::<blockchain::proto::ConsensusState>::encode_vec(
+                Protobuf::<guestchain::proto::ConsensusState>::encode_vec(
                     state,
                 ),
             ),
@@ -104,7 +104,7 @@ impl AnyConsensusState {
                     .map(Self::Tendermint)
             }
             AnyConsensusStateTag::Guest => Protobuf::<
-                blockchain::proto::ConsensusState,
+                guestchain::proto::ConsensusState,
             >::decode_vec(&value)
             .map_err(|err| err.to_string())
             .map(Self::Guest),
