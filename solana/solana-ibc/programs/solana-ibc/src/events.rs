@@ -235,16 +235,16 @@ mod snapshot_tests {
             .map(|(num, stake)| {
                 let pubkey = make_pub_key(num);
                 let stake = stake.try_into().unwrap();
-                blockchain::Validator::new(pubkey, stake)
+                guestchain::Validator::new(pubkey, stake)
             })
             .collect();
-        blockchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap()
+        guestchain::Epoch::new(validators, 11.try_into().unwrap()).unwrap()
     }
 
     fn make_header() -> CowHeader<'static> {
         let block = crate::chain::Block::generate_genesis(
-            blockchain::BlockHeight::from(0),
-            blockchain::HostHeight::from(42),
+            guestchain::BlockHeight::from(0),
+            guestchain::HostHeight::from(42),
             core::num::NonZeroU64::new(24).unwrap(),
             CryptoHash::test(66),
             make_epoch(),

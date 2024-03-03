@@ -740,30 +740,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
-name = "blockchain"
-version = "0.0.0"
-dependencies = [
- "borsh 0.10.3",
- "bytemuck",
- "derive_more",
- "ibc-core-client-context",
- "ibc-core-commitment-types",
- "ibc-core-host",
- "ibc-primitives",
- "ibc-proto",
- "insta",
- "lib",
- "memory",
- "prost",
- "prost-build",
- "rand 0.8.5",
- "sealable-trie",
- "stdx",
- "strum",
- "trie-ids",
-]
-
-[[package]]
 name = "borsh"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1893,6 +1869,30 @@ dependencies = [
  "log",
  "plain",
  "scroll",
+]
+
+[[package]]
+name = "guestchain"
+version = "0.0.0"
+dependencies = [
+ "borsh 0.10.3",
+ "bytemuck",
+ "derive_more",
+ "ibc-core-client-context",
+ "ibc-core-commitment-types",
+ "ibc-core-host",
+ "ibc-primitives",
+ "ibc-proto",
+ "insta",
+ "lib",
+ "memory",
+ "prost",
+ "prost-build",
+ "rand 0.8.5",
+ "sealable-trie",
+ "stdx",
+ "strum",
+ "trie-ids",
 ]
 
 [[package]]
@@ -4631,11 +4631,11 @@ name = "solana-ed25519"
 version = "0.0.0"
 dependencies = [
  "base64 0.21.7",
- "blockchain",
  "borsh 0.10.3",
  "bs58 0.5.0",
  "bytemuck",
  "derive_more",
+ "guestchain",
  "solana-program",
 ]
 
@@ -4690,9 +4690,9 @@ dependencies = [
  "anchor-spl",
  "anyhow",
  "base64 0.21.7",
- "blockchain",
  "bytemuck",
  "derive_more",
+ "guestchain",
  "hex-literal",
  "ibc",
  "ibc-testkit",
@@ -6244,7 +6244,6 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "base64 0.21.7",
- "blockchain",
  "borsh 0.10.3",
  "bytemuck",
  "clap 4.4.18",
@@ -6252,6 +6251,7 @@ dependencies = [
  "dialoguer",
  "directories",
  "env_logger 0.7.1",
+ "guestchain",
  "lib",
  "log",
  "restaking",

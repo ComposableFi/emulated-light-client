@@ -12,8 +12,8 @@ bytemuck.workspace = true
 derive_more.workspace = true
 solana-program.workspace = true
 
-blockchain = { workspace = true, optional = true }
+guestchain = { workspace = true, optional = true }
 
 [features]
 default = ["borsh", "guest"]
-guest = ["dep:blockchain"]
+guest = ["dep:guestchain"]

@@ -1,4 +1,4 @@
-use blockchain::manager;
+use guestchain::manager;
 
 use crate::ibc;
 

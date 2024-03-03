@@ -1,8 +1,8 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
-use blockchain::manager::PendingBlock;
-pub use blockchain::Config;
+use guestchain::manager::PendingBlock;
+pub use guestchain::Config;
 use lib::hash::CryptoHash;
 pub use solana_ed25519::{PubKey, Signature, Verifier};
 
@@ -11,12 +11,12 @@ use crate::{events, ibc, storage};
 
 type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
 
-pub type Epoch = blockchain::Epoch<PubKey>;
-pub type Block = blockchain::Block<PubKey>;
-pub type BlockHeader = blockchain::BlockHeader;
-pub type Manager = blockchain::ChainManager<PubKey>;
-pub type Validator = blockchain::Validator<PubKey>;
-pub type Candidate = blockchain::Candidate<PubKey>;
+pub type Epoch = guestchain::Epoch<PubKey>;
+pub type Block = guestchain::Block<PubKey>;
+pub type BlockHeader = guestchain::BlockHeader;
+pub type Manager = guestchain::ChainManager<PubKey>;
+pub type Validator = guestchain::Validator<PubKey>;
+pub type Candidate = guestchain::Candidate<PubKey>;
 
 /// Guest blockchain data held in Solana account.
 #[account]
@@ -42,7 +42,7 @@ impl ChainData {
     /// `None` if `height` doesn’t equal height of the head block.
     pub fn consensus_state(
         &self,
-        height: blockchain::BlockHeight,
+        height: guestchain::BlockHeight,
     ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
         let block = self.get()?.manager.head().1;
         Ok((block.block_height == height)
@@ -246,7 +246,7 @@ impl ChainData {
 struct ChainInner {
     /// Last Solana block at which last check for new guest block generation was
     /// performed.
-    last_check_height: blockchain::HostHeight,
+    last_check_height: guestchain::HostHeight,
 
     /// The guest blockchain manager handling generation of new guest blocks.
     manager: Manager,
@@ -320,7 +320,7 @@ impl ChainInner {
 /// blockchain the guest blockchain is running on, i.e. Solana.  However, in
 /// context of IBC protocol and code implementing it, ‘host’ refers to our side
 /// of the IBC connection, i.e. the guest blockchain.
-fn get_host_head() -> Result<(blockchain::HostHeight, NonZeroU64)> {
+fn get_host_head() -> Result<(guestchain::HostHeight, NonZeroU64)> {
     let clock = Clock::get()?;
     // Convert Solana Unix timestamp which is in second to timestamp guest block
     // is using which is in nanoseconds.

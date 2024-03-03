@@ -46,7 +46,7 @@ pub enum GenerateError {
 ///
 /// # Proof format
 ///
-/// In most cases, proof is Borsh-serialised `(blockchain::BlockHeader,
+/// In most cases, proof is Borsh-serialised `(guestchain::BlockHeader,
 /// sealable_trie::proof::Proof)` pair.  The header at the front is
 /// necessary to determine state root (recall that `root` is the block hash
 /// and not state root).

@@ -56,7 +56,7 @@ impl PartialEq<PubKey> for solana_program::pubkey::Pubkey {
 }
 
 #[cfg(feature = "guest")]
-impl blockchain::PubKey for PubKey {
+impl guestchain::PubKey for PubKey {
     type Signature = Signature;
 }
 
@@ -134,7 +134,7 @@ impl Verifier {
 }
 
 #[cfg(feature = "guest")]
-impl blockchain::Verifier<PubKey> for Verifier {
+impl guestchain::Verifier<PubKey> for Verifier {
     #[inline]
     fn verify(
         &self,

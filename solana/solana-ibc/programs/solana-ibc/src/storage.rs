@@ -98,7 +98,7 @@ impl ClientStore {
 /// provided.
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ClientConsensusState(
-    Serialised<(NonZeroU64, blockchain::BlockHeight, AnyConsensusState)>,
+    Serialised<(NonZeroU64, guestchain::BlockHeight, AnyConsensusState)>,
 );
 
 impl ClientConsensusState {
@@ -109,7 +109,7 @@ impl ClientConsensusState {
     /// consensus state.
     pub fn new(
         processed_time: NonZeroU64,
-        processed_height: blockchain::BlockHeight,
+        processed_height: guestchain::BlockHeight,
         state: &AnyConsensusState,
     ) -> Result<Self, ibc::ClientError> {
         Serialised::new(&(processed_time, processed_height, state))
@@ -127,7 +127,7 @@ impl ClientConsensusState {
     }
 
     /// Returns processed height for this client consensus state.
-    pub fn processed_height(&self) -> Option<blockchain::BlockHeight> {
+    pub fn processed_height(&self) -> Option<guestchain::BlockHeight> {
         self.0
             .as_bytes()
             .get(8..16)
@@ -154,7 +154,7 @@ impl ClientConsensusState {
     ) -> Result<CryptoHash, ibc::ClientError> {
         match self.0.as_bytes().get(16..) {
             Some(serialised) => {
-                Ok(blockchain::ibc_state::digest_with_client_id(
+                Ok(guestchain::ibc_state::digest_with_client_id(
                     client_id, serialised,
                 ))
             }
@@ -529,7 +529,7 @@ impl<T> Serialised<T> {
     /// Returns digest of the serialised value with client id mixed in.
     #[inline]
     pub fn digest_with_client(&self, client_id: &ibc::ClientId) -> CryptoHash {
-        blockchain::ibc_state::digest_with_client_id(client_id, self.as_bytes())
+        guestchain::ibc_state::digest_with_client_id(client_id, self.as_bytes())
     }
 }
 

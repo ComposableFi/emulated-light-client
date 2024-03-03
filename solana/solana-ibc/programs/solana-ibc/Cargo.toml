@@ -35,7 +35,7 @@ spl-token.workspace = true
 strum.workspace = true
 uint.workspace = true
 
-blockchain.workspace = true
+guestchain.workspace = true
 lib.workspace = true
 memory.workspace = true
 solana-allocator = { workspace = true, optional = true }

@@ -78,7 +78,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
             height: *height,
         })?;
         Ok(Self::AnyConsensusState::from(
-            blockchain::ibc_state::ConsensusState {
+            guestchain::ibc_state::ConsensusState {
                 block_hash: state.0.as_array().to_vec().into(),
                 timestamp_ns: state.1,
             },
