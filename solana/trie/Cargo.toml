@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 solana-program.workspace = true
 
-lib.workspace = true
+lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 sealable-trie.workspace = true
 stdx.workspace = true

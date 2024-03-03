@@ -13,6 +13,7 @@ derive_more.workspace = true
 solana-program.workspace = true
 
 guestchain = { workspace = true, optional = true }
+lib = { workspace = true, features = ["solana-program"] }
 
 [features]
 default = ["borsh", "guest"]
