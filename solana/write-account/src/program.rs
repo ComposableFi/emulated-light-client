@@ -18,7 +18,7 @@ solana_program::entrypoint!(process_instruction);
 /// #[repr(C, packed)]
 /// struct Instruction {
 ///     always_zero: u8,  // always 0u8,
-///     seed_len: u8,
+///     seed_len: u8,  // at most 31
 ///     seed: [u8; seed_len],
 ///     bump: u8,
 ///     offset_and_data: Option<(u32, [u8])>,
@@ -94,15 +94,11 @@ fn handle_write(
     Ok(())
 }
 
-/// Sets up the write account ensuring its minimal size.
+/// Sets up the Write account ensuring its minimal size.
 ///
-/// Firstly, checks that the write accounts address corresponds to the PDA which
-/// we’d get by using `[payer.key, seed]` as seeds with given `bump`.  If it
-/// doesn’t, returns `InvalidSeeds` error.
-///
-/// Secondly, if the account doesn’t exist, creates it with size of `size`.
-/// Note that due to Solana limitations, `size` may be at most 10 KiB in this
-/// case (see [`solana_program::entrypoint::MAX_PERMITTED_DATA_INCREASE`]).
+/// If the account doesn’t exist, creates it with size of `size`.  Note that due
+/// to Solana limitations, `size` may be at most 10 KiB in this case (see
+/// [`solana_program::entrypoint::MAX_PERMITTED_DATA_INCREASE`]).
 ///
 /// Otherwise, checks if account’s size it at least `size`.  If it isn’t,
 /// resizes the account (see [`AccountInfo::realloc`]).  Again, due to Solana’s

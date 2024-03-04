@@ -1,0 +1,24 @@
+[package]
+name = "solana-signature-verifier"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+name = "sigverify"
+crate-type = ["cdylib", "lib"]
+
+[features]
+library = []
+
+[dependencies]
+bytemuck = { workspace = true, features = ["must_cast"] }
+derive_more.workspace = true
+solana-program.workspace = true
+
+lib.workspace = true
+stdx.workspace = true
+
+[dev-dependencies]
+ed25519-dalek.workspace = true
+solana-sdk.workspace = true

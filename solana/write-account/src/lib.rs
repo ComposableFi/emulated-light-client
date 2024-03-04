@@ -1,4 +1,4 @@
-#[cfg(feature = "no-entrypoint")]
+#[cfg(feature = "library")]
 pub mod instruction;
-#[cfg(not(feature = "no-entrypoint"))]
+#[cfg(not(feature = "library"))]
 mod program;

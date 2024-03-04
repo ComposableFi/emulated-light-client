@@ -10,6 +10,7 @@ members = [
     "solana/allocator",
     "solana/ed25519",
     "solana/restaking/programs/*",
+    "solana/signature-verifier",
     "solana/solana-ibc/programs/*",
     "solana/trie",
     "solana/trie-example",
@@ -39,6 +40,7 @@ clap = { version = "4.4.18", features = ["derive"] }
 derive_more = "0.99.17"
 dialoguer = "0.10"
 directories = "5.0"
+ed25519-dalek = "=1.0.1"  # Must match solana-sdk’s dependency.
 env_logger = "0.7.1"
 hex-literal = "0.4.1"
 ibc = { version = "0.50.0", default-features = false, features = ["borsh", "serde"] }
