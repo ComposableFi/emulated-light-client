@@ -97,7 +97,9 @@ pub fn generate<A: sealable_trie::Allocator>(
 }
 
 
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
+)]
 pub enum VerifyError {
     /// Invalid commitment prefix (expected empty).
     BadPrefix,
