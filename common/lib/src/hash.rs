@@ -43,7 +43,9 @@ impl CryptoHash {
 
     /// Returns hash of given bytes.
     #[inline]
-    pub fn digest(bytes: &[u8]) -> Self { Self::digestv(&[bytes]) }
+    pub fn digest(bytes: &[u8]) -> Self {
+        Self::digestv(core::slice::from_ref(&bytes))
+    }
 
     /// Returns hash of concatenation of given byte slices.
     ///
@@ -53,22 +55,11 @@ impl CryptoHash {
     ///
     /// Depending on platform this call may be more efficient.  Most notably,
     /// Solana offers a vectorised syscall for calculating a SHA-2 256 digest
-    /// and this method will pass the request directly to it.
+    /// and this method will pass the request directly to it.  Note that
+    /// `solana` crate feature must be enabled for this Solana-specific
+    /// optimisation to be implemented.
     #[inline]
-    pub fn digestv(slices: &[&[u8]]) -> Self {
-        #[cfg(target_os = "solana")]
-        {
-            Self(solana_program::hash::hashv(slices).to_bytes())
-        }
-        #[cfg(not(target_os = "solana"))]
-        {
-            let mut builder = Self::builder();
-            for bytes in slices {
-                builder.update(bytes);
-            }
-            builder.build()
-        }
-    }
+    pub fn digestv(slices: &[&[u8]]) -> Self { Self(imp::digestv(slices)) }
 
     /// Decodes a base64 string representation of the hash.
     pub fn from_base64(base64: &str) -> Option<Self> {
@@ -185,14 +176,22 @@ impl<'a> TryFrom<&'a [u8]> for CryptoHash {
     }
 }
 
-#[cfg(not(target_os = "solana"))]
-mod builder {
+#[cfg(not(all(feature = "solana-program", target_os = "solana")))]
+mod imp {
     use sha2::Digest;
 
-    #[derive(Default)]
-    pub(super) struct Inner(sha2::Sha256);
+    pub(super) fn digestv(slices: &[&[u8]]) -> [u8; 32] {
+        let mut state = sha2::Sha256::new();
+        for bytes in slices {
+            state.update(bytes);
+        }
+        state.finalize().into()
+    }
 
-    impl Inner {
+    #[derive(Default)]
+    pub(super) struct State(sha2::Sha256);
+
+    impl State {
         #[inline]
         pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
 
@@ -201,14 +200,18 @@ mod builder {
     }
 }
 
-#[cfg(target_os = "solana")]
-mod builder {
+#[cfg(all(feature = "solana-program", target_os = "solana"))]
+mod imp {
     use alloc::vec::Vec;
 
-    #[derive(Default)]
-    pub(super) struct Inner(Vec<u8>);
+    pub(super) fn digestv(slices: &[&[u8]]) -> [u8; 32] {
+        solana_program::hash::hashv(slices).to_bytes()
+    }
 
-    impl Inner {
+    #[derive(Default)]
+    pub(super) struct State(Vec<u8>);
+
+    impl State {
         #[inline]
         pub fn update(&mut self, bytes: &[u8]) {
             self.0.extend_from_slice(bytes)
@@ -231,7 +234,7 @@ mod builder {
 /// data to be hashed.  If all data is in a single contiguous buffer it’s more
 /// convenient to use [`CryptoHash::digest`] instead.
 #[derive(Default)]
-pub struct Builder(builder::Inner);
+pub struct Builder(imp::State);
 
 impl Builder {
     /// Process data, updating the internal state of the digest.

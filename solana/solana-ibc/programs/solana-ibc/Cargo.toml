@@ -36,7 +36,7 @@ strum.workspace = true
 uint.workspace = true
 
 guestchain.workspace = true
-lib.workspace = true
+lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 solana-allocator = { workspace = true, optional = true }
 solana-ed25519 = { workspace = true, features = ["borsh", "guest"] }

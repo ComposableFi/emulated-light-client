@@ -9,14 +9,10 @@ base64.workspace = true
 borsh = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
+sha2.workspace = true
+solana-program = { workspace = true, optional = true }
 
 stdx.workspace = true
-
-[target.'cfg(not(target_os = "solana"))'.dependencies]
-sha2.workspace = true
-
-[target.'cfg(target_os = "solana")'.dependencies]
-solana-program.workspace = true
 
 [dev-dependencies]
 rand.workspace = true

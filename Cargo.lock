@@ -4636,6 +4636,7 @@ dependencies = [
  "bytemuck",
  "derive_more",
  "guestchain",
+ "lib",
  "solana-program",
 ]
 
