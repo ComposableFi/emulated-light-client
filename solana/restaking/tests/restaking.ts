@@ -379,15 +379,15 @@ describe("restaking", () => {
 
       console.log("  Signature for Withdrawal request: ", sig);
 
-      const depositorReceiptTokenBalanceAfter = await spl.getAccount(
-        provider.connection,
-        receiptTokenAccount
-      );
-      assert.equal(
-        depositorReceiptTokenBalanceBefore.amount -
-          depositorReceiptTokenBalanceAfter.amount,
-        1
-      );
+      // Since receipt NFT token account is closed, getting spl account
+      // should fail
+      try {
+        const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
+          provider.connection,
+          receiptTokenAccount
+        );
+        throw Error("Receipt NFT token account is not closed");
+      } catch (e) {}
     } catch (error) {
       console.log(error);
       throw error;
@@ -400,10 +400,15 @@ describe("restaking", () => {
       depositor.publicKey
     );
 
-    const depositorReceiptTokenBalanceBefore = await spl.getAccount(
-      provider.connection,
-      receiptTokenAccount
-    );
+    // Since receipt NFT token account is closed, getting spl account
+    // should fail
+    try {
+      const _depositorReceiptTokenBalanceBefore = await spl.getAccount(
+        provider.connection,
+        receiptTokenAccount
+      );
+      throw Error("Receipt NFT token account is not closed");
+    } catch (e) {}
     const tx = await cancelWithdrawalRequestInstruction(
       program,
       depositor.publicKey,
@@ -420,15 +425,12 @@ describe("restaking", () => {
 
       console.log("  Signature for Cancelling Withdrawal: ", sig);
 
-      const depositorReceiptTokenBalanceAfter = await spl.getAccount(
+      const depositorReceiptTokenBalance = await spl.getAccount(
         provider.connection,
         receiptTokenAccount
       );
-      assert.equal(
-        depositorReceiptTokenBalanceAfter.amount -
-          depositorReceiptTokenBalanceBefore.amount,
-        1
-      );
+
+      assert.equal(depositorReceiptTokenBalance.amount, 1);
     } catch (error) {
       console.log(error);
       throw error;
@@ -462,15 +464,15 @@ describe("restaking", () => {
 
       console.log("  Signature for Withdrawal request: ", sig);
 
-      const depositorReceiptTokenBalanceAfter = await spl.getAccount(
-        provider.connection,
-        receiptTokenAccount
-      );
-      assert.equal(
-        depositorReceiptTokenBalanceBefore.amount -
-          depositorReceiptTokenBalanceAfter.amount,
-        1
-      );
+      // Since receipt NFT token account is closed, getting spl account
+      // should fail
+      try {
+        const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
+          provider.connection,
+          receiptTokenAccount
+        );
+        throw Error("Receipt NFT token account is not closed");
+      } catch (e) {}
       // Once withdraw request is complete, we can withdraw
       // sleeping for unbonding period to end
       await sleep(2000);

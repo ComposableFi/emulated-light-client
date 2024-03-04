@@ -23,12 +23,9 @@ export const depositInstruction = async (
   stakeAmount: number,
   receiptTokenKeypair?: anchor.web3.Keypair | undefined
 ) => {
-  console.log("This is token mint keypair", receiptTokenKeypair?.publicKey);
   if (!receiptTokenKeypair) {
     receiptTokenKeypair = anchor.web3.Keypair.generate();
   }
-  console.log("This is token mint keypair", receiptTokenKeypair?.publicKey);
-
   const receiptTokenPublicKey = receiptTokenKeypair.publicKey;
 
   const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenPublicKey);
@@ -162,8 +159,6 @@ export const withdrawInstruction = async (
     withdrawer
   );
 
-  console.log("This is escro receipt token pda", escrowReceiptTokenPDA);
-
   const tx = await program.methods
     .withdraw()
     .preInstructions([
@@ -172,6 +167,7 @@ export const withdrawInstruction = async (
       }),
     ])
     .accounts({
+      signer: withdrawer,
       withdrawer,
       vaultParams: vaultParamsPDA,
       stakingParams: stakingParamsPDA,

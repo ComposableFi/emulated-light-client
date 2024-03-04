@@ -144,6 +144,8 @@ pub mod restaking {
     ///
     /// This method transfers all the pending rewards to the user. The stake on the
     /// guest chain is only updated after unbonding period ends in `withdraw` method.
+    ///
+    /// Closes the receipt token account.
     pub fn withdrawal_request(ctx: Context<WithdrawalRequest>) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
@@ -157,9 +159,13 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenMint));
         }
 
-        let current_timestamp = Clock::get()?.unix_timestamp;
-        vault_params.withdrawal_request_timestamp_sec =
-            Some(current_timestamp as u64);
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
+        let withdrawal_request_params = WithdrawalRequestParams {
+            timestamp_in_sec: current_timestamp,
+            owner: ctx.accounts.withdrawer.key(),
+            token_account: ctx.accounts.withdrawer_token_account.key(),
+        };
+        vault_params.withdrawal_request = Some(withdrawal_request_params);
 
         let chain = &ctx.accounts.guest_chain;
         let service = vault_params
@@ -205,7 +211,23 @@ pub mod restaking {
         )?;
 
         // Transfer receipt token to escrow
-        token::transfer(ctx.accounts.into(), &[], 1)
+        token::transfer(ctx.accounts.into(), &[], 1)?;
+        
+        // Closing receipt NFT token account
+        let close_instruction = CloseAccount {
+            account: ctx
+                .accounts
+                .receipt_token_account
+                .to_account_info(),
+            destination: ctx.accounts.withdrawer.to_account_info(),
+            authority: ctx.accounts.withdrawer.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            close_instruction,
+        );
+        anchor_spl::token::close_account(cpi_ctx)
     }
 
     /// Cancels the withdraw request and returns the receipt NFT.
@@ -219,10 +241,10 @@ pub mod restaking {
         let vault_params = &mut ctx.accounts.vault_params;
 
         vault_params
-            .withdrawal_request_timestamp_sec
+            .withdrawal_request
             .ok_or(ErrorCodes::NoWithdrawalRequest)?;
 
-        vault_params.withdrawal_request_timestamp_sec = None;
+        vault_params.withdrawal_request = None;
 
         // If withdraw request is present, it means the amount has not been withdrew yet. So
         // we can just return the NFT from the escrow instead of checking the unbonding
@@ -264,7 +286,9 @@ pub mod restaking {
     /// This method can be called by anybody and if the unbonding period is
     /// over, then the tokens would be withdrawn to the account set during
     /// withdrawal request. This is done so that we can enable automatic withdrawal
-    /// after unbonding period.
+    /// after unbonding period. The amount is withdrawn to the account set during
+    /// the request and the `vault_params` and `escrow_receipt_token_account` are
+    /// closed.
     pub fn withdraw(ctx: Context<Withdraw>) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
@@ -278,12 +302,22 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenMint));
         }
 
-        let withdrawal_request_timestamp = vault_params
-            .withdrawal_request_timestamp_sec
+        let withdrawal_request_params = vault_params
+            .withdrawal_request
             .ok_or(ErrorCodes::NoWithdrawalRequest)?;
 
-        let unbonding_period =
-            withdrawal_request_timestamp + UNBONDING_PERIOD_IN_SEC;
+        if ctx.accounts.withdrawer.key() != withdrawal_request_params.owner {
+            return Err(error!(ErrorCodes::InvalidWithdrawer));
+        }
+
+        if ctx.accounts.withdrawer_token_account.key() !=
+            withdrawal_request_params.token_account
+        {
+            return Err(error!(ErrorCodes::InvalidTokenAccount));
+        };
+
+        let unbonding_period = withdrawal_request_params.timestamp_in_sec +
+            UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         msg!(
@@ -291,7 +325,7 @@ pub mod restaking {
             UNBONDING_PERIOD_IN_SEC,
             current_timestamp,
             unbonding_period,
-            withdrawal_request_timestamp
+            withdrawal_request_params.timestamp_in_sec
         );
         if current_timestamp < unbonding_period {
             return Err(error!(
@@ -576,9 +610,7 @@ pub mod restaking {
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
             CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
-
-        Ok(())
+        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
     /// This method would only be called by `Admin` to withdraw all the funds from the rewards account
@@ -601,9 +633,7 @@ pub mod restaking {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        token::transfer(ctx.accounts.into(), seeds, rewards_balance)?;
-
-        Ok(())
+        token::transfer(ctx.accounts.into(), seeds, rewards_balance)
     }
 
     pub fn update_staking_cap(
@@ -710,76 +740,6 @@ pub struct Deposit<'info> {
 }
 
 #[derive(Accounts)]
-pub struct Withdraw<'info> {
-    #[account(mut)]
-    pub withdrawer: Signer<'info>,
-
-    #[account(mut, close = withdrawer, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
-    pub vault_params: Box<Account<'info, Vault>>,
-    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
-    pub staking_params: Box<Account<'info, StakingParams>>,
-
-    #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
-    pub guest_chain: Box<Account<'info, ChainData>>,
-    #[account(mut, seeds = [TRIE_SEED], bump, seeds::program = guest_chain_program.key())]
-    /// CHECK:
-    pub trie: AccountInfo<'info>,
-
-    pub token_mint: Box<Account<'info, Mint>>,
-    #[account(mut, token::mint = token_mint, token::authority = withdrawer.key())]
-    pub withdrawer_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(mut, seeds = [VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = staking_params)]
-    pub vault_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(
-        mut,
-        mint::decimals = 0,
-        mint::authority = master_edition_account,
-        // mint::freeze_authority = withdrawer,
-    )]
-    pub receipt_token_mint: Box<Account<'info, Mint>>,
-    #[account(mut, close = withdrawer, seeds = [ESCROW_RECEIPT_SEED, receipt_token_mint.key().as_ref()], bump, token::mint = receipt_token_mint, token::authority = staking_params)]
-    pub escrow_receipt_token_account: Box<Account<'info, TokenAccount>>,
-
-    pub guest_chain_program: Program<'info, SolanaIbc>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    pub system_program: Program<'info, System>,
-    pub metadata_program: Program<'info, Metadata>,
-    pub rent: Sysvar<'info, Rent>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-            b"edition".as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub master_edition_account: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub nft_metadata: UncheckedAccount<'info>,
-
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    /// CHECK:
-    pub instruction: AccountInfo<'info>,
-}
-
-#[derive(Accounts)]
 pub struct WithdrawalRequest<'info> {
     #[account(mut)]
     pub withdrawer: Signer<'info>,
@@ -877,7 +837,7 @@ pub struct CancelWithdrawalRequest<'info> {
         // mint::freeze_authority = withdrawer,
     )]
     pub receipt_token_mint: Box<Account<'info, Mint>>,
-    #[account(mut, token::mint = receipt_token_mint, token::authority = withdrawer)]
+    #[account(init, payer = withdrawer, associated_token::mint = receipt_token_mint, associated_token::authority = withdrawer)]
     pub receipt_token_account: Box<Account<'info, TokenAccount>>,
 
     /// Account which stores the receipt token until unbonding period ends.
@@ -914,6 +874,82 @@ pub struct CancelWithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub nft_metadata: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+pub struct Withdraw<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    /// Account which requested withdrawal
+    ///
+    /// CHECK: Validation is done in the method
+    #[account(mut)]
+    pub withdrawer: AccountInfo<'info>,
+
+    #[account(mut, close = withdrawer, seeds = [VAULT_PARAMS_SEED, receipt_token_mint.key().as_ref()], bump)]
+    pub vault_params: Box<Account<'info, Vault>>,
+    #[account(mut, seeds = [STAKING_PARAMS_SEED, TEST_SEED], bump)]
+    pub staking_params: Box<Account<'info, StakingParams>>,
+
+    #[account(mut, seeds = [CHAIN_SEED], bump, seeds::program = guest_chain_program.key())]
+    pub guest_chain: Box<Account<'info, ChainData>>,
+    #[account(mut, seeds = [TRIE_SEED], bump, seeds::program = guest_chain_program.key())]
+    /// CHECK:
+    pub trie: AccountInfo<'info>,
+
+    pub token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, token::mint = token_mint)]
+    pub withdrawer_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(mut, seeds = [VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = staking_params)]
+    pub vault_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        mut,
+        mint::decimals = 0,
+        mint::authority = master_edition_account,
+        // mint::freeze_authority = withdrawer,
+    )]
+    pub receipt_token_mint: Box<Account<'info, Mint>>,
+    #[account(mut, close = withdrawer, seeds = [ESCROW_RECEIPT_SEED, receipt_token_mint.key().as_ref()], bump, token::mint = receipt_token_mint, token::authority = staking_params)]
+    pub escrow_receipt_token_account: Box<Account<'info, TokenAccount>>,
+
+    pub guest_chain_program: Program<'info, SolanaIbc>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+    pub metadata_program: Program<'info, Metadata>,
+    pub rent: Sysvar<'info, Rent>,
+    #[account(
+        mut,
+        seeds = [
+            b"metadata".as_ref(),
+            metadata_program.key().as_ref(),
+            receipt_token_mint.key().as_ref(),
+            b"edition".as_ref(),
+        ],
+        bump,
+        seeds::program = metadata_program.key()
+    )]
+    /// CHECK:
+    pub master_edition_account: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [
+            b"metadata".as_ref(),
+            metadata_program.key().as_ref(),
+            receipt_token_mint.key().as_ref(),
+        ],
+        bump,
+        seeds::program = metadata_program.key()
+    )]
+    /// CHECK:
+    pub nft_metadata: UncheckedAccount<'info>,
+
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK:
+    pub instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -1029,6 +1065,16 @@ pub enum Service {
     GuestChain { validator: Pubkey },
 }
 
+#[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug, Copy)]
+pub struct WithdrawalRequestParams {
+    /// Timestamp when withdrawal was requested
+    timestamp_in_sec: u64,
+    /// Account which requested the withdrawal
+    owner: Pubkey,
+    /// Token account to which the tokens would withdrew to
+    token_account: Pubkey,
+}
+
 #[account]
 pub struct Vault {
     pub stake_timestamp_sec: i64,
@@ -1039,7 +1085,7 @@ pub struct Vault {
     pub stake_mint: Pubkey,
     /// is 0 initially
     pub last_received_rewards_height: u64,
-    pub withdrawal_request_timestamp_sec: Option<u64>,
+    pub withdrawal_request: Option<WithdrawalRequestParams>,
 }
 
 #[error_code]
@@ -1085,4 +1131,11 @@ pub enum ErrorCodes {
          can withdraw after unbonding period ends"
     )]
     NoWithdrawalRequest,
+    #[msg("Invalid token account")]
+    InvalidTokenAccount,
+    #[msg(
+        "When the account which requested for withdraw is not passed during \
+         withdrawal"
+    )]
+    InvalidWithdrawer,
 }
