@@ -212,13 +212,10 @@ pub mod restaking {
 
         // Transfer receipt token to escrow
         token::transfer(ctx.accounts.into(), &[], 1)?;
-        
+
         // Closing receipt NFT token account
         let close_instruction = CloseAccount {
-            account: ctx
-                .accounts
-                .receipt_token_account
-                .to_account_info(),
+            account: ctx.accounts.receipt_token_account.to_account_info(),
             destination: ctx.accounts.withdrawer.to_account_info(),
             authority: ctx.accounts.withdrawer.to_account_info(),
         };
