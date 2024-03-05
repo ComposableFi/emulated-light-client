@@ -321,7 +321,7 @@ where
 
 
 impl<PK: PubKey> ClientState<PK> {
-    fn verify_header(
+    pub fn verify_header(
         &self,
         ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
@@ -362,39 +362,30 @@ impl<PK: PubKey> ClientState<PK> {
         .map_err(error)
     }
 
-    fn verify_misbehaviour<V>(
+    pub fn verify_misbehaviour(
         &self,
-        _ctx: &V,
+        _ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
         _misbehaviour: Misbehaviour<PK>,
-    ) -> Result<()>
-    where
-        V: ibc::ValidationContext + ibc::ClientValidationContext,
-    {
+    ) -> Result<()> {
         todo!()
     }
 
-    fn check_for_misbehaviour_header<V>(
+    pub fn check_for_misbehaviour_header(
         &self,
-        _ctx: &V,
+        _ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
         _header: Header<PK>,
-    ) -> Result<bool>
-    where
-        V: ibc::ValidationContext + ibc::ClientValidationContext,
-    {
+    ) -> Result<bool> {
         todo!()
     }
 
-    fn check_for_misbehaviour_misbehavior<V>(
+    pub fn check_for_misbehaviour_misbehavior(
         &self,
-        _ctx: &V,
+        _ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
         _misbehaviour: Misbehaviour<PK>,
-    ) -> Result<bool>
-    where
-        V: ibc::ValidationContext + ibc::ClientValidationContext,
-    {
+    ) -> Result<bool> {
         todo!()
     }
 
