@@ -15,12 +15,14 @@ validator --version
 ```
 validator init --rpc-url <RPC_URL> --ws-url <WS_URL> --program-id <PROGRAM_ID> --genesis-hash <GENESIS_HASH> --keypair-path <KEYPAIR_PATH>
 ```
+**Note:** This key does not need to be the same as your validator key, it can be any Solana mainnet account with SOL for gas fees. After completing all of the steps in this guide, please provide us with the address associated with this Key.
+
 4. Once the config file is set, run the validator. 
 ```
 validator run
 ```
-**Note:** You can even pass any of the arguments which would override the default config set in previous step. These arguments are
-optional and has higher preference than the default config file. Any of the arguments can be passes and its not neccessary to pass
+**Note:** You can even pass any of the arguments which would override the default config set in the previous step. These arguments are
+optional and have higher preference than the default config file. Any of the arguments can be passed and it's unnecessary to pass
 all of them.
 ```
 validator run --rpc-url <RPC_URL> --ws-url <WS_URL> --program-id <PROGRAM_ID> --genesis-hash <GENESIS_HASH> --keypair-path <KEYPAIR_PATH>
