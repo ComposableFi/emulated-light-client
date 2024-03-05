@@ -15,7 +15,7 @@ validator --version
 ```
 validator init --rpc-url <RPC_URL> --ws-url <WS_URL> --program-id <PROGRAM_ID> --genesis-hash <GENESIS_HASH> --keypair-path <KEYPAIR_PATH>
 ```
-**Note:** This key does not need to be the same as your validator key, it can be any Solana mainnet account with SOL for gas fees. After completing all of the steps in this guide, please provide us with the address associated with this Key.
+**Note:** The key utilised here does not need to be the same as your mainnet validator key; it can be any Solana mainnet account holding SOL for covering gas fees. After completing all the steps outlined in this guide, please provide us with the address associated with this key.
 
 4. Once the config file is set, run the validator. 
 ```
