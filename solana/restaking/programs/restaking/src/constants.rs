@@ -15,4 +15,4 @@ pub const TOKEN_URI: &str =
 /// Currently set to seven days.  However, when code is compiled with `mocks`
 /// feature enabled it’s set to one second for testing.
 pub const UNBONDING_PERIOD_IN_SEC: u64 =
-if cfg!(feature = "mocks") { 1 } else { 7 * 24 * 60 * 60 };
+    if cfg!(feature = "mocks") { 1 } else { 7 * 24 * 60 * 60 };

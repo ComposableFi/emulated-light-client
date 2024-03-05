@@ -1,3 +1,5 @@
+use core::num::NonZeroU64;
+
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
@@ -6,7 +8,6 @@ use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::{CHAIN_SEED, TRIE_SEED};
-use core::num::NonZeroU64;
 
 pub mod constants;
 mod token;
@@ -162,7 +163,8 @@ pub mod restaking {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         let withdrawal_request_params = WithdrawalRequestParams {
-            timestamp_in_sec: NonZeroU64::new(current_timestamp).ok_or(ErrorCodes::UnexpectedZeroTimestamp)?,
+            timestamp_in_sec: NonZeroU64::new(current_timestamp)
+                .ok_or(ErrorCodes::UnexpectedZeroTimestamp)?,
             owner: ctx.accounts.withdrawer.key(),
             token_account: ctx.accounts.withdrawer_token_account.key(),
         };
@@ -314,8 +316,9 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenAccount));
         };
 
-        let unbonding_period = u64::from(withdrawal_request_params.timestamp_in_sec) +
-            UNBONDING_PERIOD_IN_SEC;
+        let unbonding_period =
+            u64::from(withdrawal_request_params.timestamp_in_sec) +
+                UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         msg!(
@@ -1137,5 +1140,5 @@ pub enum ErrorCodes {
     )]
     InvalidWithdrawer,
     #[msg("Expected a non zero timestamp. Found zero timestamp")]
-    UnexpectedZeroTimestamp
+    UnexpectedZeroTimestamp,
 }
