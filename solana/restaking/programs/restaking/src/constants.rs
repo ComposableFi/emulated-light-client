@@ -10,10 +10,9 @@ pub const TOKEN_SYMBOL: &str = "CRP";
 pub const TOKEN_URI: &str =
     "https://arweave.net/QbxPlvN1nHFG0AVXfGNdlXUk-LEkrQxFffI3fOUDciA";
 
-#[cfg(not(feature = "mocks"))]
-/// 7 days in seconds (60 * 60 * 24 * 7)
-pub const UNBONDING_PERIOD_IN_SEC: u64 = 604800;
-
-#[cfg(feature = "mocks")]
-/// 1 second for tests
-pub const UNBONDING_PERIOD_IN_SEC: u64 = 1;
+/// Period of time funds are held until they can be withdrawn.
+///
+/// Currently set to seven days.  However, when code is compiled with `mocks`
+/// feature enabled it’s set to one second for testing.
+pub const UNBONDING_PERIOD_IN_SEC: u64 =
+if cfg!(feature = "mocks") { 1 } else { 7 * 24 * 60 * 60 };

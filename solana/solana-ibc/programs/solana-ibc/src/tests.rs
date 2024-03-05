@@ -26,7 +26,6 @@ use crate::{
     accounts, chain, ibc, instruction, ix_data_account, CryptoHash,
     MINT_ESCROW_SEED,
 };
-
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
@@ -349,7 +348,6 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::InitMint {
             sender: authority.pubkey(),
             mint_authority: mint_authority_key,
-            // escrow_account: escrow_account_key,
             token_mint: token_mint_key,
             system_program: system_program::ID,
             associated_token_program: anchor_spl::associated_token::ID,
