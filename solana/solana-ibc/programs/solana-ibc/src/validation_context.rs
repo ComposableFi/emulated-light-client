@@ -37,17 +37,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<Self::AnyConsensusState> {
         let height =
             ibc::Height::new(path.revision_number, path.revision_height)?;
-        self.borrow()
-            .private
-            .client(&path.client_id)?
-            .consensus_states
-            .get(&height)
-            .cloned()
-            .ok_or_else(|| ibc::ClientError::ConsensusStateNotFound {
-                client_id: path.client_id.clone(),
-                height,
-            })
-            .and_then(|data| data.state())
+        self.consensus_state_impl(&path.client_id, height)
             .map_err(ibc::ContextError::from)
     }
 
@@ -77,12 +67,10 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         .ok_or(ibc::ClientError::MissingLocalConsensusState {
             height: *height,
         })?;
-        Ok(Self::AnyConsensusState::from(
-            guestchain::ibc_state::ConsensusState {
-                block_hash: state.0.as_array().to_vec().into(),
-                timestamp_ns: state.1,
-            },
-        ))
+        Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
+            block_hash: state.0.as_array().to_vec().into(),
+            timestamp_ns: state.1,
+        }))
     }
 
     fn client_counter(&self) -> Result<u64> {
@@ -276,6 +264,27 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         )
     }
 }
+
+impl IbcStorage<'_, '_> {
+    pub(crate) fn consensus_state_impl(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<AnyConsensusState, ibc::ClientError> {
+        self.borrow()
+            .private
+            .client(client_id)?
+            .consensus_states
+            .get(&height)
+            .cloned()
+            .ok_or_else(|| ibc::ClientError::ConsensusStateNotFound {
+                client_id: client_id.clone(),
+                height,
+            })
+            .and_then(|data| data.state())
+    }
+}
+
 
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn client_update_time(

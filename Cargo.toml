@@ -78,6 +78,7 @@ toml = "0.8.8"
 uint = "0.9.5"
 
 guestchain = { path = "common/guestchain" }
+cf-guest = { path = "common/cf-guest" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
 restaking = { path = "solana/restaking/programs/restaking" }

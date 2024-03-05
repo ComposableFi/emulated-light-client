@@ -943,6 +943,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "cf-guest"
+version = "0.0.0"
+dependencies = [
+ "borsh 0.10.3",
+ "bytemuck",
+ "derive_more",
+ "guestchain",
+ "ibc-core-client-context",
+ "ibc-core-commitment-types",
+ "ibc-core-host",
+ "ibc-primitives",
+ "ibc-proto",
+ "insta",
+ "lib",
+ "memory",
+ "prost",
+ "prost-build",
+ "rand 0.8.5",
+ "sealable-trie",
+ "stdx",
+ "trie-ids",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4692,6 +4716,7 @@ dependencies = [
  "anyhow",
  "base64 0.21.7",
  "bytemuck",
+ "cf-guest",
  "derive_more",
  "guestchain",
  "hex-literal",

@@ -1,6 +1,7 @@
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
+use guestchain::BlockHeader;
 use lib::hash::CryptoHash;
 
 mod ibc {
@@ -47,9 +48,9 @@ pub enum GenerateError {
 /// # Proof format
 ///
 /// In most cases, proof is Borsh-serialised `(guestchain::BlockHeader,
-/// sealable_trie::proof::Proof)` pair.  The header at the front is
-/// necessary to determine state root (recall that `root` is the block hash
-/// and not state root).
+/// sealable_trie::proof::Proof)` pair.  The header at the front is necessary to
+/// determine state root (recall that `root` is the block hash and not state
+/// root).
 ///
 /// However, if `path` is one of `SeqSend`, `SeqRecv` or `SeqAck` than proof
 /// further contain two big-endian encoded `u64` numbers holding the other
@@ -70,7 +71,7 @@ pub enum GenerateError {
 /// (Note that Borsh uses little endian to encode integers so the sequence
 /// numbers cannot be simply borsh deserialised.)
 pub fn generate<A: sealable_trie::Allocator>(
-    block_header: &crate::BlockHeader,
+    block_header: &BlockHeader,
     trie: &sealable_trie::Trie<A>,
     path: ibc::path::Path,
 ) -> Result<IbcProof, GenerateError> {
@@ -96,7 +97,9 @@ pub fn generate<A: sealable_trie::Allocator>(
 }
 
 
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
+)]
 pub enum VerifyError {
     /// Invalid commitment prefix (expected empty).
     BadPrefix,
@@ -170,7 +173,7 @@ pub fn verify(
     let mut proof_bytes = proof_bytes.as_slice();
 
     let (state_root, proof) = {
-        let (header, proof): (crate::BlockHeader, sealable_trie::proof::Proof) =
+        let (header, proof): (BlockHeader, sealable_trie::proof::Proof) =
             borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
         if root != &header.calc_hash() {
             return Err(VerifyError::VerificationFailed);
@@ -235,7 +238,7 @@ fn test_proofs() {
 
     struct Trie {
         trie: sealable_trie::Trie<memory::test_utils::TestAllocator<[u8; 72]>>,
-        header: crate::BlockHeader,
+        header: BlockHeader,
     }
 
     impl Trie {
@@ -258,9 +261,9 @@ fn test_proofs() {
             memory::test_utils::TestAllocator::new(100),
         );
         let mut trie = Trie {
-            header: crate::BlockHeader::generate_genesis(
-                crate::BlockHeight::from(0),
-                crate::HostHeight::from(42),
+            header: BlockHeader::generate_genesis(
+                guestchain::BlockHeight::from(0),
+                guestchain::HostHeight::from(42),
                 core::num::NonZeroU64::new(24).unwrap(),
                 trie.hash().clone(),
                 CryptoHash::test(86),

@@ -7,6 +7,8 @@ use crate::ibc;
 use crate::ibc::Protobuf;
 use crate::storage::IbcStorage;
 
+type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
+
 #[derive(
     Clone,
     Debug,
@@ -19,6 +21,7 @@ use crate::storage::IbcStorage;
 #[execution(IbcStorage<'a, 'b>)]
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
+    Guest(cf_guest::ClientState<solana_ed25519::PubKey>),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -30,6 +33,7 @@ impl ibc::Protobuf<ibc::Any> for AnyClientState {}
 #[repr(u8)]
 enum AnyClientStateTag {
     Tendermint = 0,
+    Guest = 1,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -40,6 +44,7 @@ impl AnyClientStateTag {
     fn from_type_url(url: &str) -> Option<Self> {
         match url {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
+            AnyClientState::GUEST_TYPE => Some(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -51,6 +56,8 @@ impl AnyClientState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
+    /// Protobuf type URL for Guest client state used in Any message.
+    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -69,13 +76,18 @@ impl AnyClientState {
     /// necessary.
     fn into_any(self) -> (AnyClientStateTag, &'static str, Vec<u8>) {
         match self {
-            AnyClientState::Tendermint(state) => (
+            Self::Tendermint(state) => (
                 AnyClientStateTag::Tendermint,
                 Self::TENDERMINT_TYPE,
                 Protobuf::<ibc::tm::ClientStatePB>::encode_vec(state),
             ),
+            Self::Guest(state) => (
+                AnyClientStateTag::Guest,
+                Self::GUEST_TYPE,
+                state.encode_to_vec(),
+            ),
             #[cfg(any(test, feature = "mocks"))]
-            AnyClientState::Mock(state) => (
+            Self::Mock(state) => (
                 AnyClientStateTag::Mock,
                 Self::MOCK_TYPE,
                 Protobuf::<ibc::mock::ClientStatePB>::encode_vec(state),
@@ -87,15 +99,20 @@ impl AnyClientState {
     fn from_tagged(
         tag: AnyClientStateTag,
         value: Vec<u8>,
-    ) -> Result<Self, impl core::fmt::Display> {
+    ) -> Result<Self, String> {
         match tag {
             AnyClientStateTag::Tendermint => {
                 Protobuf::<ibc::tm::ClientStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
             }
+            AnyClientStateTag::Guest => cf_guest::ClientState::decode(&value)
+                .map_err(|err| err.to_string())
+                .map(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
                 Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
                     .map(Self::Mock)
             }
         }
@@ -148,7 +165,6 @@ impl borsh::BorshDeserialize for AnyClientState {
 
 impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
     type ConversionError = &'static str;
-
     type AnyConsensusState = AnyConsensusState;
 
     fn consensus_state(
@@ -178,6 +194,78 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
 
     fn host_height(&self) -> Result<ibc::Height, ibc::ContextError> {
         ibc::ValidationContext::host_height(self)
+    }
+}
+
+impl cf_guest::CommonContext for IbcStorage<'_, '_> {
+    type ConversionError = &'static str;
+    type AnyConsensusState = AnyConsensusState;
+
+    fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
+        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
+        let timestamp =
+            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+                ibc::ClientError::Other { description: err.to_string() }
+            })?;
+
+        let height = u64::from(self.borrow().chain.head()?.block_height);
+        let height = ibc::Height::new(0, height)?;
+
+        Ok((timestamp, height))
+    }
+
+    fn consensus_state(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<Self::AnyConsensusState> {
+        self.consensus_state_impl(client_id, height)
+    }
+
+    fn store_consensus_state_and_metadata(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+        consensus: Self::AnyConsensusState,
+        _host_timestamp: ibc::Timestamp,
+        _host_height: ibc::Height,
+    ) -> Result {
+        self.store_consensus_state_impl(client_id, height, consensus)
+    }
+
+    fn delete_consensus_state_and_metadata(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result {
+        self.delete_consensus_state_impl(client_id, height)
+    }
+
+    fn sorted_consensus_state_heights(
+        &self,
+        client_id: &ibc::ClientId,
+    ) -> Result<Vec<ibc::Height>> {
+        let mut heights: Vec<_> = self
+            .borrow()
+            .private
+            .client(client_id)?
+            .consensus_states
+            .keys()
+            .copied()
+            .collect();
+        heights.sort();
+        Ok(heights)
+    }
+}
+
+impl guestchain::Verifier<solana_ed25519::PubKey> for IbcStorage<'_, '_> {
+    fn verify(
+        &self,
+        _message: &[u8],
+        _pubkey: &solana_ed25519::PubKey,
+        _signature: &solana_ed25519::Signature,
+    ) -> bool {
+        unimplemented!()
     }
 }
 

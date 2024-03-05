@@ -1,3 +1,6 @@
+#[cfg(feature = "guest")]
+extern crate alloc;
+
 use core::fmt;
 
 use solana_program::account_info::AccountInfo;
@@ -58,6 +61,11 @@ impl PartialEq<PubKey> for solana_program::pubkey::Pubkey {
 #[cfg(feature = "guest")]
 impl guestchain::PubKey for PubKey {
     type Signature = Signature;
+
+    fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
+        Ok(Self(bytes.try_into()?))
+    }
 }
 
 /// A Ed25519 signature of a guest block.
@@ -88,6 +96,14 @@ impl<'a> TryFrom<&'a [u8]> for &'a Signature {
     fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
         <&[u8; Signature::LENGTH]>::try_from(bytes)
             .map(bytemuck::TransparentWrapper::wrap_ref)
+    }
+}
+
+#[cfg(feature = "guest")]
+impl guestchain::Signature for Signature {
+    fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
+        Ok(Self(bytes.try_into()?))
     }
 }
 

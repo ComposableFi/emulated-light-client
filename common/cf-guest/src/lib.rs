@@ -12,6 +12,7 @@ mod client;
 mod client_impls;
 mod consensus;
 mod header;
+mod message;
 mod misbehaviour;
 pub mod proof;
 pub mod proto;
@@ -20,6 +21,7 @@ pub use client::ClientState;
 pub use client_impls::CommonContext;
 pub use consensus::ConsensusState;
 pub use header::Header;
+pub use message::ClientMessage;
 pub use misbehaviour::Misbehaviour;
 pub use proof::IbcProof;
 

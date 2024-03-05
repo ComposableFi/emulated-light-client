@@ -44,12 +44,15 @@ impl From<SequenceKind> for usize {
 }
 
 /// Error when converting IBC path into a trie key.
-#[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
+)]
 pub enum Error {
     BadChannel(ibc::ChannelId),
     BadClient(ibc::ClientId),
     BadConnection(ibc::ConnectionId),
     BadPort(ibc::PortId),
+    #[display(fmt = "‘{}’ path is unsupported", _0)]
     UnsupportedPath(ibc::path::Path),
 }
 

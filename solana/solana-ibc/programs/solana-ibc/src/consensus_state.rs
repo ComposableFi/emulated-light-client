@@ -14,7 +14,7 @@ use crate::ibc::Protobuf;
 )]
 pub enum AnyConsensusState {
     Tendermint(crate::ibc::tm::ConsensusState),
-    Guest(guestchain::ibc_state::ConsensusState),
+    Guest(cf_guest::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(crate::ibc::mock::MockConsensusState),
 }
@@ -48,8 +48,7 @@ impl AnyConsensusState {
     const TENDERMINT_TYPE: &'static str =
         crate::ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest consensus state used in Any message.
-    const GUEST_TYPE: &'static str =
-        guestchain::proto::ConsensusState::TYPE_URL;
+    const GUEST_TYPE: &'static str = cf_guest::proto::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str =
@@ -77,9 +76,7 @@ impl AnyConsensusState {
             AnyConsensusState::Guest(state) => (
                 AnyConsensusStateTag::Guest,
                 Self::GUEST_TYPE,
-                Protobuf::<guestchain::proto::ConsensusState>::encode_vec(
-                    state,
-                ),
+                Protobuf::<cf_guest::proto::ConsensusState>::encode_vec(state),
             ),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(state) => (
@@ -103,11 +100,11 @@ impl AnyConsensusState {
                     .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
             }
-            AnyConsensusStateTag::Guest => Protobuf::<
-                guestchain::proto::ConsensusState,
-            >::decode_vec(&value)
-            .map_err(|err| err.to_string())
-            .map(Self::Guest),
+            AnyConsensusStateTag::Guest => {
+                Protobuf::<cf_guest::proto::ConsensusState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Guest)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusStateTag::Mock => Protobuf::<
                 crate::ibc::mock::ConsensusStatePB,
