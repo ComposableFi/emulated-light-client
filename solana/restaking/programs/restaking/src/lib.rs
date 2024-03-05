@@ -6,6 +6,7 @@ use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::{CHAIN_SEED, TRIE_SEED};
+use core::num::NonZeroU64;
 
 pub mod constants;
 mod token;
@@ -161,7 +162,7 @@ pub mod restaking {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         let withdrawal_request_params = WithdrawalRequestParams {
-            timestamp_in_sec: current_timestamp,
+            timestamp_in_sec: NonZeroU64::new(current_timestamp).ok_or(ErrorCodes::UnexpectedZeroTimestamp)?,
             owner: ctx.accounts.withdrawer.key(),
             token_account: ctx.accounts.withdrawer_token_account.key(),
         };
@@ -313,7 +314,7 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenAccount));
         };
 
-        let unbonding_period = withdrawal_request_params.timestamp_in_sec +
+        let unbonding_period = u64::from(withdrawal_request_params.timestamp_in_sec) +
             UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
@@ -1065,7 +1066,7 @@ pub enum Service {
 #[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug, Copy)]
 pub struct WithdrawalRequestParams {
     /// Timestamp when withdrawal was requested
-    timestamp_in_sec: u64,
+    timestamp_in_sec: NonZeroU64,
     /// Account which requested the withdrawal
     owner: Pubkey,
     /// Token account to which the tokens would withdrew to
@@ -1135,4 +1136,6 @@ pub enum ErrorCodes {
          withdrawal"
     )]
     InvalidWithdrawer,
+    #[msg("Expected a non zero timestamp. Found zero timestamp")]
+    UnexpectedZeroTimestamp
 }
