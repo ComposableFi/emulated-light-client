@@ -361,12 +361,23 @@ mod test {
                 fn test_verify_new_instruction() {
                     let $ctx = $prepare;
                     let entries = [$($entry),*];
-                    let data = new_instruction(&entries).unwrap().data;
+                    let mut data = new_instruction(&entries).unwrap().data;
+
+                    // solana_sdk::ed25519_instruction::verify requires that
+                    // data is aligned to two bytes.  However, since data is
+                    // Vec<u8> we cannot enforce the alignment.  Instead, if the
+                    // data isn’t aligned insert one byte at the start and look
+                    // at data from the next byte.
+                    let start = data.as_ptr().align_offset(2);
+                    if start != 0 {
+                        data.insert(0, 0);
+                    };
+                    let data = &data[start..];
 
                     // Verify
                     solana_sdk::ed25519_instruction::verify(
-                        data.as_slice(),
-                        &[data.as_slice()],
+                        data,
+                        &[data],
                         &Default::default(),
                     ).unwrap();
                 }
