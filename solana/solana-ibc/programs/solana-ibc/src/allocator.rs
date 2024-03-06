@@ -11,6 +11,7 @@
 //! returns `Global` type with all the available global variables.  While the
 //! returned reference is static, the variables may use inner mutability.
 
+#[allow(unused_imports)] // needed for nightly
 use alloc::boxed::Box;
 
 pub(crate) use imp::{global, Global};

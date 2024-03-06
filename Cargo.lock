@@ -4662,6 +4662,7 @@ dependencies = [
  "guestchain",
  "lib",
  "solana-program",
+ "solana-signature-verifier",
 ]
 
 [[package]]
@@ -5126,6 +5127,7 @@ dependencies = [
  "bytemuck",
  "derive_more",
  "ed25519-dalek",
+ "insta",
  "lib",
  "solana-program",
  "solana-sdk",
@@ -6284,7 +6286,6 @@ dependencies = [
  "anchor-spl",
  "base64 0.21.7",
  "borsh 0.10.3",
- "bytemuck",
  "clap 4.4.18",
  "derive_more",
  "dialoguer",
@@ -6298,6 +6299,7 @@ dependencies = [
  "serde_bytes",
  "solana-ed25519",
  "solana-ibc",
+ "solana-signature-verifier",
  "toml 0.8.8",
 ]
 

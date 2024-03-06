@@ -86,6 +86,7 @@ sealable-trie = { path = "common/sealable-trie" }
 solana-allocator = { path = "solana/allocator" }
 solana-ed25519 = { path = "solana/ed25519" }
 solana-ibc = { path = "solana/solana-ibc/programs/solana-ibc" }
+solana-signature-verifier = { path = "solana/signature-verifier" }
 solana-trie = { path = "solana/trie" }
 solana-write-account = { path = "solana/write-account" }
 stdx = { path = "common/stdx" }

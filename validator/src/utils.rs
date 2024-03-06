@@ -6,16 +6,12 @@ use std::time::Duration;
 
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
-use anchor_client::solana_sdk::ed25519_instruction::{
-    DATA_START, PUBKEY_SERIALIZED_SIZE, SIGNATURE_SERIALIZED_SIZE,
-};
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
-use anchor_client::{solana_sdk, ClientError, Program};
+use anchor_client::{ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use base64::Engine;
-use bytemuck::bytes_of;
 use directories::ProjectDirs;
 use solana_ibc::{accounts, instruction};
 
@@ -61,45 +57,17 @@ pub(crate) fn get_events_from_logs(
         .collect()
 }
 
-/// Solana sdk only accepts a keypair to form ed25519 instruction.
-/// Until they implement a method which accepts a pubkey and signature instead of keypair
-/// we have to use the below method instead.
-///
-/// Reference: https://github.com/solana-labs/solana/pull/32806
-pub fn new_ed25519_instruction_with_signature(
-    pubkey: &[u8],
+fn new_ed25519_instruction_with_signature(
+    pubkey: &[u8; 32],
     signature: &[u8],
     message: &[u8],
 ) -> Instruction {
-    assert_eq!(pubkey.len(), PUBKEY_SERIALIZED_SIZE);
-    assert_eq!(signature.len(), SIGNATURE_SERIALIZED_SIZE);
-
-    let num_signatures: u8 = 1;
-    let public_key_offset = DATA_START;
-    let signature_offset =
-        public_key_offset.saturating_add(PUBKEY_SERIALIZED_SIZE);
-    let message_data_offset =
-        signature_offset.saturating_add(SIGNATURE_SERIALIZED_SIZE);
-
-    let offsets = solana_ed25519::SignatureOffsets {
-        signature_offset: signature_offset as u16,
-        signature_instruction_index: u16::MAX,
-        public_key_offset: public_key_offset as u16,
-        public_key_instruction_index: u16::MAX,
-        message_data_offset: message_data_offset as u16,
-        message_data_size: message.len() as u16,
-        message_instruction_index: u16::MAX,
+    let entry = sigverify::ed25519_program::Entry {
+        signature: signature.try_into().unwrap(),
+        pubkey,
+        message,
     };
-
-    let instruction =
-        [&[num_signatures, 0], bytes_of(&offsets), pubkey, signature, message]
-            .concat();
-
-    Instruction {
-        program_id: solana_sdk::ed25519_program::id(),
-        accounts: vec![],
-        data: instruction,
-    }
+    sigverify::ed25519_program::new_instruction(&[entry]).unwrap()
 }
 
 pub fn submit_call(

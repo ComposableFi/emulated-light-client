@@ -14,6 +14,7 @@ solana-program.workspace = true
 
 guestchain = { workspace = true, optional = true }
 lib = { workspace = true, features = ["solana-program"] }
+solana-signature-verifier = { workspace = true, features = ["library"] }
 
 [features]
 default = ["borsh", "guest"]
