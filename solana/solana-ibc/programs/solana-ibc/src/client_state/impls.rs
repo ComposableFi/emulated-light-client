@@ -72,7 +72,7 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             AnyClientState::Guest(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
-            #[cfg(feature = "mocks")]
+            #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
