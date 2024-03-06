@@ -110,34 +110,6 @@ mod imp {
     pub(crate) fn global() -> &'static Global { &Global }
 }
 
-/// Returns global verifier if one has been set.
-///
-/// Together with [`Global::set_verifier`] this function provides an interface
-/// analogous to a mutable global.
-///
-/// Returns `*const Verifier` pointer cast to `*const ()`.  Caller should cast
-/// the result back to `*const Verifier` (or better yet `*mut Verifier` and then
-/// use `NonNull`).  The pointer conversion is used to avoid [`Verifier`] having
-/// to be FFI-safe.
-///
-/// Due to symbol resolution and cyclical crate dependency shenanigans, this is
-/// defined as C function so that it can be accessed from other crates.
-/// Client of this interface should declare an extern function and use that to
-/// get access to Verifier.
-///
-/// # Safety
-///
-/// The function is always safe to run.  If it returns non-null pointer, the
-/// pointer is safe to convert to `*const Verifier` and dereferenced.
-#[no_mangle]
-#[allow(dead_code)]
-pub extern "C" fn get_global_ed25519_verifier() -> *const () {
-    match global().verifier() {
-        None => core::ptr::null(),
-        Some(verifier) => verifier as *const Verifier as *const (),
-    }
-}
-
 impl Global {
     /// Returns global verifier, if initialised.
     pub fn verifier(&self) -> Option<&'static Verifier> {

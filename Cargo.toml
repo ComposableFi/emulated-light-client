@@ -43,17 +43,20 @@ directories = "5.0"
 ed25519-dalek = "=1.0.1"  # Must match solana-sdk’s dependency.
 env_logger = "0.7.1"
 hex-literal = "0.4.1"
-ibc = { version = "0.50.0", default-features = false, features = ["borsh", "serde"] }
-ibc-core-channel-types = { version = "0.50.0", default-features = false }
-ibc-core-client-context = { version = "0.50.0", default-features = false }
-ibc-core-client-types = { version = "0.50.0", default-features = false }
-ibc-core-commitment-types = { version = "0.50.0", default-features = false }
-ibc-core-connection-types = { version = "0.50.0", default-features = false }
-ibc-core-host = { version = "0.50.0", default-features = false }
-ibc-core-host-types = { version = "0.50.0", default-features = false }
-ibc-primitives = { version = "0.50.0", default-features = false }
+
+# Use unreleased ibc-rs which supports custom verifier.
+ibc                       = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false, features = ["borsh", "serde"] }
+ibc-core-channel-types    = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-client-context   = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-client-types     = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-commitment-types = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-connection-types = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-host             = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-core-host-types       = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-primitives            = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+ibc-testkit               = { git = "https://github.com/cosmos/ibc-rs", rev = "6dd3c6465e594d4c177f21724dd896a15e8f3634", default-features = false }
+
 ibc-proto = { version = "0.41.0", default-features = false }
-ibc-testkit = { version = "0.50.0", default-features = false }
 insta = { version = "1.34.0" }
 # https://github.com/contain-rs/linear-map/pull/38 adds no_std support
 linear-map = { git = "https://github.com/contain-rs/linear-map", rev = "57f1432e26ff902bc883b250a85e0b5716bd241c", default-features = false }
@@ -73,6 +76,8 @@ solana-sdk = "1.17.7"
 spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
+tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
+tendermint-light-client-verifier = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 tokio = "1.35.1"
 toml = "0.8.8"
 uint = "0.9.5"
@@ -115,52 +120,9 @@ curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dal
 # version which doesn’t do that hasn’t been released yet so we need to
 # refer to a commit on master.
 tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
+tendermint-light-client = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
+tendermint-light-client-verifier = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 
 # Adds support for custom-entrypoint feature
 anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
-
-# We need to patch ibc-client-tendermint to support custom verifier.
-# Unfortunately, because that crate refers to other ibc-rs crates by
-# path, we then need to patch all the other crates in ibc-rs as well.
-#cw-check = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-app-nft-transfer = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-app-nft-transfer-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-app-transfer = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-app-transfer-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-apps = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-client-tendermint = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-client-tendermint-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-client-wasm-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-clients = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-channel = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-channel-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-client = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-client-context = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-client-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-commitment-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-connection = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-connection-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-handler = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-handler-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-host = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-host-cosmos = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-host-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-router = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-core-router-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-#ibc-data-types = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-derive = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-primitives = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-#ibc-query = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-ibc-testkit = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-#no-std-check = { git = "https://github.com/mina86/ibc-rs", branch = "solana-verifier" }
-
-# We need to further instruct Crate to take solana-ed25519 from this
-# directory rather than from git when ibc-rs uses it.  Otherwise we
-# would end up with two versions of solana-ed25519: we would use ours
-# (from the checked out directory) and ibc-rs would use one from the
-# repository.
-[patch."https://github.com/ComposableFi/emulated-light-client/"]
-solana-ed25519 = { path = "solana/ed25519" }

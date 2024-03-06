@@ -48,9 +48,9 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
 
     /// Does nothing in the current implementation.
     ///
-    /// Instead, the update height is deleted when consensus state at given
-    /// height is deleted.
-    fn delete_update_height(
+    /// Instead, the update timestamp and height are deleted when consensus
+    /// state at given height is deleted.
+    fn delete_update_meta(
         &mut self,
         _client_id: ibc::ClientId,
         _height: ibc::Height,
@@ -60,37 +60,14 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
 
     /// Does nothing in the current implementation.
     ///
-    /// Instead, the update time is deleted when consensus state at given
-    /// height is deleted.
-    fn delete_update_time(
-        &mut self,
-        _client_id: ibc::ClientId,
-        _height: ibc::Height,
-    ) -> Result {
-        Ok(())
-    }
-
-    /// Does nothing in the current implementation.
-    ///
-    /// Instead, the update time is set when storing consensus state to the host
-    /// time at the moment `store_consensus_state` method is called.
-    fn store_update_time(
+    /// Instead, the update timestamp and time are set when storing consensus
+    /// state to the host time at the moment `store_consensus_state` method is
+    /// called.
+    fn store_update_meta(
         &mut self,
         _client_id: ibc::ClientId,
         _height: ibc::Height,
         _host_timestamp: ibc::Timestamp,
-    ) -> Result {
-        Ok(())
-    }
-
-    /// Does nothing in the current implementation.
-    ///
-    /// Instead, the update height is set when storing consensus state to the
-    /// host height at the moment `store_consensus_state` method is called.
-    fn store_update_height(
-        &mut self,
-        _client_id: ibc::ClientId,
-        _height: ibc::Height,
         _host_height: ibc::Height,
     ) -> Result {
         Ok(())

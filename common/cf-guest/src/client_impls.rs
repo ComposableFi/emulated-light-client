@@ -3,7 +3,10 @@ use alloc::vec::Vec;
 
 use guestchain::PubKey;
 
-use super::{proof, Any, ClientState, ConsensusState, Header, Misbehaviour};
+use super::{
+    proof, Any, ClientMessage, ClientState, ConsensusState, Header,
+    Misbehaviour,
+};
 
 mod ibc {
     pub use ibc_core_client_context::client_state::{
@@ -12,7 +15,7 @@ mod ibc {
     pub use ibc_core_client_context::types::error::{
         ClientError, UpgradeClientError,
     };
-    pub use ibc_core_client_context::types::{Height, Status, UpdateKind};
+    pub use ibc_core_client_context::types::{Height, Status};
     pub use ibc_core_client_context::{
         ClientExecutionContext, ClientValidationContext,
     };
@@ -160,7 +163,7 @@ where
         let consensus_state = super::ConsensusState::try_from(consensus_state)?;
 
         ctx.store_client_state(
-            ibc::path::ClientStatePath::new(client_id),
+            ibc::path::ClientStatePath::new(client_id.clone()),
             self.clone().into(),
         )?;
         ctx.store_consensus_state(
@@ -196,7 +199,7 @@ where
             let new_client_state = self.with_header(&header);
 
             ctx.store_client_state(
-                ibc::path::ClientStatePath::new(client_id),
+                ibc::path::ClientStatePath::new(client_id.clone()),
                 new_client_state.into(),
             )?;
             ctx.store_consensus_state_and_metadata(
@@ -216,10 +219,9 @@ where
         ctx: &mut E,
         client_id: &ibc::ClientId,
         _client_message: Any,
-        _update_kind: &ibc::UpdateKind,
     ) -> Result {
         ctx.store_client_state(
-            ibc::path::ClientStatePath::new(client_id),
+            ibc::path::ClientStatePath::new(client_id.clone()),
             self.frozen().into(),
         )?;
         Ok(())
@@ -233,7 +235,7 @@ where
         _upgraded_consensus_state: Any,
     ) -> Result<ibc::Height> {
         Err(ibc::UpgradeClientError::Other {
-            reason: "upgrade not supported yet".into(),
+            reason: "upgrade not supported".into(),
         }
         .into())
     }
@@ -251,19 +253,8 @@ where
         ctx: &V,
         client_id: &ibc::ClientId,
         client_message: Any,
-        update_kind: &ibc::UpdateKind,
     ) -> Result {
-        match update_kind {
-            ibc::UpdateKind::UpdateClient => {
-                let header = Header::<PK>::try_from(client_message)?;
-                self.verify_header(ctx, client_id, header)
-            }
-            ibc::UpdateKind::SubmitMisbehaviour => {
-                let misbehaviour =
-                    Misbehaviour::<PK>::try_from(client_message)?;
-                self.verify_misbehaviour(ctx, client_id, misbehaviour)
-            }
-        }
+        self.verify_client_message(ctx, client_id, client_message)
     }
 
     fn check_for_misbehaviour(
@@ -271,23 +262,8 @@ where
         ctx: &V,
         client_id: &ibc::ClientId,
         client_message: Any,
-        update_kind: &ibc::UpdateKind,
     ) -> Result<bool> {
-        match update_kind {
-            ibc::UpdateKind::UpdateClient => {
-                let header = Header::<PK>::try_from(client_message)?;
-                self.check_for_misbehaviour_header(ctx, client_id, header)
-            }
-            ibc::UpdateKind::SubmitMisbehaviour => {
-                let misbehaviour =
-                    Misbehaviour::<PK>::try_from(client_message)?;
-                self.check_for_misbehaviour_misbehavior(
-                    ctx,
-                    client_id,
-                    misbehaviour,
-                )
-            }
-        }
+        self.check_for_misbehaviour(ctx, client_id, client_message)
     }
 
     fn status(
@@ -321,10 +297,39 @@ where
 
 
 impl<PK: PubKey> ClientState<PK> {
-    pub fn verify_header(
+    pub fn verify_client_message(
         &self,
         ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
+        client_message: Any,
+    ) -> Result<()> {
+        match ClientMessage::<PK>::try_from(client_message)? {
+            ClientMessage::Header(header) => self.verify_header(ctx, header),
+            ClientMessage::Misbehaviour(misbehaviour) => {
+                self.verify_misbehaviour(ctx, misbehaviour)
+            }
+        }
+    }
+
+    pub fn check_for_misbehaviour(
+        &self,
+        ctx: &impl guestchain::Verifier<PK>,
+        _client_id: &ibc::ClientId,
+        client_message: Any,
+    ) -> Result<bool> {
+        match ClientMessage::<PK>::try_from(client_message)? {
+            ClientMessage::Header(header) => {
+                self.check_for_misbehaviour_header(ctx, header)
+            }
+            ClientMessage::Misbehaviour(misbehaviour) => {
+                self.check_for_misbehaviour_misbehavior(ctx, misbehaviour)
+            }
+        }
+    }
+
+    fn verify_header(
+        &self,
+        ctx: &impl guestchain::Verifier<PK>,
         header: Header<PK>,
     ) -> Result<()> {
         (|| {
@@ -362,28 +367,25 @@ impl<PK: PubKey> ClientState<PK> {
         .map_err(error)
     }
 
-    pub fn verify_misbehaviour(
+    fn verify_misbehaviour(
         &self,
         _ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
         _misbehaviour: Misbehaviour<PK>,
     ) -> Result<()> {
         todo!()
     }
 
-    pub fn check_for_misbehaviour_header(
+    fn check_for_misbehaviour_header(
         &self,
         _ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
         _header: Header<PK>,
     ) -> Result<bool> {
         todo!()
     }
 
-    pub fn check_for_misbehaviour_misbehavior(
+    fn check_for_misbehaviour_misbehavior(
         &self,
         _ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
         _misbehaviour: Misbehaviour<PK>,
     ) -> Result<bool> {
         todo!()
