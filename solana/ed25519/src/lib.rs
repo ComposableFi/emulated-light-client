@@ -145,7 +145,12 @@ impl Verifier {
         pubkey: &PubKey,
         signature: &Signature,
     ) -> bool {
-        exists_impl(self.0.as_slice(), message, &pubkey.0, &signature.0)
+        let entry = sigverify::ed25519_program::Entry {
+            signature: &signature.0,
+            pubkey: &pubkey.0,
+            message,
+        };
+        exists_impl(self.0.as_slice(), entry).ok().unwrap_or_default()
     }
 }
 
@@ -164,94 +169,16 @@ impl guestchain::Verifier<PubKey> for Verifier {
 
 /// Parses the `data` as instruction data for the Ed25519 native program and
 /// checks whether the call included verification of the given signature.
-///
-/// `data` must be aligned to two bytes.  This is in practice guaranteed if data
-/// comes from a vector or in general points at a beginning of an allocation.
 fn exists_impl(
     data: &[u8],
-    message: &[u8],
-    pubkey: &[u8; PubKey::LENGTH],
-    signature: &[u8; Signature::LENGTH],
-) -> bool {
-    let check = |offsets: &SignatureOffsets| {
-        offsets.signature_instruction_index == u16::MAX &&
-            offsets.public_key_instruction_index == u16::MAX &&
-            offsets.message_instruction_index == u16::MAX &&
-            offsets.signature(data) == Some(&signature[..]) &&
-            offsets.public_key(data) == Some(&pubkey[..]) &&
-            offsets.message(data) == Some(message)
-    };
-
-    // The instruction data is:
-    //   count:   u8
-    //   unused:  u8
-    //   offsets: [SignatureOffsets; count]
-    //   rest:    [u8]
-    let count = data.first().copied().unwrap_or_default();
-    data.get(2..)
-        .unwrap_or(&[])
-        .chunks_exact(core::mem::size_of::<SignatureOffsets>())
-        .take(usize::from(count))
-        .any(|chunk| {
-            // Solana SDK uses bytemuck::try_from_bytes to cast instruction data
-            // directly into the offsets structure.  In practice vectors data is
-            // aligned to two bytes so this always works.  However, MIRI doesn’t
-            // like that.  I’m not ready to give up on bytemuck::from_bytes just
-            // yet so we’re using conditional compilation to make MIRI happy and
-            // avoid unaligned reads in production.
-            if cfg!(miri) {
-                check(&bytemuck::pod_read_unaligned(chunk))
-            } else {
-                check(bytemuck::from_bytes(chunk))
-            }
-        })
-}
-
-/// SignatureOffsets used by the Ed25519 native program in its instruction data.
-///
-/// This is copied from Solana SDK; see
-/// <https://github.com/solana-labs/solana/blob/master/sdk/src/ed25519_instruction.rs>.
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct SignatureOffsets {
-    /// Offset to ed25519 signature of 64 bytes.
-    pub signature_offset: u16,
-    /// Instruction index to find signature.  We support `u16::MAX` only.
-    pub signature_instruction_index: u16,
-    /// Offset to public key of 32 bytes.
-    pub public_key_offset: u16,
-    /// Instruction index to find public key.  We support `u16::MAX` only.
-    pub public_key_instruction_index: u16,
-    /// Offset to start of message data
-    pub message_data_offset: u16,
-    /// Size of message data.
-    pub message_data_size: u16,
-    /// Index of instruction data to get message data.  We support `u16::MAX`
-    /// only.
-    pub message_instruction_index: u16,
-}
-
-impl SignatureOffsets {
-    fn signature<'a>(&self, data: &'a [u8]) -> Option<&'a [u8]> {
-        Self::get(data, self.signature_offset, Signature::LENGTH)
+    want: sigverify::ed25519_program::Entry,
+) -> Result<bool, sigverify::ed25519_program::Error> {
+    for entry in sigverify::ed25519_program::parse_data(data)? {
+        if want == entry? {
+            return Ok(true);
+        }
     }
-
-    fn public_key<'a>(&self, data: &'a [u8]) -> Option<&'a [u8]> {
-        Self::get(data, self.public_key_offset, PubKey::LENGTH)
-    }
-
-    fn message<'a>(&self, data: &'a [u8]) -> Option<&'a [u8]> {
-        Self::get(
-            data,
-            self.message_data_offset,
-            usize::from(self.message_data_size),
-        )
-    }
-
-    fn get(data: &[u8], start: u16, length: usize) -> Option<&[u8]> {
-        let start = usize::from(start);
-        data.get(start..(start + length))
-    }
+    Ok(false)
 }
 
 macro_rules! fmt_impl {
@@ -300,6 +227,8 @@ fn base58_display(bytes: &[u8; 32], fmtr: &mut fmt::Formatter) -> fmt::Result {
 
 #[test]
 fn test_verify() {
+    use sigverify::ed25519_program::SignatureOffsets;
+
     // Construct signatures.
     let pk = PubKey([128; 32]);
     let msg1 = &b"hello, world"[..];

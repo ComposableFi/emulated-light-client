@@ -21,4 +21,5 @@ stdx.workspace = true
 
 [dev-dependencies]
 ed25519-dalek.workspace = true
+insta.workspace = true
 solana-sdk.workspace = true

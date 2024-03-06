@@ -148,7 +148,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
         let old_pos =
             self.candidates.iter().position(|el| el.pubkey == candidate.pubkey);
         let mut new_pos =
-            self.candidates.binary_search(&candidate).map_or_else(|p| p, |p| p);
+            self.candidates.binary_search(&candidate).unwrap_or_else(|p| p);
         let res = match old_pos {
             None => Ok(self.add_impl(new_pos, candidate)),
             Some(old_pos) => {

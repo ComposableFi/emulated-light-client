@@ -146,7 +146,6 @@ struct Context<'a, A> {
     /// Current key prefix to return as `sub_key` of an [`Entry`].
     prefix: bits::Owned,
 
-    ///
     entries: Vec<Entry>,
 }
 

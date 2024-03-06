@@ -53,13 +53,12 @@ pub fn run_validator(config: Config) {
     // Check if there is a pending block to sign
     let chain_account: ChainData = program.account(chain).unwrap();
     if chain_account.pending_block().unwrap().is_some() {
-        if chain_account
+        if !chain_account
             .pending_block()
             .unwrap()
             .unwrap()
             .signers
-            .get(&validator.pubkey().into())
-            .is_none()
+            .contains(&validator.pubkey().into())
         {
             log::info!("Found Pending block");
             let fingerprint =

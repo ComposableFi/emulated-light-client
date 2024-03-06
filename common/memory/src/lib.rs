@@ -1,5 +1,6 @@
 extern crate alloc;
 
+#[allow(unused_imports)] // needed for nightly
 use alloc::vec::Vec;
 use core::fmt;
 use core::num::NonZeroU32;
