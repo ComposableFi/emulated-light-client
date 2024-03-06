@@ -9,13 +9,19 @@ name = "sigverify"
 crate-type = ["cdylib", "lib"]
 
 [features]
+default = ["borsh", "guest"]
+guest = ["guestchain"]
 library = []
 
 [dependencies]
+bs58.workspace = true
+base64.workspace = true
+borsh = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["must_cast"] }
 derive_more.workspace = true
 solana-program.workspace = true
 
+guestchain = { workspace = true, optional = true }
 lib.workspace = true
 stdx.workspace = true
 

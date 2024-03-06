@@ -150,13 +150,12 @@ mod tm {
                 tendermint::PublicKey::Ed25519(pubkey) => pubkey,
                 _ => return Err(Error::UnsupportedKeyType),
             };
-            let pubkey = <&solana_ed25519::PubKey>::try_from(pubkey.as_bytes())
+            let pubkey = <&[u8; 32]>::try_from(pubkey.as_bytes())
                 .map_err(|_| Error::MalformedPublicKey)?;
-            let sig =
-                <&solana_ed25519::Signature>::try_from(signature.as_bytes())
-                    .map_err(|_| Error::MalformedSignature)?;
+            let sig = <&[u8; 64]>::try_from(signature.as_bytes())
+                .map_err(|_| Error::MalformedSignature)?;
             if let Some(verifier) = crate::global().verifier() {
-                if verifier.exists(msg, pubkey, sig) {
+                if verifier.verify(msg, pubkey, sig).unwrap_or(false) {
                     return Ok(());
                 }
             }

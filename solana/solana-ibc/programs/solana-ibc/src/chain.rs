@@ -4,7 +4,8 @@ use anchor_lang::prelude::*;
 use guestchain::manager::PendingBlock;
 pub use guestchain::Config;
 use lib::hash::CryptoHash;
-pub use solana_ed25519::{PubKey, Signature, Verifier};
+pub use sigverify::ed25519::{PubKey, Signature};
+pub use sigverify::Verifier;
 
 use crate::error::Error;
 use crate::{events, ibc, storage};

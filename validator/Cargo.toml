@@ -26,6 +26,5 @@ toml.workspace = true
 guestchain.workspace = true
 lib.workspace = true
 restaking.workspace = true
-solana-ed25519.workspace = true
 solana-signature-verifier = { workspace = true, features = ["library"] }
 solana-ibc.workspace = true

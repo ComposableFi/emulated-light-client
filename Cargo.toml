@@ -8,7 +8,6 @@ rust-version = "1.71.0"
 members = [
     "common/*",
     "solana/allocator",
-    "solana/ed25519",
     "solana/restaking/programs/*",
     "solana/signature-verifier",
     "solana/solana-ibc/programs/*",
@@ -89,7 +88,6 @@ memory = { path = "common/memory" }
 restaking = { path = "solana/restaking/programs/restaking" }
 sealable-trie = { path = "common/sealable-trie" }
 solana-allocator = { path = "solana/allocator" }
-solana-ed25519 = { path = "solana/ed25519" }
 solana-ibc = { path = "solana/solana-ibc/programs/solana-ibc" }
 solana-signature-verifier = { path = "solana/signature-verifier" }
 solana-trie = { path = "solana/trie" }

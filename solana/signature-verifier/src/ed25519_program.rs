@@ -175,7 +175,7 @@ fn write_slice(dst: &mut [MaybeUninit<u8>], src: &[u8]) {
 /// if the data doesn’t correspond to instruction data of a call to Ed25519
 /// native program, ii) the instruction hasn’t been executed or iii) there’s
 /// internal error in this code.
-pub fn parse_data(data: &[u8]) -> Result<Iter, Error> {
+pub fn parse_data(data: &[u8]) -> Result<Iter, BadData> {
     match stdx::split_at::<2, u8>(data) {
         Some(([count, 0], rest)) => {
             stdx::as_chunks::<14, u8>(rest).0.get(..usize::from(*count))
@@ -183,7 +183,7 @@ pub fn parse_data(data: &[u8]) -> Result<Iter, Error> {
         _ => None,
     }
     .map(|entries| Iter { entries: entries.iter(), data })
-    .ok_or(Error::BadData)
+    .ok_or(BadData)
 }
 
 /// Iterator over signatures present in Ed25519 native program instruction data.
@@ -214,6 +214,17 @@ pub enum Error {
     /// so this should never happen when parsing past instructions of current
     /// transaction.
     BadData,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BadData;
+
+impl From<BadData> for Error {
+    fn from(_: BadData) -> Self { Self::BadData }
+}
+
+impl From<BadData> for solana_program::program_error::ProgramError {
+    fn from(_: BadData) -> Self { Self::InvalidInstructionData }
 }
 
 impl From<Error> for solana_program::program_error::ProgramError {
