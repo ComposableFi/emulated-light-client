@@ -15,7 +15,7 @@ macro_rules! delegate {
             match self {
                 AnyClientState::Tendermint(cs) => cs.$name($($arg),*),
                 AnyClientState::Guest(cs) => cs.$name($($arg),*),
-                #[cfg(feature = "mocks")]
+                #[cfg(any(test, feature = "mocks"))]
                 AnyClientState::Mock(cs) => cs.$name($($arg),*),
             }
         }
