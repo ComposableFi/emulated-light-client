@@ -163,8 +163,7 @@ pub mod restaking {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         let withdrawal_request_params = WithdrawalRequestParams {
-            timestamp_in_sec: NonZeroU64::new(current_timestamp)
-                .ok_or(ErrorCodes::UnexpectedZeroTimestamp)?,
+            timestamp_in_sec: current_timestamp,
             owner: ctx.accounts.withdrawer.key(),
             token_account: ctx.accounts.withdrawer_token_account.key(),
         };
@@ -317,7 +316,7 @@ pub mod restaking {
         };
 
         let unbonding_period =
-            u64::from(withdrawal_request_params.timestamp_in_sec) +
+            withdrawal_request_params.timestamp_in_sec +
                 UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
@@ -1069,7 +1068,7 @@ pub enum Service {
 #[derive(AnchorDeserialize, AnchorSerialize, Clone, Debug, Copy)]
 pub struct WithdrawalRequestParams {
     /// Timestamp when withdrawal was requested
-    timestamp_in_sec: NonZeroU64,
+    timestamp_in_sec: u64,
     /// Account which requested the withdrawal
     owner: Pubkey,
     /// Token account to which the tokens would withdrew to
