@@ -24,12 +24,7 @@ jobs:
         id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
-          # Pin nightly to specific version to avoid ahash breakage.
-          # See https://github.com/tkaitchuck/aHash/issues/200
-          # TODO(mina86): Unpin once situation with ahash is resolved.
-          # Hopefully we won’t need to patch.
-          #toolchain: nightly
-          toolchain: nightly-2024-02-05
+          toolchain: nightly
           components: clippy rustfmt miri
 
       - name: Install Protoc
