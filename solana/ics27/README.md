@@ -27,33 +27,29 @@ Extend lookup table can be output several times during simulation, relayer shoul
 
 A Relayer invokes the `deliver` function on the program, passing in packet data and accounts for processing.
 
-### 2. Packet Verification:
+### 2. Packet Parsing and Verification
 
 The program verifies that the packet has been authenticated by the IBC core program's account, ensuring its legitimacy.
 
-### 3. Packet Parsing and Account Verification:
-
 It parses the packet according to the `svm/borsh-1` standard, ensuring the packet data is correctly serialized/deserialized.
-Verifies that the accounts specified by the relayer match those included in the packet, ensuring consistency and authenticity.
-
-### 4. Execution of Cross-Chain Transaction:
-
-Executes the transaction detailed in the packet, adhering to all specifications and requirements mandated by the ICS27 protocol.
-
-### 5. ICS Version Compatibility:
-
-The program operates under the `svm/borsh-1` ICS version, ensuring compatibility with the serialization and deserialization standards.
 Where `borsch` is encoding, `svm` is transaction type and `1` is version of implementation. 
 
-### 6. Acknowledgment Handling:
+Verifies that the accounts specified by the relayer match those included in the packet, ensuring consistency and authenticity.
+
+### 4. Execution of Cross-Chain Transaction
+
+Executes the transaction detailed in the packet, adhering to all specifications and requirements mandated by the ICS27 protocol.
+ICS27 executed packets iff it is in stated `PROVED` only.
+
+### 6. Acknowledgment Handling
 
 Post-execution, the program communicates with the IBC core program, conveying an ACK (acknowledgment) or FAIL status to indicate the outcome of the transaction.
 
-### 7. IBC Core Program Coordination:
+### 7. IBC Core Program Coordination
 
-The IBC core program is responsible for updating the packet's status based on the received acknowledgment. It manages TIMEOUT scenarios and verifies the port-caller program mapping, ensuring proper transaction flow and integrity.
+The IBC core program is responsible for updating the packet's status based on the received acknowledgment. It manages `TIMEOUT` scenarios and verifies the port-caller program mapping, ensuring proper transaction flow and integrity.
 
-## Extensions of initial implementation:
+## Extensions of initial implementation
 
 The first version of the program will not include:
 - The capability to query the state of other packets, such as ICS20, ICS721, and ICS27 packets, by sequence ID, a feature commonly utilized in cosmos-ibc and by contracts in Osmosis WASM hooks protocols and CVM on Cosmos-CW.
