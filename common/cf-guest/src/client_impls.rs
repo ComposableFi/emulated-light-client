@@ -254,7 +254,8 @@ where
         client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result {
-        self.verify_client_message(ctx, client_id, client_message)
+        let msg = ClientMessage::<PK>::try_from(client_message)?;
+        self.verify_client_message(ctx, client_id, msg)
     }
 
     fn check_for_misbehaviour(
@@ -263,7 +264,8 @@ where
         client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result<bool> {
-        self.check_for_misbehaviour(ctx, client_id, client_message)
+        let msg = ClientMessage::<PK>::try_from(client_message)?;
+        self.check_for_misbehaviour(ctx, client_id, msg)
     }
 
     fn status(
@@ -301,9 +303,9 @@ impl<PK: PubKey> ClientState<PK> {
         &self,
         ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
-        client_message: Any,
+        client_message: ClientMessage<PK>,
     ) -> Result<()> {
-        match ClientMessage::<PK>::try_from(client_message)? {
+        match client_message {
             ClientMessage::Header(header) => self.verify_header(ctx, header),
             ClientMessage::Misbehaviour(misbehaviour) => {
                 self.verify_misbehaviour(ctx, misbehaviour)
@@ -315,9 +317,9 @@ impl<PK: PubKey> ClientState<PK> {
         &self,
         ctx: &impl guestchain::Verifier<PK>,
         _client_id: &ibc::ClientId,
-        client_message: Any,
+        client_message: ClientMessage<PK>,
     ) -> Result<bool> {
-        match ClientMessage::<PK>::try_from(client_message)? {
+        match client_message {
             ClientMessage::Header(header) => {
                 self.check_for_misbehaviour_header(ctx, header)
             }
