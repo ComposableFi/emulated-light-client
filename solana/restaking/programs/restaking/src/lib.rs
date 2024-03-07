@@ -1135,6 +1135,4 @@ pub enum ErrorCodes {
          withdrawal"
     )]
     InvalidWithdrawer,
-    #[msg("Expected a non zero timestamp. Found zero timestamp")]
-    UnexpectedZeroTimestamp,
 }
