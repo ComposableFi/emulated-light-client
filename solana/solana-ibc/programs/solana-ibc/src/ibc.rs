@@ -76,15 +76,16 @@ pub mod mock {
 }
 
 pub mod tm {
-    pub use ibc::clients::tendermint::client_state::ClientState;
+    pub use ibc::clients::tendermint::client_state::{self, ClientState};
     pub use ibc::clients::tendermint::consensus_state::ConsensusState;
     pub use ibc::clients::tendermint::context::{
-        CommonContext, ValidationContext,
+        CommonContext, TmVerifier, ValidationContext,
     };
     pub use ibc::clients::tendermint::types::proto::v1::{
         ClientState as ClientStatePB, ConsensusState as ConsensusStatePB,
     };
     pub use ibc::clients::tendermint::types::{
-        TENDERMINT_CLIENT_STATE_TYPE_URL, TENDERMINT_CONSENSUS_STATE_TYPE_URL,
+        self, TENDERMINT_CLIENT_STATE_TYPE_URL,
+        TENDERMINT_CONSENSUS_STATE_TYPE_URL,
     };
 }

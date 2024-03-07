@@ -1,4 +1,3 @@
-use ::ibc::derive::ClientState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
 
@@ -7,18 +6,11 @@ use crate::ibc;
 use crate::ibc::Protobuf;
 use crate::storage::IbcStorage;
 
+mod impls;
+
 type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
 
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    derive_more::From,
-    derive_more::TryInto,
-    ClientState,
-)]
-#[validation(IbcStorage<'a, 'b>)]
-#[execution(IbcStorage<'a, 'b>)]
+#[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Guest(cf_guest::ClientState<solana_ed25519::PubKey>),
@@ -116,6 +108,12 @@ impl AnyClientState {
                     .map(Self::Mock)
             }
         }
+    }
+}
+
+impl From<ibc::tm::types::ClientState> for AnyClientState {
+    fn from(state: ibc::tm::types::ClientState) -> Self {
+        Self::Tendermint(state.into())
     }
 }
 

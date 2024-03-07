@@ -2,7 +2,7 @@ use ::ibc::derive::ConsensusState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
 
-use crate::ibc::Protobuf;
+use crate::ibc::{self, Protobuf};
 
 #[derive(
     Clone,
@@ -13,10 +13,10 @@ use crate::ibc::Protobuf;
     ConsensusState,
 )]
 pub enum AnyConsensusState {
-    Tendermint(crate::ibc::tm::ConsensusState),
+    Tendermint(ibc::tm::ConsensusState),
     Guest(cf_guest::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
-    Mock(crate::ibc::mock::MockConsensusState),
+    Mock(ibc::mock::MockConsensusState),
 }
 
 /// Discriminants used when borsh-encoding [`AnyConsensusState`].
@@ -46,13 +46,12 @@ impl AnyConsensusStateTag {
 impl AnyConsensusState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
-        crate::ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
+        ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest consensus state used in Any message.
     const GUEST_TYPE: &'static str = cf_guest::proto::ConsensusState::TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
-    const MOCK_TYPE: &'static str =
-        crate::ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
+    const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
 
     /// Encodes the payload and returns discriminants that allow decoding the
     /// value later.
@@ -71,7 +70,7 @@ impl AnyConsensusState {
             AnyConsensusState::Tendermint(state) => (
                 AnyConsensusStateTag::Tendermint,
                 Self::TENDERMINT_TYPE,
-                Protobuf::<crate::ibc::tm::ConsensusStatePB>::encode_vec(state),
+                Protobuf::<ibc::tm::ConsensusStatePB>::encode_vec(state),
             ),
             AnyConsensusState::Guest(state) => (
                 AnyConsensusStateTag::Guest,
@@ -82,9 +81,7 @@ impl AnyConsensusState {
             AnyConsensusState::Mock(state) => (
                 AnyConsensusStateTag::Mock,
                 Self::MOCK_TYPE,
-                Protobuf::<crate::ibc::mock::ConsensusStatePB>::encode_vec(
-                    state,
-                ),
+                Protobuf::<ibc::mock::ConsensusStatePB>::encode_vec(state),
             ),
         }
     }
@@ -96,7 +93,7 @@ impl AnyConsensusState {
     ) -> Result<Self, String> {
         match tag {
             AnyConsensusStateTag::Tendermint => {
-                Protobuf::<crate::ibc::tm::ConsensusStatePB>::decode_vec(&value)
+                Protobuf::<ibc::tm::ConsensusStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
             }
@@ -106,39 +103,44 @@ impl AnyConsensusState {
                     .map(Self::Guest)
             }
             #[cfg(any(test, feature = "mocks"))]
-            AnyConsensusStateTag::Mock => Protobuf::<
-                crate::ibc::mock::ConsensusStatePB,
-            >::decode_vec(&value)
-            .map_err(|err| err.to_string())
-            .map(Self::Mock),
+            AnyConsensusStateTag::Mock => {
+                Protobuf::<ibc::mock::ConsensusStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Mock)
+            }
         }
     }
 }
 
 
-impl Protobuf<crate::ibc::Any> for AnyConsensusState {}
+impl From<ibc::tm::types::ConsensusState> for AnyConsensusState {
+    fn from(state: ibc::tm::types::ConsensusState) -> Self {
+        Self::Tendermint(state.into())
+    }
+}
 
-impl TryFrom<crate::ibc::Any> for AnyConsensusState {
-    type Error = crate::ibc::ClientError;
+impl Protobuf<ibc::Any> for AnyConsensusState {}
 
-    fn try_from(value: crate::ibc::Any) -> Result<Self, Self::Error> {
+impl TryFrom<ibc::Any> for AnyConsensusState {
+    type Error = ibc::ClientError;
+
+    fn try_from(value: ibc::Any) -> Result<Self, Self::Error> {
         let tag = AnyConsensusStateTag::from_type_url(value.type_url.as_str())
-            .ok_or(crate::ibc::ClientError::UnknownConsensusStateType {
+            .ok_or(ibc::ClientError::UnknownConsensusStateType {
                 consensus_state_type: value.type_url,
             })?;
         Self::from_tagged(tag, value.value).map_err(|description| {
-            crate::ibc::ClientError::ClientSpecific { description }
+            ibc::ClientError::ClientSpecific { description }
         })
     }
 }
 
-impl From<AnyConsensusState> for crate::ibc::Any {
+impl From<AnyConsensusState> for ibc::Any {
     fn from(value: AnyConsensusState) -> Self {
         let (_, type_url, value) = value.into_any();
-        crate::ibc::Any { type_url: type_url.into(), value }
+        ibc::Any { type_url: type_url.into(), value }
     }
 }
-
 impl borsh::BorshSerialize for AnyConsensusState {
     fn serialize<W: io::Write>(&self, wr: &mut W) -> io::Result<()> {
         let (tag, _, value) = self.clone().into_any();

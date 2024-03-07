@@ -28,6 +28,8 @@ ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
+tendermint.workspace = true
+tendermint-light-client-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 spl-associated-token-account.workspace = true

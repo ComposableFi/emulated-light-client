@@ -2208,7 +2208,7 @@ dependencies = [
 [[package]]
 name = "ibc"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-apps",
  "ibc-clients",
@@ -2221,7 +2221,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-nft-transfer-types",
  "ibc-core",
@@ -2231,7 +2231,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "base64 0.21.7",
  "borsh 0.10.3",
@@ -2251,7 +2251,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-transfer-types",
  "ibc-core",
@@ -2261,7 +2261,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2276,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "ibc-apps"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-nft-transfer",
  "ibc-app-transfer",
@@ -2285,8 +2285,9 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
+ "derive_more",
  "ibc-client-tendermint-types",
  "ibc-core-client",
  "ibc-core-commitment-types",
@@ -2301,7 +2302,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "displaydoc",
@@ -2311,7 +2312,6 @@ dependencies = [
  "ibc-primitives",
  "ibc-proto",
  "serde",
- "solana-ed25519",
  "tendermint",
  "tendermint-light-client-verifier",
  "tendermint-proto",
@@ -2320,7 +2320,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-wasm-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "base64 0.21.7",
  "displaydoc",
@@ -2334,7 +2334,7 @@ dependencies = [
 [[package]]
 name = "ibc-clients"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-client-tendermint",
  "ibc-client-wasm-types",
@@ -2343,7 +2343,7 @@ dependencies = [
 [[package]]
 name = "ibc-core"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel",
  "ibc-core-client",
@@ -2359,7 +2359,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel-types",
  "ibc-core-client",
@@ -2374,7 +2374,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2397,7 +2397,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-client-context",
  "ibc-core-client-types",
@@ -2410,7 +2410,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-context"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2426,7 +2426,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2446,7 +2446,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-commitment-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2464,7 +2464,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-connection"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-client",
  "ibc-core-connection-types",
@@ -2476,7 +2476,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-connection-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2497,7 +2497,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-handler"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel",
  "ibc-core-client",
@@ -2512,7 +2512,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-handler-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2536,7 +2536,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2554,7 +2554,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-cosmos"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2578,7 +2578,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2593,7 +2593,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2607,7 +2607,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2626,7 +2626,7 @@ dependencies = [
 [[package]]
 name = "ibc-derive"
 version = "0.6.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2636,7 +2636,7 @@ dependencies = [
 [[package]]
 name = "ibc-primitives"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2675,7 +2675,7 @@ dependencies = [
 [[package]]
 name = "ibc-testkit"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?branch=solana-verifier#cb67d6640128eacb3d829784bc19edf7e71a5c6c"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -4738,6 +4738,8 @@ dependencies = [
  "spl-token",
  "stdx",
  "strum",
+ "tendermint",
+ "tendermint-light-client-verifier",
  "trie-ids",
  "uint",
 ]
@@ -5757,8 +5759,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74994da9de4b1144837a367ca2c60c650f5526a7c1a54760a3020959b522e474"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -6821,3 +6822,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "tendermint-light-client"
+version = "0.34.0"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"

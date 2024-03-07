@@ -78,6 +78,16 @@ macro_rules! try_from_impl {
 }
 
 try_from_impl! {
+    NextClientSequence(path: NextClientSequencePath) => {
+        Err(ibc::path::Path::from(path).into())
+    }
+    NextConnectionSequence(path: NextConnectionSequencePath) => {
+        Err(ibc::path::Path::from(path).into())
+    }
+    NextChannelSequence(path: NextChannelSequencePath) => {
+        Err(ibc::path::Path::from(path).into())
+    }
+
     ClientState(path: ClientStatePath) => {
         Self::with_client(path.0, TrieKey::for_client_state)
     }
@@ -87,6 +97,13 @@ try_from_impl! {
         Self::with_client(path.client_id, |idx| {
             TrieKey::new(Tag::ConsensusState, (idx, height))
         })
+    }
+
+    ClientUpdateTime(path: ClientUpdateTimePath) => {
+        Err(ibc::path::Path::from(path).into())
+    }
+    ClientUpdateHeight(path: ClientUpdateHeightPath) => {
+        Err(ibc::path::Path::from(path).into())
     }
 
     ClientConnection(path: ClientConnectionPath) => {

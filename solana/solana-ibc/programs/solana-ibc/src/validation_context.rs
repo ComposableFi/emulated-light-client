@@ -287,47 +287,29 @@ impl IbcStorage<'_, '_> {
 
 
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
-    fn client_update_time(
+    fn update_meta(
         &self,
         client_id: &ibc::ClientId,
         height: &ibc::Height,
-    ) -> Result<ibc::Timestamp> {
+    ) -> Result<(ibc::Timestamp, ibc::Height)> {
         let store = self.borrow();
         store
             .private
             .client(client_id)?
             .consensus_states
             .get(height)
-            .and_then(|state| state.processed_time())
-            .and_then(|ts| ibc::Timestamp::from_nanoseconds(ts.get()).ok())
-            .ok_or_else(|| {
-                ibc::ContextError::ClientError(ibc::ClientError::Other {
-                    description: format!(
-                        "Client update time not found. client_id: {}, height: \
-                         {}",
-                        client_id, height
-                    ),
-                })
+            .and_then(|state| {
+                let ts = state.processed_time()?.get();
+                let ts = ibc::Timestamp::from_nanoseconds(ts).ok()?;
+                let height = state.processed_height()?;
+                let height = ibc::Height::new(0, height.into()).ok()?;
+                Some((ts, height))
             })
-    }
-
-    fn client_update_height(
-        &self,
-        client_id: &ibc::ClientId,
-        height: &ibc::Height,
-    ) -> Result<ibc::Height> {
-        self.borrow()
-            .private
-            .client(client_id)?
-            .consensus_states
-            .get(height)
-            .and_then(|state| state.processed_height())
-            .and_then(|height| ibc::Height::new(0, height.into()).ok())
             .ok_or_else(|| {
                 ibc::ContextError::ClientError(ibc::ClientError::Other {
                     description: format!(
-                        "Client update height not found. client_id: {}, \
-                         height: {}",
+                        "Client update time or height not found. client_id: \
+                         {}, height: {}",
                         client_id, height
                     ),
                 })
