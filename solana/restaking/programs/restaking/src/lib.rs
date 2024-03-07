@@ -315,9 +315,8 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidTokenAccount));
         };
 
-        let unbonding_period =
-            withdrawal_request_params.timestamp_in_sec +
-                UNBONDING_PERIOD_IN_SEC;
+        let unbonding_period = withdrawal_request_params.timestamp_in_sec +
+            UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         msg!(
