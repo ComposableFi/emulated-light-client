@@ -4651,21 +4651,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solana-ed25519"
-version = "0.0.0"
-dependencies = [
- "base64 0.21.7",
- "borsh 0.10.3",
- "bs58 0.5.0",
- "bytemuck",
- "derive_more",
- "guestchain",
- "lib",
- "solana-program",
- "solana-signature-verifier",
-]
-
-[[package]]
 name = "solana-frozen-abi"
 version = "1.17.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4731,7 +4716,7 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-allocator",
- "solana-ed25519",
+ "solana-signature-verifier",
  "solana-trie",
  "solana-write-account",
  "spl-associated-token-account",
@@ -5126,9 +5111,13 @@ dependencies = [
 name = "solana-signature-verifier"
 version = "0.0.0"
 dependencies = [
+ "base64 0.21.7",
+ "borsh 0.10.3",
+ "bs58 0.5.0",
  "bytemuck",
  "derive_more",
  "ed25519-dalek",
+ "guestchain",
  "insta",
  "lib",
  "solana-program",
@@ -6298,7 +6287,6 @@ dependencies = [
  "restaking",
  "serde",
  "serde_bytes",
- "solana-ed25519",
  "solana-ibc",
  "solana-signature-verifier",
  "toml 0.8.8",

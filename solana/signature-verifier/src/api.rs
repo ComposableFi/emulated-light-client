@@ -67,7 +67,15 @@ impl AsRef<[u8; 32]> for SignatureHash {
 }
 
 impl<'a> From<crate::ed25519_program::Entry<'a>> for SignatureHash {
+    #[inline]
     fn from(entry: crate::ed25519_program::Entry<'a>) -> Self {
+        Self::new_ed25519(entry.pubkey, entry.signature, entry.message)
+    }
+}
+
+impl<'a> From<&crate::ed25519_program::Entry<'a>> for SignatureHash {
+    #[inline]
+    fn from(entry: &crate::ed25519_program::Entry<'a>) -> Self {
         Self::new_ed25519(entry.pubkey, entry.signature, entry.message)
     }
 }
@@ -103,19 +111,9 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
         message: &[u8],
     ) -> Result<bool> {
         let data = self.0.try_borrow_data()?;
-        let (head, tail) = stdx::split_at::<4, u8>(&data)
-            .ok_or(ProgramError::AccountDataTooSmall)?;
-        let count = usize::try_from(u32::from_le_bytes(*head))
-            .map_err(|_| ProgramError::InvalidAccountData)?;
-        let signatures = stdx::as_chunks::<32, u8>(tail)
-            .0
-            .get(..count)
-            .ok_or(ProgramError::AccountDataTooSmall)?;
-
+        let mut iter = iter(data.as_ref())?;
         let signature = SignatureHash::new_ed25519(key, signature, message);
-        Ok(signatures
-            .iter()
-            .any(|entry| SignatureHash::wrap_ref(entry) == &signature))
+        Ok(iter.any(|hash| hash == &signature))
     }
 
     /// Reads number of signatures saved in the account.
@@ -170,6 +168,23 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
         Ok(())
     }
 }
+
+/// Returns iterator over signature hashes in given account.
+pub(crate) fn iter(
+    data: &[u8],
+) -> Result<impl Iterator<Item = &'_ SignatureHash>> {
+    let (head, tail) = stdx::split_at::<4, u8>(data)
+        .ok_or(ProgramError::AccountDataTooSmall)?;
+    let count = usize::try_from(u32::from_le_bytes(*head))
+        .map_err(|_| ProgramError::InvalidAccountData)?;
+    Ok(stdx::as_chunks::<32, u8>(tail)
+        .0
+        .get(..count)
+        .ok_or(ProgramError::AccountDataTooSmall)?
+        .iter()
+        .map(SignatureHash::wrap_ref))
+}
+
 
 #[test]
 fn test_ed25519() {

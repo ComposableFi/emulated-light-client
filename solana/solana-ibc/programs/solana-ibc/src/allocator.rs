@@ -15,7 +15,7 @@
 use alloc::boxed::Box;
 
 pub(crate) use imp::{global, Global};
-use solana_ed25519::Verifier;
+use sigverify::Verifier;
 
 #[cfg(all(
     target_os = "solana",
@@ -26,19 +26,22 @@ use solana_ed25519::Verifier;
 mod imp {
     use core::cell::Cell;
 
-    use solana_ed25519::Verifier;
+    use sigverify::Verifier;
 
     #[derive(bytemuck::Zeroable)]
     pub(crate) struct Global {
-        verifier_ptr: Cell<*const Verifier>,
+        verifier_ptr: Cell<*const Verifier<'static>>,
     }
 
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier {
+        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
             self.verifier_ptr.get()
         }
 
-        pub(super) fn set_verifier_ptr(&self, verifier: *const Verifier) {
+        pub(super) fn set_verifier_ptr(
+            &self,
+            verifier: *const Verifier<'static>,
+        ) {
             self.verifier_ptr.set(verifier)
         }
     }
@@ -70,7 +73,7 @@ mod imp {
     test,
 ))]
 mod imp {
-    use solana_ed25519::Verifier;
+    use sigverify::Verifier;
 
     /// Mutable global state.
     pub(crate) struct Global;
@@ -84,7 +87,7 @@ mod imp {
 
     #[cfg(not(all(target_os = "solana", feature = "cpi")))]
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier {
+        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
             VERIFIER.load(core::sync::atomic::Ordering::SeqCst)
         }
 
@@ -98,7 +101,7 @@ mod imp {
 
     #[cfg(all(target_os = "solana", feature = "cpi"))]
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier {
+        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
             core::ptr::null()
         }
 
@@ -112,7 +115,7 @@ mod imp {
 
 impl Global {
     /// Returns global verifier, if initialised.
-    pub fn verifier(&self) -> Option<&'static Verifier> {
+    pub fn verifier<'info>(&self) -> Option<&'static Verifier<'info>> {
         let ptr = self.verifier_ptr();
         // SAFETY: We’ve initialised the pointer from a leaked 'static
         // reference in set_verifier.  It’s thus safe to dereference it.
@@ -123,7 +126,7 @@ impl Global {
     ///
     /// This operation leaks memory thus it shouldn’t be called multiple times.
     /// It’s intended to be called at most once at the start of the program.
-    pub(super) fn set_verifier(&self, verifier: Verifier) {
+    pub(super) fn set_verifier(&self, verifier: Verifier<'static>) {
         // Allocate the verifier on heap so it has fixed address and leak so it
         // has 'static lifetime.
         self.set_verifier_ptr(&*Box::leak(Box::new(verifier)));

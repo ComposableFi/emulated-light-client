@@ -141,7 +141,8 @@ pub mod solana_ibc {
             &ctx.accounts.trie,
             &ctx.accounts.sender,
         )?;
-        let verifier = solana_ed25519::Verifier::new(&ctx.accounts.ix_sysvar)?;
+        let mut verifier = sigverify::Verifier::default();
+        verifier.set_ix_sysvar(&ctx.accounts.ix_sysvar)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -212,7 +213,8 @@ pub mod solana_ibc {
         let mut router = store.clone();
 
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
-            if let Ok(verifier) = solana_ed25519::Verifier::new(last) {
+            let mut verifier = sigverify::Verifier::default();
+            if verifier.set_ix_sysvar(last).is_ok() {
                 global().set_verifier(verifier);
                 ctx.remaining_accounts = rest;
             }

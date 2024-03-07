@@ -42,7 +42,7 @@ cf-guest.workspace = true
 lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 solana-allocator = { workspace = true, optional = true }
-solana-ed25519 = { workspace = true, features = ["borsh", "guest"] }
+solana-signature-verifier = { workspace = true, features = ["guest", "library"] }
 solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }

@@ -13,7 +13,7 @@ type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
 #[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
-    Guest(cf_guest::ClientState<solana_ed25519::PubKey>),
+    Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -256,12 +256,12 @@ impl cf_guest::CommonContext for IbcStorage<'_, '_> {
     }
 }
 
-impl guestchain::Verifier<solana_ed25519::PubKey> for IbcStorage<'_, '_> {
+impl guestchain::Verifier<sigverify::ed25519::PubKey> for IbcStorage<'_, '_> {
     fn verify(
         &self,
         _message: &[u8],
-        _pubkey: &solana_ed25519::PubKey,
-        _signature: &solana_ed25519::Signature,
+        _pubkey: &sigverify::ed25519::PubKey,
+        _signature: &sigverify::ed25519::Signature,
     ) -> bool {
         unimplemented!()
     }
