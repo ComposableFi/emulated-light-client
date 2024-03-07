@@ -7,7 +7,10 @@ use anchor_spl::metadata::{
 use anchor_spl::token::{mint_to, MintTo, Transfer};
 
 use crate::constants::{TOKEN_NAME, TOKEN_SYMBOL, TOKEN_URI};
-use crate::{Claim, Deposit, Withdraw, WithdrawRewardFunds};
+use crate::{
+    CancelWithdrawalRequest, Claim, Deposit, Withdraw, WithdrawRewardFunds,
+    WithdrawalRequest,
+};
 
 /// Performs token transfer based on the given accounts and amount
 ///
@@ -179,6 +182,28 @@ impl<'a> From<&mut Deposit<'a>> for MintNftAccounts<'a> {
             rent: accounts.rent.to_account_info(),
             metadata: accounts.nft_metadata.to_account_info(),
             edition: accounts.master_edition_account.to_account_info(),
+        }
+    }
+}
+
+impl<'a> From<&mut WithdrawalRequest<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut WithdrawalRequest<'a>) -> Self {
+        Self {
+            from: accounts.receipt_token_account.to_account_info(),
+            to: accounts.escrow_receipt_token_account.to_account_info(),
+            authority: accounts.withdrawer.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
+        }
+    }
+}
+
+impl<'a> From<&mut CancelWithdrawalRequest<'a>> for TransferAccounts<'a> {
+    fn from(accounts: &mut CancelWithdrawalRequest<'a>) -> Self {
+        Self {
+            from: accounts.escrow_receipt_token_account.to_account_info(),
+            to: accounts.receipt_token_account.to_account_info(),
+            authority: accounts.staking_params.to_account_info(),
+            token_program: accounts.token_program.to_account_info(),
         }
     }
 }
