@@ -1,9 +1,10 @@
+//! Implementation of IBC traits for [`AnyClientState`].
+//!
+//! We cannot use [`::ibc::derive::ClientState`] derive because we need a custom
+//! implementation for `verify_client_message` which uses custom signature
+//! verifier.
+
 use super::AnyClientState;
-/// Implementation of IBC traits for [`AnyClientState`].
-///
-/// We cannot use [`::ibc::derive::ClientState`] derive because we need a custom
-/// implementation for `verify_client_message` which uses custom signature
-/// verifier.
 use crate::ibc;
 use crate::storage::IbcStorage;
 
