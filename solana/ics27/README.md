@@ -4,7 +4,7 @@ This document outlines the operation of a program designed to facilitate cross-c
 
 ## Workflow:
 
-### 1. Relayer Interaction:
+### 1 Relayer Interaction
 
 
 A Relayer sends full IBC packet(header+data) into `simulate` instruction into contract.
@@ -22,6 +22,7 @@ Extend lookup table can be output several times during simulation, relayer shoul
 { 
 "ExtendLookupTable" : { 
   new_addresses: ["pubkey1", .., "pubkeyN"] 
+ }
 }
 ```
 
