@@ -121,6 +121,9 @@ pub fn submit_call(
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 10_000,
             ))
+            // Setting compute budget unit limit to low so that transactions
+            // get added to block easily.
+            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(30_000))
             .instruction(new_ed25519_instruction_with_signature(
                 &validator.pubkey().to_bytes(),
                 signature.as_ref(),
