@@ -20,13 +20,18 @@ Here are two main flows outlined. One is goverment of app and usage of app.
 ### Goverment of app
 
 1. Arbitrary solana account calls ibc-core
-2. It registers self as port id and as owner of application
+2. It registers self as port id and as owner of an app
 3. After that it can upsert solana program to handle app protocol instuctions
-4. ibc-core allows to store list of accounts which must always provided to app by relayer, usually it will be ibc-core accounts and some app static accounts 
+4. ibc-core allows to store list of accounts which must always provided to app by relayer, usually it will be ibc-core accounts and some app `static accounts` 
 
 ### App protocol execution
 
-
+1. Relayer delivers ibc packet prove to ibc-core
+2. ibc core identifiers that packet is registered for an app
+3. ibc-core sets packet to `PRV` state
+4. Relayer uses port to program mapping in ibc-core to call app program.
+5. Relayer run `simulate` IX of app with static accounts.
+6. 
 
 
 Implemen t Cosmos IBC module interface for packets observation (need to error/rollback/fails handling - mentioned in https://github.com/cosmos/ibc-go/pull/4706 ). In
