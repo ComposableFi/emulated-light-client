@@ -12,6 +12,7 @@ Set of features outlined here is solution for next set of problems:
 - solana hard limits on TX size, CPI depth, stack depth, heap size
 - ability of apps to recover from failures, like finalize flows on timeouts
 - ability to evolve/secure/deploy apps independently from ibc-core
+- reducing chances user funds stuck on one of intermediate accounts to ensure protocols to be non custodial
 
 ## Flows
 
@@ -66,6 +67,6 @@ Anchor format encoded events tell what accounts app will use. It is up to app to
 
 ibc-app can:
 
-- query state of a packet
-- query any next seqeunce id of sending packet over port
+- query state of previosly delivered packet
+- query any next sequence id of packet to be send over any port
 
