@@ -2,7 +2,7 @@
 
 IBC supports sets of applications, specifically ICS27 cross chain calls and CVM.
 
-This crate provides protocol and interfaces to support apps on Solana.
+This crate provides protocol and interfaces to support `ibc-app`s on Solana.
 
 ## Why
 
@@ -21,25 +21,51 @@ Here are two main flows outlined. One is goverment of app and usage of app.
 
 1. Arbitrary solana account calls ibc-core
 2. It registers self as port id and as owner of an app
-3. After that it can upsert solana program to handle app protocol instuctions
-4. ibc-core allows to store list of accounts which must always provided to app by relayer, usually it will be ibc-core accounts and some app `static accounts` 
+3. After that it can upsert solana program to handle `ibc-app` protocol instuctions
+4. `ibc-core` allows to store limited list of accounts which must always provided to app by `ibc-relayer`, usually it will be `ibc-core` accounts and some app `static accounts` 
 
 ### App protocol execution
 
-1. Relayer delivers ibc packet prove to ibc-core
-2. ibc core identifiers that packet is registered for an app
+#### Main flow
+
+1. `ibc-relayer` delivers ibc packet prove to ibc-core
+2. ibc-core identifiers that packet is registered for an ibc-app
 3. ibc-core sets packet to `PRV` state
-4. Relayer uses port to program mapping in ibc-core to call app program.
-5. Relayer run `simulate` IX of app with static accounts.
-6. 
+4. ibc-relayer uses port to program mapping in ibc-core to call ibc-app program.
+5. ibc-relayer runs `(0)simulate` IX of app with `static accounts` and whole packet provided as input.
+6. `(0)simulate` output events with accounts to be provided during `(1)execute`. `(0)simulate` can fail, so it will not mean that relayer cannot `(1)execute`. none or several events can be emited.
+7. `ibc-relayer` calls `(1)execute` with all accouns from events (using LUT).
+8. `(1)execute` calls `ibc-core` program with `FAIL` or `ACK` results (compatible with ibc-go appstack), from `PRV` packet moved to final state.
+9. `ibc-core` checks that app is owner of packet.
 
+#### Callback flow
 
-Implemen t Cosmos IBC module interface for packets observation (need to error/rollback/fails handling - mentioned in https://github.com/cosmos/ibc-go/pull/4706 ). In
-case of solana is convenient interface on solana accounts
+In case of packet sent by app fails, it receives callback from `ibc-relayer`:
 
-Implement IBC core missing parts (proven state and state finalization)
+- `(2)fail` with seqeunce id and error
+- `(3)timeout` with sequence id
 
-Make solana IBC relayer to support LUTs
-Make solana IBC relay support TX for ics27 facet.
+#### Instructions prefix
 
-Added error/rollback/fails/state reading account to force relayer to pass accounts to contract
+`ibc-app` instructions are well define `borsh` encoded enum instuctions occupyuing indexes from 0 to 4 inclusive. `(4)dummy` is for future use
+
+### Account discovery events from simulate
+
+Anchor format encoded events tell what accounts app will use. It is up to app to do Achnor compatibl encoding (not using anchor crate if needed).
+
+```json
+// naming used to adhere that event is command for next step in flow
+{ 
+"ExtendLookupTable" : { 
+  new_addresses: ["pubkey1", .., "pubkeyN"] 
+ }
+}
+```
+
+### Information interfaces
+
+ibc-app can:
+
+- query state of a packet
+- query any next seqeunce id of sending packet over port
+
