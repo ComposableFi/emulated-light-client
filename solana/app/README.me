@@ -1,0 +1,40 @@
+# Overview 
+
+IBC supports sets of applications, specifically ICS27 cross chain calls and CVM.
+
+This crate provides protocol and interfaces to support apps on Solana.
+
+## Why
+
+Set of features outlined here is solution for next set of problems:
+
+- each app needs its own arbitrary and dynamic set of accounts provided by relayer via additional separate TX calls
+- solana hard limits on TX size, CPI depth, stack depth, heap size
+- ability of apps to recover from failures, like finalize flows on timeouts
+- ability to evolve/secure/deploy apps independently from ibc-core
+
+## Flows
+
+Here are two main flows outlined. One is goverment of app and usage of app.
+
+### Goverment of app
+
+1. Arbitrary solana account calls ibc-core
+2. It registers self as port id and as owner of application
+3. After that it can upsert solana program to handle app protocol instuctions
+4. ibc-core allows to store list of accounts which must always provided to app by relayer, usually it will be ibc-core accounts and some app static accounts 
+
+### App protocol execution
+
+
+
+
+Implemen t Cosmos IBC module interface for packets observation (need to error/rollback/fails handling - mentioned in https://github.com/cosmos/ibc-go/pull/4706 ). In
+case of solana is convenient interface on solana accounts
+
+Implement IBC core missing parts (proven state and state finalization)
+
+Make solana IBC relayer to support LUTs
+Make solana IBC relay support TX for ics27 facet.
+
+Added error/rollback/fails/state reading account to force relayer to pass accounts to contract
