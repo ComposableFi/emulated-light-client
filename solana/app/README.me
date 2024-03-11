@@ -1,6 +1,6 @@
 # Overview 
 
-IBC supports sets of applications, specifically ICS27 cross chain calls and CVM.
+IBC on cosmos-sdk supports sets of applications, specifically ICS27 cross chain calls and CVM.
 
 This crate provides protocol and interfaces to support `ibc-app`s on Solana.
 
@@ -13,6 +13,7 @@ Set of features outlined here is solution for next set of problems:
 - ability of apps to recover from failures, like finalize flows on timeouts
 - ability to evolve/secure/deploy apps independently from ibc-core
 - reducing chances user funds stuck on one of intermediate accounts to ensure protocols to be non custodial
+- allowing user to have his own account abstraction on remote chain (aka virtual wallet)
 
 ## Flows
 
@@ -36,15 +37,17 @@ Here are two main flows outlined. One is goverment of app and usage of app.
 5. ibc-relayer runs `(0)simulate` IX of app with `static accounts` and whole packet provided as input.
 6. `(0)simulate` output events with accounts to be provided during `(1)execute`. `(0)simulate` can fail, so it will not mean that relayer cannot `(1)execute`. none or several events can be emited.
 7. `ibc-relayer` calls `(1)execute` with all accouns from events (using LUT).
-8. `(1)execute` calls `ibc-core` program with `FAIL` or `ACK` results (compatible with ibc-go appstack), from `PRV` packet moved to final state.
+8. `(1)execute` calls `ibc-core` program with `FAIL` or `ACK` results (compatible with `ibc-go` appstack), from `PRV` packet moved to final state.
 9. `ibc-core` checks that app is owner of packet.
 
 #### Callback flow
 
 In case of packet sent by app fails, it receives callback from `ibc-relayer`:
 
-- `(2)fail` with seqeunce id and error
+- `(2)fail` with sequence id and error
 - `(3)timeout` with sequence id
+
+Both also run `simulate` with proper flags.
 
 #### Instructions prefix
 
@@ -52,7 +55,7 @@ In case of packet sent by app fails, it receives callback from `ibc-relayer`:
 
 ### Account discovery events from simulate
 
-Anchor format encoded events tell what accounts app will use. It is up to app to do Achnor compatibl encoding (not using anchor crate if needed).
+Anchor format encoded events tell what accounts app will use. It is up to app to do Anchor compatibl encoding (using anchor crate if needed, but not required).
 
 ```json
 // naming used to adhere that event is command for next step in flow
@@ -65,8 +68,7 @@ Anchor format encoded events tell what accounts app will use. It is up to app to
 
 ### Information interfaces
 
-ibc-app can:
+`ibc-app` can(and need):
 
 - query state of previosly delivered packet
 - query any next sequence id of packet to be send next over any port
-
