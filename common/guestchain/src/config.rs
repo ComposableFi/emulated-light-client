@@ -65,6 +65,25 @@ pub struct Config {
     /// changes are introduced rather bundling them together.
     pub min_block_length: crate::height::HostDelta,
 
+    /// Maximum age of a block.  If last block was generated at least this
+    /// nanoseconds ago, new block can be generated even if it doesn’t change
+    /// state.
+    ///
+    /// Normally blocks are only generated when state or epoch changes.  In
+    /// other words, it’s theoretically possible for a new block to never be
+    /// created; or at least take arbitrary amount of time.  Consequence of this
+    /// is that there is no guarantee of time updates which may block IBC packet
+    /// timeouts from being noticed.
+    ///
+    /// With this option set, a new block can be generated even if it isn’t the
+    /// last block of an epoch and doesn’t change the state.  Setting this to
+    /// `u64::MAX` effectively disables the feature.  Setting this to zero means
+    /// that new blocks can be generated as soon as last block finalises (and
+    /// other conditions such as `min_block_length` are met).
+    ///
+    /// A sensible option is something at the order of hours.
+    pub max_block_age_ns: u64,
+
     /// Minimum length of an epoch.
     ///
     /// The purpose of the minimum is to make it possible for light clients to
