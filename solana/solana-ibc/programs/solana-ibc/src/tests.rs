@@ -124,6 +124,7 @@ fn anchor_test_deliver() -> Result<()> {
                 min_total_stake: NonZeroU128::new(1000).unwrap(),
                 min_quorum_stake: NonZeroU128::new(1000).unwrap(),
                 min_block_length: 5.into(),
+                max_block_age_ns: 3600 * 1_000_000_000,
                 min_epoch_length: 200_000.into(),
             },
             staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),

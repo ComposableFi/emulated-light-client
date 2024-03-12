@@ -177,9 +177,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
+        let age =
+            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
         if next_epoch.is_none() &&
             !force &&
-            state_root == self.header.state_root
+            state_root == self.header.state_root &&
+            age < self.config.max_block_age_ns
         {
             return Err(GenerateError::UnchangedState);
         }
@@ -329,6 +332,7 @@ fn test_generate() {
         min_total_stake: core::num::NonZeroU128::MIN,
         min_quorum_stake: core::num::NonZeroU128::MIN,
         min_block_length: 4.into(),
+        max_block_age_ns: 1000,
         min_epoch_length: 8.into(),
     };
     let mut mgr = ChainManager::new(config, genesis).unwrap();
@@ -434,8 +438,8 @@ fn test_generate() {
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
-    // Lastly, adding candidates past the head (i.e. in a way which wouldn’t
-    // affect the epoch) doesn’t change the state.
+    //Adding candidates past the head (i.e. in a way which wouldn’t affect the
+    // epoch) doesn’t change the state.
     mgr.update_candidate(MockPubKey(4), 1).unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
@@ -443,4 +447,25 @@ fn test_generate() {
     );
     mgr.update_candidate(*eve.pubkey(), 0).unwrap();
     mgr.generate_next(40.into(), six, CryptoHash::test(2), false).unwrap();
+    assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
+    assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
+
+    // Even if nothing changed, block may be generate if the current one is too
+    // old.
+    assert_eq!(
+        Err(GenerateError::UnchangedState),
+        mgr.generate_next(
+            50.into(),
+            NonZeroU64::new(7).unwrap(),
+            CryptoHash::test(2),
+            false
+        )
+    );
+    mgr.generate_next(
+        50.into(),
+        NonZeroU64::new(1007).unwrap(),
+        CryptoHash::test(2),
+        false,
+    )
+    .unwrap();
 }

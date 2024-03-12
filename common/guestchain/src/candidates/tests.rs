@@ -69,6 +69,7 @@ impl From<Cfg> for crate::Config {
             min_total_stake: NonZeroU128::new(cfg.min_total_stake).unwrap(),
             min_quorum_stake: NonZeroU128::MIN,
             min_block_length: crate::height::HostDelta::from(1),
+            max_block_age_ns: u64::MAX,
             min_epoch_length: crate::height::HostDelta::from(1),
         }
     }
