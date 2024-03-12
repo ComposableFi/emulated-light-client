@@ -239,10 +239,13 @@ mod snapshot_tests {
     });
     test!(borsh_block_signed BlockSigned {
         block_hash: CryptoHash::test(42),
+        block_height: 420.into(),
         pubkey: make_pub_key(24),
+        signature: [69; 64].into(),
     });
     test!(borsh_block_finalised BlockFinalised {
         block_hash: CryptoHash::test(42),
+        block_height: 420.into(),
     });
 
     fn make_epoch() -> crate::chain::Epoch {
