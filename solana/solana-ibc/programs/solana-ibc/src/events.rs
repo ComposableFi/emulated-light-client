@@ -69,8 +69,16 @@ pub struct NewBlock<'a> {
 pub struct BlockSigned {
     /// Hash of the block to which signature was added.
     pub block_hash: CryptoHash,
+
+    /// Height of the block to which signature was added.
+    ///
+    /// Technically this can be gathered by remembering mapping from block hash
+    /// to height but is provided for convenience.
+    pub block_height: guestchain::BlockHeight,
+
     /// Public key of the validator whose signature was added.
     pub pubkey: crate::chain::PubKey,
+
     /// Signature of the block’s fingerprint.
     pub signature: crate::chain::Signature,
 }
@@ -88,6 +96,12 @@ pub struct BlockSigned {
 pub struct BlockFinalised {
     /// Hash of the block to which signature was added.
     pub block_hash: CryptoHash,
+
+    /// Height of the block to which signature was added.
+    ///
+    /// Technically this can be gathered by remembering mapping from block hash
+    /// to height but is provided for convenience.
+    pub block_height: guestchain::BlockHeight,
 }
 
 impl Event<'_> {
