@@ -71,6 +71,8 @@ pub struct BlockSigned {
     pub block_hash: CryptoHash,
     /// Public key of the validator whose signature was added.
     pub pubkey: crate::chain::PubKey,
+    /// Signature of the block’s fingerprint.
+    pub signature: crate::chain::Signature,
 }
 
 /// Event emitted once a block is finalised.

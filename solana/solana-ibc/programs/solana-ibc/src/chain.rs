@@ -139,6 +139,7 @@ impl ChainData {
             events::emit(events::BlockSigned {
                 block_hash: hash.clone(),
                 pubkey,
+                signature: signature.clone(),
             })
             .map_err(ProgramError::BorshIoError)?;
         }
