@@ -133,19 +133,23 @@ impl ChainData {
             .add_signature(pubkey.clone(), signature, verifier)
             .map_err(into_error)?;
 
-        let mut hash = None;
+        let header = manager.head().1;
+        let block_hash = header.calc_hash();
         if res.got_new_signature() {
-            let hash = hash.get_or_insert_with(|| manager.head().1.calc_hash());
             events::emit(events::BlockSigned {
-                block_hash: hash.clone(),
+                block_hash: block_hash.clone(),
+                block_height: header.block_height,
                 pubkey,
+                signature: signature.clone(),
             })
             .map_err(ProgramError::BorshIoError)?;
         }
         if res.got_quorum() {
-            let hash = hash.unwrap_or_else(|| manager.head().1.calc_hash());
-            events::emit(events::BlockFinalised { block_hash: hash })
-                .map_err(ProgramError::BorshIoError)?;
+            events::emit(events::BlockFinalised {
+                block_hash,
+                block_height: header.block_height,
+            })
+            .map_err(ProgramError::BorshIoError)?;
         }
         Ok(res.got_quorum())
     }
