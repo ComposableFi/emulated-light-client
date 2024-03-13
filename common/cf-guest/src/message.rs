@@ -131,12 +131,13 @@ super::any_convert! {
     ClientMessage<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
     // TODO(mina86): Add `obj: ...`.
     bad: proto::ClientMessage { message: None },
-    from: any => match any.type_url.as_str() {
-        proto::ClientMessage::TYPE_URL => Self::decode(&any.value),
-        proto::Header::TYPE_URL => Header::decode(&any.value).map(Self::Header),
-        proto::Misbehaviour::TYPE_URL => {
-            Misbehaviour::decode(&any.value).map(Self::Misbehaviour)
-        }
-        _ => Err(crate::proto::DecodeError::BadType),
-    },
+    conv: any => if any.type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
+        Self::decode(&any.value)
+    } else if any.type_url.ends_with(proto::Header::IBC_TYPE_URL) {
+        Header::decode(&any.value).map(Self::Header)
+    } else if any.type_url.ends_with(proto::Misbehaviour::IBC_TYPE_URL) {
+        Misbehaviour::decode(&any.value).map(Self::Misbehaviour)
+    } else {
+        return Err(crate::proto::DecodeError::BadType);
+    }.map_err(|err| err.into()),
 }
