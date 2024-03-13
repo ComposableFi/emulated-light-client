@@ -6,7 +6,8 @@ mod pb {
 }
 
 pub use pb::lightclients::guest::v1::{
-    ClientState, ConsensusState, Header, Misbehaviour, Signature,
+    client_message, ClientMessage, ClientState, ConsensusState, Header,
+    Misbehaviour, Signature,
 };
 
 /// Error during decoding of a protocol message.
@@ -61,6 +62,21 @@ impl core::fmt::Display for BadMessage {
     #[inline]
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
         core::fmt::Debug::fmt(self, fmtr)
+    }
+}
+
+
+impl From<Header> for ClientMessage {
+    #[inline]
+    fn from(msg: Header) -> Self {
+        Self { message: Some(client_message::Message::Header(msg)) }
+    }
+}
+
+impl From<Misbehaviour> for ClientMessage {
+    #[inline]
+    fn from(msg: Misbehaviour) -> Self {
+        Self { message: Some(client_message::Message::Misbehaviour(msg)) }
     }
 }
 
@@ -154,6 +170,8 @@ impl_proto!(ConsensusState; test_consensus_state; {
     let block_hash = lib::hash::CryptoHash::test(42).to_vec();
     Self { block_hash, timestamp_ns: 1 }
 });
+
+impl_proto!(ClientMessage; test_client_message; Header::test().into());
 
 impl_proto!(Header; test_header; {
     // TODO(mina86): Construct a proper signed header.
