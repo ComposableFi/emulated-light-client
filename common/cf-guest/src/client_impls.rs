@@ -359,7 +359,7 @@ impl<PK: PubKey> ClientState<PK> {
                 }
                 quorum_left = quorum_left.saturating_sub(validator.stake.get());
                 if quorum_left == 0 {
-                    break;
+                    return Ok(());
                 }
             }
             Err("Quorum not reached")
