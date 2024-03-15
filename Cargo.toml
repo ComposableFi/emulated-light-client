@@ -111,7 +111,7 @@ anyhow = "1.0.32"
 # For curve25519-dalek we’re using commit from a PR, see
 # https://github.com/dalek-cryptography/curve25519-dalek/pull/606
 aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
-curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
+curve25519-dalek = { git = "https://github.com/mina86/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
 
 # eyre has a mutable global variable which is something Solana
 # programs cannot have.  tendermint 0.34 enables eyre unconditionally;

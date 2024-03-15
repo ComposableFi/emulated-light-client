@@ -1274,7 +1274,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "3.2.1"
-source = "git+https://github.com/dalek-cryptography/curve25519-dalek?rev=8274d5cbb6fc3f38cdc742b4798173895cd2a290#8274d5cbb6fc3f38cdc742b4798173895cd2a290"
+source = "git+https://github.com/mina86/curve25519-dalek?rev=8274d5cbb6fc3f38cdc742b4798173895cd2a290#8274d5cbb6fc3f38cdc742b4798173895cd2a290"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -6276,6 +6276,7 @@ dependencies = [
  "anchor-spl",
  "base64 0.21.7",
  "borsh 0.10.3",
+ "bytemuck",
  "clap 4.4.18",
  "derive_more",
  "dialoguer",
