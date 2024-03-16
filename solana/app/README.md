@@ -46,7 +46,7 @@ So the only option split client state/packet from app execution. So this spec ab
 
 Another issue to consider, funds must not stuck on non user owned program account.
 
-This can be achived by ability of protocol to handle(and incetivise) ack/fail/timeout callbacks to source change.   
+This can be achived by ability of protocol to handle(and incetivise) ack/fail/timeout callbacks to source change, and/or avoiding making app program to both execute and receive funds.   
 
 ## Flows
 
