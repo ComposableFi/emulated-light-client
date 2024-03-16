@@ -15,6 +15,35 @@ Set of features outlined here is solution for next set of problems:
 - reducing chances user funds stuck on one of intermediate accounts to ensure protocols to be non custodial
 - allowing user to have his own account abstraction on remote chain (aka virtual wallet)
 
+### Example
+
+CVM and ICS29 non custodial interchain acount abstrations. In both cases source to host chain call could look like in temrs of unique program instances (on example of exchange):
+
+```mermaid
+    participant ibc-core
+    participant app
+    participant user
+    participant exchange
+    participant order-book
+    participant spl
+    participant system
+    
+    ibc-core->>app: call  
+    app->>user: execute
+    user->>exchange: swap
+    exchange->>order-book: take 
+    order-book->>spl: transfer
+    spl->>system: whatever
+```
+
+As you can this as per https://solana.com/pt/docs/programs/limitations :
+- CPU max stack of 4 violated
+- ibc-core client verification and packet proof mixed with user arbitrary execution, which will violate max compute budget in hard to debug way
+- stack frame count also has changes to be violated
+- max account even with LUT can be violated too for 3 exchanges
+
+So the only option split client state/packet from app execution. So this spec about that split.
+
 ## Flows
 
 Here are two main flows outlined. One is goverment of app and usage of app.
