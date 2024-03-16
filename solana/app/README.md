@@ -38,11 +38,15 @@ CVM and ICS29 non custodial interchain acount abstrations. In both cases source 
 
 As you can this as per https://solana.com/pt/docs/programs/limitations :
 - CPU max stack of 4 violated
-- ibc-core client verification and packet proof mixed with user arbitrary execution, which will violate max compute budget in hard to debug way
+- ibc-core client verification and packet proof mixed with user arbitrary execution, which will violate max compute budget in hard to handle way
 - stack frame count also has changes to be violated
 - max account even with LUT can be violated too for 3 exchanges
 
 So the only option split client state/packet from app execution. So this spec about that split.
+
+Another issue to consider, funds must not stuck on non user owned program account.
+
+This can be achived by ability of protocol to handle(and incetivise) ack/fail/timeout callbacks to source change.   
 
 ## Flows
 
@@ -80,11 +84,11 @@ Both also run `simulate` with proper flags.
 
 #### Instructions prefix
 
-`ibc-app` instructions are well define `borsh` encoded enum instuctions occupyuing indexes from 0 to 4 inclusive. `(4)dummy` is for future use
+`ibc-app` instructions are well define `borsh` encoded enum instuctions occupying indexes from 0 to 5 inclusive. `(4)dummy` and `(5)dummy` are for future use
 
 ### Account discovery events from simulate
 
-Anchor format encoded events tell what accounts app will use. It is up to app to do Anchor compatibl encoding (using anchor crate if needed, but not required).
+Anchor format encoded events tell what accounts app will use. It is up to app to do Anchor compatible encoding (using anchor crate if needed, but not required).
 
 ```json
 // naming used to adhere that event is command for next step in flow
@@ -99,5 +103,5 @@ Anchor format encoded events tell what accounts app will use. It is up to app to
 
 `ibc-app` can(and need):
 
-- query state of previosly delivered packet
+- query state of previosly delivered packet by port/channel/sequence number
 - query any next sequence id of packet to be send next over any port
