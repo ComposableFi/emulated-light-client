@@ -20,6 +20,7 @@ Set of features outlined here is solution for next set of problems:
 CVM and ICS29 non custodial interchain acount abstrations. In both cases source to host chain call could look like in temrs of unique program instances (on example of exchange):
 
 ```mermaid
+sequenceDiagram
     participant ibc-core
     participant app
     participant user
@@ -99,9 +100,45 @@ Anchor format encoded events tell what accounts app will use. It is up to app to
 }
 ```
 
+This is one sided process to execute on Solana, so no need to have network connection counterparty. 
+
+So really that can be standalone cranker process to do so.
+
 ### Information interfaces
 
 `ibc-app` can(and need):
 
 - query state of previosly delivered packet by port/channel/sequence number
-- query any next sequence id of packet to be send next over any port
+- query any next sequence id of packet to be send next over any port, 
+
+
+Here is example on how can operate using these interfaces:
+
+```mermaid
+sequenceDiagram
+    participant source
+     
+    source->>relayer: create ICS20 and send to account abstraction
+    source->>relayer: create APP packet with ICS20 sequence number in data and send
+    relayer->>target: deliver APP packet
+    target->>app: fail if no ICS20 delivered
+    relayer->>target: deliver ICS20
+    relayer->>target: deliver APP packet
+    target->>app: executed with success on behalf of account abstraction
+    relayer->>source: receive ACK/FAIL/TIMEOUT and handle cleanup/rollback
+```
+
+## References
+
+- https://github.com/cosmos/ibc-go/blob/main/proto/ibc/core/channel/v1/channel.proto means can access packet delivery status by port + channel and source sequence
+- https://solana.com/ar/docs/programs/limitations has very hard limits
+- https://github.com/osmosis-labs/osmosis/blob/main/cosmwasm/contracts/crosschain-swaps/README.md#error-handling tells for need for FAIL and ACK callbacks
+- https://medium.com/the-interchain-foundation/introducing-the-callbacks-middleware-compose-smart-contracts-and-modules-with-ibc-6f3fb527e44a is bearish as requires 4 blocks instead of 2 to deliver packets
+- https://github.com/cosmos/ibc-apps/tree/main/modules/ibc-hooks for WASM only, JSON only, spec and impl for call as single TX downstream from IBC deliver, does not have access to Incetives middleware (so cannot buy delivery)
+- https://docs.solanalabs.com/proposals/versioned-transactions#lookup-table-re-initialization  tells need to recreate LUTs on each delivery
+- https://docs.solanalabs.com/proposals/versioned-transactions#other-proposals basically describes general relayer like documented above
+- https://github.com/cosmos/ibc/blob/main/spec/app/ics-027-interchain-accounts/README.md prototype design of account abstractions and cross chain calls to use as basis, this documents allows to deliver this
+- https://github.com/coral-xyz/anchor/blob/master/lang/attribute/event/src/lib.rs tells that can easy replace emit by Anchor with manual emit easy to save heap/CU usage later
+- https://github.com/aleph-im/aleph-indexer-library/tree/main/packages/indexer-generator tells that DSL for Anchor events/state is useful for automagical indexing even if not use all parts of anchor
+- https://github.com/cosmos/ibc/tree/main/spec/app/ics-029-fee-payment describes how to make delivery possible via incetives (deliver/ack/timeout/fail) and above document compatible with it.
+
