@@ -67,6 +67,7 @@ macro_rules! any_convert {
         $Type:ident $( <$T:ident: $bond:path = $concrete:path> )?,
         $(obj: $obj:expr,)*
         $(bad: $bad:expr,)*
+        $(from: $any:ident => $from_expr:expr,)?
     ) => {
         impl $(<$T: $bond>)* $Type $(<$T>)* {
             /// Encodes the object into a vector as protocol buffer message.
@@ -118,10 +119,7 @@ macro_rules! any_convert {
 
         impl $(<$T: $bond>)* TryFrom<&$crate::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
-            fn try_from(any: &$crate::Any) -> Result<Self, Self::Error> {
-                $crate::proto::$Type::try_from(any)
-                    .and_then(|msg| Ok(msg.try_into()?))
-            }
+            $crate::any_convert!(@from $Type $($any => $from_expr)*);
         }
 
         impl $(<$T: $bond>)* ibc_primitives::proto::Protobuf<$Proto>
@@ -144,6 +142,20 @@ macro_rules! any_convert {
             $(
                 assert_eq!(Err(proto::BadMessage), Type::try_from($bad));
             )*
+        }
+    };
+
+    (@from $Type:ident) => {
+        $crate::any_convert!(@from $Type any => {
+            $crate::proto::$Type::try_from(any)
+                .and_then(|msg| Ok(msg.try_into()?))
+        });
+    };
+    (@from $Type:ident $any:ident => $expr:expr) => {
+        fn try_from(
+            $any: &$crate::Any,
+        ) -> Result<Self, Self::Error> {
+            $expr
         }
     };
 }
