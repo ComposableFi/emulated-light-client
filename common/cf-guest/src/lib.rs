@@ -75,6 +75,11 @@ macro_rules! any_convert {
             }
 
             /// Encodes the object into a vector as protocol buffer message.
+            ///
+            /// This method is provided for compatibility with APIs
+            /// (specifically macros) which expect it to return a `Result`.  You
+            /// most likely want to use [`Self::encode`] instead which encodes
+            /// in return type the fact that this is infallible conversion.
             pub fn encode_to_vec(
                 &self,
             ) -> Result<alloc::vec::Vec<u8>, core::convert::Infallible> {
@@ -105,20 +110,15 @@ macro_rules! any_convert {
 
         impl $(<$T: $bond>)* TryFrom<$crate::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
-            fn try_from(
-                any: $crate::Any,
-            ) -> Result<Self, Self::Error> {
+            fn try_from(any: $crate::Any) -> Result<Self, Self::Error> {
                 $crate::proto::$Type::try_from(any)
                     .and_then(|msg| Ok(msg.try_into()?))
             }
         }
 
-        impl $(<$T: $bond>)* TryFrom<&$crate::Any> for $Type $(<$T>)*
-        {
+        impl $(<$T: $bond>)* TryFrom<&$crate::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
-            fn try_from(
-                any: &$crate::Any,
-            ) -> Result<Self, Self::Error> {
+            fn try_from(any: &$crate::Any) -> Result<Self, Self::Error> {
                 $crate::proto::$Type::try_from(any)
                     .and_then(|msg| Ok(msg.try_into()?))
             }
