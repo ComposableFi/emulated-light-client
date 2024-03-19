@@ -3,7 +3,6 @@ use anchor_lang::prelude::borsh::maybestd::io;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
-use crate::ibc::Protobuf;
 use crate::storage::IbcStorage;
 
 mod impls;
@@ -71,18 +70,16 @@ impl AnyClientState {
             Self::Tendermint(state) => (
                 AnyClientStateTag::Tendermint,
                 Self::TENDERMINT_TYPE,
-                Protobuf::<ibc::tm::ClientStatePB>::encode_vec(state),
+                ibc::Protobuf::<ibc::tm::ClientStatePB>::encode_vec(state),
             ),
-            Self::Guest(state) => (
-                AnyClientStateTag::Guest,
-                Self::GUEST_TYPE,
-                state.encode_to_vec(),
-            ),
+            Self::Guest(state) => {
+                (AnyClientStateTag::Guest, Self::GUEST_TYPE, state.encode())
+            }
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
                 Self::MOCK_TYPE,
-                Protobuf::<ibc::mock::ClientStatePB>::encode_vec(state),
+                ibc::Protobuf::<ibc::mock::ClientStatePB>::encode_vec(state),
             ),
         }
     }
@@ -94,7 +91,7 @@ impl AnyClientState {
     ) -> Result<Self, String> {
         match tag {
             AnyClientStateTag::Tendermint => {
-                Protobuf::<ibc::tm::ClientStatePB>::decode_vec(&value)
+                ibc::Protobuf::<ibc::tm::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
             }
@@ -103,7 +100,7 @@ impl AnyClientState {
                 .map(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
-                Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
+                ibc::Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Mock)
             }
