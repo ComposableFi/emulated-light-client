@@ -77,7 +77,7 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 
     fn latest_height(&self) -> ibc::Height {
-        ibc::Height::new(0, self.latest_height.into()).unwrap()
+        ibc::Height::new(1, self.latest_height.into()).unwrap()
     }
 
     fn validate_proof_height(&self, proof_height: ibc::Height) -> Result {
@@ -187,7 +187,7 @@ where
         let header = crate::proto::Header::try_from(header)?;
         let header = crate::Header::<PK>::try_from(header)?;
         let header_height =
-            ibc::Height::new(0, header.block_header.block_height.into())?;
+            ibc::Height::new(1, header.block_header.block_height.into())?;
 
         let (host_timestamp, host_height) = CommonContext::host_metadata(ctx)?;
         self.prune_oldest_consensus_state(ctx, client_id, host_timestamp)?;
