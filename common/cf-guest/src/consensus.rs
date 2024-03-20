@@ -3,7 +3,6 @@ use core::num::NonZeroU64;
 use ibc_primitives::proto::Any;
 use ibc_proto::Protobuf;
 use lib::hash::CryptoHash;
-use prost::Message as _;
 
 use crate::proto;
 
