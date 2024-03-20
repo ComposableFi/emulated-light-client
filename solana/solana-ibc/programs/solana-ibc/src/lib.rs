@@ -82,6 +82,8 @@ solana_program::custom_panic_default!();
 #[anchor_lang::program]
 pub mod solana_ibc {
 
+    use std::collections::VecDeque;
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -92,6 +94,8 @@ pub mod solana_ibc {
         genesis_epoch: chain::Epoch,
         staking_program_id: Pubkey,
     ) -> Result<()> {
+        let v: VecDeque<(CryptoHash, u64)> = (0..100).map(|_| (CryptoHash::default(), 0)).collect();
+        v.iter().find_map(|x| { if x.1 == 1 {return Some(0);} None});
         let mut provable = storage::get_provable_from(
             &ctx.accounts.trie,
             &ctx.accounts.sender,
@@ -209,6 +213,7 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        solana_program::log::sol_log_compute_units();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
@@ -219,6 +224,8 @@ pub mod solana_ibc {
                 ctx.remaining_accounts = rest;
             }
         }
+        let height = store.borrow().chain.head().unwrap().block_height;
+        msg!("Current Block height {:?}", u64::from(height)); 
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
@@ -340,7 +347,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
-
+        let height = store.borrow().chain.head().unwrap().block_height;
+        msg!("Current Block height {:?}", u64::from(height)); 
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,

@@ -1,0 +1,7 @@
+fn main() -> std::io::Result<()> {
+    prost_build::Config::new()
+        .enable_type_names()
+        .type_name_domain(["."], "ibc")
+        .include_file("messages.rs")
+        .compile_protos(&["proto/wasm.proto"], &["proto/"])
+}

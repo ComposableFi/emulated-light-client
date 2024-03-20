@@ -99,7 +99,7 @@ fn anchor_test_deliver() -> Result<()> {
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
 
-    let mint_keypair = Keypair::new();
+    let mint_keypair = Rc::new(read_keypair_file("../../token_mint_keypair.json").unwrap());
     let native_token_mint_key = mint_keypair.pubkey();
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
@@ -125,7 +125,7 @@ fn anchor_test_deliver() -> Result<()> {
                 min_total_stake: NonZeroU128::new(1000).unwrap(),
                 min_quorum_stake: NonZeroU128::new(1000).unwrap(),
                 min_block_length: 5.into(),
-                max_block_age_ns: 0,
+                max_block_age_ns: 20 * 10_u64.pow(9),
                 min_epoch_length: 200_000.into(),
             },
             staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
@@ -372,58 +372,58 @@ fn anchor_test_deliver() -> Result<()> {
 
     // println!("  This is the mint information {:?}", mint_info);
 
-    // /*
-    //  * Creating Token Mint
-    //  */
-    // println!("\nCreating a token mint");
+    /*
+     * Creating Token Mint
+     */
+    println!("\nCreating a token mint");
 
-    // let create_account_ix = create_account(
-    //     &authority.pubkey(),
-    //     &native_token_mint_key,
-    //     sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
-    //     82,
-    //     &anchor_spl::token::ID,
-    // );
+    let create_account_ix = create_account(
+        &authority.pubkey(),
+        &native_token_mint_key,
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+        82,
+        &anchor_spl::token::ID,
+    );
 
-    // let create_mint_ix = initialize_mint2(
-    //     &anchor_spl::token::ID,
-    //     &native_token_mint_key,
-    //     &authority.pubkey(),
-    //     Some(&authority.pubkey()),
-    //     6,
-    // )
-    // .expect("invalid mint instruction");
+    let create_mint_ix = initialize_mint2(
+        &anchor_spl::token::ID,
+        &native_token_mint_key,
+        &authority.pubkey(),
+        Some(&authority.pubkey()),
+        6,
+    )
+    .expect("invalid mint instruction");
 
-    // let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &native_token_mint_key, &anchor_spl::token::ID);
-    // let associated_token_addr = get_associated_token_address(
-    //     &authority.pubkey(),
-    //     &native_token_mint_key,
-    // );
-    // let mint_ix = spl_token::instruction::mint_to(
-    //     &anchor_spl::token::ID,
-    //     &native_token_mint_key,
-    //     &associated_token_addr,
-    //     &authority.pubkey(),
-    //     &[&authority.pubkey()],
-    //     1000000000,
-    // )
-    // .unwrap();
+    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &native_token_mint_key, &anchor_spl::token::ID);
+    let associated_token_addr = get_associated_token_address(
+        &authority.pubkey(),
+        &native_token_mint_key,
+    );
+    let mint_ix = spl_token::instruction::mint_to(
+        &anchor_spl::token::ID,
+        &native_token_mint_key,
+        &associated_token_addr,
+        &authority.pubkey(),
+        &[&authority.pubkey()],
+        1000000000,
+    )
+    .unwrap();
 
-    // let tx = program
-    //     .request()
-    //     .instruction(create_account_ix)
-    //     .instruction(create_mint_ix)
-    //     .instruction(create_token_acc_ix)
-    //     .instruction(mint_ix)
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .signer(&mint_keypair)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
+    let tx = program
+        .request()
+        .instruction(create_account_ix)
+        .instruction(create_mint_ix)
+        .instruction(create_token_acc_ix)
+        .instruction(mint_ix)
+        .payer(authority.clone())
+        .signer(&*authority)
+        .signer(&mint_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
 
-    // println!("  Signature: {}", tx);
+    println!("  Signature: {}", tx);
 
     // /*
     //  * Sending transfer on source chain

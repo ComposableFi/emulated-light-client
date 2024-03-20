@@ -4,6 +4,9 @@ use alloc::vec::Vec;
 use guestchain::BlockHeader;
 use lib::hash::CryptoHash;
 
+use solana_program::msg;
+use alloc::format;
+
 mod ibc {
     pub use ibc_core_commitment_types::commitment::{
         CommitmentPrefix, CommitmentProofBytes, CommitmentRoot,
@@ -176,6 +179,7 @@ pub fn verify(
         let (header, proof): (BlockHeader, sealable_trie::proof::Proof) =
             borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
         if root != &header.calc_hash() {
+            msg!("verification failed because root and header dont match {:?} {:?}", root, header.calc_hash());
             return Err(VerifyError::VerificationFailed);
         }
         (header.state_root, proof)
@@ -224,6 +228,7 @@ pub fn verify(
     } else if proof.verify(&state_root, &path.key, value.as_ref()) {
         Ok(())
     } else {
+        msg!("verification failed at the end");
         Err(VerifyError::VerificationFailed)
     }
 }

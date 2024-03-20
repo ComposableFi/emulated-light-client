@@ -1,13 +1,16 @@
+use std::num::NonZeroU64;
 use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
+// use ibc_proto::Protobuf;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 use crate::storage::{self, IbcStorage};
+use ::ibc::core::client::context::consensus_state::ConsensusState as _;
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -43,7 +46,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn host_height(&self) -> Result<ibc::Height> {
         let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 
@@ -59,7 +62,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
-        let state = if height.revision_number() == 0 {
+        let state = if height.revision_number() == 1 {
             store.chain.consensus_state(height.revision_height().into())?
         } else {
             None
@@ -67,10 +70,19 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         .ok_or(ibc::ClientError::MissingLocalConsensusState {
             height: *height,
         })?;
-        Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
+        let guest_consensus_state = cf_guest::ConsensusState {
             block_hash: state.0.as_array().to_vec().into(),
             timestamp_ns: state.1,
-        }))
+        };
+        let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
+            guest_consensus_state.encode_vec(),
+            state.1.into(),
+        );
+        Ok(AnyConsensusState::Wasm(wasm_consensus_state))
+        // Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
+        //     block_hash: state.0.as_array().to_vec().into(),
+        //     timestamp_ns: state.1,
+        // }))
     }
 
     fn client_counter(&self) -> Result<u64> {
@@ -226,7 +238,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         // In Solana protocol, the block time is 400ms second.
         // Considering factors such as network latency, as a precaution,
         // we set the duration to 1 seconds.
-        Duration::from_secs(1)
+        Duration::from_secs(30)
     }
 
     fn validate_message_signer(&self, signer: &ibc::Signer) -> Result {
@@ -240,7 +252,9 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn get_client_validation_context(&self) -> &Self::V { self }
+    fn get_client_validation_context(&self) -> &Self::V {
+        self
+    }
 
     fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
         ibc::conn::get_compatible_versions()
@@ -285,7 +299,6 @@ impl IbcStorage<'_, '_> {
     }
 }
 
-
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn update_meta(
         &self,
@@ -302,7 +315,7 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
                 let ts = state.processed_time()?.get();
                 let ts = ibc::Timestamp::from_nanoseconds(ts).ok()?;
                 let height = state.processed_height()?;
-                let height = ibc::Height::new(0, height.into()).ok()?;
+                let height = ibc::Height::new(1, height.into()).ok()?;
                 Some((ts, height))
             })
             .ok_or_else(|| {
@@ -354,7 +367,44 @@ fn calculate_block_delay(
     if max_expected_time_per_block.is_zero() {
         return 0;
     }
-    let delay = delay_period_time.as_secs_f64() /
-        max_expected_time_per_block.as_secs_f64();
+    let delay = delay_period_time.as_secs_f64()
+        / max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
+}
+
+mod test {
+    use std::num::NonZeroU64;
+
+    use ibc::primitives::ToVec;
+
+    use crate::consensus_state::AnyConsensusState;
+
+    #[test]
+    fn testing_last() {
+        // use ::ibc::core::primitives::proto::Any;
+        // use prost::Message;
+        use ::ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
+        use ::ibc::core::client::context::consensus_state::ConsensusState;
+        use ::ibc::core::commitment_types::commitment::CommitmentRoot;
+        use ::ibc::primitives::ToProto;
+        // let data = [10, 44, 10, 32, 49, 202, 7, 248, 234, 159, 176, 0, 63, 157, 173, 59, 86, 222, 38, 69, 105, 150, 73, 104, 47, 70, 100, 219, 111, 175, 83, 26, 233, 180, 97, 106, 16, 128, 180, 211, 172, 135, 130, 253, 222, 23, 16, 128, 180, 211, 172, 135, 130, 253, 222];
+        // let any = Any {
+        //     type_url: WASM_CONSENSUS_STATE_TYPE_URL.to_string(),
+        //     value: data.to_vec(),
+        // };
+        let guest_consensus_state = cf_guest::ConsensusState {
+            block_hash: CommitmentRoot::from_bytes(&[1; 32]),
+            timestamp_ns: NonZeroU64::new(1000000).unwrap(),
+        };
+        let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
+            guest_consensus_state.clone().encode_vec(),
+            1000000_u64,
+        );
+        println!(
+            "This is guest encoded {:?}",
+            guest_consensus_state.encode_vec()
+        );
+        let any_consensus_state = AnyConsensusState::Wasm(wasm_consensus_state);
+        println!("This is data {:?}", any_consensus_state.encode_vec());
+    }
 }

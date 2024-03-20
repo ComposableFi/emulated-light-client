@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package lightclients.wasm.v1;
+
+// The consensus state in wasm.
+message ConsensusState {
+	// 32-byte block hash.
+	bytes data = 1;
+	// Timestamp in nanoseconds.  Never zero.
+	uint64 timestamp = 2;
+}

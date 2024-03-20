@@ -6,6 +6,8 @@ use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 use crate::storage::{self, IbcStorage};
 
+use ibc_proto::Protobuf;
+
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
 impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
@@ -22,8 +24,10 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
         let hash = client.client_state.set(&state)?.digest_with_client(&path.0);
+        let state_any = state.encode_vec();
+        let new_hash = cf_guest::digest_with_client_id(&path.0, state_any.as_slice());
         let key = trie_ids::TrieKey::for_client_state(client.index);
-        store.provable.set(&key, &hash).map_err(error)
+        store.provable.set(&key, &new_hash).map_err(error)
     }
 
     fn store_consensus_state(
@@ -74,6 +78,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
     }
 }
 
+
 impl IbcStorage<'_, '_> {
     pub(crate) fn store_consensus_state_impl(
         &mut self,
@@ -89,6 +94,8 @@ impl IbcStorage<'_, '_> {
             (head.timestamp_ns, head.block_height)
         };
 
+        let inner_any = state.clone().encode_vec();
+        let new_hash = cf_guest::digest_with_client_id(client_id, inner_any.as_slice());
         let mut client = store.private.client_mut(client_id, false)?;
         let state = storage::ClientConsensusState::new(
             processed_time,
@@ -98,9 +105,10 @@ impl IbcStorage<'_, '_> {
         let hash = state.digest(client_id)?;
         client.consensus_states.insert(height, state);
 
+
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.set(&trie_key, &hash).map_err(client_error)
+        store.provable.set(&trie_key, &new_hash).map_err(client_error)
     }
 
     pub(crate) fn delete_consensus_state_impl(
@@ -132,10 +140,11 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ) -> Result {
         use core::cmp::Ordering;
 
-        msg!("store_connection({}, {:?})", path, connection_end);
+        // msg!("store_connection({}, {:?})", path, connection_end);
         let connection = trie_ids::ConnectionIdx::try_from(&path.0)?;
         let serialised = storage::Serialised::new(&connection_end)?;
-        let hash = serialised.digest();
+        let in_any = connection_end.encode_vec();
+        let hash = CryptoHash::digest(in_any.as_slice());
 
         let mut store = self.borrow_mut();
 
@@ -237,6 +246,8 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         let port_channel = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         let trie_key = trie_ids::TrieKey::for_channel_end(&port_channel);
         let mut store = self.borrow_mut();
+        let in_any = channel_end.clone().encode_vec();
+        let hash = CryptoHash::digest(in_any.as_slice());
         let digest = store
             .private
             .port_channel
@@ -244,7 +255,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
             .or_insert_with(Default::default)
             .set_channel_end(&channel_end)
             .map_err(error)?;
-        store.provable.set(&trie_key, &digest).map_err(error)
+        store.provable.set(&trie_key, &hash).map_err(error)
     }
 
     fn store_next_sequence_send(

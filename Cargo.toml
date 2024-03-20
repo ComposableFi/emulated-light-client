@@ -44,16 +44,26 @@ env_logger = "0.7.1"
 hex-literal = "0.4.1"
 
 # Use unreleased ibc-rs which supports custom verifier.
-ibc                       = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false, features = ["borsh", "serde"] }
-ibc-core-channel-types    = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-client-context   = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-client-types     = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-commitment-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-connection-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-host             = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-core-host-types       = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-primitives            = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
-ibc-testkit               = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc                       = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false, features = ["borsh", "serde"] }
+# ibc-core-channel-types    = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-client-context   = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-client-types     = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-commitment-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-connection-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-host             = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-core-host-types       = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-primitives            = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+# ibc-testkit               = { git = "https://github.com/dhruvja/ibc-rs", rev = "6bb51e2d02c016d572974ec8f47633c1f85b6ba8", default-features = false }
+ibc                       = { path = "../ibc-rs/ibc", default-features = false, features = ["borsh", "serde"] }
+ibc-core-channel-types    = { path = "../ibc-rs/ibc-core/ics04-channel/types", default-features = false }
+ibc-core-client-context   = { path = "../ibc-rs/ibc-core/ics02-client/context", default-features = false }
+ibc-core-client-types     = { path = "../ibc-rs/ibc-core/ics02-client/types", default-features = false }
+ibc-core-commitment-types = { path = "../ibc-rs/ibc-core/ics23-commitment/types", default-features = false }
+ibc-core-connection-types = { path = "../ibc-rs/ibc-core/ics03-connection/types", default-features = false }
+ibc-core-host             = { path = "../ibc-rs/ibc-core/ics24-host", default-features = false }
+ibc-core-host-types       = { path = "../ibc-rs/ibc-core/ics24-host/types", default-features = false }
+ibc-primitives            = { path = "../ibc-rs/ibc-primitives", default-features = false }
+ibc-testkit               = { path = "../ibc-rs/ibc-testkit", default-features = false }
 
 ibc-proto = { version = "0.41.0", default-features = false }
 insta = { version = "1.34.0" }
@@ -97,6 +107,7 @@ solana-trie = { path = "solana/trie" }
 solana-write-account = { path = "solana/write-account" }
 stdx = { path = "common/stdx" }
 trie-ids = { path = "common/trie-ids" }
+wasm = { path = "common/wasm" }
 
 # dev-dependencies
 anchor-client = "0.29.0"
@@ -127,3 +138,4 @@ curve25519-dalek = { git = "https://github.com/mina86/curve25519-dalek", rev = "
 
 # Adds support for custom-entrypoint feature
 anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
+ics23 = { path = "../ics23/rust" }

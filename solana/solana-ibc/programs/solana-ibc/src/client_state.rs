@@ -1,5 +1,6 @@
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
+use spl_token::solana_program::nonce::state;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
@@ -14,6 +15,7 @@ type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
+    Wasm(::ibc::clients::wasm_types::client_state::ClientState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -26,6 +28,7 @@ impl ibc::Protobuf<ibc::Any> for AnyClientState {}
 enum AnyClientStateTag {
     Tendermint = 0,
     Guest = 1,
+    Wasm = 2,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -37,6 +40,7 @@ impl AnyClientStateTag {
         match url {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyClientState::GUEST_TYPE => Some(Self::Guest),
+            AnyClientState::WASM_TYPE => Some(Self::Wasm),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -50,6 +54,9 @@ impl AnyClientState {
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
     /// Protobuf type URL for Guest client state used in Any message.
     const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::TYPE_URL;
+    /// Protobuf type URL for WASM client state used in Any message.
+    const WASM_TYPE: &'static str =
+        ::ibc::clients::wasm_types::client_state::WASM_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -78,6 +85,15 @@ impl AnyClientState {
                 Self::GUEST_TYPE,
                 state.encode_to_vec(),
             ),
+            Self::Wasm(state) => {
+                (
+                    AnyClientStateTag::Wasm,
+                    Self::WASM_TYPE,
+                    Protobuf::<
+                        ::ibc::clients::wasm_types::proto::v1::ClientState,
+                    >::encode_vec(state),
+                )
+            }
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
@@ -101,6 +117,11 @@ impl AnyClientState {
             AnyClientStateTag::Guest => cf_guest::ClientState::decode(&value)
                 .map_err(|err| err.to_string())
                 .map(Self::Guest),
+            AnyClientStateTag::Wasm => {
+                Protobuf::<::ibc::clients::wasm_types::proto::v1::ClientState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Wasm)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
                 Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
@@ -207,7 +228,7 @@ impl cf_guest::CommonContext for IbcStorage<'_, '_> {
             })?;
 
         let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        let height = ibc::Height::new(1, height)?;
 
         Ok((timestamp, height))
     }

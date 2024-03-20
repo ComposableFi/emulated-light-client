@@ -18,6 +18,7 @@ macro_rules! delegate {
                 AnyClientState::Guest(cs) => cs.$name($($arg),*),
                 #[cfg(any(test, feature = "mocks"))]
                 AnyClientState::Mock(cs) => cs.$name($($arg),*),
+                _ => unimplemented!(),
             }
         }
     }
@@ -77,6 +78,7 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
+            _ => unimplemented!()
         }
     }
 

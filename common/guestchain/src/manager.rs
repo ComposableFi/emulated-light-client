@@ -1,3 +1,4 @@
+use alloc::{collections::{BTreeMap, VecDeque}, vec::Vec};
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
 use core::num::{NonZeroU128, NonZeroU64};
@@ -6,7 +7,7 @@ use std::collections::HashSet as Set;
 
 use lib::hash::CryptoHash;
 
-use crate::candidates::Candidate;
+use crate::{candidates::Candidate, BlockHeight};
 pub use crate::candidates::UpdateCandidateError;
 use crate::Validator;
 
@@ -33,6 +34,17 @@ pub struct ChainManager<PK> {
 
     /// Set of validator candidates to consider for the next epoch.
     candidates: crate::Candidates<PK>,
+
+    /// Consensus states
+    // consensus_states: BTreeMap<u64, (Vec<u8>, NonZeroU64)>
+    pub consensus_states: VecDeque<LocalConsensusState>
+}
+
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct LocalConsensusState {
+    pub height: BlockHeight,
+    pub timestamp: NonZeroU64,
+    pub blockhash: Vec<u8>
 }
 
 /// Pending block waiting for signatures.
@@ -128,6 +140,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             epoch_height: header.host_height,
             candidates,
             header,
+            consensus_states: VecDeque::with_capacity(20),
         })
     }
 
@@ -198,11 +211,16 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             crate::block::Fingerprint::new(&self.genesis, &next_block);
         self.pending_block = Some(PendingBlock {
             fingerprint,
-            next_block,
+            next_block: next_block.clone(),
             signers: Set::new(),
             signing_stake: 0,
         });
         self.candidates.clear_changed_flag();
+        self.consensus_states.push_back(LocalConsensusState {
+            blockhash: next_block.header.calc_hash().to_vec(),
+            height: next_block.block_height,
+            timestamp: next_block.timestamp_ns,
+        });
         Ok(epoch_ends)
     }
 
