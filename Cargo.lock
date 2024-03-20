@@ -4707,6 +4707,7 @@ dependencies = [
  "guestchain",
  "hex-literal",
  "ibc",
+ "ibc-proto",
  "ibc-testkit",
  "insta",
  "lib",
