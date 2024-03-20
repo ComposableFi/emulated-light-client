@@ -6337,26 +6337,16 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 name = "wasm"
 version = "0.0.0"
 dependencies = [
- "borsh 0.10.3",
- "bytemuck",
  "derive_more",
- "guestchain",
  "ibc-core-client-context",
- "ibc-core-client-types",
  "ibc-core-commitment-types",
- "ibc-core-host",
  "ibc-primitives",
  "ibc-proto",
  "insta",
  "lib",
- "memory",
  "prost",
  "prost-build",
  "rand 0.8.5",
- "sealable-trie",
- "solana-program",
- "stdx",
- "trie-ids",
 ]
 
 [[package]]
