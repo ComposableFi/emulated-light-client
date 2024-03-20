@@ -132,12 +132,12 @@ super::any_convert! {
     // TODO(mina86): Add `obj: ...`.
     bad: proto::ClientMessage { message: None },
     conv: any => if any.type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
-        Self::decode(&any.value)
+        Self::decode(any.value)
     } else if any.type_url.ends_with(proto::Header::IBC_TYPE_URL) {
-        Header::decode(&any.value).map(Self::Header)
+        Header::decode(any.value).map(Self::Header)
     } else if any.type_url.ends_with(proto::Misbehaviour::IBC_TYPE_URL) {
-        Misbehaviour::decode(&any.value).map(Self::Misbehaviour)
+        Misbehaviour::decode(any.value).map(Self::Misbehaviour)
     } else {
-        return Err(crate::proto::DecodeError::BadType);
-    }.map_err(|err| err.into()),
+        Err(crate::proto::DecodeError::BadType)
+    },
 }
