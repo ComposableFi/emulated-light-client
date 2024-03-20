@@ -101,7 +101,7 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientState> for ClientState<PK> {
         let prev_epoch_commitment = if msg.epoch_commitment.is_empty() {
             epoch_commitment.clone()
         } else {
-            make_hash(&msg.prev_epoch_commitment.as_slice())?
+            make_hash(&msg.prev_epoch_commitment)?
         };
         Ok(Self {
             genesis_hash,
