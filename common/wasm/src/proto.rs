@@ -5,7 +5,7 @@ mod pb {
     include!(concat!(env!("OUT_DIR"), "/messages.rs"));
 }
 
-pub use pb::lightclients::wasm::v1::ConsensusState;
+pub use pb::ibc::lightclients::wasm::v1::ConsensusState;
 
 /// Error during decoding of a protocol message.
 #[derive(Clone, PartialEq, Eq, derive_more::From)]
@@ -64,7 +64,7 @@ impl core::fmt::Display for BadMessage {
 
 macro_rules! impl_proto {
     ($Msg:ident; $test:ident; $test_object:expr) => {
-        impl pb::lightclients::wasm::v1::$Msg {
+        impl pb::ibc::lightclients::wasm::v1::$Msg {
             /// Type URL of the type as used in Any protocol message.
             ///
             /// This is the same value as returned by [`prost::Name::type_url`]
