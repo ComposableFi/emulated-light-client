@@ -430,7 +430,7 @@ impl<PK: PubKey> ClientState<PK> {
         }
 
         let height = header.block_header.block_height;
-        let height = ibc::Height::new(0, height.into())?;
+        let height = ibc::Height::new(1, height.into())?;
 
         Ok(match ctx.consensus_state_neighbourhood(client_id, height)? {
             Neighbourhood::This(state) => {
