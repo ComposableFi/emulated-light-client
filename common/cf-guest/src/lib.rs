@@ -18,7 +18,7 @@ pub mod proof;
 pub mod proto;
 
 pub use client::ClientState;
-pub use client_impls::CommonContext;
+pub use client_impls::{CommonContext, Neighbourhood};
 pub use consensus::ConsensusState;
 pub use header::Header;
 pub use message::ClientMessage;

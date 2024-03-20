@@ -31,6 +31,15 @@ mod ibc {
 
 type Result<T = (), E = ibc::ClientError> = ::core::result::Result<T, E>;
 
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum Neighbourhood<T> {
+    This(T),
+    Neighbours(Option<T>, Option<T>),
+}
+
+impl<T> Default for Neighbourhood<T> {
+    fn default() -> Self { Self::Neighbours(None, None) }
+}
 
 pub trait CommonContext {
     type ConversionError: ToString;
@@ -44,6 +53,17 @@ pub trait CommonContext {
         client_id: &ibc::ClientId,
         height: ibc::Height,
     ) -> Result<Self::AnyConsensusState>;
+
+    /// Returns consensus at given height or its neighbours.
+    ///
+    /// If consensus state at given height returns `This(state)` for that state.
+    /// Otherwise, returns `Neighbours(prev, next)` where `prev` and `next` are
+    /// states with lower and greater height respectively if they exist.
+    fn consensus_state_neighbourhood(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<Neighbourhood<Self::AnyConsensusState>>;
 
     fn store_consensus_state_and_metadata(
         &mut self,
@@ -313,17 +333,20 @@ impl<PK: PubKey> ClientState<PK> {
 
     pub fn check_for_misbehaviour(
         &self,
-        ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
+        ctx: &impl CommonContext,
+        client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result<bool> {
         match ClientMessage::<PK>::try_from(client_message)? {
             ClientMessage::Header(header) => {
-                self.check_for_misbehaviour_header(ctx, header)
+                self.check_for_misbehaviour_header(ctx, client_id, header)
             }
-            ClientMessage::Misbehaviour(misbehaviour) => {
-                self.check_for_misbehaviour_misbehavior(ctx, misbehaviour)
-            }
+            ClientMessage::Misbehaviour(misbehaviour) => self
+                .check_for_misbehaviour_misbehavior(
+                    ctx,
+                    client_id,
+                    misbehaviour,
+                ),
         }
     }
 
@@ -333,7 +356,9 @@ impl<PK: PubKey> ClientState<PK> {
         header: Header<PK>,
     ) -> Result<()> {
         (|| {
-            if header.epoch_commitment != self.epoch_commitment {
+            if header.epoch_commitment != self.epoch_commitment &&
+                header.epoch_commitment != self.prev_epoch_commitment
+            {
                 return Err("Unexpected epoch");
             }
             let fp = guestchain::block::Fingerprint::from_hash(
@@ -369,26 +394,95 @@ impl<PK: PubKey> ClientState<PK> {
 
     fn verify_misbehaviour(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _misbehaviour: Misbehaviour<PK>,
+        ctx: &impl guestchain::Verifier<PK>,
+        misbehaviour: Misbehaviour<PK>,
     ) -> Result<()> {
-        todo!()
+        let Misbehaviour { header1, header2 } = misbehaviour;
+
+        // If the headers belong to different chains, they aren’t proof of
+        // misbehaviour.
+        if header1.genesis_hash != header2.genesis_hash {
+            return Err(error("Headers belong to different blockchains"));
+        }
+
+        self.verify_header(ctx, header1)?;
+        self.verify_header(ctx, header2)?;
+
+        Ok(())
     }
 
     fn check_for_misbehaviour_header(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _header: Header<PK>,
+        ctx: &impl CommonContext,
+        client_id: &ibc::ClientId,
+        header: Header<PK>,
     ) -> Result<bool> {
-        todo!()
+        fn get_timestamp_ns<T, E>(state: Option<T>) -> Result<Option<u64>>
+        where
+            E: ToString,
+            T: TryInto<ConsensusState, Error = E>,
+        {
+            match state.map(|state| state.try_into()) {
+                None => Ok(None),
+                Some(Ok(state)) => Ok(Some(state.timestamp_ns.get())),
+                Some(Err(err)) => Err(error(err)),
+            }
+        }
+
+        let height = header.block_header.block_height;
+        let height = ibc::Height::new(0, height.into())?;
+
+        Ok(match ctx.consensus_state_neighbourhood(client_id, height)? {
+            Neighbourhood::This(state) => {
+                // If we already have existing consensus for given height, check
+                // that what we’ve been sent is the same thing we have.  If it
+                // isn’t, that’s evidence of misbehaviour.
+                let existing_state = state.try_into().map_err(error)?;
+                let header_state = ConsensusState::from(&header);
+                existing_state != header_state
+            }
+
+            Neighbourhood::Neighbours(prev, next) => {
+                // Otherwise, make sure that timestamp of each consensus is
+                // strictly increasing.  If it isn’t, that’s evidence of
+                // misbehaviour.
+                let header_time_ns = header.block_header.timestamp_ns.get();
+                if let Some(prev_time_ns) = get_timestamp_ns(prev)? {
+                    if header_time_ns <= prev_time_ns {
+                        return Ok(true);
+                    }
+                }
+                if let Some(next_time_ns) = get_timestamp_ns(next)? {
+                    if header_time_ns >= next_time_ns {
+                        return Ok(true);
+                    }
+                }
+                false
+            }
+        })
     }
 
     fn check_for_misbehaviour_misbehavior(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _misbehaviour: Misbehaviour<PK>,
+        _ctx: &impl CommonContext,
+        _client_id: &ibc::ClientId,
+        misbehaviour: Misbehaviour<PK>,
     ) -> Result<bool> {
-        todo!()
+        use core::cmp::Ordering;
+
+        let Misbehaviour { header1, header2 } = misbehaviour;
+
+        // If blocks have the same height they must be the same (i.e. have the
+        // same hash).  Otherwise, check if their timestamp is strictly
+        // increasing.  If those conditions are not met we have a proof of
+        // misbehaviour.
+        let block1 = header1.block_header;
+        let block2 = header2.block_header;
+        Ok(match block1.block_height.cmp(&block2.block_height) {
+            Ordering::Less => block1.timestamp_ns >= block2.timestamp_ns,
+            Ordering::Equal => header1.block_hash != header2.block_hash,
+            Ordering::Greater => block1.timestamp_ns <= block2.timestamp_ns,
+        })
     }
 
     /// Checks whether consensus state has expired.

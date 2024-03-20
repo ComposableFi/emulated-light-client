@@ -52,19 +52,48 @@ impl<PK: PubKey> TryFrom<proto::Header> for Header<PK> {
 impl<PK: PubKey> TryFrom<&proto::Header> for Header<PK> {
     type Error = proto::BadMessage;
     fn try_from(msg: &proto::Header) -> Result<Self, Self::Error> {
-        let genesis_hash =
+        Self::try_from_impl(msg, None)
+    }
+}
+
+impl<PK: PubKey> Header<PK> {
+    /// Constructs new message from a Protocol Message inheriting missing fields
+    /// from provided header.
+    ///
+    /// If the Protocol Message `msg` doesn’t include `genesis_hash` or `epoch`,
+    /// those values are copied from provided `base` object.
+    pub(crate) fn try_from_proto_inherit(
+        msg: &proto::Header,
+        base: &Self,
+    ) -> Result<Self, proto::BadMessage> {
+        Self::try_from_impl(msg, Some(base))
+    }
+
+    fn try_from_impl(
+        msg: &proto::Header,
+        base: Option<&Self>,
+    ) -> Result<Self, proto::BadMessage> {
+        let genesis_hash = if msg.genesis_hash.is_empty() {
+            base.ok_or(proto::BadMessage)?.genesis_hash.clone()
+        } else {
             lib::hash::CryptoHash::try_from(msg.genesis_hash.as_slice())
-                .map_err(|_| proto::BadMessage)?;
+                .map_err(|_| proto::BadMessage)?
+        };
 
         let bytes = msg.block_header.as_slice();
         let block_header = borsh::BorshDeserialize::try_from_slice(bytes)
             .map_err(|_| proto::BadMessage)?;
         let block_hash = CryptoHash::digest(bytes);
 
-        let bytes = msg.epoch.as_slice();
-        let epoch = borsh::BorshDeserialize::try_from_slice(bytes)
-            .map_err(|_| proto::BadMessage)?;
-        let epoch_commitment = CryptoHash::digest(bytes);
+        let (epoch_commitment, epoch) = if msg.epoch.is_empty() {
+            let base = base.ok_or(proto::BadMessage)?;
+            (base.epoch_commitment.clone(), base.epoch.clone())
+        } else {
+            let bytes = msg.epoch.as_slice();
+            let epoch = borsh::BorshDeserialize::try_from_slice(bytes)
+                .map_err(|_| proto::BadMessage)?;
+            (CryptoHash::digest(bytes), epoch)
+        };
 
         let signatures = msg
             .signatures
@@ -88,6 +117,7 @@ impl<PK: PubKey> TryFrom<&proto::Header> for Header<PK> {
         })
     }
 }
+
 
 super::any_convert! {
     proto::Header,
