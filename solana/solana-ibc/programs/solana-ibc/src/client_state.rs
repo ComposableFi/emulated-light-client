@@ -204,7 +204,7 @@ impl cf_guest::CommonContext for IbcStorage<'_, '_> {
             })?;
 
         let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        let height = ibc::Height::new(1, height)?;
 
         Ok((timestamp, height))
     }
