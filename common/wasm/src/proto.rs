@@ -139,5 +139,5 @@ macro_rules! impl_proto {
 
 impl_proto!(ConsensusState; test_consensus_state; {
   let data = lib::hash::CryptoHash::test(42).to_vec();
-  Self { data, timestamp: 1 }
+  Self { data, timestamp_ns: 1 }
 });
