@@ -48,7 +48,7 @@ impl From<&ConsensusState> for proto::ConsensusState {
 impl TryFrom<proto::ConsensusState> for ConsensusState {
     type Error = proto::BadMessage;
     fn try_from(msg: proto::ConsensusState) -> Result<Self, Self::Error> {
-        Ok(ConsensusState { data: msg.data.into(), timestamp: msg.timestamp })
+        Ok(ConsensusState { data: msg.data, timestamp: msg.timestamp })
     }
 }
 
@@ -56,7 +56,7 @@ impl TryFrom<&proto::ConsensusState> for ConsensusState {
     type Error = proto::BadMessage;
     fn try_from(msg: &proto::ConsensusState) -> Result<Self, Self::Error> {
         Ok(ConsensusState {
-            data: <Vec<u8> as Clone>::clone(&msg.data).into(),
+            data: <Vec<u8> as Clone>::clone(&msg.data),
             timestamp: msg.timestamp,
         })
     }
