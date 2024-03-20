@@ -15,6 +15,7 @@ use crate::ibc::{self, Protobuf};
 pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
     Guest(cf_guest::ConsensusState),
+    Wasm(wasm::consensus_state::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockConsensusState),
 }
@@ -25,6 +26,7 @@ pub enum AnyConsensusState {
 enum AnyConsensusStateTag {
     Tendermint = 0,
     Guest = 1,
+    Wasm = 2,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -49,6 +51,7 @@ impl AnyConsensusState {
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest consensus state used in Any message.
     const GUEST_TYPE: &'static str = cf_guest::proto::ConsensusState::TYPE_URL;
+    const WASM_TYPE: &'static str = ::ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
@@ -77,6 +80,11 @@ impl AnyConsensusState {
                 Self::GUEST_TYPE,
                 Protobuf::<cf_guest::proto::ConsensusState>::encode_vec(state),
             ),
+            AnyConsensusState::Wasm(state) => (
+                AnyConsensusStateTag::Wasm,
+                Self::WASM_TYPE,
+                Protobuf::<wasm::proto::ConsensusState>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(state) => (
                 AnyConsensusStateTag::Mock,
@@ -101,6 +109,11 @@ impl AnyConsensusState {
                 Protobuf::<cf_guest::proto::ConsensusState>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Guest)
+            }
+            AnyConsensusStateTag::Wasm => {
+                Protobuf::<wasm::proto::ConsensusState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Wasm)
             }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusStateTag::Mock => {

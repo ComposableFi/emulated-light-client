@@ -1,5 +1,7 @@
 use core::num::NonZeroU64;
 
+use ibc_primitives::proto::Any;
+use ibc_proto::Protobuf;
 use lib::hash::CryptoHash;
 use prost::Message as _;
 
@@ -35,10 +37,11 @@ impl ibc_core_client_context::consensus_state::ConsensusState
     }
 
     fn encode_vec(self) -> alloc::vec::Vec<u8> {
-        proto::ConsensusState::from(self).encode_to_vec()
+        <Self as Protobuf<Any>>::encode_vec(self)
     }
 }
 
+impl Protobuf<Any> for ConsensusState {}
 
 impl<PK: guestchain::PubKey> From<&crate::Header<PK>> for ConsensusState {
     fn from(header: &crate::Header<PK>) -> Self {

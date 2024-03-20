@@ -1,0 +1,38 @@
+[package]
+name = "wasm"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+borsh.workspace = true
+bytemuck = { workspace = true, features = ["must_cast"] }
+derive_more.workspace = true
+ibc-core-client-types.workspace = true
+ibc-core-client-context.workspace = true
+ibc-core-commitment-types.workspace = true
+ibc-core-host.workspace = true
+ibc-primitives.workspace = true
+ibc-proto.workspace = true
+prost = { workspace = true, features = ["prost-derive"] }
+solana-program.workspace = true
+
+guestchain.workspace = true
+lib = { workspace = true, features = ["borsh"] }
+trie-ids.workspace = true
+sealable-trie = { workspace = true, features = ["borsh"] }
+stdx.workspace = true
+
+[build-dependencies]
+prost-build.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+rand.workspace = true
+
+guestchain = { workspace = true, features = ["test_utils"] }
+lib = { workspace = true, features = ["test_utils"] }
+memory = { workspace = true, features = ["test_utils"] }
+
+[features]
+std = []

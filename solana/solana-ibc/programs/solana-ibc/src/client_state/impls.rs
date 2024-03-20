@@ -16,6 +16,7 @@ macro_rules! delegate {
             match self {
                 AnyClientState::Tendermint(cs) => cs.$name($($arg),*),
                 AnyClientState::Guest(cs) => cs.$name($($arg),*),
+                AnyClientState::Wasm(_) => unimplemented!(),
                 #[cfg(any(test, feature = "mocks"))]
                 AnyClientState::Mock(cs) => cs.$name($($arg),*),
             }
@@ -73,6 +74,7 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             AnyClientState::Guest(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
+            AnyClientState::Wasm(_) => unimplemented!(),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
