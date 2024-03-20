@@ -63,7 +63,7 @@ impl TryFrom<&proto::ConsensusState> for ConsensusState {
 super::any_convert! {
   proto::ConsensusState,
   ConsensusState,
-  obj: ConsensusState::new([1; 32].to_vec(), 100),
+  obj: ConsensusState::new(lib::hash::CryptoHash::test(42).to_vec(), 1),
   bad: proto::ConsensusState {
       data: [0; 32].to_vec(),
       timestamp_ns: 0,
