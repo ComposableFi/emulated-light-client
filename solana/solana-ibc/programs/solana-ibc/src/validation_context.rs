@@ -43,7 +43,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn host_height(&self) -> Result<ibc::Height> {
         let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 

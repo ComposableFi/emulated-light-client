@@ -275,7 +275,7 @@ where
             return Ok(ibc::Status::Frozen);
         }
 
-        let height = ibc::Height::new(0, self.latest_height.into())?;
+        let height = ibc::Height::new(1, self.latest_height.into())?;
         let consensus = CommonContext::consensus_state(ctx, client_id, height)
             .and_then(|state| state.try_into().map_err(error));
         let consensus = match consensus {
