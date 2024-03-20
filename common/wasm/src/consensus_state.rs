@@ -41,7 +41,7 @@ impl From<ConsensusState> for proto::ConsensusState {
 
 impl From<&ConsensusState> for proto::ConsensusState {
     fn from(state: &ConsensusState) -> Self {
-        Self { data: state.data.clone(), timestamp_ns: state.timestamp_ns }
+        Self::from(state.clone())
     }
 }
 
