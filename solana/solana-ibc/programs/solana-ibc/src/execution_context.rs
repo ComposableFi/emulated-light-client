@@ -1,12 +1,11 @@
 use anchor_lang::solana_program::msg;
+use ibc_proto::Protobuf;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
 use crate::storage::{self, IbcStorage};
-
-use ibc_proto::Protobuf;
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -25,7 +24,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut client = store.private.client_mut(&path.0, true)?;
         client.client_state.set(&state)?;
         let state_any = state.encode_vec();
-        let hash = cf_guest::digest_with_client_id(&path.0, state_any.as_slice());
+        let hash =
+            cf_guest::digest_with_client_id(&path.0, state_any.as_slice());
         let key = trie_ids::TrieKey::for_client_state(client.index);
         store.provable.set(&key, &hash).map_err(error)
     }
@@ -94,7 +94,10 @@ impl IbcStorage<'_, '_> {
         };
 
         let encoded_state = state.clone().encode_vec();
-        let hash = cf_guest::digest_with_client_id(client_id, encoded_state.as_slice());
+        let hash = cf_guest::digest_with_client_id(
+            client_id,
+            encoded_state.as_slice(),
+        );
         let mut client = store.private.client_mut(client_id, false)?;
         let state = storage::ClientConsensusState::new(
             processed_time,
