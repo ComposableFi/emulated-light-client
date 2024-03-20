@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package lightclients.wasm.v1;
+package ibc.lightclients.wasm.v1;
 
 // The consensus state in wasm.
 message ConsensusState {
