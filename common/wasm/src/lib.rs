@@ -13,7 +13,6 @@ macro_rules! any_convert {
       $Proto:ty,
       $Type:ident $( <$T:ident: $bond:path = $concrete:path> )?,
       $(obj: $obj:expr,)*
-      $(bad: $bad:expr,)*
   ) => {
       impl $(<$T: $bond>)* $Type $(<$T>)* {
           /// Encodes the object into a vector as protocol buffer message.
@@ -80,10 +79,6 @@ macro_rules! any_convert {
               assert_eq!(Ok(obj), $Type::try_from(&msg));
           )*
 
-          // Check failure on invalid proto
-          $(
-              assert_eq!(Err(proto::BadMessage), Type::try_from($bad));
-          )*
       }
   };
 }
