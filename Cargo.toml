@@ -94,6 +94,7 @@ solana-trie = { path = "solana/trie" }
 solana-write-account = { path = "solana/write-account" }
 stdx = { path = "common/stdx" }
 trie-ids = { path = "common/trie-ids" }
+wasm = { path = "common/wasm" }
 
 # dev-dependencies
 anchor-client = "0.29.0"

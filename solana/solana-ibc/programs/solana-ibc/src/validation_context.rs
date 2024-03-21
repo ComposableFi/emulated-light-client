@@ -6,8 +6,9 @@ use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::ibc;
+use crate::ibc::{self, ConsensusState};
 use crate::storage::{self, IbcStorage};
+
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -67,10 +68,19 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         .ok_or(ibc::ClientError::MissingLocalConsensusState {
             height: *height,
         })?;
-        Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
+        let guest_consensus_state = cf_guest::ConsensusState {
             block_hash: state.0.as_array().to_vec().into(),
             timestamp_ns: state.1,
-        }))
+        };
+        let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
+            guest_consensus_state.encode_vec(),
+            state.1.into(),
+        );
+        Ok(AnyConsensusState::Wasm(wasm_consensus_state))
+        // Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
+        //     block_hash: state.0.as_array().to_vec().into(),
+        //     timestamp_ns: state.1,
+        // }))
     }
 
     fn client_counter(&self) -> Result<u64> {
