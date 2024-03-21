@@ -471,18 +471,17 @@ impl<PK: PubKey> ClientState<PK> {
         let Misbehaviour { header1, header2 } = misbehaviour;
         let (block1, block2) = (header1.block_header, header2.block_header);
         Ok(if block1.block_height == block2.block_height {
-            // If blocks have the same height they must be the same
-            // (i.e. have the same hash).  If the hashes mismatch that’s
-            // proof of misbehaviour.
+            // If blocks have the same height they must be the same, i.e. have
+            // the same hash.  If the hashes mismatch, that’s a proof of
+            // misbehaviour.
             header1.block_hash != header2.block_hash
         } else {
-            // Otherwise, if blocks have different height, ordering of their
-            // heights must match ordering of their timestamp.  If they don’t
-            // (that includes timestamps being equal), that’s proof of
-            // misbehaviour.
+            // Otherwise, if blocks have different heights, their ordering must
+            // match ordering of their timestamps.  If it doesn’t (that includes
+            // timestamps being equal), that’s a proof of misbehaviour.
             let height_ord = block1.block_height.cmp(&block2.block_height);
             let time_ord = block1.timestamp_ns.cmp(&block2.timestamp_ns);
-            time_ord != height_ord
+            height_ord != time_ord
         })
     }
 
