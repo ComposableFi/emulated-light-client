@@ -701,6 +701,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
+dependencies = [
+ "digest 0.10.7",
+]
+
+[[package]]
 name = "blake3"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1275,7 +1284,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "3.2.1"
-source = "git+https://github.com/mina86/curve25519-dalek?rev=8274d5cbb6fc3f38cdc742b4798173895cd2a290#8274d5cbb6fc3f38cdc742b4798173895cd2a290"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek?rev=8274d5cbb6fc3f38cdc742b4798173895cd2a290#8274d5cbb6fc3f38cdc742b4798173895cd2a290"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -2220,6 +2229,7 @@ dependencies = [
 [[package]]
 name = "ibc"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-apps",
  "ibc-clients",
@@ -2232,6 +2242,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-nft-transfer-types",
  "ibc-core",
@@ -2241,6 +2252,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "base64 0.21.7",
  "borsh 0.10.3",
@@ -2260,6 +2272,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-transfer-types",
  "ibc-core",
@@ -2269,6 +2282,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2283,6 +2297,7 @@ dependencies = [
 [[package]]
 name = "ibc-apps"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-app-nft-transfer",
  "ibc-app-transfer",
@@ -2291,6 +2306,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "ibc-client-tendermint-types",
@@ -2300,32 +2316,32 @@ dependencies = [
  "ibc-core-host",
  "ibc-primitives",
  "serde",
- "tendermint",
- "tendermint-light-client-verifier",
+ "tendermint 0.34.1",
+ "tendermint-light-client-verifier 0.34.1",
 ]
 
 [[package]]
 name = "ibc-client-tendermint-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
- "bytes",
  "displaydoc",
  "ibc-core-client-types",
  "ibc-core-commitment-types",
  "ibc-core-host-types",
  "ibc-primitives",
  "ibc-proto",
- "prost",
  "serde",
- "tendermint",
- "tendermint-light-client-verifier",
- "tendermint-proto",
+ "tendermint 0.34.1",
+ "tendermint-light-client-verifier 0.34.1",
+ "tendermint-proto 0.34.1",
 ]
 
 [[package]]
 name = "ibc-client-wasm-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "base64 0.21.7",
  "displaydoc",
@@ -2339,6 +2355,7 @@ dependencies = [
 [[package]]
 name = "ibc-clients"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-client-tendermint",
  "ibc-client-wasm-types",
@@ -2347,6 +2364,7 @@ dependencies = [
 [[package]]
 name = "ibc-core"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel",
  "ibc-core-client",
@@ -2362,6 +2380,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel-types",
  "ibc-core-client",
@@ -2376,6 +2395,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2392,12 +2412,13 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-client"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-client-context",
  "ibc-core-client-types",
@@ -2410,6 +2431,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-context"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2419,12 +2441,13 @@ dependencies = [
  "ibc-core-host-types",
  "ibc-primitives",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-client-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2438,12 +2461,13 @@ dependencies = [
  "schemars",
  "serde",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-commitment-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2455,25 +2479,25 @@ dependencies = [
  "scale-info",
  "schemars",
  "serde",
- "solana-program",
  "subtle-encoding",
 ]
 
 [[package]]
 name = "ibc-core-connection"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-client",
  "ibc-core-connection-types",
  "ibc-core-handler-types",
  "ibc-core-host",
  "ibc-primitives",
- "solana-program",
 ]
 
 [[package]]
 name = "ibc-core-connection-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2488,12 +2512,13 @@ dependencies = [
  "schemars",
  "serde",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-handler"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "ibc-core-channel",
  "ibc-core-client",
@@ -2508,6 +2533,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-handler-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2525,12 +2551,13 @@ dependencies = [
  "schemars",
  "serde",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-host"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2548,6 +2575,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-cosmos"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2565,12 +2593,13 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-core-host-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2585,6 +2614,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2598,6 +2628,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router-types"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2610,12 +2641,13 @@ dependencies = [
  "schemars",
  "serde",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
 ]
 
 [[package]]
 name = "ibc-derive"
 version = "0.6.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2625,6 +2657,7 @@ dependencies = [
 [[package]]
 name = "ibc-primitives"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2635,7 +2668,7 @@ dependencies = [
  "scale-info",
  "schemars",
  "serde",
- "tendermint",
+ "tendermint 0.34.1",
  "time",
 ]
 
@@ -2650,19 +2683,20 @@ dependencies = [
  "bytes",
  "flex-error",
  "ics23",
- "informalsystems-pbjson 0.7.0",
+ "informalsystems-pbjson",
  "parity-scale-codec",
  "prost",
  "scale-info",
  "schemars",
  "serde",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.34.1",
 ]
 
 [[package]]
 name = "ibc-testkit"
 version = "0.50.0"
+source = "git+https://github.com/cosmos/ibc-rs?rev=6dd3c6465e594d4c177f21724dd896a15e8f3634#6dd3c6465e594d4c177f21724dd896a15e8f3634"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2670,7 +2704,7 @@ dependencies = [
  "ibc-proto",
  "parking_lot",
  "subtle-encoding",
- "tendermint",
+ "tendermint 0.34.1",
  "tendermint-testgen",
  "tracing",
  "typed-builder",
@@ -2678,12 +2712,16 @@ dependencies = [
 
 [[package]]
 name = "ics23"
-version = "0.11.0"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc3b8be84e7285c73b88effdc3294b552277d6b0ec728ee016c861b7b9a2c19c"
 dependencies = [
  "anyhow",
+ "blake2",
+ "blake3",
  "bytes",
  "hex",
- "informalsystems-pbjson 0.6.0",
+ "informalsystems-pbjson",
  "prost",
  "ripemd",
  "serde",
@@ -2789,16 +2827,6 @@ dependencies = [
  "number_prefix",
  "portable-atomic",
  "unicode-width",
-]
-
-[[package]]
-name = "informalsystems-pbjson"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4eecd90f87bea412eac91c6ef94f6b1e390128290898cbe14f2b926787ae1fb"
-dependencies = [
- "base64 0.13.1",
- "serde",
 ]
 
 [[package]]
@@ -4716,8 +4744,8 @@ dependencies = [
  "spl-token",
  "stdx",
  "strum",
- "tendermint",
- "tendermint-light-client-verifier",
+ "tendermint 0.34.0",
+ "tendermint-light-client-verifier 0.34.0",
  "trie-ids",
  "uint",
  "wasm",
@@ -5713,6 +5741,34 @@ dependencies = [
 
 [[package]]
 name = "tendermint"
+version = "0.34.0"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
+dependencies = [
+ "bytes",
+ "digest 0.10.7",
+ "ed25519 2.2.3",
+ "ed25519-consensus",
+ "flex-error",
+ "futures",
+ "num-traits",
+ "once_cell",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "serde_repr",
+ "sha2 0.10.8",
+ "signature 2.2.0",
+ "subtle",
+ "subtle-encoding",
+ "tendermint-proto 0.34.0",
+ "time",
+ "zeroize",
+]
+
+[[package]]
+name = "tendermint"
 version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15ab8f0a25d0d2ad49ac615da054d6a76aa6603ff95f7d18bafdd34450a1a04b"
@@ -5735,9 +5791,21 @@ dependencies = [
  "signature 2.2.0",
  "subtle",
  "subtle-encoding",
- "tendermint-proto",
+ "tendermint-proto 0.34.1",
  "time",
  "zeroize",
+]
+
+[[package]]
+name = "tendermint-light-client-verifier"
+version = "0.34.0"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
+dependencies = [
+ "derive_more",
+ "flex-error",
+ "serde",
+ "tendermint 0.34.0",
+ "time",
 ]
 
 [[package]]
@@ -5749,7 +5817,24 @@ dependencies = [
  "derive_more",
  "flex-error",
  "serde",
- "tendermint",
+ "tendermint 0.34.1",
+ "time",
+]
+
+[[package]]
+name = "tendermint-proto"
+version = "0.34.0"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
+dependencies = [
+ "bytes",
+ "flex-error",
+ "num-derive 0.3.3",
+ "num-traits",
+ "prost",
+ "prost-types",
+ "serde",
+ "serde_bytes",
+ "subtle-encoding",
  "time",
 ]
 
@@ -5783,7 +5868,7 @@ dependencies = [
  "serde_json",
  "simple-error",
  "tempfile",
- "tendermint",
+ "tendermint 0.34.1",
  "time",
 ]
 
@@ -6834,3 +6919,8 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "tendermint-light-client"
+version = "0.34.0"
+source = "git+https://github.com/informalsystems/tendermint-rs?rev=37822e540e272d2ca9e763769ad20c581203ff9a#37822e540e272d2ca9e763769ad20c581203ff9a"
