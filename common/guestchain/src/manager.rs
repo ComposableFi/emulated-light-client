@@ -115,10 +115,13 @@ pub enum AddSignatureEffect {
 }
 
 impl AddSignatureEffect {
-    pub fn got_new_signature(self) -> bool { self != Self::Duplicate }
-    pub fn got_quorum(self) -> bool { self == Self::GotQuorum }
+    pub fn got_new_signature(self) -> bool {
+        self != Self::Duplicate
+    }
+    pub fn got_quorum(self) -> bool {
+        self == Self::GotQuorum
+    }
 }
-
 
 impl<PK: crate::PubKey> ChainManager<PK> {
     pub fn new(
@@ -194,10 +197,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         let next_epoch = self.maybe_generate_next_epoch(host_height);
         let age =
             host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none() &&
-            !force &&
-            state_root == self.header.state_root &&
-            age < self.config.max_block_age_ns
+        if next_epoch.is_none()
+            && !force
+            && state_root == self.header.state_root
+            && age < self.config.max_block_age_ns
         {
             return Err(GenerateError::UnchangedState);
         }
@@ -211,13 +214,6 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         )?;
         let fingerprint =
             crate::block::Fingerprint::new(&self.genesis, &next_block);
-        self.pending_block = Some(PendingBlock {
-            fingerprint,
-            next_block: next_block.clone(),
-            signers: Set::new(),
-            signing_stake: 0,
-        });
-        self.candidates.clear_changed_flag();
         if self.consensus_states.len() == MAX_CONSENSUS_STATES {
             self.consensus_states.pop_front();
         }
@@ -226,6 +222,14 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             height: next_block.block_height,
             timestamp: next_block.timestamp_ns,
         });
+        self.pending_block = Some(PendingBlock {
+            fingerprint,
+            next_block,
+            signers: Set::new(),
+            signing_stake: 0,
+        });
+        self.candidates.clear_changed_flag();
+
         Ok(epoch_ends)
     }
 
@@ -324,9 +328,13 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.candidates.candidates.as_slice()
     }
 
-    pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }
+    pub fn epoch_height(&self) -> crate::HostHeight {
+        self.epoch_height
+    }
 
-    pub fn genesis(&self) -> &CryptoHash { &self.genesis }
+    pub fn genesis(&self) -> &CryptoHash {
+        &self.genesis
+    }
 }
 
 #[test]
@@ -431,7 +439,6 @@ fn test_generate() {
         Err(GenerateError::HasPendingBlock),
         mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
     );
-
 
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
     mgr.generate_next(10.into(), three, CryptoHash::test(2), false).unwrap();
