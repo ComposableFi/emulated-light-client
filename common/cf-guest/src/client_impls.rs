@@ -339,10 +339,10 @@ impl<PK: PubKey> ClientState<PK> {
     ) -> Result<bool> {
         match ClientMessage::<PK>::try_from(client_message)? {
             ClientMessage::Header(header) => {
-                self.check_for_misbehaviour_header(ctx, client_id, header)
+                self.check_for_misbehaviour_in_header(ctx, client_id, header)
             }
             ClientMessage::Misbehaviour(misbehaviour) => self
-                .check_for_misbehaviour_misbehavior(
+                .check_for_misbehaviour_in_misbehavior(
                     ctx,
                     client_id,
                     misbehaviour,
@@ -411,7 +411,7 @@ impl<PK: PubKey> ClientState<PK> {
         Ok(())
     }
 
-    fn check_for_misbehaviour_header(
+    fn check_for_misbehaviour_in_header(
         &self,
         ctx: &impl CommonContext,
         client_id: &ibc::ClientId,
@@ -462,7 +462,7 @@ impl<PK: PubKey> ClientState<PK> {
         })
     }
 
-    fn check_for_misbehaviour_misbehavior(
+    fn check_for_misbehaviour_in_misbehavior(
         &self,
         _ctx: &impl CommonContext,
         _client_id: &ibc::ClientId,
