@@ -1,7 +1,7 @@
 use guestchain::PubKey;
-use ibc_proto::google::protobuf::Any;
 
-use crate::{Header, Misbehaviour};
+use crate::proto::client_message::Message;
+use crate::{proto, Header, Misbehaviour};
 
 #[derive(
     Clone, PartialEq, Eq, Debug, derive_more::From, derive_more::TryInto,
@@ -15,36 +15,129 @@ pub enum ClientMessage<PK: PubKey> {
     Misbehaviour(Misbehaviour<PK>),
 }
 
-impl<PK: PubKey> TryFrom<Any> for ClientMessage<PK> {
-    type Error = crate::proto::DecodeError;
-    fn try_from(any: Any) -> Result<Self, Self::Error> { Self::try_from(&any) }
+
+// Conversions directly to and from the Message enum.
+
+impl<PK: guestchain::PubKey> From<ClientMessage<PK>> for Message {
+    fn from(msg: ClientMessage<PK>) -> Self { Self::from(&msg) }
 }
 
-impl<PK: PubKey> TryFrom<&Any> for ClientMessage<PK> {
-    type Error = crate::proto::DecodeError;
-
-    fn try_from(any: &Any) -> Result<Self, Self::Error> {
-        match any.type_url.as_str() {
-            crate::proto::Header::TYPE_URL => {
-                Header::decode(&any.value).map(Self::Header)
-            }
-            crate::proto::Misbehaviour::TYPE_URL => {
-                Misbehaviour::decode(&any.value).map(Self::Misbehaviour)
-            }
-            _ => Err(crate::proto::DecodeError::BadType),
+impl<PK: guestchain::PubKey> From<&ClientMessage<PK>> for Message {
+    fn from(msg: &ClientMessage<PK>) -> Self {
+        match msg {
+            ClientMessage::Header(msg) => Self::Header(msg.into()),
+            ClientMessage::Misbehaviour(msg) => Self::Misbehaviour(msg.into()),
         }
     }
 }
 
-impl<PK: PubKey> From<ClientMessage<PK>> for Any {
-    fn from(msg: ClientMessage<PK>) -> Any { Self::from(&msg) }
+impl<PK: guestchain::PubKey> TryFrom<Message> for ClientMessage<PK> {
+    type Error = proto::BadMessage;
+    fn try_from(msg: Message) -> Result<Self, Self::Error> {
+        Self::try_from(&msg)
+    }
 }
 
-impl<PK: PubKey> From<&ClientMessage<PK>> for Any {
-    fn from(msg: &ClientMessage<PK>) -> Any {
+impl<PK: guestchain::PubKey> TryFrom<&Message> for ClientMessage<PK> {
+    type Error = proto::BadMessage;
+    fn try_from(msg: &Message) -> Result<Self, Self::Error> {
         match msg {
+            Message::Header(msg) => msg.try_into().map(Self::Header),
+            Message::Misbehaviour(mb) => mb.try_into().map(Self::Misbehaviour),
+        }
+    }
+}
+
+
+// Conversions directly into the Message enum from variant types.
+
+impl<PK: guestchain::PubKey> From<Header<PK>> for Message {
+    fn from(msg: Header<PK>) -> Self { Self::Header(msg.into()) }
+}
+
+impl<PK: guestchain::PubKey> From<&Header<PK>> for Message {
+    fn from(msg: &Header<PK>) -> Self { Self::Header(msg.into()) }
+}
+
+impl<PK: guestchain::PubKey> From<Misbehaviour<PK>> for Message {
+    fn from(msg: Misbehaviour<PK>) -> Self { Self::Misbehaviour(msg.into()) }
+}
+
+impl<PK: guestchain::PubKey> From<&Misbehaviour<PK>> for Message {
+    fn from(msg: &Misbehaviour<PK>) -> Self { Self::Misbehaviour(msg.into()) }
+}
+
+
+// Conversion into ClientMessage proto from variant types.
+
+impl<PK: guestchain::PubKey> From<Header<PK>> for proto::ClientMessage {
+    fn from(msg: Header<PK>) -> Self { Self { message: Some(msg.into()) } }
+}
+
+impl<PK: guestchain::PubKey> From<&Header<PK>> for proto::ClientMessage {
+    fn from(msg: &Header<PK>) -> Self { Self { message: Some(msg.into()) } }
+}
+
+impl<PK: guestchain::PubKey> From<Misbehaviour<PK>> for proto::ClientMessage {
+    fn from(msg: Misbehaviour<PK>) -> Self {
+        Self { message: Some(msg.into()) }
+    }
+}
+
+impl<PK: guestchain::PubKey> From<&Misbehaviour<PK>> for proto::ClientMessage {
+    fn from(msg: &Misbehaviour<PK>) -> Self {
+        Self { message: Some(msg.into()) }
+    }
+}
+
+
+// And finally, conversions between proto and Rust type
+
+impl<PK: guestchain::PubKey> From<ClientMessage<PK>> for proto::ClientMessage {
+    fn from(msg: ClientMessage<PK>) -> Self { Self::from(&msg) }
+}
+
+impl<PK: guestchain::PubKey> From<&ClientMessage<PK>> for proto::ClientMessage {
+    fn from(msg: &ClientMessage<PK>) -> Self {
+        let message = Some(match msg {
             ClientMessage::Header(msg) => msg.into(),
             ClientMessage::Misbehaviour(msg) => msg.into(),
-        }
+        });
+        Self { message }
     }
+}
+
+impl<PK: guestchain::PubKey> TryFrom<proto::ClientMessage>
+    for ClientMessage<PK>
+{
+    type Error = proto::BadMessage;
+    fn try_from(msg: proto::ClientMessage) -> Result<Self, Self::Error> {
+        Self::try_from(&msg)
+    }
+}
+
+impl<PK: guestchain::PubKey> TryFrom<&proto::ClientMessage>
+    for ClientMessage<PK>
+{
+    type Error = proto::BadMessage;
+    fn try_from(msg: &proto::ClientMessage) -> Result<Self, Self::Error> {
+        msg.message.as_ref().ok_or(proto::BadMessage).and_then(Self::try_from)
+    }
+}
+
+
+super::any_convert! {
+    proto::ClientMessage,
+    ClientMessage<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
+    // TODO(mina86): Add `obj: ...`.
+    bad: proto::ClientMessage { message: None },
+    conv: any => if any.type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
+        Self::decode(any.value)
+    } else if any.type_url.ends_with(proto::Header::IBC_TYPE_URL) {
+        Header::decode(any.value).map(Self::Header)
+    } else if any.type_url.ends_with(proto::Misbehaviour::IBC_TYPE_URL) {
+        Misbehaviour::decode(any.value).map(Self::Misbehaviour)
+    } else {
+        Err(crate::proto::DecodeError::BadType)
+    },
 }

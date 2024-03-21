@@ -1,3 +1,4 @@
+use cf_guest::proto::Any;
 use ::ibc::derive::ConsensusState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
@@ -37,7 +38,7 @@ impl AnyConsensusStateTag {
     fn from_type_url(url: &str) -> Option<Self> {
         match url {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
-            AnyConsensusState::GUEST_TYPE => Some(Self::Guest),
+            AnyConsensusState::WASM_TYPE => Some(Self::Wasm),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -49,8 +50,7 @@ impl AnyConsensusState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
-    /// Protobuf type URL for Guest consensus state used in Any message.
-    const GUEST_TYPE: &'static str = cf_guest::proto::ConsensusState::TYPE_URL;
+    /// Protobuf type URL for Wasm consensus state used in Any message.
     const WASM_TYPE: &'static str = ::ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
@@ -77,7 +77,7 @@ impl AnyConsensusState {
             ),
             AnyConsensusState::Guest(state) => (
                 AnyConsensusStateTag::Guest,
-                Self::GUEST_TYPE,
+                cf_guest::proto::ConsensusState::IBC_TYPE_URL,
                 Protobuf::<cf_guest::proto::ConsensusState>::encode_vec(state),
             ),
             AnyConsensusState::Wasm(state) => (
@@ -109,7 +109,7 @@ impl AnyConsensusState {
                 Protobuf::<cf_guest::proto::ConsensusState>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Guest)
-            }
+            },
             AnyConsensusStateTag::Wasm => {
                 Protobuf::<wasm::proto::ConsensusState>::decode_vec(&value)
                     .map_err(|err| err.to_string())

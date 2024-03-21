@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use guestchain::PubKey;
 
+use super::proto::Any;
 use super::{
-    proof, Any, ClientMessage, ClientState, ConsensusState, Header,
-    Misbehaviour,
+    proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
 };
 
 mod ibc {
@@ -359,7 +359,7 @@ impl<PK: PubKey> ClientState<PK> {
                 }
                 quorum_left = quorum_left.saturating_sub(validator.stake.get());
                 if quorum_left == 0 {
-                    break;
+                    return Ok(());
                 }
             }
             Err("Quorum not reached")
