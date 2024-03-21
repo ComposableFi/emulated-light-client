@@ -45,9 +45,18 @@ impl ChainData {
         &self,
         height: guestchain::BlockHeight,
     ) -> Result<Option<(CryptoHash, NonZeroU64)>, ChainNotInitialised> {
-        let block = self.get()?.manager.head().1;
-        Ok((block.block_height == height)
-            .then(|| (block.calc_hash(), block.timestamp_ns)))
+        // let block = self.get()?.manager.head().1;
+        // msg!("This was the block header {:?}", block.block_height);
+        // Ok(None)
+        Ok(self.get()?.manager.consensus_states.iter().find_map(|cs| {
+            if cs.height == height {
+                return Some((
+                    CryptoHash::try_from(cs.blockhash.as_slice()).unwrap(),
+                    cs.timestamp,
+                ));
+            }
+            None
+        }))
     }
 
     /// Initialises a new guest blockchain with given configuration and genesis
