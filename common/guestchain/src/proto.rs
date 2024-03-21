@@ -75,7 +75,7 @@ macro_rules! impl_proto {
             /// Prost implementation, `type_url` method computes the URL at
             /// run-time).
             pub const TYPE_URL: &'static str = concat!(
-                "composable.finance/lightclients.guest.v1.",
+                "/lightclients.guest.v1.",
                 stringify!($Msg)
             );
 
