@@ -33,6 +33,26 @@ pub struct ClientState<PK> {
 }
 
 impl<PK: guestchain::PubKey> ClientState<PK> {
+    pub fn new(
+        genesis_hash: CryptoHash,
+        latest_height: guestchain::BlockHeight,
+        trusting_period_ns: u64,
+        epoch_commitment: CryptoHash,
+        prev_epoch_commitment: Option<CryptoHash>,
+        is_frozen: bool,
+    ) -> Self {
+        let prev_epoch_commitment =
+            prev_epoch_commitment.unwrap_or_else(|| epoch_commitment.clone());
+        Self {
+            genesis_hash,
+            latest_height,
+            trusting_period_ns,
+            epoch_commitment,
+            prev_epoch_commitment,
+            is_frozen,
+            _ph: core::marker::PhantomData,
+        }
+    }
     pub fn with_header(&self, header: &super::Header<PK>) -> Self {
         let mut this = self.clone();
         if header.block_header.block_height > this.latest_height {
