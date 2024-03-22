@@ -48,7 +48,7 @@ impl AnyClientState {
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
     /// Protobuf type URL for Guest client state used in Any message.
-    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::TYPE_URL;
+    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;

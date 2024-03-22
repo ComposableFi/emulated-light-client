@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use guestchain::PubKey;
 
+use super::proto::Any;
 use super::{
-    proof, Any, ClientMessage, ClientState, ConsensusState, Header,
-    Misbehaviour,
+    proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
 };
 
 mod ibc {
