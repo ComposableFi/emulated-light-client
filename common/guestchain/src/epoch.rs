@@ -107,7 +107,7 @@ impl<PK> Epoch<PK> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test_utils"))]
 impl Epoch<crate::validators::MockPubKey> {
     /// Creates an epoch calculating quorum as >50% of total stake.
     ///

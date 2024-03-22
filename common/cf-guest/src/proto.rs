@@ -194,6 +194,7 @@ impl_proto!(ClientState; test_client_state; Self {
     genesis_hash: lib::hash::CryptoHash::test(24).to_vec(),
     latest_height: 8,
     epoch_commitment: lib::hash::CryptoHash::test(11).to_vec(),
+    prev_epoch_commitment: lib::hash::CryptoHash::test(12).to_vec(),
     is_frozen: false,
     trusting_period_ns: 30 * 24 * 3600 * 1_000_000_000,
 });

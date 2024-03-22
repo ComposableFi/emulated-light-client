@@ -8,6 +8,8 @@ message ConsensusState {
 	bytes block_hash = 1;
 	// Timestamp in nanoseconds.  Never zero.
 	uint64 timestamp_ns = 2;
+
+	// NEXT ID: 3
 }
 
 // The client state of the light client for the guest blockchain.
@@ -23,11 +25,16 @@ message ClientState {
 	// submitted headers are valid for upgrade.
 	uint64 trusting_period_ns = 3;
 
-	/// Commitment of the epoch used to verify future states.
+	// Commitment of the epoch used to verify future states.
 	bytes epoch_commitment = 4;
+
+	// Commitment of the previous epoch used to verify past states.
+	bytes prev_epoch_commitment = 6;
 
 	// Whether client is frozen.
 	bool is_frozen = 5;
+
+	// NEXT ID: 7
 }
 
 message ClientMessage {
@@ -35,6 +42,8 @@ message ClientMessage {
 		Header header = 1;
 		Misbehaviour misbehaviour = 2;
 	}
+
+	// NEXT ID: 3
 }
 
 message Header {
@@ -54,6 +63,8 @@ message Header {
 
 	// List of signatures of the block.
 	repeated Signature signatures = 4;
+
+	// NEXT ID: 5
 }
 
 message Signature {
@@ -65,9 +76,20 @@ message Signature {
 
 	// 64-byte signature of the block’s fingerprint.
 	bytes signature = 2;
+
+	// NEXT ID: 3
 }
 
 message Misbehaviour {
+	// First header.
 	Header header1 = 1;
+
+	// Second header.
+	//
+	// Note that the message may be partially filled.  If `header1` and
+	// `header2` have the same `genesis_hash` or `epoch` (which is extremely
+	// likely), those fields can be omitted in the second header.
 	Header header2 = 2;
+
+	// NEXT ID: 3
 }
