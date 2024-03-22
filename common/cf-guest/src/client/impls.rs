@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use guestchain::PubKey;
 
+use crate::proto::Any;
 use crate::{
-    proof, Any, ClientMessage, ClientState, ConsensusState, Header,
-    Misbehaviour,
+    proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
 };
 
 mod ibc {

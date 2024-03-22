@@ -12,7 +12,8 @@ mod ibc {
     pub use ibc_primitives::Timestamp;
 }
 
-use crate::{Any, ClientMessage, CommonContext, ConsensusState, Misbehaviour};
+use crate::proto::Any;
+use crate::{ClientMessage, CommonContext, ConsensusState, Misbehaviour};
 
 type ClientState = crate::ClientState<MockPubKey>;
 type Header = crate::Header<MockPubKey>;

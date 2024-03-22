@@ -314,7 +314,7 @@ impl storage::IbcStorage<'_, '_> {
         let hash =
             cf_guest::digest_with_client_id(client_id, state_any.as_slice());
         let key = trie_ids::TrieKey::for_client_state(client.index);
-        store.provable.set(&key, &hash).map_err(error)
+        store.provable.set(&key, &hash).map_err(client_error)
     }
 
     fn store_commitment(
