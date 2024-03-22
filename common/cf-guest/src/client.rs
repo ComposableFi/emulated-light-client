@@ -2,6 +2,10 @@ use lib::hash::CryptoHash;
 
 use crate::proto;
 
+pub(crate) mod impls;
+#[cfg(test)]
+mod tests;
+
 /// The client state of the light client for the guest blockchain as a Rust
 /// object.
 ///
@@ -53,6 +57,22 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
             _ph: core::marker::PhantomData,
         }
     }
+
+    #[cfg(test)]
+    pub fn from_genesis(genesis: &guestchain::BlockHeader) -> Self {
+        let epoch_commitment = genesis.next_epoch_commitment.clone().unwrap();
+        let prev_epoch_commitment = epoch_commitment.clone();
+        Self {
+            genesis_hash: genesis.calc_hash(),
+            latest_height: genesis.block_height.into(),
+            trusting_period_ns: 24 * 3600 * 1_000_000_000,
+            epoch_commitment,
+            prev_epoch_commitment,
+            is_frozen: false,
+            _ph: core::marker::PhantomData,
+        }
+    }
+
     pub fn with_header(&self, header: &super::Header<PK>) -> Self {
         let mut this = self.clone();
         if header.block_header.block_height > this.latest_height {

@@ -192,8 +192,11 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
     }
 }
 
-impl cf_guest::CommonContext for IbcStorage<'_, '_> {
+impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
+    for IbcStorage<'_, '_>
+{
     type ConversionError = &'static str;
+    type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
@@ -207,6 +210,14 @@ impl cf_guest::CommonContext for IbcStorage<'_, '_> {
         let height = ibc::Height::new(1, height)?;
 
         Ok((timestamp, height))
+    }
+
+    fn set_client_state(
+        &mut self,
+        client_id: &ibc::ClientId,
+        state: Self::AnyClientState,
+    ) -> Result<()> {
+        Self::set_client_state(self, client_id, state)
     }
 
     fn consensus_state(
