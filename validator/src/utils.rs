@@ -140,10 +140,7 @@ pub fn submit_call(
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
             .signer(&*validator)
-            .send_with_spinner_and_config(RpcSendTransactionConfig {
-                skip_preflight: true,
-                ..RpcSendTransactionConfig::default()
-            })
+            .send()
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
                     // log::error!("{:?}", e);
@@ -193,6 +190,7 @@ pub fn submit_generate_block_call(
             .signer(&*validator)
             .send_with_spinner_and_config(RpcSendTransactionConfig {
                 skip_preflight: true,
+                max_retries: Some(5),
                 ..RpcSendTransactionConfig::default()
             })
             .map_err(|e| {
