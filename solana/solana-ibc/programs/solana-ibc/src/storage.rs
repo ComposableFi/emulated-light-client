@@ -255,7 +255,7 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    /// Information about a each `(part, channel)` endpoint.
+    /// Information about a each `(port, channel)` endpoint.
     pub port_channel: map::Map<trie_ids::PortChannelPK, PortChannelStore>,
 
     pub channel_counter: u32,

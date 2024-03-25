@@ -3,7 +3,11 @@ use memory::Ptr;
 
 use crate::data_ref::DataRef;
 
-/// Data stored in the first 72-bytes of the account describing the trie.
+/// Data stored at the beginning of the account describing the trie.
+///
+/// As written in the account, the header occupies [`Header::ENCODED_SIZE`]
+/// bytes.  To decode and encode the data uses [`Header::decode`] and
+/// [`Header::encode`] methods respectively.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Header {
     pub(crate) root_ptr: Option<Ptr>,
