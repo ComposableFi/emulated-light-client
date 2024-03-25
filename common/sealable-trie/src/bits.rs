@@ -645,7 +645,7 @@ impl Owned {
         self.length = self.length.checked_sub(1)?;
         let off = self.offset.wrapping_add(self.length);
         let bit = *self.bytes.last().unwrap() & (0x80u8 >> off);
-        if off == 0 {
+        if off == 0 || self.length == 0 {
             self.bytes.pop();
         }
         Some(bit != 0)
@@ -927,18 +927,22 @@ fn test_eq() {
     assert_ne!(Slice::new(&[0xFF], U3::_0, 4), Slice::new(&[0xFF], U3::_4, 4));
 }
 
-#[test]
-fn test_pop() {
+#[cfg(test)]
+mod test_pop {
     use alloc::string::String;
+
+    use pretty_assertions::assert_eq;
+
+    use super::*;
 
     const WANT: &str = concat!("11001110", "00011110", "00011111");
     const BYTES: [u8; 3] = [0b1100_1110, 0b0001_1110, 0b0001_1111];
 
-    fn test(
+    fn test_case<T>(
         want: &str,
-        mut slice: Slice,
+        mut slice: T,
         reverse: bool,
-        pop: fn(&mut Slice) -> Option<bool>,
+        pop: fn(&mut T) -> Option<bool>,
     ) {
         let got = core::iter::from_fn(move || pop(&mut slice))
             .map(|bit| char::from(b'0' + u8::from(bit)))
@@ -951,19 +955,52 @@ fn test_pop() {
         assert_eq!(want, got);
     }
 
-    fn test_set(reverse: bool, pop: fn(&mut Slice) -> Option<bool>) {
+    fn test_set<'a, T: 'a>(
+        reverse: bool,
+        factory: impl Fn(Slice<'a>) -> T,
+        pop: fn(&mut T) -> Option<bool>,
+    ) {
         for start in 0..8 {
             for end in start..=24 {
                 let slice = Slice::new(
                     &BYTES[..],
                     U3::try_from(start).unwrap(),
                     (end - start) as u16,
-                );
-                test(&WANT[start..end], slice.unwrap(), reverse, pop);
+                )
+                .unwrap();
+                test_case(&WANT[start..end], factory(slice), reverse, pop);
             }
         }
     }
 
-    test_set(false, |slice| slice.pop_front());
-    test_set(true, |slice| slice.pop_back());
+    #[test]
+    fn test_slice_pop_front() {
+        test_set(false, core::convert::identity, Slice::pop_front);
+    }
+
+    #[test]
+    fn test_slice_pop_back() {
+        test_set(true, core::convert::identity, Slice::pop_back);
+    }
+
+    /// Checks that after performing operation `op` on `Owned` slice holds.
+    ///
+    /// The invariant in question is that if `bits.length` is zero than
+    /// `bits.bytes` is empty.
+    #[track_caller]
+    fn check_owned_invariant<R>(
+        bits: &mut Owned,
+        op: impl Fn(&mut Owned) -> R,
+    ) -> R {
+        let result = op(bits);
+        assert_eq!(bits.len() == 0, bits.bytes.is_empty());
+        result
+    }
+
+    #[test]
+    fn test_owned_pop_back() {
+        test_set(true, Owned::from, |bits| {
+            check_owned_invariant(bits, Owned::pop_back)
+        });
+    }
 }
