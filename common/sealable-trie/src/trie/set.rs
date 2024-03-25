@@ -63,7 +63,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
         let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let node = RawNode(*self.wlog.allocator().get(nref.0));
+        let node = *self.wlog.allocator().get(nref.0);
         let node = node.decode()?;
         debug_assert_eq!(*nref.1, node.hash());
         match node {
@@ -254,14 +254,14 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         node: RawNode,
     ) -> Result<(Ptr, CryptoHash)> {
         let hash = node.decode().unwrap().hash();
-        self.wlog.set(ptr, *node);
+        self.wlog.set(ptr, node);
         Ok((ptr, hash))
     }
 
     /// Allocates a new node and sets it to given value.
     fn alloc_node(&mut self, node: RawNode) -> Result<(Ptr, CryptoHash)> {
         let hash = node.decode()?.hash();
-        let ptr = self.wlog.alloc(*node)?;
+        let ptr = self.wlog.alloc(node)?;
         Ok((ptr, hash))
     }
 }

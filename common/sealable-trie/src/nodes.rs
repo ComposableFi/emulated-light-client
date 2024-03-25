@@ -1,4 +1,3 @@
-use bytemuck::TransparentWrapper;
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
@@ -97,9 +96,14 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 // ```
 //
 // The actual pointer value is therefore 30-bit long.
-#[derive(
-    Clone, Copy, PartialEq, derive_more::Deref, bytemuck::TransparentWrapper,
-)]
+//
+// Note: Allocators may depend on value whose last 32 bytes are zero to be
+// impossible.  This is may be used as a marker for free memory to detect
+// double-free bugs.  Technically, RawNode with last 32 bytes zero is valid but
+// cryptographically impossible.  Those are the hash of node or value and we
+// assume that for given hash attacker cannot construct message with that hash.
+// In our case, that given hash is all-zero.
+#[derive(Clone, Copy, PartialEq, bytemuck::TransparentWrapper)]
 #[repr(transparent)]
 pub struct RawNode(pub(crate) [u8; RawNode::SIZE]);
 
@@ -334,15 +338,6 @@ impl<'a, S> ValueRef<'a, S> {
     }
 }
 
-
-// =============================================================================
-// Conversions
-
-impl<'a> From<&'a [u8; RawNode::SIZE]> for &'a RawNode {
-    fn from(bytes: &'a [u8; RawNode::SIZE]) -> &'a RawNode {
-        RawNode::wrap_ref(bytes)
-    }
-}
 
 // =============================================================================
 // PartialEq

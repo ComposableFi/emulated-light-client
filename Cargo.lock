@@ -5228,6 +5228,7 @@ dependencies = [
 name = "solana-trie"
 version = "0.0.0"
 dependencies = [
+ "bytemuck",
  "lib",
  "memory",
  "sealable-trie",

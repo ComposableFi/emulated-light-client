@@ -10,9 +10,6 @@ pub mod trie;
 
 pub use trie::{Error, Trie};
 
-pub trait Allocator:
-    memory::Allocator<Value = [u8; nodes::RawNode::SIZE]>
-{
-}
+pub trait Allocator: memory::Allocator<Value = nodes::RawNode> {}
 
-impl<A: memory::Allocator<Value = [u8; nodes::RawNode::SIZE]>> Allocator for A {}
+impl<A: memory::Allocator<Value = nodes::RawNode>> Allocator for A {}
