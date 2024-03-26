@@ -12,3 +12,6 @@ lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 sealable-trie.workspace = true
 stdx.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true

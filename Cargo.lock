@@ -5231,6 +5231,7 @@ dependencies = [
  "bytemuck",
  "lib",
  "memory",
+ "pretty_assertions",
  "sealable-trie",
  "solana-program",
  "stdx",
