@@ -4,7 +4,7 @@ use core::num::NonZeroU16;
 use lib::hash::CryptoHash;
 use memory::Ptr;
 
-use crate::nodes::{Node, NodeRef, RawNode, Reference};
+use crate::nodes::{Node, NodeRef, Reference};
 use crate::{bits, proof};
 
 mod del;
@@ -105,7 +105,7 @@ impl From<crate::nodes::DecodeError> for Error {
 }
 
 type Result<T, E = Error> = ::core::result::Result<T, E>;
-type Value = [u8; crate::nodes::RawNode::SIZE];
+type Value = crate::nodes::RawNode;
 
 macro_rules! proof {
     ($proof:ident push $item:expr) => {
@@ -187,7 +187,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
         let mut node_hash = self.root_hash.clone();
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
-            let node = <&RawNode>::from(node).decode()?;
+            let node = node.decode()?;
             debug_assert_eq!(node_hash, node.hash());
 
             let child = match node {
@@ -363,7 +363,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             println!(" (sealed)");
             return;
         };
-        let node = <&RawNode>::from(self.alloc.get(ptr));
+        let node = self.alloc.get(ptr);
         match node.decode() {
             Ok(Node::Branch { children }) => {
                 println!(" Branch");

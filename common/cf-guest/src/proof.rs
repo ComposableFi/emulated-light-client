@@ -235,9 +235,10 @@ fn test_proofs() {
     use core::str::FromStr;
 
     use ibc_core_host::types::identifiers;
+    use sealable_trie::nodes::RawNode;
 
     struct Trie {
-        trie: sealable_trie::Trie<memory::test_utils::TestAllocator<[u8; 72]>>,
+        trie: sealable_trie::Trie<memory::test_utils::TestAllocator<RawNode>>,
         header: BlockHeader,
     }
 
