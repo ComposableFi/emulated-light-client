@@ -214,7 +214,8 @@ where
         client_id: &ibc::ClientId,
         header: Any,
     ) -> Result<Vec<ibc::Height>> {
-        self.update_state(ctx, client_id, header)
+        let header = Header::<PK>::try_from(header)?;
+        self.do_update_state(ctx, client_id, header)
     }
 
     fn update_state_on_misbehaviour(
@@ -251,10 +252,11 @@ where
     fn verify_client_message(
         &self,
         ctx: &V,
-        client_id: &ibc::ClientId,
+        _client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result {
-        self.verify_client_message(ctx, client_id, client_message)
+        let client_message = ClientMessage::<PK>::try_from(client_message)?;
+        self.do_verify_client_message(ctx, client_message)
     }
 
     fn check_for_misbehaviour(
@@ -263,7 +265,8 @@ where
         client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result<bool> {
-        self.check_for_misbehaviour(ctx, client_id, client_message)
+        let client_message = ClientMessage::<PK>::try_from(client_message)?;
+        self.do_check_for_misbehaviour(ctx, client_id, client_message)
     }
 
     fn status(
@@ -297,14 +300,12 @@ where
 
 
 impl<PK: PubKey> ClientState<PK> {
-    pub fn update_state(
+    pub fn do_update_state(
         &self,
         ctx: &mut impl CommonContext<PK>,
         client_id: &ibc::ClientId,
-        header: Any,
+        header: Header<PK>,
     ) -> Result<Vec<ibc::Height>> {
-        let header = crate::proto::Header::try_from(header)?;
-        let header = crate::Header::<PK>::try_from(header)?;
         let header_height =
             ibc::Height::new(1, header.block_header.block_height.into())?;
 
@@ -330,13 +331,12 @@ impl<PK: PubKey> ClientState<PK> {
         Ok(alloc::vec![header_height])
     }
 
-    pub fn verify_client_message(
+    pub fn do_verify_client_message(
         &self,
         ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
-        client_message: Any,
+        client_message: ClientMessage<PK>,
     ) -> Result<()> {
-        match ClientMessage::<PK>::try_from(client_message)? {
+        match client_message {
             ClientMessage::Header(header) => self.verify_header(ctx, header),
             ClientMessage::Misbehaviour(misbehaviour) => {
                 self.verify_misbehaviour(ctx, misbehaviour)
@@ -350,7 +350,17 @@ impl<PK: PubKey> ClientState<PK> {
         client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result<bool> {
-        match ClientMessage::<PK>::try_from(client_message)? {
+        let client_message = ClientMessage::<PK>::try_from(client_message)?;
+        self.do_check_for_misbehaviour(ctx, client_id, client_message)
+    }
+
+    pub fn do_check_for_misbehaviour(
+        &self,
+        ctx: &impl CommonContext<PK>,
+        client_id: &ibc::ClientId,
+        client_message: ClientMessage<PK>,
+    ) -> Result<bool> {
+        match client_message {
             ClientMessage::Header(header) => {
                 self.check_for_misbehaviour_in_header(ctx, client_id, header)
             }
