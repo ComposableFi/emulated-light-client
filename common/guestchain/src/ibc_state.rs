@@ -62,11 +62,11 @@ pub fn digest_with_client_id(
 macro_rules! any_convert {
     (
         $Proto:ty,
-        $Type:ident $( <$T:ident: $bond:path = $concrete:path> )?,
+        $Type:ident $( <$T:ident: $bound:path = $concrete:path> )?,
         $(obj: $obj:expr,)*
         $(bad: $bad:expr,)*
     ) => {
-        impl $(<$T: $bond>)* $Type $(<$T>)* {
+        impl $(<$T: $bound>)* $Type $(<$T>)* {
             /// Encodes the object into a vector as protocol buffer message.
             pub fn encode_to_vec(&self) -> alloc::vec::Vec<u8> {
                 prost::Message::encode_to_vec(&$crate::proto::$Type::from(self))
@@ -82,19 +82,19 @@ macro_rules! any_convert {
             }
         }
 
-        impl $(<$T: $bond>)* From<$Type $(<$T>)*> for $crate::Any {
+        impl $(<$T: $bound>)* From<$Type $(<$T>)*> for $crate::Any {
             fn from(obj: $Type $(<$T>)*) -> $crate::Any {
                 $crate::proto::$Type::from(obj).into()
             }
         }
 
-        impl $(<$T: $bond>)* From<&$Type $(<$T>)*> for $crate::Any {
+        impl $(<$T: $bound>)* From<&$Type $(<$T>)*> for $crate::Any {
             fn from(obj: &$Type $(<$T>)*) -> $crate::Any {
                 $crate::proto::$Type::from(obj).into()
             }
         }
 
-        impl $(<$T: $bond>)* TryFrom<$crate::Any> for $Type $(<$T>)* {
+        impl $(<$T: $bound>)* TryFrom<$crate::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
             fn try_from(
                 any: $crate::Any,
@@ -104,7 +104,7 @@ macro_rules! any_convert {
             }
         }
 
-        impl $(<$T: $bond>)* TryFrom<&$crate::Any> for $Type $(<$T>)*
+        impl $(<$T: $bound>)* TryFrom<&$crate::Any> for $Type $(<$T>)*
         {
             type Error = $crate::proto::DecodeError;
             fn try_from(
@@ -115,7 +115,7 @@ macro_rules! any_convert {
             }
         }
 
-        impl $(<$T: $bond>)* ibc_primitives::proto::Protobuf<$Proto>
+        impl $(<$T: $bound>)* ibc_primitives::proto::Protobuf<$Proto>
             for $Type $(<$T>)* { }
 
         #[test]
