@@ -1,11 +1,24 @@
 use ibc_primitives::proto::Any;
 use prost::Message as _;
 
-mod pb {
-    include!(concat!(env!("OUT_DIR"), "/messages.rs"));
+/// The consensus state in wasm.
+#[derive(Clone, PartialEq, Eq, prost::Message)]
+pub struct ConsensusState {
+    /// protobuf encoded data of consensus state
+    #[prost(bytes = "vec", tag = "1")]
+    pub data: alloc::vec::Vec<u8>,
+    /// Timestamp in nanoseconds.
+    #[prost(uint64, tag = "2")]
+    pub timestamp_ns: u64,
 }
 
-pub use pb::ibc::lightclients::wasm::v1::ConsensusState;
+impl ::prost::Name for ConsensusState {
+    const NAME: &'static str = "ConsensusState";
+    const PACKAGE: &'static str = "ibc.lightclients.wasm.v1";
+
+    fn full_name() -> alloc::string::String { Self::IBC_TYPE_URL[1..].into() }
+    fn type_url() -> alloc::string::String { Self::IBC_TYPE_URL.into() }
+}
 
 /// Error during decoding of a protocol message.
 #[derive(Clone, PartialEq, Eq, derive_more::From)]
@@ -64,14 +77,18 @@ impl core::fmt::Display for BadMessage {
 
 macro_rules! impl_proto {
     ($Msg:ident; $test:ident; $test_object:expr) => {
-        impl pb::ibc::lightclients::wasm::v1::$Msg {
-            /// Type URL of the type as used in Any protocol message.
+        impl $Msg {
+            /// Type URL of the type as used in Any protocol message in IBC.
             ///
-            /// This is the same value as returned by [`prost::Name::type_url`]
-            /// however it’s a `const` and is set at compile time.  (In current
-            /// Prost implementation, `type_url` method computes the URL at
-            /// run-time).
-            pub const TYPE_URL: &'static str =
+            /// Note that this isn’t the same as `Self::type_url()` which
+            /// returns the fully-qualified unique name for this message
+            /// including the domain.  For IBC purposes, we usually don’t
+            /// include the domain and just use `/foo.bar.Baz` as the type
+            ///URL; this constant provides that value for this type.
+            ///
+            /// This is equals `format!("/{}", Self::full_name())` but provided
+            /// as a constant value.
+            pub const IBC_TYPE_URL: &'static str =
                 concat!("/ibc.lightclients.wasm.v1.", stringify!($Msg));
 
             /// An example test message.
@@ -86,7 +103,7 @@ macro_rules! impl_proto {
         impl From<&$Msg> for Any {
             fn from(msg: &$Msg) -> Self {
                 Self {
-                    type_url: $Msg::TYPE_URL.into(),
+                    type_url: $Msg::IBC_TYPE_URL.into(),
                     value: msg.encode_to_vec(),
                 }
             }
@@ -102,7 +119,7 @@ macro_rules! impl_proto {
         impl TryFrom<&Any> for $Msg {
             type Error = DecodeError;
             fn try_from(any: &Any) -> Result<Self, Self::Error> {
-                if Self::TYPE_URL == any.type_url {
+                if any.type_url.ends_with(Self::IBC_TYPE_URL) {
                     Ok($Msg::decode(any.value.as_slice())?)
                 } else {
                     Err(DecodeError::BadType)
@@ -112,13 +129,14 @@ macro_rules! impl_proto {
 
         #[test]
         fn $test() {
-            // use alloc::format;
+            use alloc::format;
 
             use prost::Name;
 
             // Make sure TYPE_URL we set by hand matches type_url which is
             // derived.
-            assert_eq!($Msg::type_url(), $Msg::TYPE_URL);
+            assert_eq!(format!("/{}", $Msg::full_name()), $Msg::IBC_TYPE_URL);
+            assert!($Msg::type_url().ends_with($Msg::IBC_TYPE_URL));
 
             // Check round-trip conversion through Any.
             let state = $Msg::test();

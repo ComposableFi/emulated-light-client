@@ -6349,7 +6349,6 @@ dependencies = [
  "insta",
  "lib",
  "prost",
- "prost-build",
  "rand 0.8.5",
 ]
 
