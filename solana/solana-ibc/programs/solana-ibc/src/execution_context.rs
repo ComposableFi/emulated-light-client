@@ -1,4 +1,5 @@
 use anchor_lang::solana_program::msg;
+use ibc_proto::Protobuf;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
@@ -18,12 +19,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientStatePath,
         state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({}, {:?})", path, state);
-        let mut store = self.borrow_mut();
-        let mut client = store.private.client_mut(&path.0, true)?;
-        let hash = client.client_state.set(&state)?.digest_with_client(&path.0);
-        let key = trie_ids::TrieKey::for_client_state(client.index);
-        store.provable.set(&key, &hash).map_err(error)
+        self.set_client_state(&path.0, state).map_err(ibc::ContextError::from)
     }
 
     fn store_consensus_state(
@@ -89,14 +85,19 @@ impl IbcStorage<'_, '_> {
             (head.timestamp_ns, head.block_height)
         };
 
+        let encoded_state = state.clone().encode_vec();
+        let hash = cf_guest::digest_with_client_id(
+            client_id,
+            encoded_state.as_slice(),
+        );
         let mut client = store.private.client_mut(client_id, false)?;
         let state = storage::ClientConsensusState::new(
             processed_time,
             processed_height,
             &state,
         )?;
-        let hash = state.digest(client_id)?;
         client.consensus_states.insert(height, state);
+
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
@@ -135,7 +136,8 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         msg!("store_connection({}, {:?})", path, connection_end);
         let connection = trie_ids::ConnectionIdx::try_from(&path.0)?;
         let serialised = storage::Serialised::new(&connection_end)?;
-        let hash = serialised.digest();
+        let encoded_connection_end = connection_end.encode_vec();
+        let hash = CryptoHash::digest(encoded_connection_end.as_slice());
 
         let mut store = self.borrow_mut();
 
@@ -155,7 +157,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         store
             .provable
             .set(&trie_ids::TrieKey::for_connection(connection), &hash)
-            .map_err(error)
+            .map_err(ctx_error)
     }
 
     /// Does nothing in the current implementation.
@@ -237,14 +239,16 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         let port_channel = trie_ids::PortChannelPK::try_from(&path.0, &path.1)?;
         let trie_key = trie_ids::TrieKey::for_channel_end(&port_channel);
         let mut store = self.borrow_mut();
-        let digest = store
+        let encoded_channel_end = channel_end.clone().encode_vec();
+        let hash = CryptoHash::digest(encoded_channel_end.as_slice());
+        store
             .private
             .port_channel
             .entry(port_channel)
             .or_insert_with(Default::default)
             .set_channel_end(&channel_end)
-            .map_err(error)?;
-        store.provable.set(&trie_key, &digest).map_err(error)
+            .map_err(ctx_error)?;
+        store.provable.set(&trie_key, &hash).map_err(ctx_error)
     }
 
     fn store_next_sequence_send(
@@ -285,7 +289,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: ibc::IbcEvent) -> Result {
-        crate::events::emit(event).map_err(error)
+        crate::events::emit(event).map_err(ctx_error)
     }
 
     fn log_message(&mut self, message: String) -> Result {
@@ -297,6 +301,22 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
 }
 
 impl storage::IbcStorage<'_, '_> {
+    pub(crate) fn set_client_state(
+        &mut self,
+        client_id: &ibc::ClientId,
+        state: AnyClientState,
+    ) -> Result<(), ibc::ClientError> {
+        msg!("store_client_state({}, {:?})", client_id, state);
+        let mut store = self.borrow_mut();
+        let mut client = store.private.client_mut(client_id, true)?;
+        client.client_state.set(&state)?;
+        let state_any = state.encode_vec();
+        let hash =
+            cf_guest::digest_with_client_id(client_id, state_any.as_slice());
+        let key = trie_ids::TrieKey::for_client_state(client.index);
+        store.provable.set(&key, &hash).map_err(client_error)
+    }
+
     fn store_commitment(
         &mut self,
         key: trie_ids::TrieKey,
@@ -304,11 +324,11 @@ impl storage::IbcStorage<'_, '_> {
     ) -> Result {
         // Caller promises that commitment is always 32 bytes.
         let commitment = <&CryptoHash>::try_from(commitment).unwrap();
-        self.borrow_mut().provable.set(&key, commitment).map_err(error)
+        self.borrow_mut().provable.set(&key, commitment).map_err(ctx_error)
     }
 
     fn delete_commitment(&mut self, key: trie_ids::TrieKey) -> Result {
-        self.borrow_mut().provable.del(&key).map(|_| ()).map_err(error)
+        self.borrow_mut().provable.del(&key).map(|_| ()).map_err(ctx_error)
     }
 
     fn store_next_sequence(
@@ -331,7 +351,7 @@ impl storage::IbcStorage<'_, '_> {
             triple.set(index, seq);
             triple.to_hash()
         };
-        store.provable.set(&trie_key, &hash).map_err(error)
+        store.provable.set(&trie_key, &hash).map_err(ctx_error)
     }
 }
 
@@ -339,6 +359,6 @@ fn client_error(description: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: description.to_string() }
 }
 
-fn error(description: impl ToString) -> ibc::ContextError {
+fn ctx_error(description: impl ToString) -> ibc::ContextError {
     client_error(description).into()
 }

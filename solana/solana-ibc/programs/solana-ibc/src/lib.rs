@@ -386,10 +386,6 @@ pub struct Chain<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
-    /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
-    storage: Account<'info, storage::PrivateStorage>,
-
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
@@ -403,11 +399,6 @@ pub struct Chain<'info> {
     trie: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
-
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    /// CHECK: Used for getting the caller program id to verify if the right
-    /// program is calling the method.
-    instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]

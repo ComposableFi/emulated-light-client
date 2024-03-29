@@ -48,7 +48,7 @@ impl AnyClientState {
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
     /// Protobuf type URL for Guest client state used in Any message.
-    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::TYPE_URL;
+    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -192,8 +192,11 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
     }
 }
 
-impl cf_guest::CommonContext for IbcStorage<'_, '_> {
+impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
+    for IbcStorage<'_, '_>
+{
     type ConversionError = &'static str;
+    type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
@@ -209,12 +212,50 @@ impl cf_guest::CommonContext for IbcStorage<'_, '_> {
         Ok((timestamp, height))
     }
 
+    fn set_client_state(
+        &mut self,
+        client_id: &ibc::ClientId,
+        state: Self::AnyClientState,
+    ) -> Result<()> {
+        Self::set_client_state(self, client_id, state)
+    }
+
     fn consensus_state(
         &self,
         client_id: &ibc::ClientId,
         height: ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
         self.consensus_state_impl(client_id, height)
+    }
+
+    fn consensus_state_neighbourhood(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<cf_guest::Neighbourhood<Self::AnyConsensusState>> {
+        use core::cmp::Ordering;
+
+        let height = (height.revision_number(), height.revision_height());
+        let mut prev = ((0, 0), None);
+        let mut next = ((u64::MAX, u64::MAX), None);
+
+        let storage = self.borrow();
+        let states = &storage.private.client(client_id)?.consensus_states;
+        for (key, value) in states.iter() {
+            let key = (key.revision_number(), key.revision_height());
+            match key.cmp(&height) {
+                Ordering::Less if key >= prev.0 => prev = (key, Some(value)),
+                Ordering::Greater if key <= next.0 => next = (key, Some(value)),
+                Ordering::Equal => {
+                    return value.state().map(cf_guest::Neighbourhood::This)
+                }
+                _ => (),
+            }
+        }
+
+        let prev = prev.1.map(|state| state.state()).transpose()?;
+        let next = next.1.map(|state| state.state()).transpose()?;
+        Ok(cf_guest::Neighbourhood::Neighbours(prev, next))
     }
 
     fn store_consensus_state_and_metadata(
