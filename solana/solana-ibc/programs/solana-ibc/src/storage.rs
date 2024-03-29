@@ -223,9 +223,9 @@ impl PortChannelStore {
     pub fn set_channel_end(
         &mut self,
         end: &ibc::ChannelEnd,
-    ) -> Result<CryptoHash, ibc::ClientError> {
+    ) -> Result<(), ibc::ClientError> {
         self.channel_end.set(end)?;
-        Ok(self.channel_end.digest())
+        Ok(())
     }
 }
 
@@ -255,7 +255,7 @@ pub struct PrivateStorage {
     /// `connection-<N>`.
     pub connections: Vec<Serialised<ibc::ConnectionEnd>>,
 
-    /// Information about a each `(part, channel)` endpoint.
+    /// Information about a each `(port, channel)` endpoint.
     pub port_channel: map::Map<trie_ids::PortChannelPK, PortChannelStore>,
 
     pub channel_counter: u32,
@@ -519,16 +519,6 @@ impl<T> Serialised<T> {
     }
 
     pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
-
-    /// Returns digest of the serialised value.
-    #[inline]
-    pub fn digest(&self) -> CryptoHash { CryptoHash::digest(self.0.as_slice()) }
-
-    /// Returns digest of the serialised value with client id mixed in.
-    #[inline]
-    pub fn digest_with_client(&self, client_id: &ibc::ClientId) -> CryptoHash {
-        cf_guest::digest_with_client_id(client_id, self.as_bytes())
-    }
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {

@@ -6,10 +6,7 @@ extern crate std;
 
 use alloc::string::ToString;
 
-use ibc_proto::google::protobuf::Any;
-
 mod client;
-mod client_impls;
 mod consensus;
 mod header;
 mod message;
@@ -17,8 +14,8 @@ mod misbehaviour;
 pub mod proof;
 pub mod proto;
 
+pub use client::impls::{CommonContext, Neighbourhood};
 pub use client::ClientState;
-pub use client_impls::CommonContext;
 pub use consensus::ConsensusState;
 pub use header::Header;
 pub use message::ClientMessage;
@@ -64,12 +61,12 @@ pub fn digest_with_client_id(
 macro_rules! any_convert {
     (
         $Proto:ty,
-        $Type:ident $( <$T:ident: $bond:path = $concrete:path> )?,
+        $Type:ident $( <$T:ident: $bound:path = $concrete:path> )?,
         $(obj: $obj:expr,)*
         $(bad: $bad:expr,)*
-        $(from: $any:ident => $from_expr:expr,)?
+        $(conv: $any:ident => $from_any:expr,)?
     ) => {
-        impl $(<$T: $bond>)* $Type $(<$T>)* {
+        impl $(<$T: $bound>)* $Type $(<$T>)* {
             /// Encodes the object into a vector as protocol buffer message.
             pub fn encode(&self) -> alloc::vec::Vec<u8> {
                 prost::Message::encode_to_vec(&$crate::proto::$Type::from(self))
@@ -97,32 +94,44 @@ macro_rules! any_convert {
             }
         }
 
-        impl $(<$T: $bond>)* From<$Type $(<$T>)*> for $crate::Any {
-            fn from(obj: $Type $(<$T>)*) -> $crate::Any {
-                $crate::proto::$Type::from(obj).into()
+        impl $(<$T: $bound>)* $crate::proto::AnyConvert for $Type $(<$T>)* {
+            fn to_any(&self) -> (&'static str, alloc::vec::Vec<u8>) {
+                (<$Proto>::IBC_TYPE_URL, self.encode())
+            }
+            $crate::any_convert!(@try_from_any $Proto; $($any => $from_any)*);
+        }
+
+        impl $(<$T: $bound>)* From<$Type $(<$T>)*> for $crate::proto::Any {
+            fn from(msg: $Type $(<$T>)*) -> Self {
+                Self::from(&msg)
             }
         }
 
-        impl $(<$T: $bond>)* From<&$Type $(<$T>)*> for $crate::Any {
-            fn from(obj: &$Type $(<$T>)*) -> $crate::Any {
-                $crate::proto::$Type::from(obj).into()
+        impl $(<$T: $bound>)* From<&$Type $(<$T>)*> for $crate::proto::Any {
+            fn from(msg: &$Type $(<$T>)*) -> Self {
+                let (url, value) = $crate::proto::AnyConvert::to_any(msg);
+                Self { type_url: url.into(), value }
             }
         }
 
-        impl $(<$T: $bond>)* TryFrom<$crate::Any> for $Type $(<$T>)* {
+        impl $(<$T: $bound>)* TryFrom<$crate::proto::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
-            fn try_from(any: $crate::Any) -> Result<Self, Self::Error> {
-                $crate::proto::$Type::try_from(any)
-                    .and_then(|msg| Ok(msg.try_into()?))
+            fn try_from(any: $crate::proto::Any) -> Result<Self, Self::Error> {
+                Self::try_from(&any)
             }
         }
 
-        impl $(<$T: $bond>)* TryFrom<&$crate::Any> for $Type $(<$T>)* {
+        impl $(<$T: $bound>)* TryFrom<&$crate::proto::Any> for $Type $(<$T>)* {
             type Error = $crate::proto::DecodeError;
-            $crate::any_convert!(@from $Type $($any => $from_expr)*);
+            fn try_from(any: &$crate::proto::Any) -> Result<Self, Self::Error> {
+                <Self as $crate::proto::AnyConvert>::try_from_any(
+                    &any.type_url,
+                    &any.value,
+                )
+            }
         }
 
-        impl $(<$T: $bond>)* ibc_primitives::proto::Protobuf<$Proto>
+        impl $(<$T: $bound>)* ibc_primitives::proto::Protobuf<$Proto>
             for $Type $(<$T>)* { }
 
         #[test]
@@ -145,16 +154,28 @@ macro_rules! any_convert {
         }
     };
 
-    (@from $Type:ident) => {
-        $crate::any_convert!(@from $Type any => {
-            $crate::proto::$Type::try_from(any)
-                .and_then(|msg| Ok(msg.try_into()?))
-        });
+    (@try_from_any $Proto:ty;) => {
+        fn try_from_any(
+            type_url: &str,
+            value: &[u8],
+        ) -> Result<Self, $crate::proto::DecodeError> {
+            if type_url.ends_with(<$Proto>::IBC_TYPE_URL) {
+                Self::decode(value).map_err(|err| err.into())
+            } else {
+                Err($crate::proto::DecodeError::BadType)
+            }
+        }
     };
-    (@from $Type:ident $any:ident => $expr:expr) => {
-        fn try_from(
-            $any: &$crate::Any,
-        ) -> Result<Self, Self::Error> {
+    (@try_from_any $Proto:ty; $any:ident => $expr:expr) => {
+        fn try_from_any(
+            type_url: &str,
+            value: &[u8],
+        ) -> Result<Self, $crate::proto::DecodeError> {
+            struct Any<'a> {
+                type_url: &'a str,
+                value: &'a [u8]
+            }
+            let $any = Any { type_url, value };
             $expr
         }
     };

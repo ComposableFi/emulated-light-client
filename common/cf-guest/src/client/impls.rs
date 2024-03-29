@@ -3,9 +3,9 @@ use alloc::vec::Vec;
 
 use guestchain::PubKey;
 
-use super::{
-    proof, Any, ClientMessage, ClientState, ConsensusState, Header,
-    Misbehaviour,
+use crate::proto::Any;
+use crate::{
+    proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
 };
 
 mod ibc {
@@ -31,19 +31,52 @@ mod ibc {
 
 type Result<T = (), E = ibc::ClientError> = ::core::result::Result<T, E>;
 
+/// Representation of neiberhood of given object.
+///
+/// Used by [`CommonContext::consensus_state_neighbourhood`] method to either
+/// return element at given height or (if such element doesn’t exist) elements
+/// immediately prior and immediately after the height.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum Neighbourhood<T> {
+    This(T),
+    Neighbours(Option<T>, Option<T>),
+}
 
-pub trait CommonContext {
+impl<T> Default for Neighbourhood<T> {
+    fn default() -> Self { Self::Neighbours(None, None) }
+}
+
+/// Context allowing accessing consensus states.
+pub trait CommonContext<PK: guestchain::PubKey> {
     type ConversionError: ToString;
+    type AnyClientState: From<ClientState<PK>>;
     type AnyConsensusState: TryInto<ConsensusState, Error = Self::ConversionError>
         + From<ConsensusState>;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)>;
+
+    fn set_client_state(
+        &mut self,
+        client_id: &ibc::ClientId,
+        state: Self::AnyClientState,
+    ) -> Result<()>;
 
     fn consensus_state(
         &self,
         client_id: &ibc::ClientId,
         height: ibc::Height,
     ) -> Result<Self::AnyConsensusState>;
+
+    /// Returns consensus at given height or its neighbours.
+    ///
+    /// If consensus state at given height returns `This(state)` for that state.
+    /// Otherwise, returns `Neighbours(prev, next)` where `prev` and `next` are
+    /// states with lower and greater height respectively if they exist.
+    fn consensus_state_neighbourhood(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<Neighbourhood<Self::AnyConsensusState>>;
 
     fn store_consensus_state_and_metadata(
         &mut self,
@@ -73,11 +106,11 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 
     fn client_type(&self) -> ibc::ClientType {
-        ibc::ClientType::new(super::CLIENT_TYPE).unwrap()
+        ibc::ClientType::new(crate::CLIENT_TYPE).unwrap()
     }
 
     fn latest_height(&self) -> ibc::Height {
-        ibc::Height::new(0, self.latest_height.into()).unwrap()
+        ibc::Height::new(1, self.latest_height.into()).unwrap()
     }
 
     fn validate_proof_height(&self, proof_height: ibc::Height) -> Result {
@@ -149,7 +182,7 @@ impl From<proof::VerifyError> for ibc::ClientError {
 
 impl<PK: PubKey, E> ibc::ClientStateExecution<E> for ClientState<PK>
 where
-    E: ibc::ExecutionContext + ibc::ClientExecutionContext + CommonContext,
+    E: ibc::ExecutionContext + ibc::ClientExecutionContext + CommonContext<PK>,
     <E as ibc::ClientExecutionContext>::AnyClientState: From<ClientState<PK>>,
     <E as ibc::ClientExecutionContext>::AnyConsensusState: From<ConsensusState>,
 {
@@ -160,12 +193,9 @@ where
         consensus_state: Any,
     ) -> Result {
         parse_client_id(client_id)?;
-        let consensus_state = super::ConsensusState::try_from(consensus_state)?;
+        let consensus_state = crate::ConsensusState::try_from(consensus_state)?;
 
-        ctx.store_client_state(
-            ibc::path::ClientStatePath::new(client_id.clone()),
-            self.clone().into(),
-        )?;
+        ctx.set_client_state(client_id, self.clone().into())?;
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
@@ -184,34 +214,7 @@ where
         client_id: &ibc::ClientId,
         header: Any,
     ) -> Result<Vec<ibc::Height>> {
-        let header = crate::proto::Header::try_from(header)?;
-        let header = crate::Header::<PK>::try_from(header)?;
-        let header_height =
-            ibc::Height::new(0, header.block_header.block_height.into())?;
-
-        let (host_timestamp, host_height) = CommonContext::host_metadata(ctx)?;
-        self.prune_oldest_consensus_state(ctx, client_id, host_timestamp)?;
-
-        let maybe_existing_consensus =
-            CommonContext::consensus_state(ctx, client_id, header_height).ok();
-        if maybe_existing_consensus.is_none() {
-            let new_consensus_state = ConsensusState::from(&header);
-            let new_client_state = self.with_header(&header);
-
-            ctx.store_client_state(
-                ibc::path::ClientStatePath::new(client_id.clone()),
-                new_client_state.into(),
-            )?;
-            ctx.store_consensus_state_and_metadata(
-                client_id,
-                header_height,
-                new_consensus_state.into(),
-                host_timestamp,
-                host_height,
-            )?;
-        }
-
-        Ok(alloc::vec![header_height])
+        self.update_state(ctx, client_id, header)
     }
 
     fn update_state_on_misbehaviour(
@@ -220,10 +223,7 @@ where
         client_id: &ibc::ClientId,
         _client_message: Any,
     ) -> Result {
-        ctx.store_client_state(
-            ibc::path::ClientStatePath::new(client_id.clone()),
-            self.frozen().into(),
-        )?;
+        ctx.set_client_state(client_id, self.frozen().into())?;
         Ok(())
     }
 
@@ -245,7 +245,7 @@ impl<PK: PubKey, V> ibc::ClientStateValidation<V> for ClientState<PK>
 where
     V: ibc::ValidationContext
         + ibc::ClientValidationContext
-        + CommonContext
+        + CommonContext<PK>
         + guestchain::Verifier<PK>,
 {
     fn verify_client_message(
@@ -275,7 +275,7 @@ where
             return Ok(ibc::Status::Frozen);
         }
 
-        let height = ibc::Height::new(0, self.latest_height.into())?;
+        let height = ibc::Height::new(1, self.latest_height.into())?;
         let consensus = CommonContext::consensus_state(ctx, client_id, height)
             .and_then(|state| state.try_into().map_err(error));
         let consensus = match consensus {
@@ -297,6 +297,39 @@ where
 
 
 impl<PK: PubKey> ClientState<PK> {
+    pub fn update_state(
+        &self,
+        ctx: &mut impl CommonContext<PK>,
+        client_id: &ibc::ClientId,
+        header: Any,
+    ) -> Result<Vec<ibc::Height>> {
+        let header = crate::proto::Header::try_from(header)?;
+        let header = crate::Header::<PK>::try_from(header)?;
+        let header_height =
+            ibc::Height::new(1, header.block_header.block_height.into())?;
+
+        let (host_timestamp, host_height) = CommonContext::host_metadata(ctx)?;
+        self.prune_oldest_consensus_state(ctx, client_id, host_timestamp)?;
+
+        let maybe_existing_consensus =
+            CommonContext::consensus_state(ctx, client_id, header_height).ok();
+        if maybe_existing_consensus.is_none() {
+            let new_consensus_state = ConsensusState::from(&header);
+            let new_client_state = self.with_header(&header);
+
+            ctx.set_client_state(client_id, new_client_state.into())?;
+            ctx.store_consensus_state_and_metadata(
+                client_id,
+                header_height,
+                new_consensus_state.into(),
+                host_timestamp,
+                host_height,
+            )?;
+        }
+
+        Ok(alloc::vec![header_height])
+    }
+
     pub fn verify_client_message(
         &self,
         ctx: &impl guestchain::Verifier<PK>,
@@ -313,17 +346,20 @@ impl<PK: PubKey> ClientState<PK> {
 
     pub fn check_for_misbehaviour(
         &self,
-        ctx: &impl guestchain::Verifier<PK>,
-        _client_id: &ibc::ClientId,
+        ctx: &impl CommonContext<PK>,
+        client_id: &ibc::ClientId,
         client_message: Any,
     ) -> Result<bool> {
         match ClientMessage::<PK>::try_from(client_message)? {
             ClientMessage::Header(header) => {
-                self.check_for_misbehaviour_header(ctx, header)
+                self.check_for_misbehaviour_in_header(ctx, client_id, header)
             }
-            ClientMessage::Misbehaviour(misbehaviour) => {
-                self.check_for_misbehaviour_misbehavior(ctx, misbehaviour)
-            }
+            ClientMessage::Misbehaviour(misbehaviour) => self
+                .check_for_misbehaviour_in_misbehavior(
+                    ctx,
+                    client_id,
+                    misbehaviour,
+                ),
         }
     }
 
@@ -333,7 +369,12 @@ impl<PK: PubKey> ClientState<PK> {
         header: Header<PK>,
     ) -> Result<()> {
         (|| {
-            if header.epoch_commitment != self.epoch_commitment {
+            if header.genesis_hash != self.genesis_hash {
+                return Err("Unexpected genesis hash");
+            }
+            if header.epoch_commitment != self.epoch_commitment &&
+                header.epoch_commitment != self.prev_epoch_commitment
+            {
                 return Err("Unexpected epoch");
             }
             let fp = guestchain::block::Fingerprint::from_hash(
@@ -369,26 +410,95 @@ impl<PK: PubKey> ClientState<PK> {
 
     fn verify_misbehaviour(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _misbehaviour: Misbehaviour<PK>,
+        ctx: &impl guestchain::Verifier<PK>,
+        misbehaviour: Misbehaviour<PK>,
     ) -> Result<()> {
-        todo!()
+        let Misbehaviour { header1, header2 } = misbehaviour;
+
+        // If the headers belong to different chains, they aren’t proof of
+        // misbehaviour.
+        if header1.genesis_hash != header2.genesis_hash {
+            return Err(error("Headers belong to different blockchains"));
+        }
+
+        self.verify_header(ctx, header1)?;
+        self.verify_header(ctx, header2)?;
+
+        Ok(())
     }
 
-    fn check_for_misbehaviour_header(
+    fn check_for_misbehaviour_in_header(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _header: Header<PK>,
+        ctx: &impl CommonContext<PK>,
+        client_id: &ibc::ClientId,
+        header: Header<PK>,
     ) -> Result<bool> {
-        todo!()
+        fn get_timestamp_ns<T, E>(state: Option<T>) -> Result<Option<u64>>
+        where
+            E: ToString,
+            T: TryInto<ConsensusState, Error = E>,
+        {
+            match state.map(|state| state.try_into()) {
+                None => Ok(None),
+                Some(Ok(state)) => Ok(Some(state.timestamp_ns.get())),
+                Some(Err(err)) => Err(error(err)),
+            }
+        }
+
+        let height = header.block_header.block_height;
+        let height = ibc::Height::new(1, height.into())?;
+
+        Ok(match ctx.consensus_state_neighbourhood(client_id, height)? {
+            Neighbourhood::This(state) => {
+                // If we already have existing consensus for given height, check
+                // that what we’ve been sent is the same thing we have.  If it
+                // isn’t, that’s evidence of misbehaviour.
+                let existing_state = state.try_into().map_err(error)?;
+                let header_state = ConsensusState::from(&header);
+                existing_state != header_state
+            }
+
+            Neighbourhood::Neighbours(prev, next) => {
+                // Otherwise, make sure that timestamp of each consensus is
+                // strictly increasing.  If it isn’t, that’s evidence of
+                // misbehaviour.
+                let header_time_ns = header.block_header.timestamp_ns.get();
+                if let Some(prev_time_ns) = get_timestamp_ns(prev)? {
+                    if header_time_ns <= prev_time_ns {
+                        return Ok(true);
+                    }
+                }
+                if let Some(next_time_ns) = get_timestamp_ns(next)? {
+                    if header_time_ns >= next_time_ns {
+                        return Ok(true);
+                    }
+                }
+                false
+            }
+        })
     }
 
-    fn check_for_misbehaviour_misbehavior(
+    fn check_for_misbehaviour_in_misbehavior(
         &self,
-        _ctx: &impl guestchain::Verifier<PK>,
-        _misbehaviour: Misbehaviour<PK>,
+        _ctx: &impl CommonContext<PK>,
+        _client_id: &ibc::ClientId,
+        misbehaviour: Misbehaviour<PK>,
     ) -> Result<bool> {
-        todo!()
+        let Misbehaviour { header1, header2 } = misbehaviour;
+        let (block1, block2) = (header1.block_header, header2.block_header);
+        Ok(if block1.block_height == block2.block_height {
+            // If blocks have the same height they must be the same, i.e. have
+            // the same hash.  If the hashes mismatch, that’s a proof of
+            // misbehaviour.
+            header1.block_hash != header2.block_hash
+        } else {
+            // Otherwise, if blocks have different heights, their ordering must
+            // match ordering of their timestamps.  If it doesn’t (that includes
+            // timestamps being equal), that’s a proof of misbehaviour.
+            let height_ord = block1.block_height.cmp(&block2.block_height);
+            let time_ord = block1.timestamp_ns.cmp(&block2.timestamp_ns);
+            height_ord != time_ord
+        })
     }
 
     /// Checks whether consensus state has expired.
@@ -407,7 +517,7 @@ impl<PK: PubKey> ClientState<PK> {
     /// Removes all expired consensus states.
     fn prune_oldest_consensus_state(
         &self,
-        ctx: &mut (impl ibc::ClientExecutionContext + CommonContext),
+        ctx: &mut impl CommonContext<PK>,
         client_id: &ibc::ClientId,
         host_timestamp: ibc::Timestamp,
     ) -> Result {
@@ -441,7 +551,7 @@ fn error(msg: impl ToString) -> ibc::ClientError {
 /// Expected client type is [`surpe::CLIENT_TYPE`].
 fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let (what, value) = match trie_ids::ClientIdx::parse(client_id) {
-        Ok((super::CLIENT_TYPE, idx)) => return Ok(idx),
+        Ok((crate::CLIENT_TYPE, idx)) => return Ok(idx),
         Ok((client_type, _)) => ("type", client_type),
         Err(_) => ("id", client_id.as_str()),
     };

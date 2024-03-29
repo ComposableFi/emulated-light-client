@@ -60,7 +60,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// Processes a node.
     fn handle(&mut self, nref: NodeRef) -> Result<Action> {
         let ptr = nref.ptr.ok_or(Error::Sealed)?;
-        let node = RawNode(*self.wlog.allocator().get(ptr));
+        let node = *self.wlog.allocator().get(ptr);
         let node = node.decode()?;
         debug_assert_eq!(*nref.hash, node.hash());
 
@@ -147,7 +147,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         make_key: &dyn Fn(bits::ExtKey) -> bits::Owned,
     ) -> Result<Option<Action>> {
         if let Reference::Node(NodeRef { ptr: Some(ptr), hash }) = child {
-            let node = RawNode(*self.wlog.allocator().get(ptr));
+            let node = *self.wlog.allocator().get(ptr);
             let node = node.decode()?;
             debug_assert_eq!(*hash, node.hash());
 
@@ -165,7 +165,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// pointing at the node.
     fn set_node(&mut self, ptr: Ptr, node: RawNode) -> Result<OwnedRef> {
         let hash = node.decode()?.hash();
-        self.wlog.set(ptr, *node);
+        self.wlog.set(ptr, node);
         Ok(OwnedRef::Node(Some(ptr), hash))
     }
 
@@ -186,7 +186,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
 
         for chunk in key.as_slice().chunks().rev() {
             let node = RawNode::extension(chunk, child.to_ref());
-            let ptr = self.wlog.alloc(node.0)?;
+            let ptr = self.wlog.alloc(node)?;
             child = OwnedRef::Node(Some(ptr), node.decode()?.hash());
         }
 

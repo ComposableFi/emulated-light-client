@@ -50,7 +50,8 @@ impl AnyConsensusState {
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Guest consensus state used in Any message.
-    const GUEST_TYPE: &'static str = cf_guest::proto::ConsensusState::TYPE_URL;
+    const GUEST_TYPE: &'static str =
+        cf_guest::proto::ConsensusState::IBC_TYPE_URL;
     const WASM_TYPE: &'static str = ::ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.

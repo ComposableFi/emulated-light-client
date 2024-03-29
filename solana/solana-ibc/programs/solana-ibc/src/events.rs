@@ -40,6 +40,10 @@ pub struct Initialised<'a> {
 }
 
 /// Event emitted once a new block is generated.
+///
+/// The block is pending until enough signatures are collect.  Each time
+/// signature is added a [`BlockSigned`] event is emitted.  Once quorum is
+/// reached, [`BlockFinalised`] event is emitted.
 #[derive(
     Clone,
     Debug,
@@ -56,7 +60,11 @@ pub struct NewBlock<'a> {
     pub epoch: Option<CowEpoch<'a>>,
 }
 
-/// Event emitted once a new block is generated.
+/// Event emitted each time a block is signed with a new signature.
+///
+/// This may happen on a pending or a finalised block.  Once enough quorum of
+/// validators is reached, in addition to this event [`BlockFinalised`] event is
+/// emitted.
 #[derive(
     Clone,
     Debug,
@@ -94,7 +102,7 @@ pub struct BlockSigned {
     derive_more::From,
 )]
 pub struct BlockFinalised {
-    /// Hash of the block to which signature was added.
+    /// Hash of the block that has been finalised.
     pub block_hash: CryptoHash,
 
     /// Height of the block to which signature was added.

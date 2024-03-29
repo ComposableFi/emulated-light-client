@@ -44,7 +44,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn host_height(&self) -> Result<ibc::Height> {
         let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(0, height)?;
+        let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 
@@ -60,7 +60,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
-        let state = if height.revision_number() == 0 {
+        let state = if height.revision_number() == 1 {
             store.chain.consensus_state(height.revision_height().into())?
         } else {
             None
@@ -312,7 +312,7 @@ impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
                 let ts = state.processed_time()?.get();
                 let ts = ibc::Timestamp::from_nanoseconds(ts).ok()?;
                 let height = state.processed_height()?;
-                let height = ibc::Height::new(0, height.into()).ok()?;
+                let height = ibc::Height::new(1, height.into()).ok()?;
                 Some((ts, height))
             })
             .ok_or_else(|| {

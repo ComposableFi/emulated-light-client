@@ -2,6 +2,10 @@ use lib::hash::CryptoHash;
 
 use crate::proto;
 
+pub(crate) mod impls;
+#[cfg(test)]
+mod tests;
+
 /// The client state of the light client for the guest blockchain as a Rust
 /// object.
 ///
@@ -23,6 +27,9 @@ pub struct ClientState<PK> {
     /// Commitment of the epoch used to verify future states.
     pub epoch_commitment: CryptoHash,
 
+    /// Commitment of the previous epoch used to verify past states.
+    pub prev_epoch_commitment: CryptoHash,
+
     /// Whether client is frozen.
     pub is_frozen: bool,
 
@@ -30,6 +37,42 @@ pub struct ClientState<PK> {
 }
 
 impl<PK: guestchain::PubKey> ClientState<PK> {
+    pub fn new(
+        genesis_hash: CryptoHash,
+        latest_height: guestchain::BlockHeight,
+        trusting_period_ns: u64,
+        epoch_commitment: CryptoHash,
+        prev_epoch_commitment: Option<CryptoHash>,
+        is_frozen: bool,
+    ) -> Self {
+        let prev_epoch_commitment =
+            prev_epoch_commitment.unwrap_or_else(|| epoch_commitment.clone());
+        Self {
+            genesis_hash,
+            latest_height,
+            trusting_period_ns,
+            epoch_commitment,
+            prev_epoch_commitment,
+            is_frozen,
+            _ph: core::marker::PhantomData,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn from_genesis(genesis: &guestchain::BlockHeader) -> Self {
+        let epoch_commitment = genesis.next_epoch_commitment.clone().unwrap();
+        let prev_epoch_commitment = epoch_commitment.clone();
+        Self {
+            genesis_hash: genesis.calc_hash(),
+            latest_height: genesis.block_height.into(),
+            trusting_period_ns: 24 * 3600 * 1_000_000_000,
+            epoch_commitment,
+            prev_epoch_commitment,
+            is_frozen: false,
+            _ph: core::marker::PhantomData,
+        }
+    }
+
     pub fn with_header(&self, header: &super::Header<PK>) -> Self {
         let mut this = self.clone();
         if header.block_header.block_height > this.latest_height {
@@ -42,25 +85,13 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
             // The commitment is the hash of borsh-serialised Epoch so it allows
             // us to verify whether Epoch someone sends us is the current one.
             //
-            // Updating epoch_commitment means that we will only accept headers
-            // belonging to the new epoch.
-            //
-            // TODO(mina86): Perhaps we should provide a way to allow headers
-            // from past epoch to be accepted as well?  At the moment, if we’re
-            // in the middle of an epoch and someone sends header for block
-            // N someone else can follow up with header for block N-1.  However,
-            // If N is the last block of the epoch, submitting block N-1 will
-            // fail.  It would succeed if it was done prior to block N.  This
-            // does affect proofs since if someone built a proof against block
-            // N-1 then they can no longer use it.  Of course proofs can be
-            // recalculated with newer blocks so whether this really is an issue
-            // is not clear to me.
-            this.epoch_commitment = header
-                .block_header
-                .next_epoch_commitment
-                .as_ref()
-                .unwrap_or(&self.epoch_commitment)
-                .clone();
+            // Since we’re storing only two Epoch commitments, we will only
+            // accept headers from Epoch which has just ended (i.e. this header
+            // is the last block of) and the Epoch that has just started.
+            if let Some(ref next) = header.block_header.next_epoch_commitment {
+                this.prev_epoch_commitment = this.epoch_commitment.clone();
+                this.epoch_commitment = next.clone();
+            }
         }
         this
     }
@@ -74,11 +105,18 @@ impl<PK: guestchain::PubKey> From<ClientState<PK>> for proto::ClientState {
 
 impl<PK: guestchain::PubKey> From<&ClientState<PK>> for proto::ClientState {
     fn from(state: &ClientState<PK>) -> Self {
+        let prev_epoch_commitment =
+            if state.prev_epoch_commitment == state.epoch_commitment {
+                alloc::vec::Vec::new()
+            } else {
+                state.prev_epoch_commitment.to_vec()
+            };
         Self {
             genesis_hash: state.genesis_hash.to_vec(),
             latest_height: state.latest_height.into(),
             trusting_period_ns: state.trusting_period_ns,
             epoch_commitment: state.epoch_commitment.to_vec(),
+            prev_epoch_commitment,
             is_frozen: state.is_frozen,
         }
     }
@@ -94,16 +132,23 @@ impl<PK: guestchain::PubKey> TryFrom<proto::ClientState> for ClientState<PK> {
 impl<PK: guestchain::PubKey> TryFrom<&proto::ClientState> for ClientState<PK> {
     type Error = proto::BadMessage;
     fn try_from(msg: &proto::ClientState) -> Result<Self, Self::Error> {
-        let genesis_hash = CryptoHash::try_from(msg.genesis_hash.as_slice())
-            .map_err(|_| proto::BadMessage)?;
-        let epoch_commitment =
-            CryptoHash::try_from(msg.epoch_commitment.as_slice())
-                .map_err(|_| proto::BadMessage)?;
+        let make_hash = |hash: &[u8]| {
+            CryptoHash::try_from(hash).map_err(|_| proto::BadMessage)
+        };
+
+        let genesis_hash = make_hash(&msg.genesis_hash)?;
+        let epoch_commitment = make_hash(&msg.epoch_commitment)?;
+        let prev_epoch_commitment = if msg.epoch_commitment.is_empty() {
+            epoch_commitment.clone()
+        } else {
+            make_hash(&msg.prev_epoch_commitment)?
+        };
         Ok(Self {
             genesis_hash,
             latest_height: msg.latest_height.into(),
             trusting_period_ns: msg.trusting_period_ns,
             epoch_commitment,
+            prev_epoch_commitment,
             is_frozen: msg.is_frozen,
             _ph: core::marker::PhantomData,
         })
@@ -118,6 +163,7 @@ super::any_convert! {
         latest_height: 8.into(),
         trusting_period_ns: 30 * 24 * 3600 * 1_000_000_000,
         epoch_commitment: CryptoHash::test(11),
+        prev_epoch_commitment: CryptoHash::test(12),
         is_frozen: false,
         _ph: core::marker::PhantomData,
     },
@@ -125,6 +171,7 @@ super::any_convert! {
         genesis_hash: [0; 30].to_vec(),
         latest_height: 8,
         epoch_commitment: [0; 30].to_vec(),
+        prev_epoch_commitment: alloc::vec::Vec::new(),
         is_frozen: false,
         trusting_period_ns: 30 * 24 * 3600 * 1_000_000_000,
     },
