@@ -60,6 +60,9 @@ impl guestchain::PubKey for PubKey {
     type Signature = Signature;
 
     fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]> {
+        (&self.0[..]).into()
+    }
     fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
         Ok(Self(bytes.try_into()?))
     }
@@ -100,6 +103,9 @@ impl<'a> TryFrom<&'a [u8]> for &'a Signature {
 #[cfg(feature = "guest")]
 impl guestchain::Signature for Signature {
     fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]> {
+        (&self.0[..]).into()
+    }
     fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
         Ok(Self(bytes.try_into()?))
     }

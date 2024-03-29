@@ -19,6 +19,7 @@ pub trait PubKey:
     type Signature: Signature;
 
     fn to_vec(&self) -> Vec<u8>;
+    fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]>;
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -27,6 +28,7 @@ pub trait Signature:
     Clone + Eq + core::fmt::Debug + borsh::BorshSerialize + borsh::BorshDeserialize
 {
     fn to_vec(&self) -> Vec<u8>;
+    fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]>;
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -151,6 +153,9 @@ pub(crate) mod test_utils {
         type Signature = MockSignature;
 
         fn to_vec(&self) -> Vec<u8> { self.0.to_be_bytes().to_vec() }
+        fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]> {
+            self.to_vec().into()
+        }
         fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
             Ok(Self(u32::from_be_bytes(bytes.try_into()?)))
         }
@@ -174,6 +179,10 @@ pub(crate) mod test_utils {
                 pubkey: self.1 .0.to_be_bytes(),
             })
             .to_vec()
+        }
+
+        fn as_bytes<'a>(&'a self) -> alloc::borrow::Cow<'a, [u8]> {
+            self.to_vec().into()
         }
 
         fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {

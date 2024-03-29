@@ -14,9 +14,9 @@ mod ibc {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct IbcProof {
     /// Serialised proof.
-    pub proof: ibc::CommitmentProofBytes,
+    pub proof: Vec<u8>,
     /// Commitment root.
-    pub root: ibc::CommitmentRoot,
+    pub root: CryptoHash,
     /// Value stored at the path (if it exists).
     pub value: Option<CryptoHash>,
 }
@@ -24,6 +24,14 @@ pub struct IbcProof {
 impl IbcProof {
     /// Returns commitment prefix to use during verification.
     pub fn prefix(&self) -> ibc::CommitmentPrefix { Default::default() }
+
+    /// Returns commitment root.
+    pub fn root(&self) -> ibc::CommitmentRoot { self.root.to_vec().into() }
+
+    /// Consumes object and returns commitment proof.
+    pub fn proof(self) -> ibc::CommitmentProofBytes {
+        self.proof.try_into().unwrap()
+    }
 }
 
 
@@ -78,7 +86,7 @@ pub fn generate<A: sealable_trie::Allocator>(
     if trie.hash() != &block_header.state_root {
         return Err(GenerateError::WrongState);
     }
-    let root = block_header.calc_hash().to_vec().into();
+    let root = block_header.calc_hash();
 
     let trie_ids::PathInfo { key, seq_kind, .. } = path.try_into()?;
     let (value, proof) = trie.prove(&key)?;
@@ -93,7 +101,7 @@ pub fn generate<A: sealable_trie::Allocator>(
         }
     }
 
-    Ok(IbcProof { proof: proof.try_into().unwrap(), root, value })
+    Ok(IbcProof { proof, root, value })
 }
 
 
@@ -153,24 +161,17 @@ impl From<borsh::maybestd::io::Error> for VerifyError {
 /// 3. Otherwise, the value is simply hashed.
 pub fn verify(
     prefix: &ibc::CommitmentPrefix,
-    proof: &ibc::CommitmentProofBytes,
-    root: &ibc::CommitmentRoot,
+    mut proof_bytes: &[u8],
+    root: &[u8],
     path: ibc::path::Path,
     value: Option<&[u8]>,
 ) -> Result<(), VerifyError> {
     if !prefix.as_bytes().is_empty() {
         return Err(VerifyError::BadPrefix);
     }
-    let root = <&CryptoHash>::try_from(root.as_bytes())
-        .map_err(|_| VerifyError::BadRoot)?;
+    let root =
+        <&CryptoHash>::try_from(root).map_err(|_| VerifyError::BadRoot)?;
     let path = trie_ids::PathInfo::try_from(path)?;
-
-    // TODO(mina86): There’s currently no way to borrow contents of
-    // CommitmentProofBytes.  Since we don’t own proof, the only way to
-    // get access to the bytes is by cloning and converting to a vector.
-    // See also <https://github.com/cosmos/ibc-rs/pull/1008>.
-    let proof_bytes = Vec::from(proof.clone());
-    let mut proof_bytes = proof_bytes.as_slice();
 
     let (state_root, proof) = {
         let (header, proof): (BlockHeader, sealable_trie::proof::Proof) =
@@ -231,7 +232,6 @@ pub fn verify(
 
 #[test]
 fn test_proofs() {
-    use alloc::vec;
     use core::str::FromStr;
 
     use ibc_core_host::types::identifiers;
@@ -248,9 +248,7 @@ fn test_proofs() {
             self.header.state_root = self.trie.hash().clone();
         }
 
-        fn root(&self) -> ibc::CommitmentRoot {
-            self.trie.hash().to_vec().into()
-        }
+        fn root(&self) -> &[u8] { self.trie.hash().as_slice() }
     }
 
     fn assert_path_proof(
@@ -275,8 +273,14 @@ fn test_proofs() {
         // First try non-membership proof.
         let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
         assert!(proof.value.is_none());
-        verify(&proof.prefix(), &proof.proof, &proof.root, path.clone(), None)
-            .unwrap();
+        verify(
+            &proof.prefix(),
+            &proof.proof,
+            proof.root.as_slice(),
+            path.clone(),
+            None,
+        )
+        .unwrap();
 
         // Verify non-membership fails if value is inserted.
         let key = trie_ids::PathInfo::try_from(path.clone()).unwrap().key;
@@ -287,7 +291,7 @@ fn test_proofs() {
             verify(
                 &proof.prefix(),
                 &proof.proof,
-                &trie.root(),
+                trie.root(),
                 path.clone(),
                 None
             )
@@ -299,7 +303,7 @@ fn test_proofs() {
         verify(
             &proof.prefix(),
             &proof.proof,
-            &proof.root,
+            proof.root.as_slice(),
             path.clone(),
             Some(value),
         )
@@ -309,9 +313,9 @@ fn test_proofs() {
         assert_eq!(
             Err(VerifyError::BadPrefix),
             verify(
-                &vec![1u8, 2, 3].try_into().unwrap(),
+                &[1u8, 2, 3].to_vec().try_into().unwrap(),
                 &proof.proof,
-                &proof.root,
+                proof.root.as_slice(),
                 path.clone(),
                 Some(value),
             )
@@ -322,7 +326,7 @@ fn test_proofs() {
             verify(
                 &proof.prefix(),
                 &proof.proof,
-                &vec![1u8, 2, 3].try_into().unwrap(),
+                &[1u8, 2, 3],
                 path.clone(),
                 Some(value),
             )
@@ -334,21 +338,19 @@ fn test_proofs() {
             )),
             verify(
                 &proof.prefix(),
-                &vec![0u8, 1, 2, 3].try_into().unwrap(),
-                &proof.root,
+                &[0u8, 1, 2, 3],
+                proof.root.as_slice(),
                 path.clone(),
                 Some(value),
             )
         );
 
-        let mut proof_bytes = Vec::from(proof.proof.clone());
-        proof_bytes.push(0);
         assert_eq!(
             Err(VerifyError::ProofDecodingFailure("Spurious bytes".into())),
             verify(
                 &proof.prefix(),
-                &proof_bytes.try_into().unwrap(),
-                &proof.root,
+                &[proof.proof.as_slice(), b"\0"].concat(),
+                proof.root.as_slice(),
                 path.clone(),
                 Some(value),
             )
@@ -359,7 +361,7 @@ fn test_proofs() {
             verify(
                 &proof.prefix(),
                 &proof.proof,
-                &CryptoHash::test(11).to_vec().into(),
+                &CryptoHash::test(11).as_slice(),
                 path.clone(),
                 Some(value),
             )

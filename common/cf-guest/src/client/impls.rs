@@ -149,7 +149,8 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         value: Vec<u8>,
     ) -> Result {
         let value = Some(value.as_slice());
-        proof::verify(prefix, proof, root, path, value).map_err(Into::into)
+        proof::verify(prefix, proof.as_ref(), root.as_bytes(), path, value)
+            .map_err(Into::into)
     }
 
     /// Verifies membership proof.
@@ -162,7 +163,8 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
-        proof::verify(prefix, proof, root, path, None).map_err(Into::into)
+        proof::verify(prefix, proof.as_ref(), root.as_bytes(), path, None)
+            .map_err(Into::into)
     }
 }
 
