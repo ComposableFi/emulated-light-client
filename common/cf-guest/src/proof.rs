@@ -160,13 +160,13 @@ impl From<borsh::maybestd::io::Error> for VerifyError {
 ///
 /// 3. Otherwise, the value is simply hashed.
 pub fn verify(
-    prefix: &ibc::CommitmentPrefix,
+    prefix: &[u8],
     mut proof_bytes: &[u8],
     root: &[u8],
     path: ibc::path::Path,
     value: Option<&[u8]>,
 ) -> Result<(), VerifyError> {
-    if !prefix.as_bytes().is_empty() {
+    if !prefix.is_empty() {
         return Err(VerifyError::BadPrefix);
     }
     let root =
@@ -273,14 +273,8 @@ fn test_proofs() {
         // First try non-membership proof.
         let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
         assert!(proof.value.is_none());
-        verify(
-            &proof.prefix(),
-            &proof.proof,
-            proof.root.as_slice(),
-            path.clone(),
-            None,
-        )
-        .unwrap();
+        verify(&[], &proof.proof, proof.root.as_slice(), path.clone(), None)
+            .unwrap();
 
         // Verify non-membership fails if value is inserted.
         let key = trie_ids::PathInfo::try_from(path.clone()).unwrap().key;
@@ -288,20 +282,14 @@ fn test_proofs() {
 
         assert_eq!(
             Err(VerifyError::VerificationFailed),
-            verify(
-                &proof.prefix(),
-                &proof.proof,
-                trie.root(),
-                path.clone(),
-                None
-            )
+            verify(&[], &proof.proof, trie.root(), path.clone(), None)
         );
 
         // Generate membership proof.
         let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
         assert_eq!(Some(stored_hash), proof.value.as_ref());
         verify(
-            &proof.prefix(),
+            &[],
             &proof.proof,
             proof.root.as_slice(),
             path.clone(),
@@ -313,7 +301,7 @@ fn test_proofs() {
         assert_eq!(
             Err(VerifyError::BadPrefix),
             verify(
-                &[1u8, 2, 3].to_vec().try_into().unwrap(),
+                &[1u8, 2, 3],
                 &proof.proof,
                 proof.root.as_slice(),
                 path.clone(),
@@ -323,13 +311,7 @@ fn test_proofs() {
 
         assert_eq!(
             Err(VerifyError::BadRoot),
-            verify(
-                &proof.prefix(),
-                &proof.proof,
-                &[1u8, 2, 3],
-                path.clone(),
-                Some(value),
-            )
+            verify(&[], &proof.proof, &[1u8, 2, 3], path.clone(), Some(value),)
         );
 
         assert_eq!(
@@ -337,7 +319,7 @@ fn test_proofs() {
                 "Unexpected length of input".into()
             )),
             verify(
-                &proof.prefix(),
+                &[],
                 &[0u8, 1, 2, 3],
                 proof.root.as_slice(),
                 path.clone(),
@@ -348,7 +330,7 @@ fn test_proofs() {
         assert_eq!(
             Err(VerifyError::ProofDecodingFailure("Spurious bytes".into())),
             verify(
-                &proof.prefix(),
+                &[],
                 &[proof.proof.as_slice(), b"\0"].concat(),
                 proof.root.as_slice(),
                 path.clone(),
@@ -359,7 +341,7 @@ fn test_proofs() {
         assert_eq!(
             Err(VerifyError::VerificationFailed),
             verify(
-                &proof.prefix(),
+                &[],
                 &proof.proof,
                 &CryptoHash::test(11).as_slice(),
                 path.clone(),
