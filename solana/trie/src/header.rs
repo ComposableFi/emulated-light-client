@@ -6,8 +6,8 @@ use crate::data_ref::DataRef;
 /// Data stored at the beginning of the account describing the trie.
 ///
 /// As written in the account, the header occupies [`Header::ENCODED_SIZE`]
-/// bytes.  To decode and encode the data uses [`Header::decode`] and
-/// [`Header::encode`] methods respectively.
+/// bytes which is equal to single allocation block.  To decode and encode the
+/// data uses [`Header::decode`] and [`Header::encode`] methods respectively.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Header {
     pub(crate) root_ptr: Option<Ptr>,
@@ -16,9 +16,21 @@ pub(crate) struct Header {
     pub(crate) first_free: u32,
 }
 
+/// Header as stored in at the beginning of the account.
+#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+#[repr(C)]
+struct RawHeader {
+    magic: [u8; 8],
+    root_ptr: [u8; 4],
+    root_hash: [u8; 32],
+    next_block: [u8; 4],
+    first_free: [u8; 4],
+    _padding: [u8; 20],
+}
+
 impl Header {
     /// Size of the encoded header.
-    const ENCODED_SIZE: usize = 64;
+    pub(crate) const ENCODED_SIZE: usize = sealable_trie::nodes::RawNode::SIZE;
 
     /// Magic number indicating account data has not been initialised yet.
     const MAGIC_UNINITIALISED: [u8; 8] = [0; 8];
@@ -35,80 +47,38 @@ impl Header {
     ///
     /// Returns `None` if the block is shorter than length of encoded header or
     /// encoded data is invalid.
-    // Encoding:
-    //     magic:       u64
-    //     root_ptr:    u32
-    //     root_hash:   [u8; 32]
-    //     next_block:  u32
-    //     first_free:  u32
-    //     padding:     [u8; 12],
     pub(crate) fn decode(data: &impl DataRef) -> Option<Self> {
-        let data = data.get(..Self::ENCODED_SIZE)?.try_into().unwrap();
-        let (magic, data) = stdx::split_array_ref::<8, 56, 64>(data);
-        match *magic {
+        let raw: &RawHeader =
+            bytemuck::from_bytes(data.get(..Self::ENCODED_SIZE)?);
+        match raw.magic {
             Self::MAGIC_UNINITIALISED => Some(Self {
                 root_ptr: None,
                 root_hash: sealable_trie::trie::EMPTY_TRIE_ROOT,
                 next_block: Self::ENCODED_SIZE as u32,
                 first_free: 0,
             }),
-            Self::MAGIC_V1 => Self::decode_v1(data),
+            Self::MAGIC_V1 => Some(Self {
+                root_ptr: Ptr::new(u32::from_ne_bytes(raw.root_ptr)).ok()?,
+                root_hash: CryptoHash::from(raw.root_hash),
+                next_block: u32::from_ne_bytes(raw.next_block),
+                first_free: u32::from_ne_bytes(raw.first_free),
+            }),
             _ => None,
         }
     }
 
-    fn decode_v1(data: &[u8; 56]) -> Option<Self> {
-        let (root_ptr, data) = read::<4, 52, 56, _>(data, u32::from_ne_bytes);
-        let (root_hash, data) = read::<32, 20, 52, _>(data, CryptoHash);
-        let (next_block, data) = read::<4, 16, 20, _>(data, u32::from_ne_bytes);
-        let (first_free, _) = read::<4, 12, 16, _>(data, u32::from_ne_bytes);
-
-        let root_ptr = Ptr::new(root_ptr).ok()?;
-        Some(Self { root_ptr, root_hash, next_block, first_free })
-    }
-
     /// Returns encoded representation of values in the header.
     pub(crate) fn encode(&self) -> [u8; Self::ENCODED_SIZE] {
-        let root_ptr =
-            self.root_ptr.map_or([0; 4], |ptr| ptr.get().to_ne_bytes());
-
-        let mut buf = [0; Self::ENCODED_SIZE];
-        let data = &mut buf;
-        let data = write::<8, 56, 64>(data, Self::MAGIC_V1);
-        let data = write::<4, 52, 56>(data, root_ptr);
-        let data = write::<32, 20, 52>(data, self.root_hash.0);
-        let data = write::<4, 16, 20>(data, self.next_block.to_ne_bytes());
-        write::<4, 12, 16>(data, self.first_free.to_ne_bytes());
-        buf
+        let root_ptr = self.root_ptr.map_or(0, |ptr| ptr.get());
+        bytemuck::must_cast(RawHeader {
+            magic: Self::MAGIC_V1,
+            root_ptr: root_ptr.to_ne_bytes(),
+            root_hash: *self.root_hash.as_array(),
+            next_block: self.next_block.to_ne_bytes(),
+            first_free: self.first_free.to_ne_bytes(),
+            _padding: [0; 20],
+        })
     }
-}
-
-
-/// Reads fixed-width value from start of the buffer and returns the value and
-/// remaining portion of the buffer.
-///
-/// By working on a fixed-size buffers, this avoids any run-time checks.  Sizes
-/// are verified at compile-time.
-fn read<const L: usize, const R: usize, const N: usize, T>(
-    buf: &[u8; N],
-    f: impl Fn([u8; L]) -> T,
-) -> (T, &[u8; R]) {
-    let (left, right) = stdx::split_array_ref(buf);
-    (f(*left), right)
-}
-
-/// Writes given fixed-width buffer at the start the buffer and returns the
-/// remaining portion of the buffer.
-///
-/// By working on a fixed-size buffers, this avoids any run-time checks.  Sizes
-/// are verified at compile-time.
-fn write<const L: usize, const R: usize, const N: usize>(
-    buf: &mut [u8; N],
-    data: [u8; L],
-) -> &mut [u8; R] {
-    let (left, right) = stdx::split_array_mut(buf);
-    *left = data;
-    right
 }
 
 
@@ -143,7 +113,8 @@ fn test_header_encoding() {
                          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
         /* next_block: */ 42, 0, 0, 0,
         /* first_free: */ 24, 0, 0, 0,
-        /* tail: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        /* padding: */    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ], got_bytes);
     assert_eq!(Some(hdr), got_hdr);
 }
