@@ -37,6 +37,7 @@ spl-associated-token-account.workspace = true
 spl-token.workspace = true
 strum.workspace = true
 uint.workspace = true
+prost.workspace = true  
 
 guestchain.workspace = true
 cf-guest.workspace = true
@@ -47,6 +48,7 @@ solana-signature-verifier = { workspace = true, features = ["guest", "library"] 
 solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }
+wasm = { workspace = true }
 
 [dev-dependencies]
 anchor-client.workspace = true
