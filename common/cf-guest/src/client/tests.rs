@@ -12,7 +12,6 @@ mod ibc {
     pub use ibc_primitives::Timestamp;
 }
 
-use crate::proto::Any;
 use crate::{ClientMessage, CommonContext, ConsensusState, Misbehaviour};
 
 type ClientState = crate::ClientState<MockPubKey>;
@@ -98,15 +97,15 @@ fn test_header_misbehaviour() {
         header.signatures.push((0, ctx.sign(0, &fp)));
         header.signatures.push((1, ctx.sign(1, &fp)));
         ctx.test_client_message(&header, expected);
+        let block_header = header.block_header.clone();
         if let Some(height) = expected_height {
             let client_id = ctx.client_id.clone();
             let client_state = ctx.client_state.clone();
             let want = [ibc::Height::new(1, height).unwrap()];
-            let got =
-                client_state.update_state(ctx, &client_id, Any::from(&header));
+            let got = client_state.do_update_state(ctx, &client_id, header);
             assert_eq!(&want[..], got.unwrap());
         }
-        header.block_header
+        block_header
     }
 
     // First, generate block #2.
@@ -279,16 +278,13 @@ impl TestContext {
         msg: &(impl Clone + Into<ClientMessage<MockPubKey>>),
         expected: Result<bool, &str>,
     ) {
-        let message = Any::from(msg.clone().into());
-        let res = self.client_state.verify_client_message(
-            self,
-            &self.client_id,
-            message.clone(),
-        );
+        let message = msg.clone().into();
+        let res =
+            self.client_state.do_verify_client_message(self, message.clone());
         match expected {
             Ok(expected) => {
                 res.unwrap();
-                let res = self.client_state.check_for_misbehaviour(
+                let res = self.client_state.do_check_for_misbehaviour(
                     self,
                     &self.client_id,
                     message,
