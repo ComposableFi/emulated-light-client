@@ -46,6 +46,62 @@ impl<T> Default for Neighbourhood<T> {
     fn default() -> Self { Self::Neighbours(None, None) }
 }
 
+impl<T> Neighbourhood<T> {
+    /// Maps `Neighbourhood<T>` to `Neighbourhood<O>` by applying a function to
+    /// contained values (if any).
+    ///
+    /// ```
+    /// use cf_guest::Neighbourhood;
+    ///
+    /// assert_eq!(
+    ///     Neighbourhood::This(3),
+    ///     Neighbourhood::This("foo").map(<str>::len),
+    /// );
+    /// assert_eq!(
+    ///     Neighbourhood::Neighbours(None, Some(4)),
+    ///     Neighbourhood::Neighbours(None, Some("quux")).map(<str>::len),
+    /// );
+    /// ```
+    pub fn map<O>(self, mut func: impl FnMut(T) -> O) -> Neighbourhood<O> {
+        match self {
+            Self::This(it) => Neighbourhood::This(func(it)),
+            Self::Neighbours(prev, next) => Neighbourhood::Neighbours(
+                prev.map(&mut func),
+                next.map(&mut func),
+            ),
+        }
+    }
+
+    /// Maps `Neighbourhood<T>` to `Neighbourhood<O>` by applying a function to
+    /// contained values (if any).  Fails with error if conversion function
+    /// fails.
+    ///
+    /// ```
+    /// use cf_guest::Neighbourhood;
+    ///
+    /// assert_eq!(
+    ///     Result::<_, ()>::Ok(Neighbourhood::Neighbours(None, Some(4))),
+    ///     Neighbourhood::Neighbours(None, Some("quux")).try_map(|v| Ok(v.len())),
+    /// );
+    /// assert_eq!(
+    ///     Result::<Neighbourhood<usize>, _>::Err("failed"),
+    ///     Neighbourhood::Neighbours(None, Some("quux")).try_map(|_| Err("failed")),
+    /// );
+    /// ```
+    pub fn try_map<O, E>(
+        self,
+        mut func: impl FnMut(T) -> Result<O, E>,
+    ) -> Result<Neighbourhood<O>, E> {
+        match self {
+            Self::This(it) => func(it).map(Neighbourhood::This),
+            Self::Neighbours(prev, next) => Ok(Neighbourhood::Neighbours(
+                prev.map(&mut func).transpose()?,
+                next.map(&mut func).transpose()?,
+            )),
+        }
+    }
+}
+
 /// Context allowing accessing consensus states.
 pub trait CommonContext<PK: guestchain::PubKey> {
     type ConversionError: ToString;
