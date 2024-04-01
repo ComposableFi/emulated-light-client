@@ -170,8 +170,8 @@ impl<PK: PubKey> Header<PK> {
 }
 
 
-super::any_convert! {
-    proto::Header,
-    Header<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
-    // TODO(mina86): Add `obj: ...`.
+proto_utils::define_wrapper! {
+    proto: proto::Header,
+    wrapper: Header<PK> where
+        PK: guestchain::PubKey = guestchain::validators::MockPubKey,
 }

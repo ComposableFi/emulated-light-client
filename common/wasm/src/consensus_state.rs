@@ -60,8 +60,7 @@ impl TryFrom<&proto::ConsensusState> for ConsensusState {
     }
 }
 
-super::any_convert! {
-  proto::ConsensusState,
-  ConsensusState,
-  obj: ConsensusState::new(lib::hash::CryptoHash::test(42).to_vec(), 1),
+proto_utils::define_wrapper! {
+    proto: proto::ConsensusState,
+    wrapper: ConsensusState,
 }

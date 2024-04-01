@@ -155,24 +155,8 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientState> for ClientState<PK> {
     }
 }
 
-super::any_convert! {
-    proto::ClientState,
-    ClientState<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
-    obj: ClientState {
-        genesis_hash: CryptoHash::test(24),
-        latest_height: 8.into(),
-        trusting_period_ns: 30 * 24 * 3600 * 1_000_000_000,
-        epoch_commitment: CryptoHash::test(11),
-        prev_epoch_commitment: CryptoHash::test(12),
-        is_frozen: false,
-        _ph: core::marker::PhantomData,
-    },
-    bad: proto::ClientState {
-        genesis_hash: [0; 30].to_vec(),
-        latest_height: 8,
-        epoch_commitment: [0; 30].to_vec(),
-        prev_epoch_commitment: alloc::vec::Vec::new(),
-        is_frozen: false,
-        trusting_period_ns: 30 * 24 * 3600 * 1_000_000_000,
-    },
+proto_utils::define_wrapper! {
+    proto: proto::ClientState,
+    wrapper: ClientState<PK> where
+        PK: guestchain::PubKey = guestchain::validators::MockPubKey,
 }

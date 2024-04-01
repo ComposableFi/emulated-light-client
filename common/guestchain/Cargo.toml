@@ -17,9 +17,10 @@ prost = { workspace = true, features = ["prost-derive"] }
 strum.workspace = true
 
 lib = { workspace = true, features = ["borsh"] }
-trie-ids.workspace = true
+proto-utils = { workspace = true, features = ["ibc"] }
 sealable-trie = { workspace = true, features = ["borsh"] }
 stdx.workspace = true
+trie-ids.workspace = true
 
 [build-dependencies]
 prost-build.workspace = true

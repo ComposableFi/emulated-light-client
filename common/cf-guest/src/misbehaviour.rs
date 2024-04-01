@@ -48,8 +48,8 @@ impl<PK: PubKey> TryFrom<&proto::Misbehaviour> for Misbehaviour<PK> {
     }
 }
 
-super::any_convert! {
-    proto::Misbehaviour,
-    Misbehaviour<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
-    // TODO(mina86): Add `obj: ...`.
+proto_utils::define_wrapper! {
+    proto: proto::Misbehaviour,
+    wrapper: Misbehaviour<PK> where
+        PK: guestchain::PubKey = guestchain::validators::MockPubKey,
 }

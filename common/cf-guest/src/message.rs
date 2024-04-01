@@ -126,11 +126,10 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientMessage>
 }
 
 
-super::any_convert! {
-    proto::ClientMessage,
-    ClientMessage<PK: guestchain::PubKey = guestchain::validators::MockPubKey>,
-    // TODO(mina86): Add `obj: ...`.
-    bad: proto::ClientMessage { message: None },
+proto_utils::define_wrapper! {
+    proto: proto::ClientMessage,
+    wrapper: ClientMessage<PK> where
+        PK: guestchain::PubKey = guestchain::validators::MockPubKey,
     conv: any => if any.type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
         Self::decode(any.value)
     } else if any.type_url.ends_with(proto::Header::IBC_TYPE_URL) {

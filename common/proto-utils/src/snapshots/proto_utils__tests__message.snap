@@ -1,0 +1,8 @@
+---
+source: common/proto-utils/src/tests.rs
+expression: any.value
+---
+[
+    8,
+    42,
+]
