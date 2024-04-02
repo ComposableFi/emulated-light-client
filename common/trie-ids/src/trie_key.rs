@@ -19,6 +19,7 @@ use super::{ibc, ids};
 ///     Commitment       { port_id: [u8; 9], channel_id: u32, sequence: u64 },
 ///     Receipts         { port_id: [u8; 9], channel_id: u32, sequence: u64 },
 ///     Acks             { port_id: [u8; 9], channel_id: u32, sequence: u64 },
+///     UpgradeClient    { height: u64, type: u8 },
 /// }
 /// ```
 ///
@@ -45,10 +46,24 @@ pub enum Tag {
     Commitment = 5,
     Receipt = 6,
     Ack = 7,
+    UpgradeClient = 8,
 }
 
 impl From<Tag> for u8 {
     fn from(tag: Tag) -> u8 { tag as u8 }
+}
+
+/// A discriminant used to distinguish client state and consensus state upgrade
+/// paths.
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum UpgradeType {
+    ClientState = 0,
+    ConsensusState = 1,
+}
+
+impl From<UpgradeType> for u8 {
+    fn from(ty: UpgradeType) -> u8 { ty as u8 }
 }
 
 impl TrieKey {
@@ -99,6 +114,18 @@ impl TrieKey {
         Self::for_channel_path(Tag::NextSequence, port_channel)
     }
 
+    /// Constructs a new key for client state upgrade commitment.
+    #[inline]
+    pub fn for_client_state_upgrade(height: u64) -> Self {
+        Self::new(Tag::UpgradeClient, (height, UpgradeType::ClientState))
+    }
+
+    /// Constructs a new key for client state upgrade commitment.
+    #[inline]
+    pub fn for_consensus_state_upgrade(height: u64) -> Self {
+        Self::new(Tag::UpgradeClient, (height, UpgradeType::ConsensusState))
+    }
+
     /// Constructs a new key for a `(port_id, channel_id)` path.
     ///
     /// This is internal method used by other public-facing methods which use
@@ -144,7 +171,7 @@ impl TrieKey {
         this
     }
 
-    /// Internal function to append bytes into the internal buffer.
+    /// Appends bytes into the internal buffer.
     #[inline]
     fn extend(&mut self, bytes: &[u8]) {
         let start = usize::from(self.len);
@@ -235,6 +262,21 @@ impl TryFrom<&ibc::path::AckPath> for TrieKey {
     }
 }
 
+impl From<ibc::path::UpgradeClientPath> for TrieKey {
+    fn from(path: ibc::path::UpgradeClientPath) -> Self {
+        use ibc::path::UpgradeClientPath;
+        let (height, ty) = match path {
+            UpgradeClientPath::UpgradedClientState(height) => {
+                (height, UpgradeType::ClientState)
+            }
+            UpgradeClientPath::UpgradedClientConsensusState(height) => {
+                (height, UpgradeType::ConsensusState)
+            }
+        };
+        Self::new(Tag::UpgradeClient, (height, ty))
+    }
+}
+
 
 /// Component of a [`TrieKey`].
 ///
@@ -298,6 +340,13 @@ impl AsComponent for u64 {
     #[inline]
     fn append_into(&self, dest: &mut TrieKey) {
         self.to_be_bytes().append_into(dest)
+    }
+}
+
+impl AsComponent for UpgradeType {
+    #[inline]
+    fn append_into(&self, dest: &mut TrieKey) {
+        [u8::from(*self)].append_into(dest)
     }
 }
 
