@@ -1911,7 +1911,6 @@ dependencies = [
  "lib",
  "memory",
  "prost",
- "prost-build",
  "rand 0.8.5",
  "sealable-trie",
  "stdx",
