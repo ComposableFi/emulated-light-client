@@ -139,27 +139,35 @@ try_from_impl! {
 
     Commitment(path: CommitmentPath) => {
         Self::with_seq(
-        Tag::Commitment,
-        path.port_id,
-        path.channel_id,
-        path.sequence,
+            Tag::Commitment,
+            path.port_id,
+            path.channel_id,
+            path.sequence,
         )
     }
-    Ack(path: AckPath) => {Self::with_seq(
-        Tag::Ack,
-        path.port_id,
-        path.channel_id,
-        path.sequence,
-    )}
-    Receipt(path: ReceiptPath) => {Self::with_seq(
-        Tag::Receipt,
-        path.port_id,
-        path.channel_id,
-        path.sequence,
-    )}
+    Ack(path: AckPath) => {
+        Self::with_seq(
+            Tag::Ack,
+            path.port_id,
+            path.channel_id,
+            path.sequence,
+        )
+    }
+    Receipt(path: ReceiptPath) => {
+        Self::with_seq(
+            Tag::Receipt,
+            path.port_id,
+            path.channel_id,
+            path.sequence,
+        )
+    }
 
     UpgradeClient(path: UpgradeClientPath) => {
-        Err(ibc::path::Path::from(path).into())
+        Ok(Self {
+            key: TrieKey::from(path),
+            client_id: None,
+            seq_kind: None,
+        })
     }
 }
 
@@ -349,5 +357,16 @@ fn test_try_from_path() {
             sequence,
         },
     );
-    check!(err, ibc::path::UpgradeClientPath::UpgradedClientState(42));
+    check!(
+        "08 000000000000002a 00",
+        false,
+        -1,
+        ibc::path::UpgradeClientPath::UpgradedClientState(42),
+    );
+    check!(
+        "08 000000000000002a 01",
+        false,
+        -1,
+        ibc::path::UpgradeClientPath::UpgradedClientConsensusState(42),
+    );
 }
