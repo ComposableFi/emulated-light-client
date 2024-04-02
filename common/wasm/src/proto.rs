@@ -11,12 +11,27 @@ pub struct ConsensusState {
     pub timestamp_ns: u64,
 }
 
-impl ::prost::Name for ConsensusState {
-    const NAME: &'static str = "ConsensusState";
+impl prost::Name for ConsensusState {
     const PACKAGE: &'static str = "ibc.lightclients.wasm.v1";
+    const NAME: &'static str = "ConsensusState";
 
-    fn full_name() -> alloc::string::String { Self::IBC_TYPE_URL[1..].into() }
-    fn type_url() -> alloc::string::String { Self::IBC_TYPE_URL.into() }
+    fn full_name() -> alloc::string::String {
+        const_format::concatcp!(
+            ConsensusState::PACKAGE,
+            ".",
+            ConsensusState::NAME
+        )
+        .into()
+    }
+    fn type_url() -> alloc::string::String {
+        const_format::concatcp!(
+            "/",
+            ConsensusState::PACKAGE,
+            ".",
+            ConsensusState::NAME
+        )
+        .into()
+    }
 }
 
 proto_utils::define_message! {

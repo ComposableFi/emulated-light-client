@@ -5,6 +5,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+const_format.workspace = true
 derive_more.workspace = true
 ibc-primitives.workspace = true
 ibc-core-commitment-types.workspace = true
