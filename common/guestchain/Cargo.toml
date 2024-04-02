@@ -21,9 +21,6 @@ trie-ids.workspace = true
 sealable-trie = { workspace = true, features = ["borsh"] }
 stdx.workspace = true
 
-[build-dependencies]
-prost-build.workspace = true
-
 [dev-dependencies]
 insta.workspace = true
 rand.workspace = true
