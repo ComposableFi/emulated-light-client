@@ -310,7 +310,6 @@ pub struct FtPacketData {
     /// the recipient address on the destination chain
     pub receiver: String,
     /// optional memo
-    #[serde(default)]
     pub memo: String,
 }
 
