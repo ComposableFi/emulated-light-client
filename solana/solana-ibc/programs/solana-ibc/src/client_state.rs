@@ -3,6 +3,7 @@ use anchor_lang::prelude::borsh::maybestd::io;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
+use crate::ibc::Protobuf;
 use crate::storage::IbcStorage;
 
 mod impls;
@@ -12,7 +13,7 @@ type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
 #[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::TryInto)]
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
-    Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
+    Wasm(ibc::wasm::ClientState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -24,7 +25,7 @@ impl ibc::Protobuf<ibc::Any> for AnyClientState {}
 #[repr(u8)]
 enum AnyClientStateTag {
     Tendermint = 0,
-    Guest = 1,
+    Wasm = 1,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -35,7 +36,7 @@ impl AnyClientStateTag {
     fn from_type_url(url: &str) -> Option<Self> {
         match url {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
-            AnyClientState::GUEST_TYPE => Some(Self::Guest),
+            AnyClientState::WASM_TYPE => Some(Self::Wasm),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -47,8 +48,8 @@ impl AnyClientState {
     /// Protobuf type URL for Tendermint client state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
-    /// Protobuf type URL for Guest client state used in Any message.
-    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::IBC_TYPE_URL;
+    /// Protobuf type URL for WASM client state used in Any message.
+    const WASM_TYPE: &'static str = ibc::wasm::WASM_CLIENT_STATE_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -70,16 +71,18 @@ impl AnyClientState {
             Self::Tendermint(state) => (
                 AnyClientStateTag::Tendermint,
                 Self::TENDERMINT_TYPE,
-                ibc::Protobuf::<ibc::tm::ClientStatePB>::encode_vec(state),
+                Protobuf::<ibc::tm::ClientStatePB>::encode_vec(state),
             ),
-            Self::Guest(state) => {
-                (AnyClientStateTag::Guest, Self::GUEST_TYPE, state.encode())
-            }
+            Self::Wasm(state) => (
+                AnyClientStateTag::Wasm,
+                Self::WASM_TYPE,
+                Protobuf::<ibc::wasm::ClientStatePB>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
                 Self::MOCK_TYPE,
-                ibc::Protobuf::<ibc::mock::ClientStatePB>::encode_vec(state),
+                Protobuf::<ibc::mock::ClientStatePB>::encode_vec(state),
             ),
         }
     }
@@ -91,16 +94,18 @@ impl AnyClientState {
     ) -> Result<Self, String> {
         match tag {
             AnyClientStateTag::Tendermint => {
-                ibc::Protobuf::<ibc::tm::ClientStatePB>::decode_vec(&value)
+                Protobuf::<ibc::tm::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Tendermint)
             }
-            AnyClientStateTag::Guest => cf_guest::ClientState::decode(&value)
-                .map_err(|err| err.to_string())
-                .map(Self::Guest),
+            AnyClientStateTag::Wasm => {
+                Protobuf::<ibc::wasm::ClientStatePB>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Wasm)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
-                ibc::Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
+                Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Mock)
             }
@@ -111,6 +116,21 @@ impl AnyClientState {
 impl From<ibc::tm::types::ClientState> for AnyClientState {
     fn from(state: ibc::tm::types::ClientState) -> Self {
         Self::Tendermint(state.into())
+    }
+}
+
+impl<PK: guestchain::PubKey> From<cf_guest::ClientState<PK>>
+    for AnyClientState
+{
+    fn from(state: cf_guest::ClientState<PK>) -> Self {
+        Self::from(ibc::wasm::ClientState {
+            data: prost::Message::encode_to_vec(&cf_guest::proto::Any::from(
+                &state,
+            )),
+            checksum: Default::default(),
+            latest_height: ibc::Height::new(1, u64::from(state.latest_height))
+                .unwrap(),
+        })
     }
 }
 
@@ -195,7 +215,7 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
 impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     for IbcStorage<'_, '_>
 {
-    type ConversionError = &'static str;
+    type ConversionError = cf_guest::DecodeError;
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 

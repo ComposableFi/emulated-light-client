@@ -1,5 +1,7 @@
 use core::mem::ManuallyDrop;
 
+#[cfg(test)]
+use pretty_assertions::assert_eq;
 use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
@@ -98,8 +100,8 @@ impl<D: DataRef + Sized> core::ops::Drop for TrieAccount<D> {
         let hdr = header::Header {
             root_ptr,
             root_hash,
-            next_block: alloc.next_block,
-            first_free: alloc.first_free.map_or(0, |ptr| ptr.get()),
+            next_block: alloc.next_block.u32(),
+            first_free: alloc.first_free.map_or(0, alloc::Addr::u32),
         }
         .encode();
         alloc.data.get_mut(..hdr.len()).unwrap().copy_from_slice(&hdr);
@@ -156,7 +158,7 @@ fn test_trie_sanity() {
 fn test_trie_resize() {
     const ONE: lib::hash::CryptoHash = lib::hash::CryptoHash([1; 32]);
 
-    let mut data = vec![0; 64];
+    let mut data = vec![0; 72];
     {
         let mut trie = TrieAccount::new(&mut data).unwrap();
         assert_eq!(Ok(None), trie.get(&[0]));
@@ -165,11 +167,16 @@ fn test_trie_resize() {
     }
     #[rustfmt::skip]
     assert_eq!([
-        /* magic: */ 0xd2, 0x97, 0x1f, 0x41, 0x20, 0x4a, 0xd6, 0xed,
-        /* header: */ 64, 0, 0, 0, 81, 213, 137, 123, 111, 170, 61, 119, 192,
-                      61, 179, 52, 117, 154, 26, 215, 15, 164, 52, 114, 30, 39,
-                      201, 248, 29, 213, 251, 45, 245, 93, 239, 40, 136,
-        /* padding: */ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        /* magic: */      0xd2, 0x97, 0x1f, 0x41, 0x20, 0x4a, 0xd6, 0xed,
+        /* root_ptr: */   1, 0, 0, 0,
+        /* root_hash: */  81, 213, 137, 123, 111, 170, 61, 119,
+                          192, 61, 179, 52, 117, 154, 26, 215,
+                          15, 164, 52, 114, 30, 39, 201, 248,
+                          29, 213, 251, 45, 245, 93, 239, 40,
+        /* next_block: */ 144, 0, 0, 0,
+        /* first_free: */ 0, 0, 0, 0,
+        /* padding: */    0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                          0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         /* root node */
         128, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 64, 0, 0, 0, 1, 1, 1, 1,

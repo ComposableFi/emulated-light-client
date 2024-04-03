@@ -59,7 +59,9 @@ impl PartialEq<PubKey> for solana_program::pubkey::Pubkey {
 impl guestchain::PubKey for PubKey {
     type Signature = Signature;
 
-    fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    #[inline]
+    fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> { (&self.0[..]).into() }
+    #[inline]
     fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
         Ok(Self(bytes.try_into()?))
     }
@@ -99,7 +101,9 @@ impl<'a> TryFrom<&'a [u8]> for &'a Signature {
 
 #[cfg(feature = "guest")]
 impl guestchain::Signature for Signature {
-    fn to_vec(&self) -> alloc::vec::Vec<u8> { self.0.to_vec() }
+    #[inline]
+    fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> { (&self.0[..]).into() }
+    #[inline]
     fn from_bytes(bytes: &[u8]) -> Result<Self, guestchain::BadFormat> {
         Ok(Self(bytes.try_into()?))
     }

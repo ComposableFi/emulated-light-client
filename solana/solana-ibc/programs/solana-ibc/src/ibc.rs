@@ -61,20 +61,6 @@ pub mod chan {
     pub use ibc::core::channel::types::Version;
 }
 
-#[cfg(any(test, feature = "mocks"))]
-pub mod mock {
-    pub use ibc_testkit::testapp::ibc::clients::mock::client_state::{
-        MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
-    };
-    pub use ibc_testkit::testapp::ibc::clients::mock::consensus_state::{
-        MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
-    };
-    pub use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
-    pub use ibc_testkit::testapp::ibc::clients::mock::proto::{
-        ClientState as ClientStatePB, ConsensusState as ConsensusStatePB,
-    };
-}
-
 pub mod tm {
     pub use ibc::clients::tendermint::client_state::{self, ClientState};
     pub use ibc::clients::tendermint::consensus_state::ConsensusState;
@@ -87,5 +73,42 @@ pub mod tm {
     pub use ibc::clients::tendermint::types::{
         self, TENDERMINT_CLIENT_STATE_TYPE_URL,
         TENDERMINT_CONSENSUS_STATE_TYPE_URL,
+    };
+}
+
+pub mod wasm {
+    pub use ibc::clients::wasm_types::client_state::{
+        ClientState, WASM_CLIENT_STATE_TYPE_URL,
+    };
+    pub use ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
+    pub use ibc::clients::wasm_types::proto::v1::ClientState as ClientStatePB;
+    // ConsensusState in the new IBC is different than in the old version used
+    // in composable-ibc codebase.  Because of that we’re bringing our own
+    // implementation.
+    pub use wasm::consensus_state::ConsensusState;
+    pub use wasm::proto::ConsensusState as ConsensusStatePB;
+
+    /// Makes sure that type URL for ConsensusState message defined in IBC and
+    /// in our implementation are the same.
+    #[test]
+    fn test_consensus_type_url() {
+        assert_eq!(
+            ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL,
+            ConsensusStatePB::IBC_TYPE_URL
+        );
+    }
+}
+
+#[cfg(any(test, feature = "mocks"))]
+pub mod mock {
+    pub use ibc_testkit::testapp::ibc::clients::mock::client_state::{
+        MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,
+    };
+    pub use ibc_testkit::testapp::ibc::clients::mock::consensus_state::{
+        MockConsensusState, MOCK_CONSENSUS_STATE_TYPE_URL,
+    };
+    pub use ibc_testkit::testapp::ibc::clients::mock::header::MockHeader;
+    pub use ibc_testkit::testapp::ibc::clients::mock::proto::{
+        ClientState as ClientStatePB, ConsensusState as ConsensusStatePB,
     };
 }

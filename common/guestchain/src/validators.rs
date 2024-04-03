@@ -18,7 +18,8 @@ pub trait PubKey:
     /// Signature corresponding to this public key type.
     type Signature: Signature;
 
-    fn to_vec(&self) -> Vec<u8>;
+    fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]>;
+    fn to_vec(&self) -> Vec<u8> { self.as_bytes().into_owned() }
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -26,7 +27,8 @@ pub trait PubKey:
 pub trait Signature:
     Clone + Eq + core::fmt::Debug + borsh::BorshSerialize + borsh::BorshDeserialize
 {
-    fn to_vec(&self) -> Vec<u8>;
+    fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]>;
+    fn to_vec(&self) -> Vec<u8> { self.as_bytes().into_owned() }
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -79,8 +81,6 @@ impl From<core::array::TryFromSliceError> for BadFormat {
 
 #[cfg(any(test, feature = "test_utils"))]
 pub(crate) mod test_utils {
-    use alloc::vec::Vec;
-
     use bytemuck::TransparentWrapper;
 
     /// A mock implementation of a PubKey.  Offers no security; intended for
@@ -150,7 +150,9 @@ pub(crate) mod test_utils {
     impl super::PubKey for MockPubKey {
         type Signature = MockSignature;
 
-        fn to_vec(&self) -> Vec<u8> { self.0.to_be_bytes().to_vec() }
+        fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> {
+            self.0.to_be_bytes().to_vec().into()
+        }
         fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
             Ok(Self(u32::from_be_bytes(bytes.try_into()?)))
         }
@@ -166,7 +168,7 @@ pub(crate) mod test_utils {
     }
 
     impl super::Signature for MockSignature {
-        fn to_vec(&self) -> Vec<u8> {
+        fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]> {
             bytemuck::bytes_of(&MockSignatureBytes {
                 genesis: self.0 .0.to_be_bytes(),
                 height: self.0 .1.to_be_bytes(),
@@ -174,6 +176,7 @@ pub(crate) mod test_utils {
                 pubkey: self.1 .0.to_be_bytes(),
             })
             .to_vec()
+            .into()
         }
 
         fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
