@@ -313,3 +313,40 @@ export const cancelWithdrawalRequestInstruction = async (
 
   return tx;
 };
+
+export const setServiceInstruction = async (
+  program: anchor.Program<Restaking>,
+  depositor: anchor.web3.PublicKey,
+  validator: anchor.web3.PublicKey,
+  receiptTokenMint: anchor.web3.PublicKey,
+  /// Token which is staked
+  stakeTokenMint: anchor.web3.PublicKey,
+) => {
+  const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
+  const { stakingParamsPDA } = getStakingParamsPDA();
+
+  const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+    receiptTokenMint,
+    depositor
+  );
+  const { guestChainPDA, triePDA } = getGuestChainAccounts();
+  const tx = await program.methods
+    .setService({ guestChain: { validator: validator } })
+    .accounts({
+      depositor: depositor,
+      vaultParams: vaultParamsPDA,
+      stakingParams: stakingParamsPDA,
+      receiptTokenMint,
+      receiptTokenAccount,
+      stakeMint: stakeTokenMint,
+      instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+      systemProgram: anchor.web3.SystemProgram.programId,
+    })
+    .remainingAccounts([
+      { pubkey: guestChainPDA, isSigner: false, isWritable: true },
+      { pubkey: triePDA, isSigner: false, isWritable: true },
+      { pubkey: guestChainProgramID, isSigner: false, isWritable: true },
+    ])
+    .transaction();
+  return tx;
+};

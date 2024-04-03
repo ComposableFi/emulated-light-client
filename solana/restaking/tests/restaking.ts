@@ -18,6 +18,7 @@ import {
   cancelWithdrawalRequestInstruction,
   claimRewardsInstruction,
   depositInstruction,
+  setServiceInstruction,
   withdrawInstruction,
   withdrawalRequestInstruction,
 } from "./instructions";
@@ -283,35 +284,23 @@ describe("restaking", () => {
   });
 
   it("Set service after guest chain is initialized", async () => {
-    const { stakingParamsPDA } = getStakingParamsPDA();
-    const { vaultParamsPDA } = getVaultParamsPDA(tokenMint);
-    const { guestChainPDA, triePDA, ibcStoragePDA } = getGuestChainAccounts();
 
-    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-      tokenMint,
-      depositor.publicKey
+    const tx = await setServiceInstruction(
+      program,
+      depositor.publicKey,
+      depositor.publicKey,
+      tokenMintKeypair.publicKey,
+      wSolMint,
     );
     try {
-      const tx = await program.methods
-        .setService({ guestChain: { validator: depositor.publicKey } })
-        .accounts({
-          depositor: depositor.publicKey,
-          vaultParams: vaultParamsPDA,
-          stakingParams: stakingParamsPDA,
-          receiptTokenMint: tokenMint,
-          receiptTokenAccount,
-          stakeMint: wSolMint,
-          instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .remainingAccounts([
-          { pubkey: guestChainPDA, isSigner: false, isWritable: true },
-          { pubkey: triePDA, isSigner: false, isWritable: true },
-          { pubkey: guestChainProgramID, isSigner: false, isWritable: true },
-        ])
-        .signers([depositor])
-        .rpc();
-      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
+
+      console.log("  Signature for Updating Guest chain Initialization: ", sig);
     } catch (error) {
       console.log(error);
       throw error;
