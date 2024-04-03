@@ -960,6 +960,7 @@ dependencies = [
  "memory",
  "prost",
  "prost-build",
+ "proto-utils",
  "rand 0.8.5",
  "sealable-trie",
  "stdx",
@@ -1148,6 +1149,26 @@ name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8"
+
+[[package]]
+name = "const_format"
+version = "0.2.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e3a214c7af3d04997541b18d432afaff4c455e79e2029079647e72fc2bd27673"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f6ff08fd20f4f299298a28e2dfa8a8ba1036e6cd2460ac1de7b425d76f2500"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
 
 [[package]]
 name = "constant_time_eq"
@@ -1911,6 +1932,7 @@ dependencies = [
  "lib",
  "memory",
  "prost",
+ "proto-utils",
  "rand 0.8.5",
  "sealable-trie",
  "stdx",
@@ -3678,6 +3700,18 @@ version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
 dependencies = [
+ "prost",
+]
+
+[[package]]
+name = "proto-utils"
+version = "0.0.0"
+dependencies = [
+ "const_format",
+ "derive_more",
+ "ibc-core-client-context",
+ "ibc-proto",
+ "insta",
  "prost",
 ]
 
@@ -6341,6 +6375,7 @@ checksum = "9c8d87e72b64a3b4db28d11ce29237c246188f4f51057d65a7eab63b7987e423"
 name = "wasm"
 version = "0.0.0"
 dependencies = [
+ "const_format",
  "derive_more",
  "ibc-core-client-context",
  "ibc-core-commitment-types",
@@ -6349,6 +6384,7 @@ dependencies = [
  "insta",
  "lib",
  "prost",
+ "proto-utils",
  "rand 0.8.5",
 ]
 

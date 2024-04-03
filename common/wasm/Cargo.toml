@@ -5,6 +5,7 @@ version = "0.0.0"
 edition = "2021"
 
 [dependencies]
+const_format.workspace = true
 derive_more.workspace = true
 ibc-primitives.workspace = true
 ibc-core-commitment-types.workspace = true
@@ -13,6 +14,7 @@ ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
 
 lib = { workspace = true, features = ["borsh"] }
+proto-utils = { workspace = true, features = ["ibc"] }
 
 [dev-dependencies]
 insta.workspace = true

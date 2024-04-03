@@ -92,12 +92,7 @@ impl TryFrom<&proto::ConsensusState> for ConsensusState {
     }
 }
 
-super::any_convert! {
-    proto::ConsensusState,
-    ConsensusState,
-    obj: ConsensusState::new(&CryptoHash::test(42), NonZeroU64::MIN),
-    bad: proto::ConsensusState {
-        block_hash: [0; 32].to_vec(),
-        timestamp_ns: 0,
-    },
+proto_utils::define_wrapper! {
+    proto: proto::ConsensusState,
+    wrapper: ConsensusState,
 }

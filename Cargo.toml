@@ -36,6 +36,7 @@ base64 = { version = "0.21", default-features = false, features = ["alloc"] }
 borsh = { version = "0.10.3", default-features = false }
 bytemuck = { version = "1.14", default-features = false }
 clap = { version = "4.4.18", features = ["derive"] }
+const_format = { version = "0.2.32", default-features = false }
 derive_more = "0.99.17"
 dialoguer = "0.10"
 directories = "5.0"
@@ -81,10 +82,11 @@ tokio = "1.35.1"
 toml = "0.8.8"
 uint = "0.9.5"
 
-guestchain = { path = "common/guestchain" }
 cf-guest = { path = "common/cf-guest" }
+guestchain = { path = "common/guestchain" }
 lib = { path = "common/lib" }
 memory = { path = "common/memory" }
+proto-utils = { path = "common/proto-utils" }
 restaking = { path = "solana/restaking/programs/restaking" }
 sealable-trie = { path = "common/sealable-trie" }
 solana-allocator = { path = "solana/allocator" }
