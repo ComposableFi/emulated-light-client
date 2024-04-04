@@ -30,19 +30,20 @@ mod imp {
 
     #[derive(bytemuck::Zeroable)]
     pub(crate) struct Global {
-        verifier_ptr: Cell<*const Verifier<'static>>,
+        verifier: Cell<Option<&'static Verifier<'static>>>,
     }
 
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
-            self.verifier_ptr.get()
+        /// Returns global verifier, if initialised.
+        pub fn verifier(&self) -> Option<&'static Verifier<'static>> {
+            self.verifier.get()
         }
 
-        pub(super) fn set_verifier_ptr(
+        pub(super) fn do_set_verifier(
             &self,
-            verifier: *const Verifier<'static>,
+            verifier: &'static Verifier<'static>,
         ) {
-            self.verifier_ptr.set(verifier)
+            self.verifier.set(Some(verifier))
         }
     }
 
@@ -51,19 +52,19 @@ mod imp {
     // is used when building for Solana, we can safely lie to the compiler about
     // Global being Sync.
     //
-    // We need Global to be Sync because it’s !Sync status peculates to
+    // We need Global to be Sync because it’s !Sync status percolates to
     // BumpAllocator<Global> and since that’s a static variable, Rust requires
     // that it’s Sync.
     unsafe impl core::marker::Sync for Global {}
 
     #[global_allocator]
-    static ALLOCATOR: solana_allocator::BumpAllocator<super::Global> = {
+    static ALLOCATOR: solana_allocator::BumpAllocator<Global> = {
         // SAFETY: We’re only instantiating the BumpAllocator once and setting
         // it as global allocator.
         unsafe { solana_allocator::BumpAllocator::new() }
     };
 
-    pub(crate) fn global() -> &'static super::Global { ALLOCATOR.global() }
+    pub(crate) fn global() -> &'static Global { ALLOCATOR.global() }
 }
 
 #[cfg(any(
@@ -87,13 +88,20 @@ mod imp {
 
     #[cfg(not(all(target_os = "solana", feature = "cpi")))]
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
-            VERIFIER.load(core::sync::atomic::Ordering::SeqCst)
+        /// Returns global verifier, if initialised.
+        pub fn verifier(&self) -> Option<&'static Verifier<'static>> {
+            let ptr = VERIFIER.load(core::sync::atomic::Ordering::SeqCst);
+            // SAFETY: We’ve initialised the pointer from a leaked 'static
+            // reference in set_verifier.  It’s thus safe to dereference it.
+            unsafe { ptr.as_ref() }
         }
 
-        pub(super) fn set_verifier_ptr(&self, verifier: *const Verifier) {
+        pub(super) fn do_set_verifier(
+            &self,
+            verifier: &'static Verifier<'static>,
+        ) {
             VERIFIER.store(
-                verifier as *mut Verifier,
+                verifier as *const Verifier as *mut Verifier,
                 core::sync::atomic::Ordering::SeqCst,
             );
         }
@@ -101,11 +109,10 @@ mod imp {
 
     #[cfg(all(target_os = "solana", feature = "cpi"))]
     impl Global {
-        pub(super) fn verifier_ptr(&self) -> *const Verifier<'static> {
-            core::ptr::null()
-        }
+        /// Returns global verifier, if initialised.
+        pub fn verifier(&self) -> Option<&'static Verifier<'static>> { None }
 
-        pub(super) fn set_verifier_ptr(&self, _verifier: *const Verifier) {
+        pub(super) fn do_set_verifier(&self, _verifier: *const Verifier) {
             panic!();
         }
     }
@@ -114,21 +121,13 @@ mod imp {
 }
 
 impl Global {
-    /// Returns global verifier, if initialised.
-    pub fn verifier<'info>(&self) -> Option<&'static Verifier<'info>> {
-        let ptr = self.verifier_ptr();
-        // SAFETY: We’ve initialised the pointer from a leaked 'static
-        // reference in set_verifier.  It’s thus safe to dereference it.
-        unsafe { ptr.as_ref() }
-    }
-
     /// Takes ownership of the verifier and sets it as the global verifier.
     ///
     /// This operation leaks memory thus it shouldn’t be called multiple times.
     /// It’s intended to be called at most once at the start of the program.
-    pub(super) fn set_verifier(&self, verifier: Verifier<'static>) {
+    pub fn set_verifier(&self, verifier: Verifier<'static>) {
         // Allocate the verifier on heap so it has fixed address and leak so it
         // has 'static lifetime.
-        self.set_verifier_ptr(&*Box::leak(Box::new(verifier)));
+        self.do_set_verifier(&*Box::leak(Box::new(verifier)));
     }
 }
