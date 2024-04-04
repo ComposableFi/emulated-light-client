@@ -23,6 +23,16 @@ import {
   withdrawalRequestInstruction,
 } from "./instructions";
 
+async function expectException(callback: any, message: string) {
+  try {
+    await callback();
+  } catch (e) {
+    return;
+  }
+  console.log("Expected exception not thrown");
+  throw Error(message);
+}
+
 describe("restaking", () => {
   // Configure the client to use the local cluster.
   const provider = anchor.AnchorProvider.env();
@@ -289,7 +299,7 @@ describe("restaking", () => {
       depositor.publicKey,
       depositor.publicKey,
       tokenMintKeypair.publicKey,
-      wSolMint,
+      wSolMint
     );
     try {
       tx.feePayer = depositor.publicKey;
@@ -368,13 +378,13 @@ describe("restaking", () => {
 
       // Since receipt NFT token account is closed, getting spl account
       // should fail
-      try {
+      await expectException(async () => {
         const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
           provider.connection,
           receiptTokenAccount
         );
-        throw Error("Receipt NFT token account is not closed");
-      } catch (e) {}
+        console.log("this is depositor account balance", _depositorReceiptTokenBalanceAfter);
+      }, "Receipt NFT token account is not closed");
     } catch (error) {
       console.log(error);
       throw error;
@@ -389,13 +399,12 @@ describe("restaking", () => {
 
     // Since receipt NFT token account is closed, getting spl account
     // should fail
-    try {
+    await expectException(async () => {
       const _depositorReceiptTokenBalanceBefore = await spl.getAccount(
         provider.connection,
         receiptTokenAccount
       );
-      throw Error("Receipt NFT token account is not closed");
-    } catch (e) {}
+    }, "Receipt NFT token account is not closed");
     const tx = await cancelWithdrawalRequestInstruction(
       program,
       depositor.publicKey,
@@ -453,13 +462,12 @@ describe("restaking", () => {
 
       // Since receipt NFT token account is closed, getting spl account
       // should fail
-      try {
+      await expectException(async () => {
         const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
           provider.connection,
           receiptTokenAccount
         );
-        throw Error("Receipt NFT token account is not closed");
-      } catch (e) {}
+      }, "Receipt NFT token account is not closed");
       // Once withdraw request is complete, we can withdraw
       // sleeping for unbonding period to end
       await sleep(2000);
