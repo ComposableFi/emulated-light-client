@@ -72,7 +72,7 @@ pub mod restaking {
             .whitelisted_tokens
             .iter()
             .find(|&&token_mint| token_mint == ctx.accounts.token_mint.key())
-            .ok_or(error!(ErrorCodes::TokenNotWhitelisted))?;
+            .ok_or_else(|| error!(ErrorCodes::TokenNotWhitelisted))?;
 
         staking_params.total_deposited_amount += amount as u128;
         if staking_params.total_deposited_amount > staking_params.staking_cap {
@@ -171,7 +171,7 @@ pub mod restaking {
         let service = vault_params
             .service
             .as_ref()
-            .ok_or(error!(ErrorCodes::MissingService))?;
+            .ok_or_else(|| error!(ErrorCodes::MissingService))?;
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
@@ -334,7 +334,7 @@ pub mod restaking {
         let service = vault_params
             .service
             .as_ref()
-            .ok_or(error!(ErrorCodes::MissingService))?;
+            .ok_or_else(|| error!(ErrorCodes::MissingService))?;
 
         // Since we dont have slashing yet, we would return the complete amount
         let amount = vault_params.stake_amount;
@@ -497,7 +497,7 @@ pub mod restaking {
         let service = vault_params
             .service
             .as_ref()
-            .ok_or(error!(ErrorCodes::MissingService))?;
+            .ok_or_else(|| error!(ErrorCodes::MissingService))?;
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
