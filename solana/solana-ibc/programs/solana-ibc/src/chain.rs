@@ -69,6 +69,7 @@ impl ChainData {
         config: Config,
         genesis_epoch: Epoch,
         staking_program_id: Pubkey,
+        sig_verify_program_id: Pubkey,
     ) -> Result {
         let (host_height, host_timestamp) = get_host_head()?;
         let genesis = Block::generate_genesis(
@@ -89,6 +90,7 @@ impl ChainData {
             last_check_height: host_height,
             manager,
             staking_program_id: Box::new(staking_program_id),
+            sig_verify_program_id: Box::new(sig_verify_program_id),
         };
         let inner = self.inner.insert(Box::new(inner));
         let (finalised, head) = inner.manager.head();
@@ -242,6 +244,10 @@ impl ChainData {
         }
     }
 
+    pub fn sig_verify_program_id(&self) -> Result<Pubkey, Error> {
+        Ok(*self.get()?.sig_verify_program_id)
+    }
+
     /// Returns a shared reference the inner chain data if it has been
     /// initialised.
     fn get(&self) -> Result<&ChainInner, ChainNotInitialised> {
@@ -267,6 +273,9 @@ struct ChainInner {
 
     /// Staking Contract program ID. The program which would make CPI calls to set the stake
     staking_program_id: Box<Pubkey>,
+
+    /// Signature verification program ID. The program which responsible for chunking and storing signatures in the account
+    sig_verify_program_id: Box<Pubkey>,
 }
 
 impl ChainInner {
