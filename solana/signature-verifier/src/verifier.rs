@@ -1,3 +1,5 @@
+use std::ops::Deref;
+
 use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
@@ -78,6 +80,14 @@ impl<'info> Verifier<'info> {
         } else {
             Err(ProgramError::IncorrectProgramId)
         }
+    }
+
+    #[inline]
+    pub fn set_ix_from_account(&mut self, account: &AccountInfo) -> Result {
+        let data = account.data.borrow().deref().deref().to_vec();
+        // solana_program::msg!("This is data {:?}", data);
+        self.ed25519_data = Some(data);
+        Ok(())
     }
 
     /// Specifies account owned by sigverify program which holds aggregated

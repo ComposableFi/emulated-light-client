@@ -12,6 +12,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
+use sha2::Digest;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -23,7 +24,7 @@ pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
 
 mod allocator;
 pub mod chain;
@@ -82,7 +83,7 @@ solana_program::custom_panic_default!();
 #[anchor_lang::program]
 pub mod solana_ibc {
 
-    use std::collections::VecDeque;
+    use std::{collections::VecDeque, str::FromStr};
 
     use super::*;
 
@@ -94,8 +95,18 @@ pub mod solana_ibc {
         genesis_epoch: chain::Epoch,
         staking_program_id: Pubkey,
     ) -> Result<()> {
-        let v: VecDeque<(CryptoHash, u64)> = (0..100).map(|_| (CryptoHash::default(), 0)).collect();
-        v.iter().find_map(|x| { if x.1 == 1 {return Some(0);} None});
+        let commitment = hex_literal::hex!("0A83040A80040A26636C69656E74732F30382D7761736D2D312F636F6E73656E7375735374617465732F312D3434128D010A282F6962632E6C69676874636C69656E74732E7761736D2E76312E436F6E73656E737573537461746512610A550A252F6C69676874636C69656E74732E67756573742E76312E436F6E73656E7375735374617465122C0A20DEA292A0F299D3DC9B07B5C7C873AAFE5A03DD2F2DD9A77F56915CAAEF6597181080D4CC85B5908EE1171080D4CC85B5908EE1171A0C0801180120012A0400029A01222C0801120502049A01201A2120A6A8088954ADC9641CAB66BF8E46E64FA72956D622FFF90798DB9A12FF2B3536222A0801122604089A0120C618110A6FEFAA2FA69527B1594203C01EA1F0F3DE8E53AFD2D0C9631E7741E220222C08011205060E9A01201A2120A471F0F6039E469399B3271C6B3DA106FC3C281D2BB2A1F52BF16DBE3138A9A3222A0801122608149A0120AA4443F335AC3F60BF60B6BCF37DD2717B9630AC7C24BE348E25A39971CA61FC20222A080112260A2E9A0120153F7555E64C58E1C8C1E8E82450F8BCC53843D9D6DD8D5486C4C8836E51CD1E20222C080112050C429A01201A212025DF9C306125EF17AFD9F33D1A60B935B6164BC559C574363DCCD814BCB5EFC1222A080112260E5E9A012069F255949BAD32CE289324FF784DF7AEAF84648BE3A2305ECF1D2308E82E3F5F200AFC010AF9010A036962631220C71C50C71B089F372B5C855B769C6B9F02516B94501EB9F4B7184C08B1D2CD321A090801180120012A0100222508011221014E1D5C563B0DB0FFDCBA6FC97DC0C7B13B5B5C9C341357F08827565047D6C6B9222708011201011A20316A36D621713CC96F137FDCE34E0B887317E5BC1D400BDBC7D43A3392F3B441222508011221013C6456D6D999C4C3587E8FECFC6579D0B44983C779D9818B2D08B7130A01F58622250801122101EFCE1991ACD041B68D0930A8E774524ED5D8547B6255A402D62AC6283843A214222708011201011A20A97908A6F6321BA209CA760DB6C6D66776D42080F8BE9A926C40793C3623F78F");
+        solana_program::log::sol_log_compute_units();
+        let hash = lib::hash::CryptoHash::digest(&commitment);
+        solana_program::log::sol_log_compute_units();
+        let mut state = sha2::Sha256::new();
+        let binding = commitment.as_slice();
+        let slices = core::slice::from_ref(&binding);
+        for bytes in slices {
+            state.update(bytes);
+        }
+        let hash: [u8; 32] = state.finalize().into();
+        solana_program::log::sol_log_compute_units();
         let mut provable = storage::get_provable_from(
             &ctx.accounts.trie,
             &ctx.accounts.sender,
@@ -213,23 +224,39 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        solana_program::log::sol_log_compute_units();
+        // solana_program::log::sol_log_compute_units();
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
+        let sig_verify_program_id =
+            Pubkey::from_str("C6r1VEbn3mSpecgrZ7NdBvWUtYVJWrDPv4uU9Xs956gc")
+                .unwrap();
 
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
             let mut verifier = sigverify::Verifier::default();
-            if verifier.set_ix_sysvar(last).is_ok() {
+            if verifier
+                .set_sigverify_account(
+                    unsafe { core::mem::transmute(last) },
+                    &sig_verify_program_id,
+                )
+                .is_ok()
+            {
                 global().set_verifier(verifier);
                 ctx.remaining_accounts = rest;
             }
         }
         let height = store.borrow().chain.head().unwrap().block_height;
-        msg!("Current Block height {:?}", u64::from(height)); 
+        msg!("Current Block height {:?}", u64::from(height));
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
-            .map_err(move |err| error!((&err)))
+            .map_err(move |err| error!((&err)))?;
+
+        // if ctx.remaining_accounts.split_last().is_some() {
+        let storage = &store.borrow().private;
+        let client_state = &storage.clients[0].client_state;
+        msg!("This is updated client state {:?}", client_state.as_bytes());
+        // }
+        Ok(())
     }
 
     /// Called to set up a connection, channel and store the next
@@ -348,7 +375,7 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
         let height = store.borrow().chain.head().unwrap().block_height;
-        msg!("Current Block height {:?}", u64::from(height)); 
+        msg!("Current Block height {:?}", u64::from(height));
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,

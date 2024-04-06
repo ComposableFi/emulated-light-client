@@ -1,6 +1,7 @@
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
 use ibc_proto::Protobuf;
+use spl_token::solana_program;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
@@ -196,6 +197,7 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<Vec<ibc::Height>, ibc::ContextError> {
+        solana_program::msg!("This is consensus state heights");
         Ok(self
             .borrow()
             .private

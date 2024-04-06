@@ -20,7 +20,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientStatePath,
         state: Self::AnyClientState,
     ) -> Result {
-        msg!("store_client_state({}, {:?})", path, state);
+        // msg!("store_client_state({}, {:?})", path, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(&path.0, true)?;
         let hash = client.client_state.set(&state)?.digest_with_client(&path.0);
@@ -86,7 +86,7 @@ impl IbcStorage<'_, '_> {
         height: ibc::Height,
         state: AnyConsensusState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_consensus_state({}, {:?})", client_id, state);
+        // msg!("store_consensus_state({}, {:?})", client_id, state);
         let mut store = self.borrow_mut();
         // TODO(mina86): This should be host timestamp and height.
         let (processed_time, processed_height) = {

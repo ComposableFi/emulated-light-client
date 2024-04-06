@@ -38,6 +38,8 @@ spl-token.workspace = true
 strum.workspace = true
 uint.workspace = true
 prost.workspace = true  
+hex-literal.workspace = true
+sha2.workspace = true
 
 guestchain.workspace = true
 cf-guest.workspace = true

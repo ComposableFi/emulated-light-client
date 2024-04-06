@@ -11,6 +11,8 @@ use crate::{candidates::Candidate, BlockHeight};
 pub use crate::candidates::UpdateCandidateError;
 use crate::Validator;
 
+const MAX_CONSENSUS_STATES: usize = 20;
+
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct ChainManager<PK> {
     /// Configuration specifying limits for block generation.
@@ -216,6 +218,9 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             signing_stake: 0,
         });
         self.candidates.clear_changed_flag();
+        if self.consensus_states.len() == MAX_CONSENSUS_STATES {
+            self.consensus_states.pop_front();
+        }
         self.consensus_states.push_back(LocalConsensusState {
             blockhash: next_block.header.calc_hash().to_vec(),
             height: next_block.block_height,

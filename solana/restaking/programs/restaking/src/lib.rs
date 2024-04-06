@@ -16,7 +16,7 @@ use constants::{
     VAULT_PARAMS_SEED, VAULT_SEED,
 };
 
-declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
+declare_id!("AUZ49FJPKjHyCc8ir1YHDhBmGZCF4pAfp9LZvvE7Qs6B");
 
 #[program]
 pub mod restaking {

@@ -82,6 +82,7 @@ fn process_instruction<'a>(
         .split_first()
         .ok_or(ProgramError::InvalidInstructionData)?;
 
+    solana_program::msg!("I am in handle_update with prev_ix ");
     let ctx = Context::get(program_id, &mut accounts, &mut instruction)?;
 
     match (tag, instruction.len()) {
@@ -119,6 +120,7 @@ fn handle_update(
         accounts.first().ok_or(ProgramError::NotEnoughAccountKeys)?;
     let prev_ix = instructions::get_instruction_relative(-1, ix_sysvar)?;
 
+    solana_program::msg!("I am in handle_update with prev_ix {:?}", prev_ix);
     // Parse signatures from the call to the Ed25519 signature verification
     // native program and copy them to the Signatures account.
     process_ed25519_instruction(prev_ix, |signature| {

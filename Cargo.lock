@@ -391,7 +391,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "hashbrown 0.13.2",
- "itertools 0.10.5",
+ "itertools",
  "num-traits",
  "zeroize",
 ]
@@ -408,7 +408,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "digest 0.10.7",
- "itertools 0.10.5",
+ "itertools",
  "num-bigint 0.4.4",
  "num-traits",
  "paste",
@@ -965,14 +965,14 @@ dependencies = [
  "ibc-primitives",
  "ibc-proto",
  "insta",
- "lib",
+ "lib 0.0.0",
  "memory",
  "prost",
  "prost-build",
  "rand 0.8.5",
  "sealable-trie",
  "solana-program",
- "stdx",
+ "stdx 0.0.0",
  "trie-ids",
 ]
 
@@ -1929,13 +1929,13 @@ dependencies = [
  "ibc-primitives",
  "ibc-proto",
  "insta",
- "lib",
+ "lib 0.0.0",
  "memory",
  "prost",
  "prost-build",
  "rand 0.8.5",
  "sealable-trie",
- "stdx",
+ "stdx 0.0.0",
  "strum",
  "trie-ids",
 ]
@@ -2414,6 +2414,7 @@ dependencies = [
  "ibc-core-handler-types",
  "ibc-core-host",
  "ibc-primitives",
+ "lib 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
 ]
 
 [[package]]
@@ -2454,17 +2455,22 @@ dependencies = [
 name = "ibc-core-commitment-types"
 version = "0.50.0"
 dependencies = [
+ "blake2",
+ "blake3",
  "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-primitives",
  "ibc-proto",
  "ics23",
+ "lib 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
  "parity-scale-codec",
+ "ripemd",
  "scale-info",
  "schemars",
  "serde",
- "solana-program",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
  "subtle-encoding",
 ]
 
@@ -2477,7 +2483,6 @@ dependencies = [
  "ibc-core-handler-types",
  "ibc-core-host",
  "ibc-primitives",
- "solana-program",
 ]
 
 [[package]]
@@ -2852,15 +2857,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2925,7 +2921,19 @@ dependencies = [
  "rand 0.8.5",
  "sha2 0.10.8",
  "solana-program",
- "stdx",
+ "stdx 0.0.0",
+]
+
+[[package]]
+name = "lib"
+version = "0.0.0"
+source = "git+https://github.com/ComposableFi/emulated-light-client#b252e3950f936b4749f913a5c8296c6b61b46bcd"
+dependencies = [
+ "base64 0.21.7",
+ "bytemuck",
+ "derive_more",
+ "sha2 0.10.8",
+ "stdx 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
 ]
 
 [[package]]
@@ -3076,7 +3084,7 @@ name = "memory"
 version = "0.0.0"
 dependencies = [
  "derive_more",
- "stdx",
+ "stdx 0.0.0",
 ]
 
 [[package]]
@@ -3640,7 +3648,7 @@ checksum = "c55e02e35260070b6f716a2423c2ff1c3bb1642ddca6f99e1f26d06268a0e2d2"
 dependencies = [
  "bytes",
  "heck 0.4.1",
- "itertools 0.11.0",
+ "itertools",
  "log",
  "multimap",
  "once_cell",
@@ -3659,7 +3667,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn 2.0.46",
@@ -4243,12 +4251,12 @@ dependencies = [
  "bytemuck",
  "derive_more",
  "hex-literal",
- "lib",
+ "lib 0.0.0",
  "memory",
  "pretty_assertions",
  "rand 0.8.5",
  "sha2 0.10.8",
- "stdx",
+ "stdx 0.0.0",
  "strum",
 ]
 
@@ -4704,20 +4712,21 @@ dependencies = [
  "ibc-proto",
  "ibc-testkit",
  "insta",
- "lib",
+ "lib 0.0.0",
  "linear-map",
  "memory",
  "primitive-types",
  "prost",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "solana-allocator",
  "solana-signature-verifier",
  "solana-trie",
  "solana-write-account",
  "spl-associated-token-account",
  "spl-token",
- "stdx",
+ "stdx 0.0.0",
  "strum",
  "tendermint",
  "tendermint-light-client-verifier",
@@ -4837,7 +4846,7 @@ dependencies = [
  "console_log",
  "curve25519-dalek",
  "getrandom 0.2.11",
- "itertools 0.10.5",
+ "itertools",
  "js-sys",
  "lazy_static",
  "libc",
@@ -4877,7 +4886,7 @@ dependencies = [
  "bincode",
  "eager",
  "enum-iterator",
- "itertools 0.10.5",
+ "itertools",
  "libc",
  "log",
  "num-derive 0.3.3",
@@ -4929,7 +4938,7 @@ dependencies = [
  "async-mutex",
  "async-trait",
  "futures",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "log",
  "quinn",
@@ -5058,7 +5067,7 @@ dependencies = [
  "ed25519-dalek-bip32",
  "generic-array",
  "hmac 0.12.1",
- "itertools 0.10.5",
+ "itertools",
  "js-sys",
  "lazy_static",
  "libsecp256k1",
@@ -5116,10 +5125,10 @@ dependencies = [
  "ed25519-dalek",
  "guestchain",
  "insta",
- "lib",
+ "lib 0.0.0",
  "solana-program",
  "solana-sdk",
- "stdx",
+ "stdx 0.0.0",
 ]
 
 [[package]]
@@ -5134,7 +5143,7 @@ dependencies = [
  "futures-util",
  "histogram",
  "indexmap 2.1.0",
- "itertools 0.10.5",
+ "itertools",
  "libc",
  "log",
  "nix",
@@ -5222,11 +5231,11 @@ dependencies = [
 name = "solana-trie"
 version = "0.0.0"
 dependencies = [
- "lib",
+ "lib 0.0.0",
  "memory",
  "sealable-trie",
  "solana-program",
- "stdx",
+ "stdx 0.0.0",
 ]
 
 [[package]]
@@ -5234,12 +5243,12 @@ name = "solana-trie-example"
 version = "0.0.0"
 dependencies = [
  "derive_more",
- "lib",
+ "lib 0.0.0",
  "memory",
  "sealable-trie",
  "solana-program",
  "solana-trie",
- "stdx",
+ "stdx 0.0.0",
 ]
 
 [[package]]
@@ -5300,7 +5309,7 @@ name = "solana-write-account"
 version = "0.0.0"
 dependencies = [
  "solana-program",
- "stdx",
+ "stdx 0.0.0",
 ]
 
 [[package]]
@@ -5316,7 +5325,7 @@ dependencies = [
  "byteorder",
  "curve25519-dalek",
  "getrandom 0.1.16",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "merlin",
  "num-derive 0.3.3",
@@ -5586,6 +5595,11 @@ name = "stdx"
 version = "0.0.0"
 
 [[package]]
+name = "stdx"
+version = "0.0.0"
+source = "git+https://github.com/ComposableFi/emulated-light-client#b252e3950f936b4749f913a5c8296c6b61b46bcd"
+
+[[package]]
 name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5717,8 +5731,6 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15ab8f0a25d0d2ad49ac615da054d6a76aa6603ff95f7d18bafdd34450a1a04b"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -5726,6 +5738,7 @@ dependencies = [
  "ed25519-consensus",
  "flex-error",
  "futures",
+ "lib 0.0.0",
  "num-traits",
  "once_cell",
  "prost",
@@ -5746,8 +5759,6 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b8090d0eef9ad57b1b913b5e358e26145c86017e87338136509b94383a4af25"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -5759,8 +5770,6 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b797dd3d2beaaee91d2f065e7bdf239dc8d80bba4a183a288bc1279dd5a69a1e"
 dependencies = [
  "bytes",
  "flex-error",
@@ -6094,7 +6103,7 @@ dependencies = [
  "ibc-core-client-types",
  "ibc-core-connection-types",
  "ibc-core-host-types",
- "lib",
+ "lib 0.0.0",
  "rand 0.8.5",
  "strum",
 ]
@@ -6283,7 +6292,7 @@ dependencies = [
  "directories",
  "env_logger 0.7.1",
  "guestchain",
- "lib",
+ "lib 0.0.0",
  "log",
  "restaking",
  "serde",
@@ -6347,14 +6356,14 @@ dependencies = [
  "ibc-primitives",
  "ibc-proto",
  "insta",
- "lib",
+ "lib 0.0.0",
  "memory",
  "prost",
  "prost-build",
  "rand 0.8.5",
  "sealable-trie",
  "solana-program",
- "stdx",
+ "stdx 0.0.0",
  "trie-ids",
 ]
 
@@ -6839,5 +6848,5 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "ics23"
-version = "0.11.0"
+name = "tendermint-light-client"
+version = "0.34.1"

@@ -12,7 +12,6 @@ use crate::ibc::{ChannelId, PortId, TokenTransferError};
 use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
-
 /// Account identifier on Solana, i.e. account’s public key.
 #[derive(
     Clone,
@@ -242,19 +241,22 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         */
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
+            msg!("Token program or token mint or mint authority dont exist");
             return Err(TokenTransferError::ParseAccountFailure);
         }
         let token_account = accounts
             .token_account
             .as_ref()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
-            return Err(TokenTransferError::ParseAccountFailure);
-        }
+            .ok_or({ msg!("Token account is empty");TokenTransferError::ParseAccountFailure})?;
+        msg!("Receiver doesnt match token account {:?} and {:?}", account.0, token_account.key);
+        // if !account.0.eq(token_account.key) {
+        //     msg!("Receiver doesnt match token account {:?} and {:?}", account.0, token_account.key);
+        //     return Err(TokenTransferError::ParseAccountFailure);
+        // }
         Ok(())
     }
 
@@ -273,9 +275,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         */
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -283,9 +285,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
-            return Err(TokenTransferError::ParseAccountFailure);
-        }
+        // if !account.0.eq(token_account.key) {
+        //     return Err(TokenTransferError::ParseAccountFailure);
+        // }
         Ok(())
     }
 }
@@ -320,6 +322,7 @@ impl IbcStorage<'_, '_> {
         let store = self.borrow();
         let accounts = &store.accounts;
         if accounts.token_program.is_none() || accounts.token_mint.is_none() {
+            msg!("Token program or token mint dont exist");
             return Err(TokenTransferError::ParseAccountFailure);
         }
 
@@ -331,13 +334,27 @@ impl IbcStorage<'_, '_> {
             .escrow_account
             .as_ref()
             .filter(|escrow_account| escrow.eq(escrow_account.key))
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
+            .ok_or({
+                msg!(
+                    "Escrow: Expected {:?} sent {:?}",
+                    escrow,
+                    accounts.escrow_account
+                );
+                TokenTransferError::ParseAccountFailure
+            })?;
 
         accounts
             .token_account
             .as_ref()
             .filter(|token_account| account.0.eq(token_account.key))
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
+            .ok_or({
+                msg!(
+                    "TokenAccount: Expected {:?} sent {:?}",
+                    account.0,
+                    accounts.token_account
+                );
+                TokenTransferError::ParseAccountFailure
+            })?;
 
         let ok = match op {
             EscrowOp::Escrow => {
