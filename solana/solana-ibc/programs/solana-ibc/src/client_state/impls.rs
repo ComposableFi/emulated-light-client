@@ -123,12 +123,10 @@ mod tm {
     use lib::hash::CryptoHash;
     use tendermint::crypto::signature::Error;
     use tendermint::crypto::Sha256;
-    use tendermint::merkle::{MerkleHash, NonIncremental};
+    use tendermint::merkle::MerkleHash;
     use tendermint_light_client_verifier::operations::commit_validator::ProdCommitValidator;
     use tendermint_light_client_verifier::operations::voting_power::ProvidedVotingPowerCalculator;
-    use tendermint_light_client_verifier::predicates::{
-        ProdPredicates, VerificationPredicates,
-    };
+    use tendermint_light_client_verifier::predicates::VerificationPredicates;
     use tendermint_light_client_verifier::PredicateVerifier;
 
     pub(super) struct TmVerifier;
@@ -160,7 +158,7 @@ mod tm {
 
     impl MerkleHash for CustomHash {
         fn empty_hash(&mut self) -> tendermint::merkle::Hash {
-            CustomHash::digest(&[])
+            CustomHash::digest([])
         }
 
         fn leaf_hash(&mut self, bytes: &[u8]) -> tendermint::merkle::Hash {
