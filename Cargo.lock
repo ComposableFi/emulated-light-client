@@ -1703,16 +1703,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "eyre"
-version = "0.6.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
-dependencies = [
- "indenter",
- "once_cell",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1758,7 +1748,6 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c606d892c9de11507fa0dcffc116434f94e105d0bbdc4e405b61519464c49d7b"
 dependencies = [
- "eyre",
  "paste",
 ]
 
@@ -2818,12 +2807,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "indenter"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
@@ -5793,7 +5776,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=fd7c711864681f5f8048c660b459d6d6ab6fee87#fd7c711864681f5f8048c660b459d6d6ab6fee87"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -5822,7 +5805,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=fd7c711864681f5f8048c660b459d6d6ab6fee87#fd7c711864681f5f8048c660b459d6d6ab6fee87"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -5834,7 +5817,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=fd7c711864681f5f8048c660b459d6d6ab6fee87#fd7c711864681f5f8048c660b459d6d6ab6fee87"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
 dependencies = [
  "bytes",
  "flex-error",
@@ -6905,4 +6888,4 @@ dependencies = [
 [[patch.unused]]
 name = "tendermint-light-client"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=fd7c711864681f5f8048c660b459d6d6ab6fee87#fd7c711864681f5f8048c660b459d6d6ab6fee87"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
