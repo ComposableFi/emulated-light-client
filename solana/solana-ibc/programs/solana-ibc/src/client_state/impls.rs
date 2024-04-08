@@ -261,7 +261,6 @@ impl tendermint::merkle::MerkleHash for SolanaHostFunctions {
         // correct.
         hex_literal::hex!("e3b0c44298fc1c14 9afbf4c8996fb924"
                           "27ae41e4649b934c a495991b7852b855")
-        .into()
     }
 
     fn leaf_hash(&mut self, bytes: &[u8]) -> [u8; 32] {
