@@ -101,16 +101,17 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
     /// last byte of the slice which will cause UB if it fails beyond available
     /// heap space.  When run as Solana contract that UB is segfault.
     ///
-    /// If check passes, returns `start` cast to `*mut u8`.  Otherwise returns
-    /// a NULL pointer.
+    /// If check passes, returns `ptr` aligned to `layout.align()`.  Otherwise
+    /// returns a NULL pointer.
     #[inline]
     fn update_end_pos(
         &self,
         header: &Header<G>,
         ptr: *mut u8,
-        size: usize,
+        layout: Layout,
     ) -> *mut u8 {
-        let end = match (ptr as usize).checked_add(size) {
+        let ptr = ptr::align(ptr, layout.align());
+        let end = match (ptr as usize).checked_add(layout.size()) {
             None => return core::ptr::null_mut(),
             Some(addr) => ptr::with_addr(ptr, addr),
         };
@@ -156,8 +157,7 @@ unsafe impl<G: bytemuck::Zeroable> GlobalAlloc for BumpAllocator<G> {
                 ptr::end_addr_of_val(header),
             );
         };
-        let ptr = ptr::align(ptr, layout.align());
-        self.update_end_pos(header, ptr, layout.size())
+        self.update_end_pos(header, ptr, layout)
     }
 
     /// Deallocates specified object.
@@ -179,18 +179,22 @@ unsafe impl<G: bytemuck::Zeroable> GlobalAlloc for BumpAllocator<G> {
         layout: Layout,
         new_size: usize,
     ) -> *mut u8 {
+        // SAFETY: Caller guarantees new layout is valid.
+        let new_layout = unsafe {
+            Layout::from_size_align_unchecked(new_size, layout.align())
+        };
         let header = self.header();
         let tail = header.end_pos.get();
         if ptr.wrapping_add(layout.size()) == tail {
             // If this is the last allocation, resize.
-            self.update_end_pos(header, ptr, new_size)
+            self.update_end_pos(header, ptr, new_layout)
         } else if new_size <= layout.size() {
             // If user wants to shrink size, do nothing.  We’re leaking memory
             // here but we’re bump allocator so that’s what we do.
             ptr
         } else {
             // Otherwise, we need to make a new allocation and copy.
-            let new_ptr = self.update_end_pos(header, tail, new_size);
+            let new_ptr = self.update_end_pos(header, tail, new_layout);
             if !new_ptr.is_null() {
                 // SAFETY: The previously allocated block cannot overlap the
                 // newly allocated block.  Note that layout.size() < new_size.
