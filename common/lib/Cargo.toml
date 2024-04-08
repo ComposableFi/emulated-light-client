@@ -10,7 +10,7 @@ borsh = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 sha2.workspace = true
-solana-program = { workspace = true, optional = true }
+solana-program = { workspace = true }
 
 stdx.workspace = true
 
@@ -19,4 +19,5 @@ rand.workspace = true
 
 [features]
 test_utils = []
-solana-program = ["dep:solana-program"]
+solana-program = []
+# solana-program = ["dep:solana-program"]

@@ -2219,7 +2219,7 @@ dependencies = [
 [[package]]
 name = "ibc"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-apps",
  "ibc-clients",
@@ -2232,7 +2232,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-app-nft-transfer-types",
  "ibc-core",
@@ -2242,7 +2242,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-nft-transfer-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "base64 0.21.7",
  "borsh 0.10.3",
@@ -2262,7 +2262,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-app-transfer-types",
  "ibc-core",
@@ -2272,7 +2272,7 @@ dependencies = [
 [[package]]
 name = "ibc-app-transfer-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2287,7 +2287,7 @@ dependencies = [
 [[package]]
 name = "ibc-apps"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-app-nft-transfer",
  "ibc-app-transfer",
@@ -2296,7 +2296,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "derive_more",
  "ibc-client-tendermint-types",
@@ -2306,6 +2306,7 @@ dependencies = [
  "ibc-core-host",
  "ibc-primitives",
  "serde",
+ "solana-program",
  "tendermint",
  "tendermint-light-client-verifier",
 ]
@@ -2313,7 +2314,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "bytes",
@@ -2325,6 +2326,7 @@ dependencies = [
  "ibc-proto",
  "prost",
  "serde",
+ "solana-program",
  "tendermint",
  "tendermint-light-client-verifier",
  "tendermint-proto",
@@ -2333,7 +2335,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-wasm-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "base64 0.21.7",
  "displaydoc",
@@ -2347,7 +2349,7 @@ dependencies = [
 [[package]]
 name = "ibc-clients"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-client-tendermint",
  "ibc-client-wasm-types",
@@ -2356,7 +2358,7 @@ dependencies = [
 [[package]]
 name = "ibc-core"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-core-channel",
  "ibc-core-client",
@@ -2372,7 +2374,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-core-channel-types",
  "ibc-core-client",
@@ -2387,7 +2389,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2410,8 +2412,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-client"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
+ "ibc-client-tendermint-types",
  "ibc-core-client-context",
  "ibc-core-client-types",
  "ibc-core-commitment-types",
@@ -2419,15 +2422,17 @@ dependencies = [
  "ibc-core-host",
  "ibc-primitives",
  "lib 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
+ "solana-program",
 ]
 
 [[package]]
 name = "ibc-core-client-context"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "derive_more",
  "displaydoc",
+ "ibc-client-tendermint-types",
  "ibc-core-client-types",
  "ibc-core-commitment-types",
  "ibc-core-handler-types",
@@ -2440,7 +2445,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2460,7 +2465,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-commitment-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "blake2",
  "blake3",
@@ -2478,25 +2483,27 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
+ "solana-program",
  "subtle-encoding",
 ]
 
 [[package]]
 name = "ibc-core-connection"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "ibc-core-client",
  "ibc-core-connection-types",
  "ibc-core-handler-types",
  "ibc-core-host",
  "ibc-primitives",
+ "solana-program",
 ]
 
 [[package]]
 name = "ibc-core-connection-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2517,8 +2524,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-handler"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
+ "ibc-client-tendermint-types",
  "ibc-core-channel",
  "ibc-core-client",
  "ibc-core-commitment-types",
@@ -2527,12 +2535,13 @@ dependencies = [
  "ibc-core-host",
  "ibc-core-router",
  "ibc-primitives",
+ "solana-program",
 ]
 
 [[package]]
 name = "ibc-core-handler-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2556,7 +2565,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2574,7 +2583,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-cosmos"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2598,7 +2607,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2613,7 +2622,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2627,7 +2636,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router-types"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2646,7 +2655,7 @@ dependencies = [
 [[package]]
 name = "ibc-derive"
 version = "0.6.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2656,7 +2665,7 @@ dependencies = [
 [[package]]
 name = "ibc-primitives"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "borsh 0.10.3",
  "derive_more",
@@ -2695,11 +2704,12 @@ dependencies = [
 [[package]]
 name = "ibc-testkit"
 version = "0.50.0"
-source = "git+https://github.com/dhruvja/ibc-rs?rev=5a11366e11898b6c276c559d70b7c3245da4dc37#5a11366e11898b6c276c559d70b7c3245da4dc37"
+source = "git+https://github.com/dhruvja/ibc-rs?rev=66ed6ce2959d38043d4cb936a1044330146e3faa#66ed6ce2959d38043d4cb936a1044330146e3faa"
 dependencies = [
  "derive_more",
  "displaydoc",
  "ibc",
+ "ibc-client-tendermint-types",
  "ibc-proto",
  "parking_lot",
  "subtle-encoding",
@@ -2946,6 +2956,7 @@ dependencies = [
  "bytemuck",
  "derive_more",
  "sha2 0.10.8",
+ "solana-program",
  "stdx 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
 ]
 
@@ -3645,9 +3656,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.4"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0f5d036824e4761737860779c906171497f6d55681139d8312388f8fe398922"
+checksum = "146c289cda302b98a28d40c8b3b90498d6e526dd24ac2ecea73e4e491685b94a"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -3675,9 +3686,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.12.4"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19de2de2a00075bf566bee3bd4db014b11587e84184d3f7a791bc17f1a8e9e48"
+checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
  "itertools",
@@ -5747,7 +5758,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=f77d57c61448230ec348c8fc9f4da982bcc0e8fd#f77d57c61448230ec348c8fc9f4da982bcc0e8fd"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -5776,19 +5787,21 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=f77d57c61448230ec348c8fc9f4da982bcc0e8fd#f77d57c61448230ec348c8fc9f4da982bcc0e8fd"
 dependencies = [
  "derive_more",
  "flex-error",
  "serde",
+ "solana-program",
  "tendermint",
+ "tendermint-proto",
  "time",
 ]
 
 [[package]]
 name = "tendermint-proto"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=f77d57c61448230ec348c8fc9f4da982bcc0e8fd#f77d57c61448230ec348c8fc9f4da982bcc0e8fd"
 dependencies = [
  "bytes",
  "flex-error",
@@ -6869,4 +6882,4 @@ dependencies = [
 [[patch.unused]]
 name = "tendermint-light-client"
 version = "0.34.1"
-source = "git+https://github.com/dhruvja/tendermint-rs?rev=0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4#0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4"
+source = "git+https://github.com/dhruvja/tendermint-rs?rev=f77d57c61448230ec348c8fc9f4da982bcc0e8fd#f77d57c61448230ec348c8fc9f4da982bcc0e8fd"
