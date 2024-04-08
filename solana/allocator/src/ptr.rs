@@ -34,20 +34,24 @@ pub(super) fn range(start: *mut u8, size: usize) -> core::ops::Range<*mut u8> {
 /// Caller must guarantees all of the conditions required by
 /// [`core::ptr::copy_nonoverlapping`].
 pub(super) unsafe fn memcpy(dst: *mut u8, src: *const u8, size: usize) {
-    debug_assert!(
-        !overlap(dst, src, size),
-        "trying to memcpy overlapping regions: dst={dst:?}, src={src:?}, \
-         size={size}",
-    );
+    if cfg!(debug_assertions) {
+        assert_no_overlap(dst, size, src, size);
+    }
     // SAFETY: Caller guarantees all necessary conditions.
     unsafe { core::ptr::copy_nonoverlapping(src, dst, size) }
 }
 
-fn overlap(a: *const u8, b: *const u8, size: usize) -> bool {
-    let (a, b) = (a as usize, b as usize);
-    if a < b {
-        (b - a) < size
-    } else {
-        (a - b) < size
-    }
+#[track_caller]
+pub(super) fn assert_no_overlap(
+    a: *const u8,
+    a_size: usize,
+    b: *const u8,
+    b_size: usize,
+) {
+    let a = range(a as *mut u8, a_size);
+    let b = range(b as *mut u8, b_size);
+    assert!(
+        !a.contains(&b.start) && !a.contains(&b.end),
+        "{a:?} and {b:?} overlap",
+    )
 }

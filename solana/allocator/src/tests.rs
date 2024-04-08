@@ -45,28 +45,27 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
         let common_size = core::cmp::min(layout.size(), new_size);
 
         core::ptr::NonNull::new(unsafe { self.realloc(ptr, layout, new_size) })
-            .map(|ptr| {
-                let ptr = ptr.as_ptr();
+            .map(|new_ptr| {
+                let new_ptr = new_ptr.as_ptr();
                 let mask = layout.align() - 1;
                 assert_eq!(0, ptr as usize & mask, "{ptr:?} is misaligned");
 
                 let new_data =
-                    unsafe { core::slice::from_raw_parts(ptr, new_size) };
+                    unsafe { core::slice::from_raw_parts(new_ptr, new_size) };
                 assert_eq!(&old_data[..common_size], &new_data[..common_size]);
 
-                ptr
+                if ptr != new_ptr {
+                    ptr::assert_no_overlap(
+                        ptr,
+                        layout.size(),
+                        new_ptr,
+                        new_size,
+                    );
+                }
+
+                new_ptr
             })
     }
-}
-
-#[track_caller]
-fn assert_no_overlap(a: *const u8, a_size: usize, b: *const u8, b_size: usize) {
-    let a = ptr::range(a as *mut u8, a_size);
-    let b = ptr::range(b as *mut u8, b_size);
-    assert!(
-        !a.contains(&b.start) && !a.contains(&b.end),
-        "{a:?} and {b:?} overlap",
-    )
 }
 
 #[test]
@@ -87,7 +86,7 @@ fn test_alloc() {
 
     let second = allocator.check_alloc(layout_align_4).unwrap();
     assert_eq!(20, allocator.used());
-    assert_no_overlap(first, 9, second, 8);
+    ptr::assert_no_overlap(first, 9, second, 8);
 }
 
 #[test]
@@ -102,7 +101,7 @@ fn test_dealloc() {
 
     let second = allocator.check_alloc(layout).unwrap();
     assert_eq!(20, allocator.used());
-    assert_no_overlap(first, 10, second, 10);
+    ptr::assert_no_overlap(first, 10, second, 10);
 
     // Freeing last allocation recovers the memory.
     unsafe { allocator.dealloc(second, layout) };
@@ -184,7 +183,7 @@ fn test_global() {
     let layout = Layout::from_size_align(8, 1).unwrap();
     let ptr = allocator.check_alloc(layout).unwrap();
     assert_eq!(8, allocator.used());
-    assert_no_overlap(
+    ptr::assert_no_overlap(
         core::ptr::addr_of!(*global).cast(),
         core::mem::size_of_val(global),
         ptr,
