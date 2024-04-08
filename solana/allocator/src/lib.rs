@@ -198,7 +198,7 @@ unsafe impl<G: bytemuck::Zeroable> GlobalAlloc for BumpAllocator<G> {
             if !new_ptr.is_null() {
                 // SAFETY: The previously allocated block cannot overlap the
                 // newly allocated block.  Note that layout.size() < new_size.
-                unsafe { ptr.copy_to_nonoverlapping(new_ptr, layout.size()) };
+                unsafe { ptr::memcpy(new_ptr, ptr, layout.size()) }
             }
             new_ptr
         }
