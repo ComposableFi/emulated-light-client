@@ -176,12 +176,13 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         &restaking::ID,
     )
     .0;
+    let program_id = Pubkey::from_str(&config.program_id).unwrap();
     let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID)
+        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &program_id)
             .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
-        &solana_ibc::ID,
+        &program_id,
     )
     .0;
     let master_edition_account = Pubkey::find_program_address(
@@ -238,7 +239,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             nft_metadata,
             chain,
             trie,
-            guest_chain_program_id: solana_ibc::ID,
+            guest_chain_program_id: program_id,
         })
         .args(restaking::instruction::Deposit {
             service: Service::GuestChain { validator: validator.pubkey() },

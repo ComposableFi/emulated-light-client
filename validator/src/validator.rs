@@ -20,19 +20,20 @@ pub fn run_validator(config: Config) {
         validator.clone(),
         CommitmentConfig::processed(),
     );
-    let program = client.program(solana_ibc::ID).unwrap();
+    let program_id = Pubkey::from_str(&config.program_id).unwrap();
+    let program = client.program(program_id).unwrap();
 
     let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID)
+        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &program_id)
             .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
-        &solana_ibc::ID,
+        &program_id,
     )
     .0;
     let private_storage = Pubkey::find_program_address(
         &[solana_ibc::SOLANA_IBC_STORAGE_SEED],
-        &solana_ibc::ID,
+        &program_id,
     )
     .0;
 
