@@ -15,6 +15,7 @@ ibc-primitives.workspace = true
 ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
 solana-program.workspace = true
+ibc-client-tendermint-types.workspace = true
 
 guestchain.workspace = true
 lib = { workspace = true, features = ["borsh"] }

@@ -245,17 +245,20 @@ pub mod solana_ibc {
             }
         }
         let height = store.borrow().chain.head().unwrap().block_height;
-        msg!("Current Block height {:?}", u64::from(height));
+        // msg!("Current Block height {:?}", u64::from(height));
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))?;
 
-        // if ctx.remaining_accounts.split_last().is_some() {
-        let storage = &store.borrow().private;
-        let client_state = &storage.clients[0].client_state;
-        msg!("This is updated client state {:?}", client_state.as_bytes());
-        // }
+        msg!("Completed");
+        solana_program::log::sol_log_compute_units();
+
+        // // if ctx.remaining_accounts.split_last().is_some() {
+        // let storage = &store.borrow().private;
+        // let client_state = &storage.clients[0].client_state;
+        // msg!("This is updated client state {:?}", client_state.as_bytes());
+        // // }
         Ok(())
     }
 

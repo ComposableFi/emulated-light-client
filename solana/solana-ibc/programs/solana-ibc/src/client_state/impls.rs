@@ -16,7 +16,7 @@ macro_rules! delegate {
             match self {
                 AnyClientState::Tendermint(cs) => cs.$name($($arg),*),
                 AnyClientState::Guest(cs) => cs.$name($($arg),*),
-                #[cfg(any(test, feature = "mocks"))]
+                #[cfg(feature = "mocks")]
                 AnyClientState::Mock(cs) => cs.$name($($arg),*),
                 _ => unimplemented!(),
             }
@@ -74,9 +74,37 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             AnyClientState::Guest(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
+            }
+            _ => unimplemented!(),
+        }
+    }
+
+    fn verify_tm_client_message(
+        &self,
+        ctx: &IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        client_message: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_tm_client_message(
+                    cs.inner(),
+                    ctx,
+                    client_id,
+                    client_message,
+                    &tm::TmVerifier,
+                )
+            }
+            AnyClientState::Guest(cs) => {
+                cs.verify_tm_client_message(ctx, client_id, client_message)
+            }
+            #[cfg(feature = "mocks")]
+            AnyClientState::Mock(cs) => {
+                panic!("WTF");
+                // cs.verify_client_message(ctx, client_id, client_message)
             }
             _ => unimplemented!(),
         }
@@ -108,6 +136,12 @@ impl<'a, 'b> ibc::ClientStateExecution<IbcStorage<'a, 'b>> for AnyClientState {
         client_id: &ibc::ClientId,
         header: ibc::Any,
     ) -> Result<Vec<ibc::Height>>);
+    delegate!(fn update_tm_state(
+        &self,
+        ctx: &mut IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        header: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result<Vec<ibc::Height>>);
     delegate!(fn update_state_on_misbehaviour(
         &self,
         ctx: &mut IbcStorage<'a, 'b>,
@@ -127,12 +161,10 @@ mod tm {
     use lib::hash::CryptoHash;
     use tendermint::crypto::signature::Error;
     use tendermint::crypto::Sha256;
-    use tendermint::merkle::{MerkleHash, NonIncremental};
+    use tendermint::merkle::MerkleHash;
     use tendermint_light_client_verifier::operations::commit_validator::ProdCommitValidator;
     use tendermint_light_client_verifier::operations::voting_power::ProvidedVotingPowerCalculator;
-    use tendermint_light_client_verifier::predicates::{
-        ProdPredicates, VerificationPredicates,
-    };
+    use tendermint_light_client_verifier::predicates::VerificationPredicates;
     use tendermint_light_client_verifier::PredicateVerifier;
 
     pub(super) struct TmVerifier;

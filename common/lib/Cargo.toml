@@ -19,3 +19,4 @@ rand.workspace = true
 
 [features]
 test_utils = []
+solana-program = ["dep:solana-program"]

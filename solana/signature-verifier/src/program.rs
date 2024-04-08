@@ -92,7 +92,6 @@ fn process_instruction<'a>(
     }
 }
 
-
 /// Handles the Update operation.
 fn handle_update(
     ctx: Context,
@@ -134,7 +133,6 @@ fn handle_update(
     // Update number of signatures saved in the Signatures account.
     ctx.signatures.write_count(count)
 }
-
 
 /// Extracts signatures from a call to Ed25519 native program.
 ///
@@ -307,7 +305,6 @@ impl<'a, 'info> Context<'a, 'info> {
         [self.payer.key.as_ref(), self.seed_and_bump]
     }
 }
-
 
 /// Reads given object from the start of the slice advancing it.
 ///

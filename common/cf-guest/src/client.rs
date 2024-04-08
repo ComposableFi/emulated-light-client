@@ -31,21 +31,21 @@ pub struct ClientState<PK> {
 
 impl<PK: guestchain::PubKey> ClientState<PK> {
     pub fn new(
-		genesis_hash: CryptoHash,
-		latest_height: guestchain::BlockHeight,
-		trusting_period_ns: u64,
-		epoch_commitment: CryptoHash,
-		is_frozen: bool,
-	) -> Self {
-		Self {
-			genesis_hash,
-			latest_height,
-			trusting_period_ns,
-			epoch_commitment,
-			is_frozen,
-			_ph: core::marker::PhantomData::<PK>,
-		}
-	}
+        genesis_hash: CryptoHash,
+        latest_height: guestchain::BlockHeight,
+        trusting_period_ns: u64,
+        epoch_commitment: CryptoHash,
+        is_frozen: bool,
+    ) -> Self {
+        Self {
+            genesis_hash,
+            latest_height,
+            trusting_period_ns,
+            epoch_commitment,
+            is_frozen,
+            _ph: core::marker::PhantomData::<PK>,
+        }
+    }
     pub fn with_header(&self, header: &super::Header<PK>) -> Self {
         let mut this = self.clone();
         if header.block_header.block_height > this.latest_height {
@@ -81,11 +81,15 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
         this
     }
 
-    pub fn frozen(&self) -> Self { Self { is_frozen: true, ..self.clone() } }
+    pub fn frozen(&self) -> Self {
+        Self { is_frozen: true, ..self.clone() }
+    }
 }
 
 impl<PK: guestchain::PubKey> From<ClientState<PK>> for proto::ClientState {
-    fn from(state: ClientState<PK>) -> Self { Self::from(&state) }
+    fn from(state: ClientState<PK>) -> Self {
+        Self::from(&state)
+    }
 }
 
 impl<PK: guestchain::PubKey> From<&ClientState<PK>> for proto::ClientState {

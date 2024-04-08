@@ -1,7 +1,6 @@
 use super::path::SequencePath;
 use super::{ibc, ids};
 
-
 /// A key used for indexing entries in the provable storage.
 ///
 /// The key is built from IBC storage paths.  The first byte is a tag (see
@@ -48,7 +47,9 @@ pub enum Tag {
 }
 
 impl From<Tag> for u8 {
-    fn from(tag: Tag) -> u8 { tag as u8 }
+    fn from(tag: Tag) -> u8 {
+        tag as u8
+    }
 }
 
 impl TrieKey {
@@ -156,7 +157,9 @@ impl TrieKey {
 
 impl core::ops::Deref for TrieKey {
     type Target = [u8];
-    fn deref(&self) -> &[u8] { &self.bytes[..usize::from(self.len)] }
+    fn deref(&self) -> &[u8] {
+        &self.bytes[..usize::from(self.len)]
+    }
 }
 
 impl core::fmt::Display for TrieKey {
@@ -235,7 +238,6 @@ impl TryFrom<&ibc::path::AckPath> for TrieKey {
     }
 }
 
-
 /// Component of a [`TrieKey`].
 ///
 /// A `TrieKey` is constructed by concatenating a sequence of components.
@@ -303,12 +305,16 @@ impl AsComponent for u64 {
 
 impl<const N: usize> AsComponent for [u8; N] {
     #[inline]
-    fn append_into(&self, dest: &mut TrieKey) { dest.extend(self); }
+    fn append_into(&self, dest: &mut TrieKey) {
+        dest.extend(self);
+    }
 }
 
 impl<T: AsComponent> AsComponent for &T {
     #[inline]
-    fn append_into(&self, dest: &mut TrieKey) { (*self).append_into(dest) }
+    fn append_into(&self, dest: &mut TrieKey) {
+        (*self).append_into(dest)
+    }
 }
 
 impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
@@ -318,7 +324,6 @@ impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
         self.1.append_into(dest);
     }
 }
-
 
 #[test]
 fn test_encoding() {

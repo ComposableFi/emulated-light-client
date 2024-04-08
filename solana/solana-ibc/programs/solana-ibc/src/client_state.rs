@@ -16,7 +16,7 @@ pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
     Wasm(::ibc::clients::wasm_types::client_state::ClientState),
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     Mock(ibc::mock::MockClientState),
 }
 
@@ -29,7 +29,7 @@ enum AnyClientStateTag {
     Tendermint = 0,
     Guest = 1,
     Wasm = 2,
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     Mock = 255,
 }
 
@@ -41,7 +41,7 @@ impl AnyClientStateTag {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyClientState::GUEST_TYPE => Some(Self::Guest),
             AnyClientState::WASM_TYPE => Some(Self::Wasm),
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
         }
@@ -57,7 +57,7 @@ impl AnyClientState {
     /// Protobuf type URL for WASM client state used in Any message.
     const WASM_TYPE: &'static str =
         ::ibc::clients::wasm_types::client_state::WASM_CLIENT_STATE_TYPE_URL;
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
 
@@ -94,7 +94,7 @@ impl AnyClientState {
                     >::encode_vec(state),
                 )
             }
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
                 Self::MOCK_TYPE,
@@ -122,7 +122,7 @@ impl AnyClientState {
             >::decode_vec(&value)
             .map_err(|err| err.to_string())
             .map(Self::Wasm),
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyClientStateTag::Mock => {
                 Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
@@ -197,7 +197,6 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<Vec<ibc::Height>, ibc::ContextError> {
-        solana_program::msg!("This is consensus state heights");
         Ok(self
             .borrow()
             .private
@@ -289,7 +288,7 @@ impl guestchain::Verifier<sigverify::ed25519::PubKey> for IbcStorage<'_, '_> {
     }
 }
 
-#[cfg(any(test, feature = "mocks"))]
+#[cfg(feature = "mocks")]
 impl ibc::mock::MockClientContext for IbcStorage<'_, '_> {
     type ConversionError = &'static str;
     type AnyConsensusState = AnyConsensusState;

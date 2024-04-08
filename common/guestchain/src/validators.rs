@@ -68,13 +68,19 @@ impl<PK> Validator<PK> {
         Self { version: crate::common::VersionZero, pubkey, stake }
     }
 
-    pub fn pubkey(&self) -> &PK { &self.pubkey }
+    pub fn pubkey(&self) -> &PK {
+        &self.pubkey
+    }
 
-    pub fn stake(&self) -> NonZeroU128 { self.stake }
+    pub fn stake(&self) -> NonZeroU128 {
+        self.stake
+    }
 }
 
 impl From<core::array::TryFromSliceError> for BadFormat {
-    fn from(_: core::array::TryFromSliceError) -> BadFormat { BadFormat }
+    fn from(_: core::array::TryFromSliceError) -> BadFormat {
+        BadFormat
+    }
 }
 
 #[cfg(any(test, feature = "test_utils"))]
@@ -99,7 +105,9 @@ pub(crate) mod test_utils {
     pub struct MockPubKey(pub u32);
 
     impl MockPubKey {
-        pub fn make_signer(&self) -> MockSigner { MockSigner(*self) }
+        pub fn make_signer(&self) -> MockSigner {
+            MockSigner(*self)
+        }
     }
 
     /// A mock implementation of a Signer.  Offers no security; intended for
@@ -150,7 +158,9 @@ pub(crate) mod test_utils {
     impl super::PubKey for MockPubKey {
         type Signature = MockSignature;
 
-        fn to_vec(&self) -> Vec<u8> { self.0.to_be_bytes().to_vec() }
+        fn to_vec(&self) -> Vec<u8> {
+            self.0.to_be_bytes().to_vec()
+        }
         fn from_bytes(bytes: &[u8]) -> Result<Self, super::BadFormat> {
             Ok(Self(u32::from_be_bytes(bytes.try_into()?)))
         }

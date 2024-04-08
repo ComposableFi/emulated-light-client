@@ -116,7 +116,6 @@ pub fn emit<'a>(event: impl Into<Event<'a>>) -> Result<(), String> {
     event.into().emit()
 }
 
-
 /// Defines Copy-on-Write wrapper for specified type.
 ///
 /// Due to limited interface of the [`alloc::borrow::Cow`] type, we need

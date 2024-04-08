@@ -11,7 +11,9 @@ use anchor_lang::prelude::borsh::maybestd::io;
 pub struct Map<K: Eq, V>(linear_map::LinearMap<K, V>);
 
 impl<K: Eq, V> Default for Map<K, V> {
-    fn default() -> Self { Self(Default::default()) }
+    fn default() -> Self {
+        Self(Default::default())
+    }
 }
 
 impl<K: Eq + fmt::Debug, V: fmt::Debug> fmt::Debug for Map<K, V> {

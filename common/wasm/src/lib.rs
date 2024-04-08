@@ -6,7 +6,6 @@ use ibc_primitives::proto::Any;
 pub mod consensus_state;
 pub mod proto;
 
-
 /// Defines conversion implementation between `$Type` and Any message as well as
 /// `encode_to_vec` and `decode` methods.
 macro_rules! any_convert {

@@ -25,7 +25,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         let mut client = store.private.client_mut(&path.0, true)?;
         let hash = client.client_state.set(&state)?.digest_with_client(&path.0);
         let state_any = state.encode_vec();
-        let new_hash = cf_guest::digest_with_client_id(&path.0, state_any.as_slice());
+        let new_hash =
+            cf_guest::digest_with_client_id(&path.0, state_any.as_slice());
         let key = trie_ids::TrieKey::for_client_state(client.index);
         store.provable.set(&key, &new_hash).map_err(error)
     }
@@ -78,7 +79,6 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
     }
 }
 
-
 impl IbcStorage<'_, '_> {
     pub(crate) fn store_consensus_state_impl(
         &mut self,
@@ -95,7 +95,8 @@ impl IbcStorage<'_, '_> {
         };
 
         let inner_any = state.clone().encode_vec();
-        let new_hash = cf_guest::digest_with_client_id(client_id, inner_any.as_slice());
+        let new_hash =
+            cf_guest::digest_with_client_id(client_id, inner_any.as_slice());
         let mut client = store.private.client_mut(client_id, false)?;
         let state = storage::ClientConsensusState::new(
             processed_time,
@@ -104,7 +105,6 @@ impl IbcStorage<'_, '_> {
         )?;
         let hash = state.digest(client_id)?;
         client.consensus_states.insert(height, state);
-
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
@@ -125,13 +125,14 @@ impl IbcStorage<'_, '_> {
     }
 }
 
-
 impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///
     /// The clients are stored in the vector so we can easily find how many
     /// clients were created. So thats why this method doesnt do anything.
-    fn increase_client_counter(&mut self) -> Result { Ok(()) }
+    fn increase_client_counter(&mut self) -> Result {
+        Ok(())
+    }
 
     fn store_connection(
         &mut self,
@@ -184,7 +185,9 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ///
     /// Connections are stored in a vector in an order, so the length of the
     /// array specifies the number of connections.
-    fn increase_connection_counter(&mut self) -> Result { Ok(()) }
+    fn increase_connection_counter(&mut self) -> Result {
+        Ok(())
+    }
 
     fn store_packet_commitment(
         &mut self,
@@ -304,7 +307,9 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn get_client_execution_context(&mut self) -> &mut Self::E { self }
+    fn get_client_execution_context(&mut self) -> &mut Self::E {
+        self
+    }
 }
 
 impl storage::IbcStorage<'_, '_> {

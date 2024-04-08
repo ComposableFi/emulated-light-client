@@ -31,7 +31,6 @@ mod ibc {
 
 type Result<T = (), E = ibc::ClientError> = ::core::result::Result<T, E>;
 
-
 pub trait CommonContext {
     type ConversionError: ToString;
     type AnyConsensusState: TryInto<ConsensusState, Error = Self::ConversionError>
@@ -133,7 +132,6 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 }
 
-
 impl From<proof::VerifyError> for ibc::ClientError {
     fn from(err: proof::VerifyError) -> Self {
         use ibc::CommitmentError::EncodingFailure;
@@ -227,6 +225,15 @@ where
         Ok(())
     }
 
+    fn update_tm_state(
+        &self,
+        ctx: &mut E,
+        client_id: &ibc_core_host::types::identifiers::ClientId,
+        header: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result<Vec<ibc::Height>> {
+        Ok(Vec::new())
+    }
+
     fn update_state_on_upgrade(
         &self,
         _ctx: &mut E,
@@ -256,6 +263,16 @@ where
     ) -> Result {
         self.verify_client_message(ctx, client_id, client_message)
     }
+
+    fn verify_tm_client_message(
+        &self,
+        ctx: &V,
+        client_id: &ibc::ClientId,
+        client_message: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result {
+        Ok(())
+    }
+
 
     fn check_for_misbehaviour(
         &self,
@@ -294,7 +311,6 @@ where
         })
     }
 }
-
 
 impl<PK: PubKey> ClientState<PK> {
     pub fn verify_client_message(
@@ -424,11 +440,9 @@ impl<PK: PubKey> ClientState<PK> {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -448,7 +462,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {

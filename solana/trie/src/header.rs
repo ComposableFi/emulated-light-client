@@ -79,7 +79,6 @@ impl Header {
     }
 }
 
-
 /// Reads fixed-width value from start of the buffer and returns the value and
 /// remaining portion of the buffer.
 ///
@@ -106,7 +105,6 @@ fn write<const L: usize, const R: usize, const N: usize>(
     *left = data;
     right
 }
-
 
 #[test]
 fn test_header_encoding() {

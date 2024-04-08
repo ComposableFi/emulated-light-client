@@ -37,7 +37,9 @@ pub enum DecodeError {
 pub struct BadMessage;
 
 impl From<BadMessage> for DecodeError {
-    fn from(_: BadMessage) -> Self { Self::BadMessage }
+    fn from(_: BadMessage) -> Self {
+        Self::BadMessage
+    }
 }
 
 impl core::fmt::Debug for DecodeError {
@@ -63,7 +65,6 @@ impl core::fmt::Display for BadMessage {
         core::fmt::Debug::fmt(self, fmtr)
     }
 }
-
 
 impl From<Header> for ClientMessage {
     #[inline]
@@ -115,7 +116,9 @@ macro_rules! impl_proto {
 
             /// An example test message.
             #[cfg(test)]
-            pub fn test() -> Self { $test_object }
+            pub fn test() -> Self {
+                $test_object
+            }
         }
 
         impl AnyConvert for pb::lightclients::guest::v1::$Msg {

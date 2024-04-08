@@ -5,7 +5,6 @@ use solana_program::pubkey::Pubkey;
 
 type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 
-
 /// A signature hash as stored in the [`SignaturesAccount`].
 ///
 /// When the signature verifier program confirms that a signature has been
@@ -63,7 +62,9 @@ impl SignatureHash {
 }
 
 impl AsRef<[u8; 32]> for SignatureHash {
-    fn as_ref(&self) -> &[u8; 32] { &self.0 }
+    fn as_ref(&self) -> &[u8; 32] {
+        &self.0
+    }
 }
 
 impl<'a> From<crate::ed25519_program::Entry<'a>> for SignatureHash {
@@ -79,7 +80,6 @@ impl<'a> From<&crate::ed25519_program::Entry<'a>> for SignatureHash {
         Self::new_ed25519(entry.pubkey, entry.signature, entry.message)
     }
 }
-
 
 /// Wrapper around signatures account created by the verifier program.
 #[derive(Clone, Copy, derive_more::Deref, derive_more::DerefMut)]
@@ -184,7 +184,6 @@ pub(crate) fn iter(
         .iter()
         .map(SignatureHash::wrap_ref))
 }
-
 
 #[test]
 fn test_ed25519() {

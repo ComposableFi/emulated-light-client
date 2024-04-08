@@ -30,6 +30,7 @@ ibc-proto.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
 tendermint.workspace = true
+tendermint-proto.workspace = true
 tendermint-light-client-verifier.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -40,6 +41,8 @@ uint.workspace = true
 prost.workspace = true  
 hex-literal.workspace = true
 sha2.workspace = true
+itertools.workspace = true
+ibc-client-tendermint-types.workspace = true
 
 guestchain.workspace = true
 cf-guest.workspace = true
@@ -51,12 +54,12 @@ solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }
 wasm = { workspace = true }
+# ibc-testkit = { workspace = true, optional = true }
 
 [dev-dependencies]
 anchor-client.workspace = true
 anyhow.workspace = true
 hex-literal.workspace = true
-ibc-testkit.workspace = true
 insta.workspace = true
 
 lib = { workspace = true, features = ["test_utils"] }

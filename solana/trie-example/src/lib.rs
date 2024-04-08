@@ -65,7 +65,6 @@ impl<T> TrieResultExt for Result<T, sealable_trie::trie::Error> {
     }
 }
 
-
 /// Instruction to execute.
 pub(crate) enum Instruction<'a> {
     // Encoding: <include-proof> <key>

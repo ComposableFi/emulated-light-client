@@ -959,6 +959,7 @@ dependencies = [
  "bytemuck",
  "derive_more",
  "guestchain",
+ "ibc-client-tendermint-types",
  "ibc-core-client-context",
  "ibc-core-commitment-types",
  "ibc-core-host",
@@ -2417,7 +2418,7 @@ dependencies = [
  "ibc-core-handler-types",
  "ibc-core-host",
  "ibc-primitives",
- "lib 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
+ "lib 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
 ]
 
 [[package]]
@@ -2469,7 +2470,7 @@ dependencies = [
  "ibc-primitives",
  "ibc-proto",
  "ics23",
- "lib 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
+ "lib 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
  "parity-scale-codec",
  "ripemd",
  "scale-info",
@@ -2939,13 +2940,13 @@ dependencies = [
 [[package]]
 name = "lib"
 version = "0.0.0"
-source = "git+https://github.com/ComposableFi/emulated-light-client#b252e3950f936b4749f913a5c8296c6b61b46bcd"
+source = "git+https://github.com/composableFi/emulated-light-client#a1d981cff8a7296a04ed2f3353d0479078d096fc"
 dependencies = [
  "base64 0.21.7",
  "bytemuck",
  "derive_more",
  "sha2 0.10.8",
- "stdx 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
+ "stdx 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
 ]
 
 [[package]]
@@ -3644,9 +3645,9 @@ dependencies = [
 
 [[package]]
 name = "prost"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "146c289cda302b98a28d40c8b3b90498d6e526dd24ac2ecea73e4e491685b94a"
+checksum = "d0f5d036824e4761737860779c906171497f6d55681139d8312388f8fe398922"
 dependencies = [
  "bytes",
  "prost-derive",
@@ -3674,9 +3675,9 @@ dependencies = [
 
 [[package]]
 name = "prost-derive"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
+checksum = "19de2de2a00075bf566bee3bd4db014b11587e84184d3f7a791bc17f1a8e9e48"
 dependencies = [
  "anyhow",
  "itertools",
@@ -4721,9 +4722,11 @@ dependencies = [
  "guestchain",
  "hex-literal",
  "ibc",
+ "ibc-client-tendermint-types",
  "ibc-proto",
  "ibc-testkit",
  "insta",
+ "itertools",
  "lib 0.0.0",
  "linear-map",
  "memory",
@@ -4742,6 +4745,7 @@ dependencies = [
  "strum",
  "tendermint",
  "tendermint-light-client-verifier",
+ "tendermint-proto",
  "trie-ids",
  "uint",
  "wasm",
@@ -5609,7 +5613,7 @@ version = "0.0.0"
 [[package]]
 name = "stdx"
 version = "0.0.0"
-source = "git+https://github.com/ComposableFi/emulated-light-client#b252e3950f936b4749f913a5c8296c6b61b46bcd"
+source = "git+https://github.com/composableFi/emulated-light-client#a1d981cff8a7296a04ed2f3353d0479078d096fc"
 
 [[package]]
 name = "strsim"
@@ -5751,7 +5755,7 @@ dependencies = [
  "ed25519-consensus",
  "flex-error",
  "futures",
- "lib 0.0.0 (git+https://github.com/ComposableFi/emulated-light-client)",
+ "lib 0.0.0 (git+https://github.com/composableFi/emulated-light-client)",
  "num-traits",
  "once_cell",
  "prost",

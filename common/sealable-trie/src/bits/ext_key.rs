@@ -43,11 +43,15 @@ impl<'a> ExtKey<'a> {
 
     /// Returns length of the slice in bits.
     #[inline]
-    pub fn len(&self) -> u16 { self.0.len() }
+    pub fn len(&self) -> u16 {
+        self.0.len()
+    }
 
     /// Converts the object into underlying [`Slice`].
     #[inline]
-    pub fn into_slice(self) -> Slice<'a> { self.0 }
+    pub fn into_slice(self) -> Slice<'a> {
+        self.0
+    }
 
     /// Encodes key into raw binary representation.
     ///
@@ -100,7 +104,9 @@ impl<'a> ExtKey<'a> {
 
 impl<'a> Chunks<'a> {
     /// Constructs a new `Chunks` iterator over given bit slice.
-    pub(super) fn new(slice: Slice<'a>) -> Self { Self(slice) }
+    pub(super) fn new(slice: Slice<'a>) -> Self {
+        Self(slice)
+    }
 }
 
 impl<'a> TryFrom<Slice<'a>> for ExtKey<'a> {
@@ -139,8 +145,6 @@ impl fmt::Debug for Chunks<'_> {
         super::debug_fmt("Chunks", &self.0, fmtr)
     }
 }
-
-
 
 impl<'a> core::iter::Iterator for Chunks<'a> {
     type Item = ExtKey<'a>;

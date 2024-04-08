@@ -9,7 +9,9 @@ pub struct Misbehaviour<PK: PubKey> {
 }
 
 impl<PK: PubKey> From<Misbehaviour<PK>> for proto::Misbehaviour {
-    fn from(msg: Misbehaviour<PK>) -> Self { Self::from(&msg) }
+    fn from(msg: Misbehaviour<PK>) -> Self {
+        Self::from(&msg)
+    }
 }
 
 impl<PK: PubKey> From<&Misbehaviour<PK>> for proto::Misbehaviour {

@@ -28,7 +28,7 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-anchor-lang = {version = "0.29.0", features = ["init-if-needed"]}
+anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
 anchor-spl = "0.29.0"
 ascii = "1.1.0"
 bs58 = { version = "0.5.0", features = ["alloc"] }
@@ -39,21 +39,25 @@ clap = { version = "4.4.18", features = ["derive"] }
 derive_more = "0.99.17"
 dialoguer = "0.10"
 directories = "5.0"
-ed25519-dalek = "=1.0.1"  # Must match solana-sdk’s dependency.
+ed25519-dalek = "=1.0.1"                                                      # Must match solana-sdk’s dependency.
 env_logger = "0.7.1"
 hex-literal = "0.4.1"
 
 # Use unreleased ibc-rs which supports custom verifier.
-ibc                       = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false, features = ["borsh", "serde"] }
-ibc-core-channel-types    = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-client-context   = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-client-types     = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-commitment-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-connection-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-host             = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-core-host-types       = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-primitives            = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
-ibc-testkit               = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false }
+ibc = { git = "https://github.com/dhruvja/ibc-rs", rev = "5a11366e11898b6c276c559d70b7c3245da4dc37", default-features = false, features = [
+    "borsh",
+    "serde",
+] }
+ibc-core-channel-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-client-context = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-client-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-commitment-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-connection-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-host = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-core-host-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-primitives = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-testkit = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
+ibc-client-tendermint-types = { git = "https://github.com/dhruvja/ibc-rs", rev = "1e54b2d7297d47ebc669f6360890a0248f954e81", default-features = false }
 # ibc                       = { path = "../ibc-rs/ibc", default-features = false, features = ["borsh", "serde"] }
 # ibc-core-channel-types    = { path = "../ibc-rs/ibc-core/ics04-channel/types", default-features = false }
 # ibc-core-client-context   = { path = "../ibc-rs/ibc-core/ics02-client/context", default-features = false }
@@ -64,6 +68,7 @@ ibc-testkit               = { git = "https://github.com/dhruvja/ibc-rs", rev = "
 # ibc-core-host-types       = { path = "../ibc-rs/ibc-core/ics24-host/types", default-features = false }
 # ibc-primitives            = { path = "../ibc-rs/ibc-primitives", default-features = false }
 # ibc-testkit               = { path = "../ibc-rs/ibc-testkit", default-features = false }
+# ibc-client-tendermint-types = { path = "../ibc-rs/ibc-clients/ics07-tendermint/types", default-features = false}
 
 ibc-proto = { version = "0.41.0", default-features = false }
 insta = { version = "1.34.0" }
@@ -87,12 +92,14 @@ spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 # tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
 # tendermint-light-client-verifier = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-tendermint                       = { version = "0.34.0", default-features = false }
-tendermint-light-client          = { version = "0.34.0", default-features = false }
+tendermint = { version = "0.34.0", default-features = false }
+tendermint-light-client = { version = "0.34.0", default-features = false }
 tendermint-light-client-verifier = { version = "0.34.0", default-features = false }
+tendermint-proto = { version = "0.34.0", default-features = false }
 tokio = "1.35.1"
 toml = "0.8.8"
 uint = "0.9.5"
+itertools = "0.10.5"
 
 guestchain = { path = "common/guestchain" }
 cf-guest = { path = "common/cf-guest" }
@@ -132,7 +139,12 @@ tendermint = { git = "https://github.com/dhruvja/tendermint-rs", rev = "0c6c6024
 tendermint-light-client = { git = "https://github.com/dhruvja/tendermint-rs", rev = "0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4" }
 tendermint-light-client-verifier = { git = "https://github.com/dhruvja/tendermint-rs", rev = "0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4" }
 tendermint-proto = { git = "https://github.com/dhruvja/tendermint-rs", rev = "0c6c6024ddc7ac91607b60f45ce84fa13cf2b6f4" }
+# tendermint = { path = "../tendermint-rs/tendermint" }
+# tendermint-light-client = { path = "../tendermint-rs/light-client" }
+# tendermint-light-client-verifier = { path = "../tendermint-rs/light-client-verifier" }
+# tendermint-proto = { path = "../tendermint-rs/proto" }
 
 # Adds support for custom-entrypoint feature
 anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
+lib = { path = "common/lib" }
 # ics23 = { path = "../ics23/rust" }

@@ -248,11 +248,15 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             msg!("Token program or token mint or mint authority dont exist");
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        let token_account = accounts
-            .token_account
-            .as_ref()
-            .ok_or({ msg!("Token account is empty");TokenTransferError::ParseAccountFailure})?;
-        msg!("Receiver doesnt match token account {:?} and {:?}", account.0, token_account.key);
+        let token_account = accounts.token_account.as_ref().ok_or({
+            msg!("Token account is empty");
+            TokenTransferError::ParseAccountFailure
+        })?;
+        msg!(
+            "Receiver doesnt match token account {:?} and {:?}",
+            account.0,
+            token_account.key
+        );
         // if !account.0.eq(token_account.key) {
         //     msg!("Receiver doesnt match token account {:?} and {:?}", account.0, token_account.key);
         //     return Err(TokenTransferError::ParseAccountFailure);

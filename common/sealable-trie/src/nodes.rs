@@ -241,7 +241,9 @@ impl RawNode {
     }
 
     /// Splits the raw byte representation in two halfs.
-    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) { stdx::split_array_ref(&self.0) }
+    fn halfs(&self) -> (&[u8; 36], &[u8; 36]) {
+        stdx::split_array_ref(&self.0)
+    }
 
     /// Splits the raw byte representation in two halfs.
     fn halfs_mut(&mut self) -> (&mut [u8; 36], &mut [u8; 36]) {
@@ -323,7 +325,9 @@ impl<'a> Reference<'a> {
 impl<'a, P> NodeRef<'a, P> {
     /// Constructs a new node reference.
     #[inline]
-    pub fn new(ptr: P, hash: &'a CryptoHash) -> Self { Self { ptr, hash } }
+    pub fn new(ptr: P, hash: &'a CryptoHash) -> Self {
+        Self { ptr, hash }
+    }
 }
 
 impl<'a, S> ValueRef<'a, S> {
@@ -333,7 +337,6 @@ impl<'a, S> ValueRef<'a, S> {
         Self { is_sealed, hash }
     }
 }
-
 
 // =============================================================================
 // Conversions

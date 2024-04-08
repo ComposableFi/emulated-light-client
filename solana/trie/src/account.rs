@@ -48,10 +48,14 @@ impl<'a, 'info> ResizableAccount<'a, 'info> {
 
 impl<'a, 'info> crate::data_ref::DataRef for ResizableAccount<'a, 'info> {
     #[inline]
-    fn len(&self) -> usize { self.get(..).map_or(0, |bytes| bytes.len()) }
+    fn len(&self) -> usize {
+        self.get(..).map_or(0, |bytes| bytes.len())
+    }
 
     #[inline]
-    fn is_empty(&self) -> bool { self.len() == 0 }
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 
     fn get<I: SliceIndex<[u8]>>(&self, index: I) -> Option<&I::Output> {
         unsafe fn transmute_lifetime<'a, T: ?Sized>(arg: &T) -> &'a T {

@@ -61,7 +61,7 @@ pub mod chan {
     pub use ibc::core::channel::types::Version;
 }
 
-#[cfg(any(test, feature = "mocks"))]
+#[cfg(feature = "mocks")]
 pub mod mock {
     pub use ibc_testkit::testapp::ibc::clients::mock::client_state::{
         MockClientContext, MockClientState, MOCK_CLIENT_STATE_TYPE_URL,

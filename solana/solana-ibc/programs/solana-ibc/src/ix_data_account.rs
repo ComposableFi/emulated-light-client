@@ -73,7 +73,9 @@ use solana_program::pubkey::Pubkey;
 pub struct Accounts<T>(T, Pubkey);
 
 impl<T> Accounts<T> {
-    pub fn new(accounts: T, ix_data: Pubkey) -> Self { Self(accounts, ix_data) }
+    pub fn new(accounts: T, ix_data: Pubkey) -> Self {
+        Self(accounts, ix_data)
+    }
 }
 
 /// An ‘instruction’ which instructs smart contract to read the data from an
@@ -115,20 +117,25 @@ pub(crate) fn get_ix_data<'a>(
 
 impl anchor_lang::Discriminator for Instruction {
     const DISCRIMINATOR: [u8; 8] = [0; 8];
-    fn discriminator() -> [u8; 8] { panic!() }
+    fn discriminator() -> [u8; 8] {
+        panic!()
+    }
 }
 
 impl borsh::BorshSerialize for Instruction {
     fn serialize<W: io::Write>(&self, _writer: &mut W) -> io::Result<()> {
         Ok(())
     }
-    fn try_to_vec(&self) -> io::Result<Vec<u8>> { Ok(Vec::new()) }
+    fn try_to_vec(&self) -> io::Result<Vec<u8>> {
+        Ok(Vec::new())
+    }
 }
 
 impl anchor_lang::InstructionData for Instruction {
-    fn data(&self) -> Vec<u8> { Vec::new() }
+    fn data(&self) -> Vec<u8> {
+        Vec::new()
+    }
 }
-
 
 #[test]
 fn test_get_ix_data() {

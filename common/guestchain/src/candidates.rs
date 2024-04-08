@@ -119,7 +119,9 @@ impl<PK: crate::PubKey> Candidates<PK> {
     /// Changed flag is set automatically whenever head of the candidates list
     /// is modified (note that changes outside of the head of candidates list do
     /// not affect the flag).
-    pub fn clear_changed_flag(&mut self) { self.changed = false; }
+    pub fn clear_changed_flag(&mut self) {
+        self.changed = false;
+    }
 
     /// Adds a new candidates or updates existing candidate’s stake.
     ///
@@ -180,7 +182,9 @@ impl<PK: crate::PubKey> Candidates<PK> {
         Ok(())
     }
 
-    fn max_validators(&self) -> usize { usize::from(self.max_validators.get()) }
+    fn max_validators(&self) -> usize {
+        usize::from(self.max_validators.get())
+    }
 
     /// Adds a new candidate at given position.
     ///

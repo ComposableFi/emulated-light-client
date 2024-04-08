@@ -96,7 +96,9 @@ impl<PK> Epoch<PK> {
     }
 
     /// Returns stake needed to reach quorum.
-    pub fn quorum_stake(&self) -> NonZeroU128 { self.quorum_stake }
+    pub fn quorum_stake(&self) -> NonZeroU128 {
+        self.quorum_stake
+    }
 
     /// Finds a validator by their public key.
     pub fn validator(&self, pk: &PK) -> Option<&crate::Validator<PK>>

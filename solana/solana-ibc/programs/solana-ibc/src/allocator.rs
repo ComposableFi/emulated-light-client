@@ -63,7 +63,9 @@ mod imp {
         unsafe { solana_allocator::BumpAllocator::new() }
     };
 
-    pub(crate) fn global() -> &'static super::Global { ALLOCATOR.global() }
+    pub(crate) fn global() -> &'static super::Global {
+        ALLOCATOR.global()
+    }
 }
 
 #[cfg(any(
@@ -110,7 +112,9 @@ mod imp {
         }
     }
 
-    pub(crate) fn global() -> &'static Global { &Global }
+    pub(crate) fn global() -> &'static Global {
+        &Global
+    }
 }
 
 impl Global {

@@ -1,7 +1,7 @@
-use cf_guest::proto::Any;
 use ::ibc::derive::ConsensusState;
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
+use cf_guest::proto::Any;
 
 use crate::ibc::{self, Protobuf};
 
@@ -17,7 +17,7 @@ pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
     Guest(cf_guest::ConsensusState),
     Wasm(wasm::consensus_state::ConsensusState),
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     Mock(ibc::mock::MockConsensusState),
 }
 
@@ -28,7 +28,7 @@ enum AnyConsensusStateTag {
     Tendermint = 0,
     Guest = 1,
     Wasm = 2,
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     Mock = 255,
 }
 
@@ -39,7 +39,7 @@ impl AnyConsensusStateTag {
         match url {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyConsensusState::WASM_TYPE => Some(Self::Wasm),
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyConsensusState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
         }
@@ -52,7 +52,7 @@ impl AnyConsensusState {
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
     /// Protobuf type URL for Wasm consensus state used in Any message.
     const WASM_TYPE: &'static str = ::ibc::clients::wasm_types::consensus_state::WASM_CONSENSUS_STATE_TYPE_URL;
-    #[cfg(any(test, feature = "mocks"))]
+    #[cfg(feature = "mocks")]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
 
@@ -85,7 +85,7 @@ impl AnyConsensusState {
                 Self::WASM_TYPE,
                 Protobuf::<wasm::proto::ConsensusState>::encode_vec(state),
             ),
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyConsensusState::Mock(state) => (
                 AnyConsensusStateTag::Mock,
                 Self::MOCK_TYPE,
@@ -109,13 +109,13 @@ impl AnyConsensusState {
                 Protobuf::<cf_guest::proto::ConsensusState>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Guest)
-            },
+            }
             AnyConsensusStateTag::Wasm => {
                 Protobuf::<wasm::proto::ConsensusState>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Wasm)
             }
-            #[cfg(any(test, feature = "mocks"))]
+            #[cfg(feature = "mocks")]
             AnyConsensusStateTag::Mock => {
                 Protobuf::<ibc::mock::ConsensusStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())

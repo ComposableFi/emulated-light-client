@@ -56,7 +56,6 @@ pub fn digest_with_client_id(
     lib::hash::CryptoHash::digestv(&[client_id.as_bytes(), b"\0", value])
 }
 
-
 /// Defines conversion implementation between `$Type` and Any message as well as
 /// `encode_to_vec` and `decode` methods.
 macro_rules! any_convert {

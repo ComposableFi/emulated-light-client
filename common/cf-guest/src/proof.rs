@@ -4,8 +4,8 @@ use alloc::vec::Vec;
 use guestchain::BlockHeader;
 use lib::hash::CryptoHash;
 
-use solana_program::msg;
 use alloc::format;
+use solana_program::msg;
 
 mod ibc {
     pub use ibc_core_commitment_types::commitment::{
@@ -26,9 +26,10 @@ pub struct IbcProof {
 
 impl IbcProof {
     /// Returns commitment prefix to use during verification.
-    pub fn prefix(&self) -> ibc::CommitmentPrefix { Default::default() }
+    pub fn prefix(&self) -> ibc::CommitmentPrefix {
+        Default::default()
+    }
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
 pub enum GenerateError {
@@ -98,7 +99,6 @@ pub fn generate<A: sealable_trie::Allocator>(
 
     Ok(IbcProof { proof: proof.try_into().unwrap(), root, value })
 }
-
 
 #[derive(
     Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
@@ -232,7 +232,6 @@ pub fn verify(
         Err(VerifyError::VerificationFailed)
     }
 }
-
 
 #[test]
 fn test_proofs() {
