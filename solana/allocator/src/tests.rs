@@ -22,8 +22,7 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
         (header.end_pos.get() as usize).saturating_sub(end)
     }
 
-    /// Allocates region of memory and returns it as a slice; checks returned
-    /// alignment and whether region is all-zero.
+    /// Allocates region of memory; checks returned alignment.
     fn check_alloc(&self, layout: Layout) -> Option<*mut u8> {
         core::ptr::NonNull::new(unsafe { self.alloc(layout) }).map(|ptr| {
             let ptr = ptr.as_ptr();
@@ -31,6 +30,32 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
             assert_eq!(0, ptr as usize & mask, "{ptr:?} is misaligned");
             ptr
         })
+    }
+
+    /// Reallocates region of memory; checks returned alignment and whether the
+    /// data in new region (if new pointer is returned) equals the old data.
+    fn check_realloc(
+        &self,
+        ptr: *mut u8,
+        layout: Layout,
+        new_size: usize,
+    ) -> Option<*mut u8> {
+        let old_data =
+            unsafe { core::slice::from_raw_parts(ptr, layout.size()).to_vec() };
+        let common_size = core::cmp::min(layout.size(), new_size);
+
+        core::ptr::NonNull::new(unsafe { self.realloc(ptr, layout, new_size) })
+            .map(|ptr| {
+                let ptr = ptr.as_ptr();
+                let mask = layout.align() - 1;
+                assert_eq!(0, ptr as usize & mask, "{ptr:?} is misaligned");
+
+                let new_data =
+                    unsafe { core::slice::from_raw_parts(ptr, new_size) };
+                assert_eq!(&old_data[..common_size], &new_data[..common_size]);
+
+                ptr
+            })
     }
 }
 
@@ -107,21 +132,38 @@ fn test_realloc() {
     let second = allocator.check_alloc(layout_10).unwrap();
 
     // Resizing last allocation always works (so long there’s free memory).
-    assert_eq!(second, unsafe { allocator.realloc(second, layout_10, 15) });
+    assert_eq!(second, allocator.check_realloc(second, layout_10, 15).unwrap());
     assert_eq!(25, allocator.used());
-    assert_eq!(second, unsafe { allocator.realloc(second, layout_15, 5) });
+    assert_eq!(second, allocator.check_realloc(second, layout_15, 5).unwrap());
     assert_eq!(15, allocator.used());
 
     // Shrinking always works but the memory is wasted.
-    assert_eq!(first, unsafe { allocator.realloc(first, layout_10, 5) });
+    assert_eq!(first, allocator.check_realloc(first, layout_10, 5).unwrap());
     assert_eq!(15, allocator.used());
 
     // Growing region in the middle requires copying.
     unsafe { first.write_bytes(42, 5) };
-    let third = unsafe { allocator.realloc(first, layout_5, 10) };
+    let third = allocator.check_realloc(first, layout_5, 10).unwrap();
     assert_ne!(first, third);
     let slice = unsafe { core::slice::from_raw_parts_mut(first, 10) };
     assert_eq!([42, 42, 42, 42, 42, 0, 0, 0, 0, 0], slice);
+}
+
+#[test]
+fn test_realloc_with_alloc() {
+    let allocator = BumpAllocator::<()>::new(64);
+    assert_eq!(0, allocator.used());
+
+    let layout = Layout::from_size_align(5, 4).unwrap();
+
+    let first = allocator.check_alloc(layout).unwrap();
+    assert_eq!(5, allocator.used());
+
+    let _ = allocator.check_alloc(layout);
+    assert_eq!(13, allocator.used());
+
+    let _ = allocator.check_realloc(first, layout, 10).unwrap();
+    assert_eq!(26, allocator.used());
 }
 
 #[test]
