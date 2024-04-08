@@ -28,6 +28,9 @@ pub use ibc::core::client::types::{Height, Status, UpdateKind};
 pub use ibc::core::commitment_types::commitment::{
     CommitmentPrefix, CommitmentProofBytes, CommitmentRoot,
 };
+pub use ibc::core::commitment_types::proto::ics23::{
+    HostFunctionsManager, HostFunctionsProvider,
+};
 pub use ibc::core::connection::types::error::ConnectionError;
 #[cfg(test)]
 pub use ibc::core::connection::types::msgs::{
