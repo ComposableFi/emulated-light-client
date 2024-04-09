@@ -16,5 +16,5 @@ pub const TOKEN_URI: &str =
 /// feature enabled it’s set to one second for testing.
 /// 
 /// no unbonding period for now
-pub const UNBONDING_PERIOD_IN_SEC: u64 = 0
+pub const UNBONDING_PERIOD_IN_SEC: u64 = 0;
     // if cfg!(feature = "mocks") { 1 } else { 7 * 24 * 60 * 60 };
