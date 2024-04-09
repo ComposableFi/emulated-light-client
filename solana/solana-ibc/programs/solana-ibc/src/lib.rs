@@ -219,7 +219,7 @@ pub mod solana_ibc {
                 ctx.remaining_accounts = rest;
             }
         }
-        let height = store.borrow().chain.head().unwrap().block_height;
+        let height = store.borrow().chain.head()?.block_height;
         // height just before the data is added to the trie.
         msg!("Current Block height {:?}", u64::from(height));
 
