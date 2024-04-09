@@ -91,6 +91,7 @@ pub mod solana_ibc {
         config: chain::Config,
         genesis_epoch: chain::Epoch,
         staking_program_id: Pubkey,
+        sig_verify_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(
             &ctx.accounts.trie,
@@ -101,6 +102,7 @@ pub mod solana_ibc {
             config,
             genesis_epoch,
             staking_program_id,
+            sig_verify_program_id,
         )
     }
 
@@ -209,12 +211,21 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        let sig_verify_program_id =
+            ctx.accounts.chain.sig_verify_program_id()?;
+
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
             let mut verifier = sigverify::Verifier::default();
-            if verifier.set_ix_sysvar(last).is_ok() {
+            if verifier
+                .set_sigverify_account(
+                    unsafe { core::mem::transmute(last) },
+                    &sig_verify_program_id,
+                )
+                .is_ok()
+            {
                 global().set_verifier(verifier);
                 ctx.remaining_accounts = rest;
             }
