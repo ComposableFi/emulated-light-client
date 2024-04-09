@@ -12,6 +12,7 @@ ibc-core-client-context.workspace = true
 ibc-core-commitment-types.workspace = true
 ibc-core-host.workspace = true
 ibc-primitives.workspace = true
+ibc-client-tendermint-types.workspace = true
 ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
 

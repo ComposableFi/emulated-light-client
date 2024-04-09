@@ -77,6 +77,25 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             }
         }
     }
+    fn verify_tm_client_message(
+        &self,
+        ctx: &IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        client_message: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_tm_client_message(
+                    cs.inner(),
+                    ctx,
+                    client_id,
+                    client_message,
+                    &tm::TmVerifier,
+                )
+            }
+            _ => unimplemented!("Only supports tendermint"), 
+        }
+    }
 
     delegate!(fn check_for_misbehaviour(
         &self,
@@ -117,6 +136,19 @@ impl<'a, 'b> ibc::ClientStateExecution<IbcStorage<'a, 'b>> for AnyClientState {
         upgraded_client_state: ibc::Any,
         upgraded_consensus_state: ibc::Any,
     ) -> Result<ibc::Height>);
+    fn update_tm_state(
+        &self,
+        ctx: &mut IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        header: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result<Vec<ibc::Height>> {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                cs.update_tm_state(ctx, client_id, header)
+            }
+            _ => unimplemented!("Only supports tendermint"),
+        }
+    }
 }
 
 mod tm {

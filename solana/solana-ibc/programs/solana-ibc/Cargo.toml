@@ -27,6 +27,7 @@ derive_more.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
 ibc-proto.workspace = true
+ibc-client-tendermint-types.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
 tendermint.workspace = true
