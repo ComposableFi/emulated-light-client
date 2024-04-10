@@ -81,6 +81,8 @@ tendermint-light-client-verifier = { version = "0.34.0", default-features = fals
 tokio = "1.35.1"
 toml = "0.8.8"
 uint = "0.9.5"
+solana-transaction-status = "^1.16"
+solana-rpc-client-api = "^1.16"
 
 cf-guest = { path = "common/cf-guest" }
 guestchain = { path = "common/guestchain" }
