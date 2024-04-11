@@ -156,22 +156,64 @@ impl<'a, 'b> ibc::ClientStateExecution<IbcStorage<'a, 'b>> for AnyClientState {
 }
 
 mod tm {
+    use lib::hash::CryptoHash;
     use tendermint::crypto::signature::Error;
+    use tendermint::crypto::Sha256;
+    use tendermint::merkle::MerkleHash;
     use tendermint_light_client_verifier::operations::commit_validator::ProdCommitValidator;
     use tendermint_light_client_verifier::operations::voting_power::ProvidedVotingPowerCalculator;
-    use tendermint_light_client_verifier::predicates::ProdPredicates;
+    use tendermint_light_client_verifier::predicates::VerificationPredicates;
     use tendermint_light_client_verifier::PredicateVerifier;
 
     pub(super) struct TmVerifier;
     pub(super) struct SigVerifier;
 
+    #[derive(Default)]
+    pub(super) struct InnerProdPredicates;
+
     impl crate::ibc::tm::TmVerifier for TmVerifier {
         type Verifier = PredicateVerifier<
-            ProdPredicates,
+            InnerProdPredicates,
             ProvidedVotingPowerCalculator<SigVerifier>,
             ProdCommitValidator,
         >;
         fn verifier(&self) -> Self::Verifier { Default::default() }
+    }
+
+    #[derive(Default)]
+    pub struct CustomHash(pub [u8; 32]);
+
+    impl Sha256 for CustomHash {
+        fn digest(
+            data: impl AsRef<[u8]>,
+        ) -> [u8; tendermint::merkle::HASH_SIZE] {
+            let hash = CryptoHash::digest(data.as_ref());
+            hash.0
+        }
+    }
+
+    impl MerkleHash for CustomHash {
+        fn empty_hash(&mut self) -> tendermint::merkle::Hash {
+            CustomHash::digest([])
+        }
+
+        fn leaf_hash(&mut self, bytes: &[u8]) -> tendermint::merkle::Hash {
+            CustomHash::digest([[0x00].as_ref(), bytes].concat())
+        }
+
+        fn inner_hash(
+            &mut self,
+            left: tendermint::merkle::Hash,
+            right: tendermint::merkle::Hash,
+        ) -> tendermint::merkle::Hash {
+            CustomHash::digest(
+                [[0x01].as_ref(), left.as_ref(), right.as_ref()].concat(),
+            )
+        }
+    }
+
+    impl VerificationPredicates for InnerProdPredicates {
+        type Sha256 = CustomHash;
     }
 
     impl tendermint::crypto::signature::Verifier for SigVerifier {
