@@ -150,10 +150,6 @@ struct StakeArgs {
     #[arg(long)]
     program_id: Option<String>,
 
-    /// genesis hash
-    #[arg(short, long)]
-    genesis_hash: Option<String>,
-
     /// Private key
     #[arg(long)]
     keypair_path: Option<String>,
