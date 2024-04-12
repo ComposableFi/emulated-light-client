@@ -288,15 +288,6 @@ where
         self.do_update_state(ctx, client_id, header)
     }
 
-    fn update_tm_state(
-        &self,
-        ctx: &mut E,
-        client_id: &ibc_core_host::types::identifiers::ClientId,
-        header: Option<ibc_client_tendermint_types::Header>,
-    ) -> Result<Vec<ibc::Height>> {
-        unimplemented!("Only supported for tendermint")
-    }
-
     fn update_state_on_misbehaviour(
         &self,
         ctx: &mut E,
@@ -336,15 +327,6 @@ where
     ) -> Result {
         let client_message = ClientMessage::<PK>::try_from(client_message)?;
         self.do_verify_client_message(ctx, client_message)
-    }
-
-    fn verify_tm_client_message(
-        &self,
-        ctx: &V,
-        client_id: &ibc::ClientId,
-        client_message: Option<ibc_client_tendermint_types::Header>,
-    ) -> Result {
-        unimplemented!("Only supported for tendermint")
     }
 
     fn check_for_misbehaviour(

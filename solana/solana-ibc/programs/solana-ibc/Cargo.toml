@@ -24,21 +24,22 @@ anchor-spl.workspace = true
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true
+hex-literal.workspace = true
+ibc-client-tendermint-types.workspace = true
+ibc-proto.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
-ibc-proto.workspace = true
-ibc-client-tendermint-types.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
-tendermint.workspace = true
-tendermint-light-client-verifier.workspace = true
+prost.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 spl-associated-token-account.workspace = true
 spl-token.workspace = true
 strum.workspace = true
+tendermint-light-client-verifier.workspace = true
+tendermint.workspace = true
 uint.workspace = true
-prost.workspace = true  
 
 guestchain.workspace = true
 cf-guest.workspace = true
@@ -54,7 +55,6 @@ wasm = { workspace = true }
 [dev-dependencies]
 anchor-client.workspace = true
 anyhow.workspace = true
-hex-literal.workspace = true
 ibc-testkit.workspace = true
 insta.workspace = true
 

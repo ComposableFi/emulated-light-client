@@ -83,6 +83,10 @@ fn anchor_test_deliver() -> Result<()> {
         read_keypair_file("../../../../target/deploy/write-keypair.json")
             .unwrap()
             .pubkey();
+    let sig_verify_program_id =
+        read_keypair_file("../../../../target/deploy/sigverify-keypair.json")
+            .unwrap()
+            .pubkey();
 
     let sol_rpc_client = program.rpc();
     let _airdrop_signature =
@@ -128,6 +132,7 @@ fn anchor_test_deliver() -> Result<()> {
                 min_epoch_length: 200_000.into(),
             },
             staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
+            sig_verify_program_id,
             genesis_epoch: chain::Epoch::new(
                 vec![chain::Validator::new(
                     authority.pubkey().into(),

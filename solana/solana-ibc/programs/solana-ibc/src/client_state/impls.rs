@@ -4,6 +4,8 @@
 //! implementation for `verify_client_message` which uses custom signature
 //! verifier.
 
+use anchor_lang::solana_program;
+
 use super::AnyClientState;
 use crate::ibc;
 use crate::storage::IbcStorage;
@@ -36,21 +38,56 @@ impl ibc::ClientStateCommon for AnyClientState {
         proof_upgrade_consensus_state: ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
     ) -> Result);
-    delegate!(fn verify_membership(
+
+    fn verify_membership(
         &self,
         prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
         value: Vec<u8>,
-    ) -> Result);
-    delegate!(fn verify_non_membership(
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_membership::<SolanaHostFunctions>(
+                    &cs.inner().proof_specs,
+                    prefix,
+                    proof,
+                    root,
+                    path,
+                    value,
+                )
+            }
+            AnyClientState::Wasm(_) => unimplemented!(),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(cs) => {
+                cs.verify_membership(prefix, proof, root, path, value)
+            }
+        }
+    }
+
+    fn verify_non_membership(
         &self,
         prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
-    ) -> Result);
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_non_membership::<
+                    SolanaHostFunctions,
+                >(
+                    &cs.inner().proof_specs, prefix, proof, root, path
+                )
+            }
+            AnyClientState::Wasm(_) => unimplemented!(),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(cs) => {
+                cs.verify_non_membership(prefix, proof, root, path)
+            }
+        }
+    }
 }
 
 impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
@@ -62,12 +99,11 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
     ) -> Result {
         match self {
             AnyClientState::Tendermint(cs) => {
-                ibc::tm::client_state::verify_client_message(
-                    cs.inner(),
-                    ctx,
-                    client_id,
-                    client_message,
-                    &tm::TmVerifier,
+                ibc::tm::client_state::verify_client_message::<
+                    _,
+                    SolanaHostFunctions,
+                >(
+                    cs.inner(), ctx, client_id, client_message, &tm::TmVerifier
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
@@ -75,25 +111,6 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
             }
-        }
-    }
-    fn verify_tm_client_message(
-        &self,
-        ctx: &IbcStorage<'a, 'b>,
-        client_id: &ibc::ClientId,
-        client_message: Option<ibc_client_tendermint_types::Header>,
-    ) -> Result {
-        match self {
-            AnyClientState::Tendermint(cs) => {
-                ibc::tm::client_state::verify_tm_client_message(
-                    cs.inner(),
-                    ctx,
-                    client_id,
-                    client_message,
-                    &tm::TmVerifier,
-                )
-            }
-            _ => unimplemented!("Only supports tendermint"), 
         }
     }
 
@@ -136,38 +153,32 @@ impl<'a, 'b> ibc::ClientStateExecution<IbcStorage<'a, 'b>> for AnyClientState {
         upgraded_client_state: ibc::Any,
         upgraded_consensus_state: ibc::Any,
     ) -> Result<ibc::Height>);
-    fn update_tm_state(
-        &self,
-        ctx: &mut IbcStorage<'a, 'b>,
-        client_id: &ibc::ClientId,
-        header: Option<ibc_client_tendermint_types::Header>,
-    ) -> Result<Vec<ibc::Height>> {
-        match self {
-            AnyClientState::Tendermint(cs) => {
-                cs.update_tm_state(ctx, client_id, header)
-            }
-            _ => unimplemented!("Only supports tendermint"),
-        }
-    }
 }
 
 mod tm {
     use tendermint::crypto::signature::Error;
     use tendermint_light_client_verifier::operations::commit_validator::ProdCommitValidator;
     use tendermint_light_client_verifier::operations::voting_power::ProvidedVotingPowerCalculator;
-    use tendermint_light_client_verifier::predicates::ProdPredicates;
+    use tendermint_light_client_verifier::predicates::VerificationPredicates;
     use tendermint_light_client_verifier::PredicateVerifier;
 
     pub(super) struct TmVerifier;
     pub(super) struct SigVerifier;
 
+    #[derive(Default)]
+    pub(super) struct InnerProdPredicates;
+
     impl crate::ibc::tm::TmVerifier for TmVerifier {
         type Verifier = PredicateVerifier<
-            ProdPredicates,
+            InnerProdPredicates,
             ProvidedVotingPowerCalculator<SigVerifier>,
             ProdCommitValidator,
         >;
         fn verifier(&self) -> Self::Verifier { Default::default() }
+    }
+
+    impl VerificationPredicates for InnerProdPredicates {
+        type Sha256 = super::SolanaHostFunctions;
     }
 
     impl tendermint::crypto::signature::Verifier for SigVerifier {
@@ -192,4 +203,103 @@ mod tm {
             Err(Error::VerificationFailed)
         }
     }
+}
+
+#[derive(Default)]
+struct SolanaHostFunctions;
+
+impl ibc::HostFunctionsProvider for SolanaHostFunctions {
+    fn sha2_256(message: &[u8]) -> [u8; 32] {
+        solana_program::hash::hash(message).to_bytes()
+    }
+
+    fn keccak_256(message: &[u8]) -> [u8; 32] {
+        solana_program::keccak::hash(message).0
+    }
+
+    fn blake3(message: &[u8]) -> [u8; 32] {
+        solana_program::blake3::hash(message).0
+    }
+
+    fn sha2_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn sha2_512_truncated(_message: &[u8]) -> [u8; 32] { unimplemented!() }
+    fn ripemd160(_message: &[u8]) -> [u8; 20] { unimplemented!() }
+    fn blake2b_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn blake2s_256(_message: &[u8]) -> [u8; 32] { unimplemented!() }
+}
+
+#[test]
+fn test_host_functions() {
+    use ibc::HostFunctionsProvider;
+
+    macro_rules! test {
+        ($func:ident) => {
+            for input in ["".as_bytes(), "foo".as_bytes(), "bar".as_bytes()] {
+                assert_eq!(
+                    ibc::HostFunctionsManager::$func(input),
+                    SolanaHostFunctions::$func(input),
+                    "func:{}; input: {input:?}",
+                    stringify!($func)
+                );
+            }
+        };
+    }
+
+    test!(sha2_256);
+    test!(keccak_256);
+    test!(blake3);
+}
+
+impl tendermint::crypto::Sha256 for SolanaHostFunctions {
+    fn digest(data: impl AsRef<[u8]>) -> [u8; 32] {
+        <Self as ibc::HostFunctionsProvider>::sha2_256(data.as_ref())
+    }
+}
+
+#[test]
+fn test_sha256() {
+    use tendermint::crypto::default::Sha256;
+    use tendermint::crypto::Sha256 as _;
+
+    for input in ["".as_bytes(), "foo".as_bytes(), "bar".as_bytes()] {
+        assert_eq!(Sha256::digest(input), SolanaHostFunctions::digest(input));
+    }
+}
+
+impl tendermint::merkle::MerkleHash for SolanaHostFunctions {
+    fn empty_hash(&mut self) -> [u8; 32] {
+        // This is sha256("").  test_merkle_hash below verifies that this is
+        // correct.
+        hex_literal::hex!("e3b0c44298fc1c14 9afbf4c8996fb924"
+                          "27ae41e4649b934c a495991b7852b855")
+    }
+
+    fn leaf_hash(&mut self, bytes: &[u8]) -> [u8; 32] {
+        solana_program::hash::hashv(&[&[0], bytes]).to_bytes()
+    }
+
+    fn inner_hash(&mut self, left: [u8; 32], right: [u8; 32]) -> [u8; 32] {
+        solana_program::hash::hashv(&[&[1], &left, &right]).to_bytes()
+    }
+}
+
+#[test]
+fn test_merkle_hash() {
+    use tendermint::crypto::default::Sha256;
+    use tendermint::crypto::Sha256 as _;
+    use tendermint::merkle::MerkleHash as _;
+
+    let mut theirs = tendermint::merkle::NonIncremental::<Sha256>::default();
+    let mut ours = SolanaHostFunctions;
+
+    assert_eq!(Sha256::digest(b""), ours.empty_hash());
+    assert_eq!(theirs.empty_hash(), ours.empty_hash());
+
+    for input in ["".as_bytes(), "foo".as_bytes(), "bar".as_bytes()] {
+        assert_eq!(theirs.leaf_hash(input), ours.leaf_hash(input));
+    }
+
+    let foo = Sha256::digest(b"foo");
+    let bar = Sha256::digest(b"bar");
+    assert_eq!(theirs.inner_hash(foo, bar), ours.inner_hash(foo, bar));
 }

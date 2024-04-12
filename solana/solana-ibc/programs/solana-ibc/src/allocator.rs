@@ -11,12 +11,6 @@
 //! returns `Global` type with all the available global variables.  While the
 //! returned reference is static, the variables may use inner mutability.
 
-#[allow(unused_imports)] // needed for nightly
-use alloc::boxed::Box;
-
-pub(crate) use imp::{global, Global};
-use sigverify::Verifier;
-
 #[cfg(all(
     target_os = "solana",
     feature = "custom-heap",
@@ -24,10 +18,13 @@ use sigverify::Verifier;
     not(test),
 ))]
 mod imp {
+    #[allow(unused_imports)] // needed for nightly
+    use alloc::boxed::Box;
     use core::cell::Cell;
 
     use sigverify::Verifier;
 
+    /// The global state available to the smart contract.
     #[derive(bytemuck::Zeroable)]
     pub(crate) struct Global {
         verifier: Cell<Option<&'static Verifier<'static>>>,
@@ -39,11 +36,15 @@ mod imp {
             self.verifier.get()
         }
 
-        pub(super) fn do_set_verifier(
-            &self,
-            verifier: &'static Verifier<'static>,
-        ) {
-            self.verifier.set(Some(verifier))
+        /// Takes ownership of the verifier and sets it as the global verifier.
+        ///
+        /// This operation leaks memory thus it shouldn’t be called multiple
+        /// times.  It’s intended to be called at most once at the start of the
+        /// program.
+        pub fn set_verifier(&self, verifier: Verifier<'static>) {
+            // Allocate the verifier on heap so it has fixed address, then leak
+            // so it has static lifetime.
+            self.verifier.set(Some(Box::leak(Box::new(verifier))))
         }
     }
 
@@ -64,6 +65,7 @@ mod imp {
         unsafe { solana_allocator::BumpAllocator::new() }
     };
 
+    /// Returns reference to the global state.
     pub(crate) fn global() -> &'static Global { ALLOCATOR.global() }
 }
 
@@ -76,58 +78,33 @@ mod imp {
 mod imp {
     use sigverify::Verifier;
 
-    /// Mutable global state.
-    pub(crate) struct Global;
+    /// The global state available to the smart contract.
+    ///
+    /// Note that we don’t support the global state in tests or CPI.  None of
+    /// the unit tests will use code which relies on global state.  Similarly,
+    /// we don’t expose any types of functions which use global state so crates
+    /// which depend on us for CPI won’t need the global state.
+    pub(crate) enum Global {}
 
-    // Make sure we’re not using AtomicPtr when compiling for CPI.  I’m not
-    // entirely sure why this is a problem, but just having AtomicPtr::store in
-    // the code (whether it’s executed or not) causes CPI builds to fail.
-    #[cfg(not(all(target_os = "solana", feature = "cpi")))]
-    static VERIFIER: core::sync::atomic::AtomicPtr<Verifier> =
-        core::sync::atomic::AtomicPtr::new(core::ptr::null_mut());
-
-    #[cfg(not(all(target_os = "solana", feature = "cpi")))]
     impl Global {
         /// Returns global verifier, if initialised.
         pub fn verifier(&self) -> Option<&'static Verifier<'static>> {
-            let ptr = VERIFIER.load(core::sync::atomic::Ordering::SeqCst);
-            // SAFETY: We’ve initialised the pointer from a leaked 'static
-            // reference in set_verifier.  It’s thus safe to dereference it.
-            unsafe { ptr.as_ref() }
+            match *self {}
         }
 
-        pub(super) fn do_set_verifier(
-            &self,
-            verifier: &'static Verifier<'static>,
-        ) {
-            VERIFIER.store(
-                verifier as *const Verifier as *mut Verifier,
-                core::sync::atomic::Ordering::SeqCst,
-            );
+        /// Takes ownership of the verifier and sets it as the global verifier.
+        ///
+        /// This operation leaks memory thus it shouldn’t be called multiple
+        /// times.  It’s intended to be called at most once at the start of the
+        /// program.
+        pub fn set_verifier(&self, _verifier: Verifier<'static>) {
+            match *self {}
         }
     }
 
-    #[cfg(all(target_os = "solana", feature = "cpi"))]
-    impl Global {
-        /// Returns global verifier, if initialised.
-        pub fn verifier(&self) -> Option<&'static Verifier<'static>> { None }
-
-        pub(super) fn do_set_verifier(&self, _verifier: *const Verifier) {
-            panic!();
-        }
-    }
-
-    pub(crate) fn global() -> &'static Global { &Global }
-}
-
-impl Global {
-    /// Takes ownership of the verifier and sets it as the global verifier.
-    ///
-    /// This operation leaks memory thus it shouldn’t be called multiple times.
-    /// It’s intended to be called at most once at the start of the program.
-    pub fn set_verifier(&self, verifier: Verifier<'static>) {
-        // Allocate the verifier on heap so it has fixed address and leak so it
-        // has 'static lifetime.
-        self.do_set_verifier(&*Box::leak(Box::new(verifier)));
+    pub(crate) fn global() -> &'static Global {
+        unimplemented!("global should never be called in tests or CPI")
     }
 }
+
+pub(crate) use imp::global;

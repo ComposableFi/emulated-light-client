@@ -91,6 +91,7 @@ pub mod solana_ibc {
         config: chain::Config,
         genesis_epoch: chain::Epoch,
         staking_program_id: Pubkey,
+        sig_verify_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(
             &ctx.accounts.trie,
@@ -101,6 +102,7 @@ pub mod solana_ibc {
             config,
             genesis_epoch,
             staking_program_id,
+            sig_verify_program_id,
         )
     }
 
@@ -209,20 +211,41 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        let sig_verify_program_id =
+            ctx.accounts.chain.sig_verify_program_id()?;
+
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
             let mut verifier = sigverify::Verifier::default();
-            if verifier.set_ix_sysvar(last).is_ok() {
+            if verifier
+                .set_sigverify_account(
+                    unsafe { core::mem::transmute(last) },
+                    &sig_verify_program_id,
+                )
+                .is_ok()
+            {
                 global().set_verifier(verifier);
                 ctx.remaining_accounts = rest;
             }
         }
+        let height = store.borrow().chain.head()?.block_height;
+        // height just before the data is added to the trie.
+        msg!("Current Block height {}", height);
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
-            .map_err(move |err| error!((&err)))
+            .map_err(move |err| error!((&err)))?;
+
+        // Log client state only when it is updated which is when `UpdateClient` message
+        // sent.
+        if ctx.remaining_accounts.split_last().is_some() {
+            let storage = &store.borrow().private;
+            let client_state = &storage.clients[0].client_state;
+            msg!("This is updated client state {:?}", client_state.as_bytes());
+        }
+        Ok(())
     }
 
     /// Called to set up a connection, channel and store the next
