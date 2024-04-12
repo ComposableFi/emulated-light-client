@@ -1,4 +1,3 @@
-use bytemuck::TransparentWrapper;
 use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
@@ -17,20 +16,14 @@ type Result<T = (), E = ProgramError> = core::result::Result<T, E>;
 /// that it’s not possible to extract signatures that are stored in the account
 /// (but of course it is possible to check if known signature is present).
 #[derive(
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    PartialEq,
-    bytemuck::TransparentWrapper,
-    derive_more::From,
-    derive_more::Into,
+    Clone, Copy, Debug, Eq, PartialEq, derive_more::From, derive_more::Into,
 )]
 #[repr(transparent)]
 pub struct SignatureHash([u8; 32]);
 
 impl SignatureHash {
     const ED25519_HASH_MAGIC: [u8; 8] = *b"ed25519\0";
+    const SIZE: usize = core::mem::size_of::<SignatureHash>();
 
     /// Constructs a new SignatureHash for given Ed25519 signature.
     #[inline]
@@ -111,9 +104,8 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
         message: &[u8],
     ) -> Result<bool> {
         let data = self.0.try_borrow_data()?;
-        let mut iter = iter(data.as_ref())?;
         let signature = SignatureHash::new_ed25519(key, signature, message);
-        Ok(iter.any(|hash| hash == &signature))
+        find_sighash(&*data, signature)
     }
 
     /// Reads number of signatures saved in the account.
@@ -125,13 +117,18 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
         Ok(u32::from_le_bytes(*head))
     }
 
-    /// Sets number of signatures saved in the account.
+    /// Sets number of signatures saved in the account and sort the entries.
     #[cfg(any(test, not(feature = "library")))]
-    pub(crate) fn write_count(&self, count: u32) -> Result {
+    pub(crate) fn write_count_and_sort(&self, count: u32) -> Result {
         let mut data = self.0.try_borrow_mut_data()?;
-        let head =
-            data.get_mut(..4).ok_or(ProgramError::AccountDataTooSmall)?;
-        *<&mut [u8; 4]>::try_from(head).unwrap() = count.to_le_bytes();
+        let (head, tail) = stdx::split_at_mut::<4, _>(&mut *data)
+            .ok_or(ProgramError::AccountDataTooSmall)?;
+        let entries = stdx::as_chunks_mut::<{ SignatureHash::SIZE }, _>(tail)
+            .0
+            .get_mut(..usize::try_from(count).unwrap())
+            .ok_or(ProgramError::AccountDataTooSmall)?;
+        *head = count.to_le_bytes();
+        entries.sort_unstable();
         Ok(())
     }
 
@@ -169,21 +166,40 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
     }
 }
 
-/// Returns iterator over signature hashes in given account.
-pub(crate) fn iter(
+/// Searches given account data for provided signature hash.
+///
+/// Returns whether the signature has been found.  Returns an error if the
+/// account data is malformed.
+pub(crate) fn find_sighash(
     data: &[u8],
-) -> Result<impl Iterator<Item = &'_ SignatureHash>> {
-    let (head, tail) = stdx::split_at::<4, u8>(data)
+    signature: SignatureHash,
+) -> Result<bool> {
+    let (head, tail) = stdx::split_at::<4, _>(data)
         .ok_or(ProgramError::AccountDataTooSmall)?;
     let count = usize::try_from(u32::from_le_bytes(*head))
         .map_err(|_| ProgramError::InvalidAccountData)?;
-    Ok(stdx::as_chunks::<32, u8>(tail)
+    let entries = stdx::as_chunks::<{ SignatureHash::SIZE }, _>(tail)
         .0
         .get(..count)
-        .ok_or(ProgramError::AccountDataTooSmall)?
-        .iter()
-        .map(SignatureHash::wrap_ref))
+        .ok_or(ProgramError::InvalidAccountData)?;
+    Ok(entries.binary_search(signature.as_ref()).is_ok())
 }
+
+// Returns iterator over signature hashes in given account.
+// pub(crate) fn iter(
+//     data: &[u8],
+// ) -> Result<impl Iterator<Item = &'_ SignatureHash>> {
+//     let (head, tail) = stdx::split_at::<4, u8>(data)
+//         .ok_or(ProgramError::AccountDataTooSmall)?;
+//     let count = usize::try_from(u32::from_le_bytes(*head))
+//         .map_err(|_| ProgramError::InvalidAccountData)?;
+//     Ok(stdx::as_chunks::<SignatureHash::SIZE, u8>(tail)
+//         .0
+//         .get(..count)
+//         .ok_or(ProgramError::AccountDataTooSmall)?
+//         .iter()
+//         .map(SignatureHash::wrap_ref))
+// }
 
 
 #[test]
@@ -221,12 +237,12 @@ fn test_ed25519() {
     assert_eq!(nah, signatures.find_ed25519(&[11; 32], &[12; 64], b"foo"));
     assert_eq!(nah, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
 
-    signatures.write_count(1).unwrap();
+    signatures.write_count_and_sort(1).unwrap();
     assert_eq!(Ok(1), signatures.read_count());
     assert_eq!(yes, signatures.find_ed25519(&[11; 32], &[12; 64], b"foo"));
     assert_eq!(nah, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
 
-    signatures.write_count(2).unwrap();
+    signatures.write_count_and_sort(2).unwrap();
     assert_eq!(Ok(2), signatures.read_count());
     assert_eq!(yes, signatures.find_ed25519(&[11; 32], &[12; 64], b"foo"));
     assert_eq!(yes, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
@@ -245,7 +261,7 @@ fn test_ed25519() {
             Ok(())
         })
         .unwrap();
-    signatures.write_count(3).unwrap();
+    signatures.write_count_and_sort(3).unwrap();
     assert_eq!(yes, signatures.find_ed25519(&[11; 32], &[12; 64], b"foo"));
     assert_eq!(yes, signatures.find_ed25519(&[21; 32], &[22; 64], b"bar"));
     assert_eq!(yes, signatures.find_ed25519(&[31; 32], &[32; 64], b"baz"));

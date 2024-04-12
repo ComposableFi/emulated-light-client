@@ -129,8 +129,9 @@ fn handle_update(
         Ok::<(), ProgramError>(())
     })?;
 
-    // Update number of signatures saved in the Signatures account.
-    ctx.signatures.write_count(count)
+    // Update number of signatures saved in the Signatures account and sort
+    // the entries.
+    ctx.signatures.write_count_and_sort(count)
 }
 
 

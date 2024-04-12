@@ -39,6 +39,18 @@ pub fn split_at<const L: usize, T>(xs: &[T]) -> Option<(&[T; L], &[T])> {
     Some((head.try_into().unwrap(), tail))
 }
 
+/// Splits `&mut [T]` into `(&mut [T; L], &mut [T])`.  Returns `None` if input is too
+/// shorter.
+pub fn split_at_mut<const L: usize, T>(
+    xs: &mut [T],
+) -> Option<(&mut [T; L], &mut [T])> {
+    if xs.len() < L {
+        return None;
+    }
+    let (head, tail) = xs.split_at_mut(L);
+    Some((head.try_into().unwrap(), tail))
+}
+
 /// Splits `&[u8]` into `(&[u8], &[u8; R])`.  Returns `None` if input is too
 /// shorter.
 #[allow(dead_code)]
