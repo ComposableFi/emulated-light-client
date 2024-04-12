@@ -228,19 +228,22 @@ impl ibc::HostFunctionsProvider for SolanaHostFunctions {
     fn blake2s_256(_message: &[u8]) -> [u8; 32] { unimplemented!() }
 }
 
-#[test]
-fn test_host_functions() {
+#[cfg(all(test, not(miri)))]
+mod test_host_functions {
     use ibc::HostFunctionsProvider;
+
+    use crate::ibc;
 
     macro_rules! test {
         ($func:ident) => {
-            for input in ["".as_bytes(), "foo".as_bytes(), "bar".as_bytes()] {
-                assert_eq!(
-                    ibc::HostFunctionsManager::$func(input),
-                    SolanaHostFunctions::$func(input),
-                    "func:{}; input: {input:?}",
-                    stringify!($func)
-                );
+            #[test]
+            fn $func() {
+                for input in ["", "foo", "bar"] {
+                    assert_eq!(
+                        ibc::HostFunctionsManager::$func(input.as_bytes()),
+                        super::SolanaHostFunctions::$func(input.as_bytes()),
+                    );
+                }
             }
         };
     }
