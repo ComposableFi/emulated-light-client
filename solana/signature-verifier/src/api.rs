@@ -105,7 +105,7 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
     ) -> Result<bool> {
         let data = self.0.try_borrow_data()?;
         let signature = SignatureHash::new_ed25519(key, signature, message);
-        find_sighash(&*data, signature)
+        find_sighash(*data, signature)
     }
 
     /// Reads number of signatures saved in the account.
