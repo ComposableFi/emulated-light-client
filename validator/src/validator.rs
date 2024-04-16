@@ -69,6 +69,7 @@ pub fn run_validator(config: Config) {
                     chain,
                     trie,
                     max_tries,
+                    &config.priority_fees
                 );
                 match tx {
                     Ok(tx) => {
@@ -90,6 +91,7 @@ pub fn run_validator(config: Config) {
                 chain,
                 trie,
                 max_tries,
+                &config.priority_fees
             );
             match tx {
                 Ok(tx) => {

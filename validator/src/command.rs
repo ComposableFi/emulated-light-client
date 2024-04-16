@@ -23,6 +23,8 @@ pub struct Config {
     pub ws_url: String,
     pub program_id: String,
     pub keypair: InnerKeypair,
+    #[serde(default)]
+    pub priority_fees: u64,
     pub log_level: String,
 }
 
@@ -100,6 +102,9 @@ struct RunArgs {
     #[arg(long)]
     keypair_path: Option<String>,
 
+    #[arg(long)]
+    priority_fees: Option<u64>,
+
     /// Log Level
     #[arg(short, long)]
     log_level: Option<LevelFilter>,
@@ -122,6 +127,9 @@ struct InitArgs {
     /// Private key
     #[arg(long)]
     keypair_path: String,
+
+    #[arg(long)]
+    priority_fees: Option<u64>,
 
     /// Log Level
     #[arg(short, long)]
@@ -149,6 +157,9 @@ struct StakeArgs {
     /// program ID
     #[arg(long)]
     program_id: Option<String>,
+
+    #[arg(long)]
+    priority_fees: Option<u64>,
 
     /// Private key
     #[arg(long)]
@@ -207,6 +218,7 @@ pub fn process_command() {
                 ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
                 program_id: cmd.program_id.unwrap_or(default_config.program_id),
                 keypair,
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
@@ -236,6 +248,7 @@ pub fn process_command() {
                 ws_url: cmd.ws_url,
                 program_id: cmd.program_id,
                 keypair: keypair.into(),
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
@@ -264,6 +277,7 @@ pub fn process_command() {
                 ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
                 program_id: cmd.program_id.unwrap_or(default_config.program_id),
                 keypair,
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)

@@ -7,6 +7,7 @@ use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::Keypair;
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::{Client, Cluster};
+use anchor_client::solana_sdk::transaction::MessageHash::Compute;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::solana_program::sysvar::SysvarId;
@@ -218,8 +219,9 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
     let tx = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
+            500_000u32,
         ))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(config.priority_fees))
         .accounts(Deposit {
             depositor: validator.pubkey(),
             vault_params,

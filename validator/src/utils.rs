@@ -78,6 +78,7 @@ pub fn submit_call(
     chain: Pubkey,
     trie: Pubkey,
     max_retries: u8,
+    priority_fees: &u64
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
     let mut tx = Ok(signature);
@@ -86,7 +87,7 @@ pub fn submit_call(
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-                10_000,
+                *priority_fees,
             ))
             .instruction(new_ed25519_instruction_with_signature(
                 &validator.pubkey().to_bytes(),
@@ -129,6 +130,7 @@ pub fn submit_generate_block_call(
     chain: Pubkey,
     trie: Pubkey,
     max_retries: u8,
+    priority_fees: &u64
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
     let mut tx = Ok(Signature::new_unique());
@@ -137,7 +139,7 @@ pub fn submit_generate_block_call(
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-                10_000,
+                *priority_fees,
             ))
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
                 60_000,
