@@ -86,6 +86,7 @@ pub fn submit_call(
         let mut status = true;
         tx = program
             .request()
+            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(60_000))
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 *priority_fees,
             ))
