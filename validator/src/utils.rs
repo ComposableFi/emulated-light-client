@@ -104,10 +104,7 @@ pub fn submit_call(
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
             .signer(validator)
-            .send_with_spinner_and_config(RpcSendTransactionConfig {
-                skip_preflight: true,
-                ..RpcSendTransactionConfig::default()
-            })
+            .send()
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
                     log::error!("{:?}", e);
@@ -115,6 +112,54 @@ pub fn submit_call(
                 }
                 e
             });
+        if status {
+            return tx;
+        }
+        sleep(Duration::from_millis(500));
+        tries += 1;
+        log::info!("Retrying to send the transaction: Attempt {}", tries);
+    }
+    log::error!("Max retries for signing the block exceeded");
+    tx
+}
+
+pub fn submit_generate_block_call(
+    program: &Program<Rc<Keypair>>,
+    validator: &Rc<Keypair>,
+    chain: Pubkey,
+    trie: Pubkey,
+    max_retries: u8,
+) -> Result<Signature, ClientError> {
+    let mut tries = 0;
+    let mut tx = Ok(Signature::new_unique());
+    while tries < max_retries {
+        let mut status = true;
+        tx = program
+            .request()
+            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                10_000,
+            ))
+            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+                60_000,
+            ))
+            .accounts(accounts::Chain {
+                sender: validator.pubkey(),
+                chain,
+                trie,
+                system_program: anchor_lang::system_program::ID,
+            })
+            .args(instruction::GenerateBlock {})
+            .payer(validator.clone())
+            .signer(&*validator)
+            .send()
+            .map_err(|e| {
+                if matches!(e, ClientError::SolanaClientError(_)) {
+                    // log::error!("{:?}", e);
+                    status = false;
+                }
+                e
+            });
+
         if status {
             return tx;
         }

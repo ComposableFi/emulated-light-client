@@ -152,6 +152,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         CommitmentConfig::processed(),
     );
     let program = client.program(restaking::ID).unwrap();
+    let solana_ibc_program_id = Pubkey::from_str(&config.program_id).unwrap();
 
     let receipt_token_keypair = Keypair::new();
     let receipt_token_key = receipt_token_keypair.pubkey();
@@ -177,11 +178,11 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
     )
     .0;
     let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID)
+        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc_program_id)
             .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
-        &solana_ibc::ID,
+        &solana_ibc_program_id,
     )
     .0;
     let master_edition_account = Pubkey::find_program_address(
@@ -238,7 +239,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             nft_metadata,
             chain,
             trie,
-            guest_chain_program_id: solana_ibc::ID,
+            guest_chain_program_id: solana_ibc_program_id,
         })
         .args(restaking::instruction::Deposit {
             service: Service::GuestChain { validator: validator.pubkey() },
@@ -247,10 +248,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         .payer(validator.clone())
         .signer(&*validator)
         .signer(&receipt_token_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })
+        .send()
         .unwrap();
     println!("This is staking signature:\n  {}", tx);
 }
