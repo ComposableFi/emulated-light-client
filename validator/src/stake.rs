@@ -6,8 +6,8 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::Keypair;
 use anchor_client::solana_sdk::signer::Signer;
-use anchor_client::{Client, Cluster};
 use anchor_client::solana_sdk::transaction::MessageHash::Compute;
+use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::solana_program::sysvar::SysvarId;
@@ -178,9 +178,11 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         &restaking::ID,
     )
     .0;
-    let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc_program_id)
-            .0;
+    let trie = Pubkey::find_program_address(
+        &[solana_ibc::TRIE_SEED],
+        &solana_ibc_program_id,
+    )
+    .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
         &solana_ibc_program_id,
@@ -221,7 +223,9 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             500_000u32,
         ))
-        .instruction(ComputeBudgetInstruction::set_compute_unit_price(config.priority_fees))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+            config.priority_fees,
+        ))
         .accounts(Deposit {
             depositor: validator.pubkey(),
             vault_params,

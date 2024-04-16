@@ -20,16 +20,19 @@ pub fn run_validator(config: Config) {
         validator.clone(),
         CommitmentConfig::processed(),
     );
-    let program = client.program(Pubkey::from_str(&config.program_id).unwrap()).unwrap();
+    let program =
+        client.program(Pubkey::from_str(&config.program_id).unwrap()).unwrap();
 
-    let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &Pubkey::from_str(&config.program_id).unwrap())
-            .0;
+    let trie = Pubkey::find_program_address(
+        &[solana_ibc::TRIE_SEED],
+        &Pubkey::from_str(&config.program_id).unwrap(),
+    )
+    .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
         &Pubkey::from_str(&config.program_id).unwrap(),
     )
-        .0;
+    .0;
 
     log::info!("Validator running");
 
@@ -69,7 +72,7 @@ pub fn run_validator(config: Config) {
                     chain,
                     trie,
                     max_tries,
-                    &config.priority_fees
+                    &config.priority_fees,
                 );
                 match tx {
                     Ok(tx) => {
@@ -91,7 +94,7 @@ pub fn run_validator(config: Config) {
                 chain,
                 trie,
                 max_tries,
-                &config.priority_fees
+                &config.priority_fees,
             );
             match tx {
                 Ok(tx) => {
