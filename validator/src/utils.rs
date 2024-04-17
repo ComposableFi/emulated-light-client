@@ -1,23 +1,18 @@
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
-use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
-use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{ClientError, Program};
-use anchor_lang::prelude::ProgramError;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::system_program;
 use base64::Engine;
 use directories::ProjectDirs;
-use serde::de::IntoDeserializer;
 use serde::{Deserialize, Serialize};
 use solana_ibc::{accounts, instruction};
 
@@ -58,28 +53,6 @@ pub fn config_file() -> PathBuf {
 
 pub fn setup_logging(log_level: log::LevelFilter) {
     env_logger::builder().filter_level(log_level).format_timestamp(None).init();
-}
-
-pub(crate) fn get_events_from_logs(
-    logs: Vec<String>,
-) -> Vec<solana_ibc::events::NewBlock<'static>> {
-    logs.iter()
-        .filter_map(|log| log.strip_prefix("Program data: "))
-        .filter_map(|event| {
-            let decoded_event =
-                base64::prelude::BASE64_STANDARD.decode(event).unwrap();
-            let decoded_event: solana_ibc::events::Event =
-                borsh::BorshDeserialize::try_from_slice(&decoded_event)
-                    .unwrap();
-            match decoded_event {
-                solana_ibc::events::Event::NewBlock(e) => Some(e),
-                _ => {
-                    // println!("This is other event");
-                    None
-                }
-            }
-        })
-        .collect()
 }
 
 fn new_ed25519_instruction_with_signature(
@@ -138,6 +111,7 @@ pub struct BundleStatusResponse {
     id: u64,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn submit_call(
     program: &Program<Rc<Keypair>>,
     signature: Signature,
@@ -171,7 +145,7 @@ pub fn submit_call(
                 trie,
                 ix_sysvar:
                     anchor_lang::solana_program::sysvar::instructions::ID,
-                system_program: anchor_lang::solana_program::system_program::ID,
+                system_program: system_program::ID,
             })
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
@@ -223,7 +197,7 @@ pub fn submit_generate_block_call(
             })
             .args(instruction::GenerateBlock {})
             .payer(validator.clone())
-            .signer(&*validator)
+            .signer(validator)
             .send()
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {

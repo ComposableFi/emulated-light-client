@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
-use anchor_client::solana_sdk::signature::{Keypair, Signature};
+use anchor_client::solana_sdk::signature::Keypair;
 use anchor_client::solana_sdk::signer::Signer;
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
@@ -16,7 +16,7 @@ use restaking::{accounts, Service};
 
 use crate::command::Config;
 use crate::skip_fail;
-use crate::utils::{BundleStatusResponse, Payload, Response, ResultResponse};
+use crate::utils::{BundleStatusResponse, Payload, Response};
 
 pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
     let validator = Rc::new(Keypair::from(config.keypair));
