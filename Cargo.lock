@@ -6884,19 +6884,19 @@ dependencies = [
 [[patch.unused]]
 name = "tendermint"
 version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=c68ef2348aceba3553cf08382d1a570b9352bba5#c68ef2348aceba3553cf08382d1a570b9352bba5"
+source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
 
 [[patch.unused]]
 name = "tendermint-light-client"
 version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=c68ef2348aceba3553cf08382d1a570b9352bba5#c68ef2348aceba3553cf08382d1a570b9352bba5"
+source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
 
 [[patch.unused]]
 name = "tendermint-light-client-verifier"
 version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=c68ef2348aceba3553cf08382d1a570b9352bba5#c68ef2348aceba3553cf08382d1a570b9352bba5"
+source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
 
 [[patch.unused]]
 name = "tendermint-proto"
 version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=c68ef2348aceba3553cf08382d1a570b9352bba5#c68ef2348aceba3553cf08382d1a570b9352bba5"
+source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
