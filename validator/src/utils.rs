@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -8,12 +9,36 @@ use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{ClientError, Program};
+use anchor_lang::prelude::ProgramError;
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
+use anchor_lang::system_program;
 use base64::Engine;
 use directories::ProjectDirs;
+use serde::de::IntoDeserializer;
+use serde::{Deserialize, Serialize};
 use solana_ibc::{accounts, instruction};
+
+/// Displays the error if present, waits for few seconds and
+/// retries execution.
+///
+/// The error is usually due to load on rpc which is solved
+/// by waiting a few seconds.
+#[macro_export]
+macro_rules! skip_fail {
+    ($res:expr) => {
+        match $res {
+            Ok(val) => val,
+            Err(e) => {
+                log::error!("{:?}", e);
+                sleep(Duration::from_secs(2));
+                continue;
+            }
+        }
+    };
+}
 
 fn project_dirs() -> ProjectDirs {
     ProjectDirs::from(
@@ -70,6 +95,49 @@ fn new_ed25519_instruction_with_signature(
     sigverify::ed25519_program::new_instruction(&[entry]).unwrap()
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct Payload {
+    pub jsonrpc: String,
+    pub id: u64,
+    pub method: String,
+    pub params: Vec<Vec<String>>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Response {
+    pub jsonrpc: String,
+    pub result: String,
+    pub id: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Context {
+    pub slot: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Value {
+    pub bundle_id: String,
+    pub transactions: Vec<String>,
+    pub slot: u64,
+    pub confirmation_status: String,
+    #[serde(skip_deserializing)]
+    pub err: u8,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ResultResponse {
+    pub context: Context,
+    pub value: Vec<Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BundleStatusResponse {
+    jsonrpc: String,
+    pub result: ResultResponse,
+    id: u64,
+}
+
 pub fn submit_call(
     program: &Program<Rc<Keypair>>,
     signature: Signature,
@@ -86,7 +154,9 @@ pub fn submit_call(
         let mut status = true;
         tx = program
             .request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(60_000))
+            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+                60_000,
+            ))
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 *priority_fees,
             ))
@@ -109,7 +179,7 @@ pub fn submit_call(
             .send()
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
-                    log::error!("{:?}", e);
+                    // log::error!("{:?}", e);
                     status = false;
                 }
                 e

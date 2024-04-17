@@ -34,6 +34,8 @@ pub fn run_validator(config: Config) {
     )
     .0;
 
+
+
     log::info!("Validator running");
 
     let max_tries = 5;
