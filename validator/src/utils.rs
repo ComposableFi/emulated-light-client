@@ -145,7 +145,7 @@ pub fn submit_call(
     validator: &Rc<Keypair>,
     chain: Pubkey,
     trie: Pubkey,
-    max_retries: u8,
+    max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
@@ -200,7 +200,7 @@ pub fn submit_generate_block_call(
     validator: &Rc<Keypair>,
     chain: Pubkey,
     trie: Pubkey,
-    max_retries: u8,
+    max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
