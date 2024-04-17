@@ -150,8 +150,8 @@ pub fn submit_call(
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
     let mut tx = Ok(signature);
-    while tries < max_retries {
-        let mut status = true;
+    for _ in 0..max_retries {
+        let mut success = true;
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -180,11 +180,11 @@ pub fn submit_call(
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
                     // log::error!("{:?}", e);
-                    status = false;
+                    success = false;
                 }
                 e
             });
-        if status {
+        if success {
             return tx;
         }
         sleep(Duration::from_millis(500));
@@ -205,8 +205,8 @@ pub fn submit_generate_block_call(
 ) -> Result<Signature, ClientError> {
     let mut tries = 0;
     let mut tx = Ok(Signature::new_unique());
-    while tries < max_retries {
-        let mut status = true;
+    for _ in 0..max_retries {
+        let mut success = true;
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
@@ -228,12 +228,12 @@ pub fn submit_generate_block_call(
             .map_err(|e| {
                 if matches!(e, ClientError::SolanaClientError(_)) {
                     // log::error!("{:?}", e);
-                    status = false;
+                    success = false;
                 }
                 e
             });
 
-        if status {
+        if success {
             return tx;
         }
         sleep(Duration::from_millis(500));
