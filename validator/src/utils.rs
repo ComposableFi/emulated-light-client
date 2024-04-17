@@ -11,7 +11,6 @@ use anchor_client::{ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::system_program;
-use base64::Engine;
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use solana_ibc::{accounts, instruction};
@@ -41,7 +40,7 @@ fn project_dirs() -> ProjectDirs {
         "Composable Finance",
         "Solana Guest Chain Validator",
     )
-    .expect("Invalid Home directory!")
+        .expect("Invalid Home directory!")
 }
 
 pub fn config_file() -> PathBuf {
@@ -144,7 +143,7 @@ pub fn submit_call(
                 chain,
                 trie,
                 ix_sysvar:
-                    anchor_lang::solana_program::sysvar::instructions::ID,
+                anchor_lang::solana_program::sysvar::instructions::ID,
                 system_program: system_program::ID,
             })
             .args(instruction::SignBlock { signature: signature.into() })
@@ -198,17 +197,21 @@ pub fn submit_generate_block_call(
             .args(instruction::GenerateBlock {})
             .payer(validator.clone())
             .signer(validator)
-            .send()
-            .map_err(|e| {
-                if matches!(e, ClientError::SolanaClientError(_)) {
-                    // log::error!("{:?}", e);
-                    success = false;
-                }
-                e
-            });
+            .send();
+        // .map_err(|e| {
+        //     if matches!(e, ClientError::SolanaClientError(_)) {
+        //         // log::error!("{:?}", e);
+        //         success = false;
+        //     }
+        //     e
+        // });
 
-        if success {
-            return tx;
+        if let Err(e) = tx.clone() {
+            if !matches!(e, ClientError::SolanaClientError(_)) {
+                return Err(e);
+            }
+        } else if let Ok(tx) = tx {
+            return Ok(tx);
         }
         sleep(Duration::from_millis(500));
         tries += 1;
