@@ -22,8 +22,9 @@ pub struct Config {
     pub rpc_url: String,
     pub ws_url: String,
     pub program_id: String,
-    pub genesis_hash: String,
     pub keypair: InnerKeypair,
+    #[serde(default)]
+    pub priority_fees: u64,
     pub log_level: String,
 }
 
@@ -97,13 +98,12 @@ struct RunArgs {
     #[arg(long)]
     program_id: Option<String>,
 
-    /// genesis hash
-    #[arg(short, long)]
-    genesis_hash: Option<String>,
-
     /// Private key
     #[arg(long)]
     keypair_path: Option<String>,
+
+    #[arg(long)]
+    priority_fees: Option<u64>,
 
     /// Log Level
     #[arg(short, long)]
@@ -124,13 +124,12 @@ struct InitArgs {
     #[arg(long)]
     program_id: String,
 
-    /// genesis hash
-    #[arg(short, long)]
-    genesis_hash: String,
-
     /// Private key
     #[arg(long)]
     keypair_path: String,
+
+    #[arg(long)]
+    priority_fees: Option<u64>,
 
     /// Log Level
     #[arg(short, long)]
@@ -159,9 +158,8 @@ struct StakeArgs {
     #[arg(long)]
     program_id: Option<String>,
 
-    /// genesis hash
-    #[arg(short, long)]
-    genesis_hash: Option<String>,
+    #[arg(long)]
+    priority_fees: Option<u64>,
 
     /// Private key
     #[arg(long)]
@@ -219,10 +217,8 @@ pub fn process_command() {
                 rpc_url: cmd.rpc_url.unwrap_or(default_config.rpc_url),
                 ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
                 program_id: cmd.program_id.unwrap_or(default_config.program_id),
-                genesis_hash: cmd
-                    .genesis_hash
-                    .unwrap_or(default_config.genesis_hash),
                 keypair,
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
@@ -251,8 +247,8 @@ pub fn process_command() {
                 rpc_url: cmd.rpc_url,
                 ws_url: cmd.ws_url,
                 program_id: cmd.program_id,
-                genesis_hash: cmd.genesis_hash,
                 keypair: keypair.into(),
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
@@ -280,10 +276,8 @@ pub fn process_command() {
                 rpc_url: cmd.rpc_url.unwrap_or(default_config.rpc_url),
                 ws_url: cmd.ws_url.unwrap_or(default_config.ws_url),
                 program_id: cmd.program_id.unwrap_or(default_config.program_id),
-                genesis_hash: cmd
-                    .genesis_hash
-                    .unwrap_or(default_config.genesis_hash),
                 keypair,
+                priority_fees: cmd.priority_fees.unwrap_or(0),
                 log_level: cmd
                     .log_level
                     .unwrap_or(LevelFilter::Info)
