@@ -148,10 +148,8 @@ pub fn submit_call(
             .payer(validator.clone())
             .signer(validator)
             .send();
-        if let Err(e) = tx.clone() {
-            if !matches!(e, ClientError::SolanaClientError(_)) {
-                return Err(e);
-            }
+        if let Err(err @ ClientError::SolanaClientError(_)) = tx {
+            return Err(err);
         } else if let Ok(tx) = tx {
             return Ok(tx);
         }
