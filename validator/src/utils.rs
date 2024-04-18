@@ -40,7 +40,7 @@ fn project_dirs() -> ProjectDirs {
         "Composable Finance",
         "Solana Guest Chain Validator",
     )
-        .expect("Invalid Home directory!")
+    .expect("Invalid Home directory!")
 }
 
 pub fn config_file() -> PathBuf {
@@ -141,7 +141,7 @@ pub fn submit_call(
                 chain,
                 trie,
                 ix_sysvar:
-                anchor_lang::solana_program::sysvar::instructions::ID,
+                    anchor_lang::solana_program::sysvar::instructions::ID,
                 system_program: system_program::ID,
             })
             .args(instruction::SignBlock { signature: signature.into() })

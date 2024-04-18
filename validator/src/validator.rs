@@ -44,12 +44,14 @@ pub fn run_validator(config: Config) {
         sleep(Duration::from_secs(5));
         let chain_account: ChainData = program.account(chain).unwrap();
         if chain_account.pending_block().unwrap().is_some() {
-            if let Some(pending_block) = chain_account
-                .pending_block()
-                .unwrap()
-                .as_ref()
+            if let Some(pending_block) =
+                chain_account.pending_block().unwrap().as_ref()
             {
-                if pending_block.signers.get(&validator.pubkey().into()).is_some() {
+                if pending_block
+                    .signers
+                    .get(&validator.pubkey().into())
+                    .is_some()
+                {
                     log::info!("You have already signed the pending block");
                     continue;
                 }
