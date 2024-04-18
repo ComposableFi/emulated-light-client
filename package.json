@@ -19,7 +19,7 @@
     "@metaplex-foundation/mpl-token-metadata": "^3.1.2",
     "@metaplex-foundation/umi": "^0.9.0",
     "@solana/spl-token": "^0.3.10",
-    "@solana/web3.js": "^1.33.0",
+    "@solana/web3.js": "^1.91.6",
     "bs58": "^5.0.0",
     "mz": "^2.7.0",
     "tsconfig": "^7.0.0",
