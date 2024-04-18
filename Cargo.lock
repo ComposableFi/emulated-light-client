@@ -1704,16 +1704,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0206175f82b8d6bf6652ff7d71a1e27fd2e4efde587fd368662814d6ec1d9ce0"
 
 [[package]]
-name = "eyre"
-version = "0.6.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd915d99f24784cdc19fd37ef22b97e3ff0ae756c7e492e9fbfe897d61e2aec"
-dependencies = [
- "indenter",
- "once_cell",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1759,7 +1749,6 @@ version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c606d892c9de11507fa0dcffc116434f94e105d0bbdc4e405b61519464c49d7b"
 dependencies = [
- "eyre",
  "paste",
 ]
 
@@ -2811,12 +2800,6 @@ dependencies = [
  "quote",
  "syn 1.0.109",
 ]
-
-[[package]]
-name = "indenter"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
@@ -5770,8 +5753,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15ab8f0a25d0d2ad49ac615da054d6a76aa6603ff95f7d18bafdd34450a1a04b"
+source = "git+https://github.com/mina86/tendermint-rs?rev=edefc657fd4ea14d16272beccdc54944d34c7d03#edefc657fd4ea14d16272beccdc54944d34c7d03"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -5799,8 +5781,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b8090d0eef9ad57b1b913b5e358e26145c86017e87338136509b94383a4af25"
+source = "git+https://github.com/mina86/tendermint-rs?rev=edefc657fd4ea14d16272beccdc54944d34c7d03#edefc657fd4ea14d16272beccdc54944d34c7d03"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -5812,13 +5793,10 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b797dd3d2beaaee91d2f065e7bdf239dc8d80bba4a183a288bc1279dd5a69a1e"
+source = "git+https://github.com/mina86/tendermint-rs?rev=edefc657fd4ea14d16272beccdc54944d34c7d03#edefc657fd4ea14d16272beccdc54944d34c7d03"
 dependencies = [
  "bytes",
  "flex-error",
- "num-derive 0.3.3",
- "num-traits",
  "prost",
  "prost-types",
  "serde",
@@ -6882,21 +6860,6 @@ dependencies = [
 ]
 
 [[patch.unused]]
-name = "tendermint"
-version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
-
-[[patch.unused]]
 name = "tendermint-light-client"
-version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
-
-[[patch.unused]]
-name = "tendermint-light-client-verifier"
-version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
-
-[[patch.unused]]
-name = "tendermint-proto"
-version = "0.35.0"
-source = "git+https://github.com/mina86/tendermint-rs?rev=29a0e8250176d87330418e7126e974087a28639e#29a0e8250176d87330418e7126e974087a28639e"
+version = "0.34.1"
+source = "git+https://github.com/mina86/tendermint-rs?rev=edefc657fd4ea14d16272beccdc54944d34c7d03#edefc657fd4ea14d16272beccdc54944d34c7d03"
