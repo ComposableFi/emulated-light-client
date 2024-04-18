@@ -121,10 +121,8 @@ pub fn submit_call(
     max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
-    let mut tries = 0;
     let mut tx = Ok(signature);
-    for _ in 0..max_retries {
-        let mut success = true;
+    for tries in 0..max_retries {
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -149,19 +147,15 @@ pub fn submit_call(
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
             .signer(validator)
-            .send()
-            .map_err(|e| {
-                if matches!(e, ClientError::SolanaClientError(_)) {
-                    // log::error!("{:?}", e);
-                    success = false;
-                }
-                e
-            });
-        if success {
-            return tx;
+            .send();
+        if let Err(e) = tx.clone() {
+            if !matches!(e, ClientError::SolanaClientError(_)) {
+                return Err(e);
+            }
+        } else if let Ok(tx) = tx {
+            return Ok(tx);
         }
         sleep(Duration::from_millis(500));
-        tries += 1;
         log::info!("Retrying to send the transaction: Attempt {}", tries);
     }
     log::error!("Max retries for signing the block exceeded");
@@ -176,10 +170,8 @@ pub fn submit_generate_block_call(
     max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
-    let mut tries = 0;
     let mut tx = Ok(Signature::new_unique());
-    for _ in 0..max_retries {
-        let mut success = true;
+    for tries in 0..max_retries {
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
@@ -198,13 +190,6 @@ pub fn submit_generate_block_call(
             .payer(validator.clone())
             .signer(validator)
             .send();
-        // .map_err(|e| {
-        //     if matches!(e, ClientError::SolanaClientError(_)) {
-        //         // log::error!("{:?}", e);
-        //         success = false;
-        //     }
-        //     e
-        // });
 
         if let Err(e) = tx.clone() {
             if !matches!(e, ClientError::SolanaClientError(_)) {
@@ -214,7 +199,6 @@ pub fn submit_generate_block_call(
             return Ok(tx);
         }
         sleep(Duration::from_millis(500));
-        tries += 1;
         log::info!("Retrying to send the transaction: Attempt {}", tries);
     }
     log::error!("Max retries for signing the block exceeded");
