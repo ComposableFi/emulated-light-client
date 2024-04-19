@@ -30,14 +30,39 @@ impl ibc::ClientStateCommon for AnyClientState {
     delegate!(fn client_type(&self) -> ibc::ClientType);
     delegate!(fn latest_height(&self) -> ibc::Height);
     delegate!(fn validate_proof_height(&self, proof_height: ibc::Height) -> Result);
-    delegate!(fn verify_upgrade_client(
+
+    fn verify_upgrade_client(
         &self,
         upgraded_client_state: ibc::Any,
         upgraded_consensus_state: ibc::Any,
         proof_upgrade_client: ibc::CommitmentProofBytes,
         proof_upgrade_consensus_state: ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
-    ) -> Result);
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_upgrade_client::<
+                    SolanaHostFunctions,
+                >(
+                    cs.inner(),
+                    upgraded_client_state,
+                    upgraded_consensus_state,
+                    proof_upgrade_client,
+                    proof_upgrade_consensus_state,
+                    root,
+                )
+            }
+            AnyClientState::Wasm(_) => unimplemented!(),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(cs) => cs.verify_upgrade_client(
+                upgraded_client_state,
+                upgraded_consensus_state,
+                proof_upgrade_client,
+                proof_upgrade_consensus_state,
+                root,
+            ),
+        }
+    }
 
     fn verify_membership(
         &self,
