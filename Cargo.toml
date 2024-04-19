@@ -28,7 +28,7 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-anchor-lang = {version = "0.29.0", features = ["init-if-needed"]}
+anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
 anchor-spl = "0.29.0"
 ascii = "1.1.0"
 bs58 = { version = "0.5.0", features = ["alloc"] }
@@ -41,21 +41,36 @@ const_format = { version = "0.2.32", default-features = false }
 derive_more = "0.99.17"
 dialoguer = "0.10"
 directories = "5.0"
-ed25519-dalek = "=1.0.1"  # Must match solana-sdk’s dependency.
+ed25519-dalek = "=1.0.1"                                                      # Must match solana-sdk’s dependency.
 env_logger = "0.7.1"
 hex-literal = "0.4.1"
 
 # Use unreleased ibc-rs which supports custom verifier.
-ibc                       = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false, features = ["borsh", "serde"] }
-ibc-core-channel-types    = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-client-context   = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-client-types     = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-commitment-types = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-connection-types = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-host             = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-core-host-types       = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-primitives            = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
-ibc-testkit               = { git = "https://github.com/mina86/ibc-rs", rev = "d8ac409f5b206c389568fb2e713d2666e4b9afde", default-features = false }
+ibc = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false, features = [
+    "borsh",
+    "serde",
+] }
+ibc-core-channel-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-client-context = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-client-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-commitment-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-connection-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-host = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-core-host-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-primitives = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-testkit = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+ibc-client-tendermint-types = { git = "https://github.com/mina86/ibc-rs", rev = "6015aea441d4660f7f7ecd89b5e770a993448089", default-features = false }
+#  ibc                       = { path = "../ibc-rs-mina/ibc", default-features = false, features = ["borsh", "serde"] }
+#  ibc-core-channel-types    = { path = "../ibc-rs-mina/ibc-core/ics04-channel/types", default-features = false }
+#  ibc-core-client-context   = { path = "../ibc-rs-mina/ibc-core/ics02-client/context", default-features = false }
+#  ibc-core-client-types     = { path = "../ibc-rs-mina/ibc-core/ics02-client/types", default-features = false }
+#  ibc-core-commitment-types = { path = "../ibc-rs-mina/ibc-core/ics23-commitment/types", default-features = false }
+#  ibc-core-connection-types = { path = "../ibc-rs-mina/ibc-core/ics03-connection/types", default-features = false }
+#  ibc-core-host             = { path = "../ibc-rs-mina/ibc-core/ics24-host", default-features = false }
+#  ibc-core-host-types       = { path = "../ibc-rs-mina/ibc-core/ics24-host/types", default-features = false }
+#  ibc-primitives            = { path = "../ibc-rs-mina/ibc-primitives", default-features = false }
+#  ibc-testkit               = { path = "../ibc-rs-mina/ibc-testkit", default-features = false }
+#  ibc-client-tendermint-types = { path = "../ibc-rs-mina/ibc-clients/ics07-tendermint/types", default-features = false}
 
 ibc-proto = { version = "0.41.0", default-features = false }
 insta = { version = "1.34.0" }
@@ -78,7 +93,7 @@ solana-sdk = "1.17.30"
 spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
-tendermint                       = { version = "0.34.0", default-features = false }
+tendermint = { version = "0.34.0", default-features = false }
 tendermint-light-client-verifier = { version = "0.34.0", default-features = false }
 tokio = "1.35.1"
 toml = "0.8.8"
@@ -122,10 +137,14 @@ curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dal
 # programs cannot have.  tendermint 0.34 enables eyre unconditionally;
 # version which doesn’t do that hasn’t been released yet so we need to
 # refer to a commit on master.
-tendermint = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-tendermint-light-client = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-tendermint-light-client-verifier = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
-tendermint-proto = { git = "https://github.com/informalsystems/tendermint-rs", rev = "37822e540e272d2ca9e763769ad20c581203ff9a" }
+tendermint = { git = "https://github.com/mina86/tendermint-rs", rev = "45fbd500d731effb95a98257630feb46f6c41d06" }
+tendermint-light-client = { git = "https://github.com/mina86/tendermint-rs", rev = "45fbd500d731effb95a98257630feb46f6c41d06" }
+tendermint-light-client-verifier = { git = "https://github.com/mina86/tendermint-rs", rev = "45fbd500d731effb95a98257630feb46f6c41d06" }
+tendermint-proto = { git = "https://github.com/mina86/tendermint-rs", rev = "45fbd500d731effb95a98257630feb46f6c41d06" }
+# tendermint                       = { path = "../tendermint-rs-mina/tendermint" }
+# tendermint-light-client          = { path = "../tendermint-rs-mina/light-client" }
+# tendermint-light-client-verifier = { path = "../tendermint-rs-mina/light-client-verifier" }
+# tendermint-proto                 = { path = "../tendermint-rs-mina/proto" }
 
 # Adds support for custom-entrypoint feature
 anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
