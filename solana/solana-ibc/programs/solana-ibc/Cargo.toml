@@ -25,10 +25,10 @@ base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true
 hex-literal.workspace = true
+ibc-client-tendermint-types.workspace = true
 ibc-proto.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
-ibc-client-tendermint-types.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
 prost.workspace = true

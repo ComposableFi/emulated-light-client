@@ -30,14 +30,39 @@ impl ibc::ClientStateCommon for AnyClientState {
     delegate!(fn client_type(&self) -> ibc::ClientType);
     delegate!(fn latest_height(&self) -> ibc::Height);
     delegate!(fn validate_proof_height(&self, proof_height: ibc::Height) -> Result);
-    delegate!(fn verify_upgrade_client(
+
+    fn verify_upgrade_client(
         &self,
         upgraded_client_state: ibc::Any,
         upgraded_consensus_state: ibc::Any,
         proof_upgrade_client: ibc::CommitmentProofBytes,
         proof_upgrade_consensus_state: ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
-    ) -> Result);
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_upgrade_client::<
+                    SolanaHostFunctions,
+                >(
+                    cs.inner(),
+                    upgraded_client_state,
+                    upgraded_consensus_state,
+                    proof_upgrade_client,
+                    proof_upgrade_consensus_state,
+                    root,
+                )
+            }
+            AnyClientState::Wasm(_) => unimplemented!(),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(cs) => cs.verify_upgrade_client(
+                upgraded_client_state,
+                upgraded_consensus_state,
+                proof_upgrade_client,
+                proof_upgrade_consensus_state,
+                root,
+            ),
+        }
+    }
 
     fn verify_membership(
         &self,
@@ -246,13 +271,6 @@ impl ibc::HostFunctionsProvider for SolanaHostFunctions {
         solana_program::hash::hash(message).to_bytes()
     }
 
-    fn sha2_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
-    fn sha2_512_truncated(_message: &[u8]) -> [u8; 32] { unimplemented!() }
-    fn sha3_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
-    fn ripemd160(_message: &[u8]) -> [u8; 20] { unimplemented!() }
-
-    /* Following methods are needed once we upgrade to ibc 0.51:
-
     fn keccak_256(message: &[u8]) -> [u8; 32] {
         solana_program::keccak::hash(message).0
     }
@@ -261,22 +279,36 @@ impl ibc::HostFunctionsProvider for SolanaHostFunctions {
         solana_program::blake3::hash(message).0
     }
 
-    fn blake2b_512(message: &[u8]) -> [u8; 64] { unimplemented!() }
-    fn blake2s_256(message: &[u8]) -> [u8; 32] { unimplemented!() }
-    */
+    fn sha2_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn sha2_512_truncated(_message: &[u8]) -> [u8; 32] { unimplemented!() }
+    fn ripemd160(_message: &[u8]) -> [u8; 20] { unimplemented!() }
+    fn blake2b_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn blake2s_256(_message: &[u8]) -> [u8; 32] { unimplemented!() }
 }
 
-#[test]
-fn test_host_functions() {
+#[cfg(all(test, not(miri)))]
+mod test_host_functions {
     use ibc::HostFunctionsProvider;
 
-    for input in ["".as_bytes(), "foo".as_bytes(), "bar".as_bytes()] {
-        assert_eq!(
-            ibc::HostFunctionsManager::sha2_256(input),
-            SolanaHostFunctions::sha2_256(input),
-            "input: {input:?}",
-        )
+    use crate::ibc;
+
+    macro_rules! test {
+        ($func:ident) => {
+            #[test]
+            fn $func() {
+                for input in ["", "foo", "bar"] {
+                    assert_eq!(
+                        ibc::HostFunctionsManager::$func(input.as_bytes()),
+                        super::SolanaHostFunctions::$func(input.as_bytes()),
+                    );
+                }
+            }
+        };
     }
+
+    test!(sha2_256);
+    test!(keccak_256);
+    test!(blake3);
 }
 
 impl tendermint::crypto::Sha256 for SolanaHostFunctions {
