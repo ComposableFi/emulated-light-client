@@ -374,16 +374,17 @@ mod test {
                     let entries = [$($entry),*];
                     let mut data = new_instruction(&entries).unwrap().data;
 
-                    // solana_sdk::ed25519_instruction::verify requires that
-                    // data is aligned to two bytes.  However, since data is
-                    // Vec<u8> we cannot enforce the alignment.  Instead, if the
-                    // data isn’t aligned insert one byte at the start and look
-                    // at data from the next byte.
-                    let start = data.as_ptr().align_offset(2);
-                    if start != 0 {
+                    // solana_sdk::ed25519_instruction::verify requires data to
+                    // be aligned to two bytes.  data is Vec<u8> so we can’t
+                    // control alignment but we can pad to get alignment we
+                    // need.
+                    data.reserve(1);
+                    let data = if data.as_ptr() as usize % 2 == 0 {
+                        data.as_slice()
+                    } else {
                         data.insert(0, 0);
+                        &data[1..]
                     };
-                    let data = &data[start..];
 
                     // Verify
                     solana_sdk::ed25519_instruction::verify(

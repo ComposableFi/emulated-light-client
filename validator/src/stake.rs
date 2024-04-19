@@ -1,148 +1,22 @@
 use std::rc::Rc;
 use std::str::FromStr;
+use std::thread::sleep;
+use std::time::Duration;
 
-use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::Keypair;
 use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::solana_program::sysvar::SysvarId;
-use anchor_lang::ToAccountMetas;
-use restaking::Service;
+use restaking::{accounts, Service};
 
 use crate::command::Config;
-
-pub struct Deposit {
-    pub depositor: Pubkey,
-    pub vault_params: Pubkey,
-    pub staking_params: Pubkey,
-    pub token_mint: Pubkey,
-    pub depositor_token_account: Pubkey,
-    pub vault_token_account: Pubkey,
-    pub receipt_token_mint: Pubkey,
-    pub receipt_token_account: Pubkey,
-    pub metadata_program: Pubkey,
-    pub token_program: Pubkey,
-    pub associated_token_program: Pubkey,
-    pub system_program: Pubkey,
-    pub rent: Pubkey,
-    pub instruction: Pubkey,
-    pub master_edition_account: Pubkey,
-    pub nft_metadata: Pubkey,
-    // Guest chain Accounts
-    chain: Pubkey,
-    trie: Pubkey,
-    guest_chain_program_id: Pubkey,
-}
-
-impl ToAccountMetas for Deposit {
-    fn to_account_metas(
-        &self,
-        _is_signer: Option<bool>,
-    ) -> Vec<anchor_lang::prelude::AccountMeta> {
-        let accounts = [
-            AccountMeta {
-                pubkey: self.depositor,
-                is_signer: true,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.vault_params,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.staking_params,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.token_mint,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.depositor_token_account,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.vault_token_account,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.receipt_token_mint,
-                is_signer: true,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.receipt_token_account,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.metadata_program,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.token_program,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.associated_token_program,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.system_program,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.rent,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.instruction,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.master_edition_account,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.nft_metadata,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.chain,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.trie,
-                is_signer: false,
-                is_writable: true,
-            },
-            AccountMeta {
-                pubkey: self.guest_chain_program_id,
-                is_signer: false,
-                is_writable: true,
-            },
-        ];
-        accounts.to_vec()
-    }
-}
+use crate::skip_fail;
+use crate::utils::{BundleStatusResponse, Payload, Response};
 
 pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
     let validator = Rc::new(Keypair::from(config.keypair));
@@ -152,6 +26,7 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         CommitmentConfig::processed(),
     );
     let program = client.program(restaking::ID).unwrap();
+    let solana_ibc_program_id = Pubkey::from_str(&config.program_id).unwrap();
 
     let receipt_token_keypair = Keypair::new();
     let receipt_token_key = receipt_token_keypair.pubkey();
@@ -176,12 +51,14 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         &restaking::ID,
     )
     .0;
-    let trie =
-        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID)
-            .0;
+    let trie = Pubkey::find_program_address(
+        &[solana_ibc::TRIE_SEED],
+        &solana_ibc_program_id,
+    )
+    .0;
     let chain = Pubkey::find_program_address(
         &[solana_ibc::CHAIN_SEED],
-        &solana_ibc::ID,
+        &solana_ibc_program_id,
     )
     .0;
     let master_edition_account = Pubkey::find_program_address(
@@ -214,12 +91,23 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             &receipt_token_key,
         );
 
-    let tx = program
+    let jito_address =
+        Pubkey::from_str("96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5")
+            .unwrap();
+    let ix = program
         .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
+        .instruction(anchor_lang::solana_program::system_instruction::transfer(
+            &validator.pubkey(),
+            &jito_address,
+            config.priority_fees,
         ))
-        .accounts(Deposit {
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            500_000u32,
+        ))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+            config.priority_fees,
+        ))
+        .accounts(accounts::Deposit {
             depositor: validator.pubkey(),
             vault_params,
             staking_params,
@@ -236,10 +124,16 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             instruction: anchor_lang::solana_program::sysvar::instructions::ID,
             master_edition_account,
             nft_metadata,
-            chain,
-            trie,
-            guest_chain_program_id: solana_ibc::ID,
         })
+        .accounts(vec![
+            AccountMeta { pubkey: chain, is_signer: false, is_writable: true },
+            AccountMeta { pubkey: trie, is_signer: false, is_writable: true },
+            AccountMeta {
+                pubkey: solana_ibc_program_id,
+                is_signer: false,
+                is_writable: true,
+            },
+        ])
         .args(restaking::instruction::Deposit {
             service: Service::GuestChain { validator: validator.pubkey() },
             amount,
@@ -247,10 +141,65 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         .payer(validator.clone())
         .signer(&*validator)
         .signer(&receipt_token_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })
+        .instructions()
         .unwrap();
-    println!("This is staking signature:\n  {}", tx);
+    // Retrying it for 5 times.
+    for _ in 0..5 {
+        let rpc_client = program.rpc();
+        let latest_blockhash = rpc_client.get_latest_blockhash().unwrap();
+        let new_tx = Transaction::new_signed_with_payer(
+            ix.as_slice(),
+            Some(&validator.pubkey()),
+            &[&*validator, &receipt_token_keypair],
+            latest_blockhash,
+        );
+        let serialized_tx = bincode::serialize(&new_tx).unwrap();
+        // encode in base 58
+        let encoded_tx = bs58::encode(serialized_tx).into_string();
+        let client = reqwest::blocking::Client::new();
+        let send_payload = Payload {
+            jsonrpc: "2.0".to_string(),
+            id: 1,
+            method: "sendBundle".to_string(),
+            params: vec![vec![encoded_tx]],
+        };
+        let response = client
+            .post("https://mainnet.block-engine.jito.wtf/api/v1/bundles")
+            .json(&send_payload)
+            .send();
+        let response = skip_fail!(response);
+        let response: Result<Response, reqwest::Error> = response.json();
+        let response = skip_fail!(response);
+        let bundle_id = response.result;
+        // log::info!("This is bundle id {:?}", bundle_id);
+        let response_payload = Payload {
+            jsonrpc: "2.0".to_string(),
+            id: 1,
+            method: "getBundleStatuses".to_string(),
+            params: vec![vec![bundle_id]],
+        };
+        for _ in 0..5 {
+            sleep(Duration::from_secs(1));
+            let response = client
+                .post("https://mainnet.block-engine.jito.wtf/api/v1/bundles")
+                .json(&response_payload)
+                .send();
+            let response = skip_fail!(response);
+            let response: Result<BundleStatusResponse, reqwest::Error> =
+                response.json();
+            let response = skip_fail!(response);
+            // log::info!("This is text for bundle status {:?}", x);
+            // log::info!("This is response {:?}", response);
+            if !response.result.value.is_empty() {
+                log::info!(
+                    "This is staking signature:\n  {}",
+                    response.result.value[0].clone().transactions[0]
+                );
+                return;
+            }
+        }
+        log::info!("Retrying to send the transaction");
+        sleep(Duration::from_secs(1));
+    }
+    panic!("Could not send the transaction, please try again");
 }

@@ -51,6 +51,7 @@ solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }
 wasm = { workspace = true }
+itertools = "0.10.5"
 
 [dev-dependencies]
 anchor-client.workspace = true

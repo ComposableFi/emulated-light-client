@@ -139,11 +139,38 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
         }
     }
 
+    fn verify_tm_client_message(
+        &self,
+        ctx: &IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        client_message: Option<ibc_client_tendermint_types::Header>,
+    ) -> Result {
+        match self {
+            AnyClientState::Tendermint(cs) => {
+                ibc::tm::client_state::verify_tm_client_message::<
+                    _,
+                    SolanaHostFunctions,
+                >(
+                    cs.inner(), ctx, client_id, client_message, &tm::TmVerifier
+                )
+            }
+            AnyClientState::Wasm(_) => unimplemented!(),
+            #[cfg(any(test, feature = "mocks"))]
+            AnyClientState::Mock(_) => unimplemented!(),
+        }
+    }
+
     delegate!(fn check_for_misbehaviour(
         &self,
         ctx: &IbcStorage<'a, 'b>,
         client_id: &ibc::ClientId,
         client_message: ibc::Any,
+    ) -> Result<bool>);
+    delegate!(fn check_for_tm_misbehaviour(
+        &self,
+        ctx: &IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        client_message: Option<ibc_client_tendermint_types::Header>,
     ) -> Result<bool>);
     delegate!(fn status(
         &self,
@@ -164,6 +191,12 @@ impl<'a, 'b> ibc::ClientStateExecution<IbcStorage<'a, 'b>> for AnyClientState {
         ctx: &mut IbcStorage<'a, 'b>,
         client_id: &ibc::ClientId,
         header: ibc::Any,
+    ) -> Result<Vec<ibc::Height>>);
+    delegate!(fn update_tm_state(
+        &self,
+        ctx: &mut IbcStorage<'a, 'b>,
+        client_id: &ibc::ClientId,
+        header: Option<ibc_client_tendermint_types::Header>,
     ) -> Result<Vec<ibc::Height>>);
     delegate!(fn update_state_on_misbehaviour(
         &self,

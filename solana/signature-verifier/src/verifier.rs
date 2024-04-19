@@ -156,9 +156,8 @@ fn check_ed25519_data(data: &[u8], entry: &Entry) -> Result<bool, Error> {
 /// Checks that given sigverify account with aggregated signatures contains
 /// given entry.
 fn check_sigverify_data(data: &[u8], entry: &Entry) -> Result<bool, Error> {
-    let mut iter = crate::api::iter(data).map_err(|_| Error::BadData)?;
-    let hash = crate::SignatureHash::from(entry);
-    Ok(iter.any(|item| item == &hash))
+    crate::api::find_sighash(data, crate::SignatureHash::from(entry))
+        .map_err(|_| Error::BadData)
 }
 
 impl From<crate::ed25519_program::BadData> for Error {
