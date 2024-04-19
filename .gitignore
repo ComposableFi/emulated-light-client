@@ -9,3 +9,4 @@ package-lock.json
 target
 test-ledger
 *.so
+.idea
