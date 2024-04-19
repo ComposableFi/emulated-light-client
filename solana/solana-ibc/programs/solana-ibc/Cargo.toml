@@ -28,6 +28,7 @@ hex-literal.workspace = true
 ibc-proto.workspace = true
 ibc-testkit = { workspace = true, optional = true }
 ibc.workspace = true
+ibc-client-tendermint-types.workspace = true
 linear-map.workspace = true
 primitive-types.workspace = true
 prost.workspace = true
@@ -50,6 +51,7 @@ solana-trie.workspace = true
 stdx.workspace = true
 trie-ids = { workspace = true, features = ["borsh"] }
 wasm = { workspace = true }
+itertools = "0.10.5"
 
 [dev-dependencies]
 anchor-client.workspace = true
