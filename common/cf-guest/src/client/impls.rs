@@ -359,9 +359,9 @@ where
 
     fn check_for_tm_misbehaviour(
         &self,
-        ctx: &V,
-        client_id: &ibc::ClientId,
-        client_message: Option<ibc_client_tendermint_types::Header>,
+        _ctx: &V,
+        _client_id: &ibc::ClientId,
+        _client_message: Option<ibc_client_tendermint_types::Header>,
     ) -> Result<bool> {
         unimplemented!("only supported for tendermint clients");
     }
