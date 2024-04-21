@@ -364,6 +364,8 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
+        // take the fee on send_transfer
+
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,

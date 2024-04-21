@@ -237,6 +237,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 acknowledgement,
                 relayer,
             );
+
+        if result.1.is_err() {
+            // ensure that this is the source chain
+            // refund fee if there was an error on the counterparty chain
+        }
         (
             result.0,
             result.1.map_err(|e| ibc::PacketError::AppModule {
@@ -253,6 +258,9 @@ impl ibc::Module for IbcStorage<'_, '_> {
         let result = ibc::apps::transfer::module::on_timeout_packet_execute(
             self, packet, relayer,
         );
+        if result.1.is_ok() {
+            // refund the fee as the timeout has been succulesfuly processed
+        }
         (
             result.0,
             result.1.map_err(|e| ibc::PacketError::AppModule {
