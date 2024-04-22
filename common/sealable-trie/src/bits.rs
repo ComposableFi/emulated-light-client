@@ -820,7 +820,7 @@ impl fmt::Display for Slice<'_> {
                 buf[1 + (len as usize)..].fill(AsciiChar::Dot);
             } else {
                 off = 0;
-                len -= 8 - off;
+                len -= 8;
             }
 
             fmtr.write_str(<&ascii::AsciiStr>::from(&buf[..]).as_str())?;
