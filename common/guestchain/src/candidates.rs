@@ -180,8 +180,6 @@ impl<PK: crate::PubKey> Candidates<PK> {
         Ok(())
     }
 
-    fn max_validators(&self) -> usize { usize::from(self.max_validators.get()) }
-
     /// Adds a new candidate at given position.
     ///
     /// It’s caller’s responsibility to guarantee that `new_pos` is correct
@@ -308,6 +306,11 @@ impl<PK: crate::PubKey> Candidates<PK> {
     }
 }
 
+impl<PK> Candidates<PK> {
+    /// Convenience method which returns `self.max_validators` as `usize`.
+    fn max_validators(&self) -> usize { usize::from(self.max_validators.get()) }
+}
+
 /// Rotates subslice such that element at `old_pos` moves to `new_pos`.
 ///
 /// Depending whether `old_pos` is less than or greater than `new_pos`, performs
@@ -368,20 +371,17 @@ impl<PK: core::fmt::Debug> core::fmt::Debug for Candidate<PK> {
 
 impl<PK: core::fmt::Debug> core::fmt::Debug for Candidates<PK> {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        if self.candidates.is_empty() {
-            fmtr.write_str("{[]")?;
-        } else {
-            let max = usize::from(self.max_validators.get());
-            for (index, candidate) in self.candidates.iter().enumerate() {
-                let sep = if index == 0 {
-                    "{["
-                } else if index == max {
-                    " | "
-                } else {
-                    ", "
-                };
-                write!(fmtr, "{sep}{candidate:?}")?;
-            }
+        fmtr.write_str("{[")?;
+        let max = self.max_validators();
+        for (index, candidate) in self.candidates.iter().enumerate() {
+            let sep = if index == 0 {
+                ""
+            } else if index == max {
+                " | "
+            } else {
+                ", "
+            };
+            write!(fmtr, "{sep}{candidate:?}")?;
         }
         let changed = ["", " (changed)"][usize::from(self.changed)];
         write!(fmtr, "]; head_stake: {}{changed}}}", self.head_stake)
