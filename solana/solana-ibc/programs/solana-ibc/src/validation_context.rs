@@ -191,7 +191,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         match self.borrow().provable.get(&trie_key).ok().flatten() {
             Some(hash) => Ok(hash.to_vec().into()),
             None => Err(ibc::ContextError::PacketError(
-                ibc::PacketError::PacketReceiptNotFound {
+                ibc::PacketError::PacketCommitmentNotFound {
                     sequence: path.sequence,
                 },
             )),
