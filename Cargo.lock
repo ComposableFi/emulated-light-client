@@ -4362,9 +4362,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.10"
+version = "0.21.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
+checksum = "7fecbfb7b1444f477b345853b1fce097a2c6fb637b2bfb87e6bc5db0f043fae4"
 dependencies = [
  "log",
  "ring 0.17.7",
@@ -6093,7 +6093,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.1"
-source = "git+https://github.com/mina86/tendermint-rs?rev=45fbd500d731effb95a98257630feb46f6c41d06#45fbd500d731effb95a98257630feb46f6c41d06"
+source = "git+https://github.com/mina86/tendermint-rs?rev=7cad235b651728dbfe6d2bfbd9110c329f0d6e7e#7cad235b651728dbfe6d2bfbd9110c329f0d6e7e"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -6121,7 +6121,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.1"
-source = "git+https://github.com/mina86/tendermint-rs?rev=45fbd500d731effb95a98257630feb46f6c41d06#45fbd500d731effb95a98257630feb46f6c41d06"
+source = "git+https://github.com/mina86/tendermint-rs?rev=7cad235b651728dbfe6d2bfbd9110c329f0d6e7e#7cad235b651728dbfe6d2bfbd9110c329f0d6e7e"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -6133,7 +6133,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.1"
-source = "git+https://github.com/mina86/tendermint-rs?rev=45fbd500d731effb95a98257630feb46f6c41d06#45fbd500d731effb95a98257630feb46f6c41d06"
+source = "git+https://github.com/mina86/tendermint-rs?rev=7cad235b651728dbfe6d2bfbd9110c329f0d6e7e#7cad235b651728dbfe6d2bfbd9110c329f0d6e7e"
 dependencies = [
  "bytes",
  "flex-error",
@@ -7254,4 +7254,4 @@ dependencies = [
 [[patch.unused]]
 name = "tendermint-light-client"
 version = "0.34.1"
-source = "git+https://github.com/mina86/tendermint-rs?rev=45fbd500d731effb95a98257630feb46f6c41d06#45fbd500d731effb95a98257630feb46f6c41d06"
+source = "git+https://github.com/mina86/tendermint-rs?rev=7cad235b651728dbfe6d2bfbd9110c329f0d6e7e#7cad235b651728dbfe6d2bfbd9110c329f0d6e7e"
