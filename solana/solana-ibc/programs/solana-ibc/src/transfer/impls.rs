@@ -12,7 +12,6 @@ use crate::ibc::{ChannelId, PortId, TokenTransferError};
 use crate::storage::IbcStorage;
 use crate::{ibc, MINT_ESCROW_SEED};
 
-
 /// Account identifier on Solana, i.e. account’s public key.
 #[derive(
     Clone,
@@ -40,8 +39,39 @@ fn get_escrow_account(
     denom: &str,
 ) -> Pubkey {
     let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
-    let seeds = [port_id.as_bytes(), channel_id.as_bytes(), denom.as_slice()];
+    let seeds = [
+        crate::ESCROW,
+        port_id.as_bytes(),
+        channel_id.as_bytes(),
+        denom.as_slice(),
+    ];
     Pubkey::find_program_address(&seeds, &crate::ID).0
+}
+
+fn get_token_mint(coin: &PrefixedCoin) -> Result<Pubkey, TokenTransferError> {
+    let coin_in_str = coin.to_string();
+    let remove_amount: Vec<&str> =
+        coin_in_str.split(&coin.amount.to_string()).collect();
+    let trace_prefix: Vec<&str> = remove_amount[1].split('/').collect();
+    let length = trace_prefix.len();
+    // The minimum length should be portId, channelId, base_denom
+    if length < 3 {
+        return Err(TokenTransferError::InvalidTraceLength {
+            len: length as u64,
+        });
+    }
+    // We only need the latest port id and channel id.
+    let port_id = trace_prefix[length - 3];
+    let channel_id = trace_prefix[length - 2];
+    let denom =
+        lib::hash::CryptoHash::digest(trace_prefix[length - 1].as_bytes());
+    let seeds = [
+        crate::MINT,
+        port_id.as_bytes(),
+        channel_id.as_bytes(),
+        denom.as_slice(),
+    ];
+    Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
 /// Direction of an escrow operation.
@@ -231,15 +261,17 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     fn mint_coins_validate(
         &self,
         account: &Self::AccountId,
-        _coin: &PrefixedCoin,
+        coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         /*
            Should have the following accounts
            - token program
            - token account
-           - token mint
+           - token mint ( with seeds as `mint` as prefixed constant, portId, channelId and denom )
            - mint authority
         */
+        let token_mint = get_token_mint(coin)?;
+
         let store = self.borrow();
         let accounts = &store.accounts;
         if accounts.token_program.is_none() ||
@@ -252,7 +284,14 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_mint_account = accounts
+            .token_mint
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.0.eq(token_account.key) {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if !token_mint.eq(token_mint_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -261,16 +300,19 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
     fn burn_coins_validate(
         &self,
         account: &Self::AccountId,
-        _coin: &PrefixedCoin,
+        coin: &PrefixedCoin,
         _memo: &Memo,
     ) -> Result<(), TokenTransferError> {
         /*
            Should have the following accounts
            - token program
            - token account
-           - token mint
+           - token mint ( with seeds as `mint` as prefixed constant, portId, channelId and denom )
            - mint authority
+
+           The token mint should be a PDA with seeds as ``
         */
+        let token_mint = get_token_mint(coin)?;
         let store = self.borrow();
         let accounts = &store.accounts;
         if accounts.token_program.is_none() ||
@@ -283,7 +325,14 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_account
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let token_mint_account = accounts
+            .token_mint
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.0.eq(token_account.key) {
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if !token_mint.eq(token_mint_account.key) {
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -303,7 +352,7 @@ impl IbcStorage<'_, '_> {
            Should have the following accounts
            - token program
            - token account
-           - escrow account ( with seeds as portId, channelId and denom )
+           - escrow account ( with seeds as `escrow` as prefixed constant, portId, channelId and denom )
            - token mint
 
            If sending tokens from escrow then,
@@ -326,6 +375,13 @@ impl IbcStorage<'_, '_> {
         // TODO(#180): Should we use full denom including prefix?
         let denom = coin.denom.base_denom.to_string();
         let escrow = get_escrow_account(port_id, channel_id, &denom);
+        msg!(
+            "This is channel id for deriving escrow {:?} derived escrow {:?} \
+             and expected {:?}",
+            channel_id,
+            escrow,
+            accounts.escrow_account
+        );
 
         accounts
             .escrow_account
