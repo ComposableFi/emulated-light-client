@@ -83,7 +83,7 @@ pub mod restaking {
         let guest_chain_program_id = staking_params.guest_chain_program_id;
 
         vault_params.service =
-            if guest_chain_program_id.is_some() { Some(service) } else { None };
+            guest_chain_program_id.is_some().then_some(service);
         vault_params.stake_timestamp_sec = current_time;
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
@@ -571,7 +571,6 @@ pub mod restaking {
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
-
 
         vault_params.service = Some(service);
 
