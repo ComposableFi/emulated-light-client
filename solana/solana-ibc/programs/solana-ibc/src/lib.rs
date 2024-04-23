@@ -179,7 +179,7 @@ pub mod solana_ibc {
         let caller_program_id =
             solana_program::sysvar::instructions::get_instruction_relative(
                 0,
-                &ctx.accounts.instruction.to_account_info(),
+                &ctx.accounts.instruction,
             )?
             .program_id;
         chain.check_staking_program(&caller_program_id)?;
@@ -448,7 +448,7 @@ pub struct SetStake<'info> {
     #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
-    instruction: AccountInfo<'info>,
+    instruction: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

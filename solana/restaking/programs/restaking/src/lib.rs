@@ -96,47 +96,51 @@ pub mod restaking {
         // Mint receipt tokens
         token::mint_nft(ctx.accounts.into())?;
 
-        // Call Guest chain program to update the stake if the chain is initialized
-        if guest_chain_program_id.is_some() {
-            let validator_key = match service {
-                Service::GuestChain { validator } => validator,
-            };
-            let borrowed_chain_data =
-                ctx.remaining_accounts[0].data.try_borrow().unwrap();
-            let mut chain_data: &[u8] = &borrowed_chain_data;
-            let chain =
-                solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
-                    .unwrap();
-            let validator = chain
-                .validator(validator_key)
-                .map_err(|_| ErrorCodes::OperationNotAllowed)?;
-            let amount = validator.map_or(u128::from(amount), |val| {
-                u128::from(val.stake) + u128::from(amount)
-            });
-            validation::validate_remaining_accounts(
-                ctx.remaining_accounts,
-                &guest_chain_program_id.unwrap(),
-            )?;
-            core::mem::drop(borrowed_chain_data);
-            let bump = ctx.bumps.staking_params;
-            let seeds =
-                [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-            let seeds = seeds.as_ref();
-            let seeds = core::slice::from_ref(&seeds);
-            let cpi_accounts = SetStake {
-                sender: ctx.accounts.depositor.to_account_info(),
-                chain: ctx.remaining_accounts[0].clone(),
-                trie: ctx.remaining_accounts[1].clone(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-                instruction: ctx.accounts.instruction.to_account_info(),
-            };
-            let cpi_program = ctx.remaining_accounts[2].clone();
-            let cpi_ctx =
-                CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
-            solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)?;
-        }
+        // Call Guest chain program to update the stake if the chain is
+        // initialised.
+        let guest_chain_program_id = match guest_chain_program_id {
+            Some(id) => id,
+            None => return Ok(()),
+        };
 
-        Ok(())
+        let validator_key = match service {
+            Service::GuestChain { validator } => validator,
+        };
+        let borrowed_chain_data =
+            ctx.remaining_accounts[0].data.try_borrow().unwrap();
+        let mut chain_data: &[u8] = &borrowed_chain_data;
+        let chain =
+            solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
+                .unwrap();
+        let validator = chain
+            .validator(validator_key)
+            .map_err(|_| ErrorCodes::OperationNotAllowed)?;
+        let amount = validator.map_or(u128::from(amount), |val| {
+            u128::from(val.stake) + u128::from(amount)
+        });
+        validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
+        core::mem::drop(borrowed_chain_data);
+        let bump = ctx.bumps.staking_params;
+        let seeds =
+            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+        let cpi_accounts = SetStake {
+            sender: ctx.accounts.depositor.to_account_info(),
+            chain: ctx.remaining_accounts[0].clone(),
+            trie: ctx.remaining_accounts[1].clone(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            instruction: validation::check_instructions_sysvar(
+                &ctx.accounts.instruction,
+            )?,
+        };
+        let cpi_program = ctx.remaining_accounts[2].clone();
+        let cpi_ctx =
+            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
     /// Creates a withdrawal request by escrowing the receipt token. Once the unbonding
@@ -362,7 +366,9 @@ pub mod restaking {
             chain: chain.to_account_info(),
             trie: ctx.accounts.trie.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
-            instruction: ctx.accounts.instruction.to_account_info(),
+            instruction: validation::check_instructions_sysvar(
+                &ctx.accounts.instruction,
+            )?,
         };
         let cpi_program = ctx.accounts.guest_chain_program.to_account_info();
         let cpi_ctx =
@@ -557,17 +563,18 @@ pub mod restaking {
         if token_account.amount < 1 {
             return Err(error!(ErrorCodes::InsufficientReceiptTokenBalance));
         }
-        if staking_params.guest_chain_program_id.is_none() {
-            return Err(error!(ErrorCodes::OperationNotAllowed));
-        }
+        let guest_chain_program_id = match staking_params.guest_chain_program_id
+        {
+            Some(id) => id,
+            None => return Err(error!(ErrorCodes::OperationNotAllowed)),
+        };
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
 
+
         vault_params.service = Some(service);
 
-        let guest_chain_program_id =
-            staking_params.guest_chain_program_id.unwrap(); // Infallible
         let amount = vault_params.stake_amount;
 
         validation::validate_remaining_accounts(
@@ -602,7 +609,9 @@ pub mod restaking {
             chain: guest_chain.to_account_info(),
             trie: ctx.remaining_accounts[1].clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
-            instruction: ctx.accounts.instruction.to_account_info(),
+            instruction: validation::check_instructions_sysvar(
+                &ctx.accounts.instruction,
+            )?,
         };
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx =
@@ -705,9 +714,13 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
     pub rent: Sysvar<'info, Rent>,
 
+    /// The Instructions sysvar.
+    ///
+    /// CHECK: The account is passed on during CPI and destination contract
+    /// performs the validation so this is safe even if we don’t check the
+    /// address.  Nonetheless, the account is checked at each use.
     #[account(address = solana_program::sysvar::instructions::ID)]
-    ///CHECK:   
-    pub instruction: AccountInfo<'info>,
+    pub instruction: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -811,10 +824,6 @@ pub struct WithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub nft_metadata: UncheckedAccount<'info>,
-
-    #[account(address = solana_program::sysvar::instructions::ID)]
-    /// CHECK:
-    pub instruction: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -944,9 +953,13 @@ pub struct Withdraw<'info> {
     /// CHECK:
     pub nft_metadata: UncheckedAccount<'info>,
 
+    /// The Instructions sysvar.
+    ///
+    /// CHECK: The account is passed on during CPI and destination contract
+    /// performs the validation so this is safe even if we don’t check the
+    /// address.  Nonetheless, the account is checked at each use.
     #[account(address = solana_program::sysvar::instructions::ID)]
-    /// CHECK:
-    pub instruction: AccountInfo<'info>,
+    pub instruction: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -1017,9 +1030,13 @@ pub struct SetService<'info> {
     #[account(mut)]
     pub stake_mint: Account<'info, Mint>,
 
-    ///CHECK:   
+    /// The Instructions sysvar.
+    ///
+    /// CHECK: The account is passed on during CPI and destination contract
+    /// performs the validation so this is safe even if we don’t check the
+    /// address.  Nonetheless, the account is checked at each use.
     #[account(address = solana_program::sysvar::instructions::ID)]
-    pub instruction: AccountInfo<'info>,
+    pub instruction: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
