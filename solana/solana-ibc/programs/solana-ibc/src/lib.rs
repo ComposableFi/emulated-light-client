@@ -22,6 +22,8 @@ pub const PACKET_SEED: &[u8] = b"packet";
 pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
+pub const MINT: &[u8] = b"mint";
+pub const ESCROW: &[u8] = b"escrow";
 
 declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
@@ -484,7 +486,9 @@ pub struct InitMint<'info> {
               bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [hashed_base_denom.as_ref()],
+    #[account(init_if_needed, payer = sender,
+              seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(),
+                       hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
@@ -608,7 +612,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(init_if_needed, payer = sender, seeds = [
-        port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
+        ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]
