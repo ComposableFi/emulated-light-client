@@ -207,7 +207,6 @@ export const withdrawalRequestInstruction = async (
 
   const { vaultTokenAccountPDA } = getVaultTokenAccountPDA(stakedTokenMint);
   const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
-  const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
   const { escrowReceiptTokenPDA } = getEscrowReceiptTokenPDA(receiptTokenMint);
 
   const withdrawerStakedTokenAccount = await spl.getAssociatedTokenAddress(
@@ -258,7 +257,6 @@ export const withdrawalRequestInstruction = async (
       guestChainProgram: guestChainProgramID,
       tokenProgram: spl.TOKEN_PROGRAM_ID,
       masterEditionAccount: masterEditionPDA,
-      nftMetadata: nftMetadataPDA,
       systemProgram: anchor.web3.SystemProgram.programId,
       metadataProgram: new anchor.web3.PublicKey(
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
@@ -278,7 +276,6 @@ export const cancelWithdrawalRequestInstruction = async (
   const { stakingParamsPDA } = getStakingParamsPDA();
 
   const { masterEditionPDA } = getMasterEditionPDA(receiptTokenMint);
-  const { nftMetadataPDA } = getNftMetadataPDA(receiptTokenMint);
   const { escrowReceiptTokenPDA } = getEscrowReceiptTokenPDA(receiptTokenMint);
 
   const receiptTokenAccount = await spl.getAssociatedTokenAddress(
@@ -302,7 +299,6 @@ export const cancelWithdrawalRequestInstruction = async (
       escrowReceiptTokenAccount: escrowReceiptTokenPDA,
       tokenProgram: spl.TOKEN_PROGRAM_ID,
       masterEditionAccount: masterEditionPDA,
-      nftMetadata: nftMetadataPDA,
       systemProgram: anchor.web3.SystemProgram.programId,
       metadataProgram: new anchor.web3.PublicKey(
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID

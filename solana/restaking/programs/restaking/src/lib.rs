@@ -811,18 +811,6 @@ pub struct WithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub master_edition_account: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub nft_metadata: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -867,18 +855,6 @@ pub struct CancelWithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub master_edition_account: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub nft_metadata: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -922,7 +898,6 @@ pub struct Withdraw<'info> {
 
     pub guest_chain_program: Program<'info, SolanaIbc>,
     pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub metadata_program: Program<'info, Metadata>,
     pub rent: Sysvar<'info, Rent>,
