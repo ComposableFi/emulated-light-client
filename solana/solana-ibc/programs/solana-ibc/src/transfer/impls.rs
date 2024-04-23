@@ -50,16 +50,17 @@ fn get_escrow_account(
 }
 
 fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
-    let denom = denom.to_string();
-    let denom: Vec<&str> = denom.split('/').collect();
-    let (port_id, channel_id, denom) = match denom.as_slice() {
-        [.., port_id, channel_id, denom] => {
-            let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
-            (port_id, channel_id, denom)
+    let base_denom = denom.base_denom.as_str().as_bytes();
+    let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
+    let trace_path = denom.trace_path.to_string();
+    let trace_path: Vec<&str> = trace_path.split('/').collect();
+    let (port_id, channel_id) = match trace_path.as_slice() {
+        [.., port_id, channel_id] => {
+            (port_id, channel_id)
         }
         _ => {
             return Err(TokenTransferError::InvalidTraceLength {
-                len: denom.len() as u64,
+                len: trace_path.len() as u64,
             })
         }
     };
@@ -67,7 +68,7 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
         crate::MINT,
         port_id.as_bytes(),
         channel_id.as_bytes(),
-        denom.as_slice(),
+        hashed_base_denom.as_slice(),
     ];
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
