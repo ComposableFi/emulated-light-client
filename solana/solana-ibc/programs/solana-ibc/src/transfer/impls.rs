@@ -58,9 +58,11 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     let port_id = trace_path.next_back();
     let (port_id, channel_id) = match (port_id, channel_id) {
         (Some(port_id), Some(channel_id)) => (port_id, channel_id),
-        (_, last) => return Err(TokenTransferError::InvalidTraceLength {
-            len: trace_path.count() as u64 + u64::from(last.is_some()),
-        }),
+        (_, last) => {
+            return Err(TokenTransferError::InvalidTraceLength {
+                len: trace_path.count() as u64 + u64::from(last.is_some()),
+            })
+        }
     };
     let seeds = [
         crate::MINT,
