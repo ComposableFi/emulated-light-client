@@ -486,7 +486,9 @@ pub struct InitMint<'info> {
               bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(), hashed_base_denom.as_ref()],
+    #[account(init_if_needed, payer = sender,
+              seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(),
+                       hashed_base_denom.as_ref()],
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 

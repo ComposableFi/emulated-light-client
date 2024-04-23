@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
+use ::ibc::apps::transfer::types::PrefixedDenom;
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
-use ::ibc::apps::transfer::types::PrefixedDenom;
 
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -50,16 +50,18 @@ fn get_escrow_account(
 }
 
 fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
-    let denom =  denom.to_string();
+    let denom = denom.to_string();
     let denom: Vec<&str> = denom.split('/').collect();
     let (port_id, channel_id, denom) = match denom.as_slice() {
         [.., port_id, channel_id, denom] => {
             let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
             (port_id, channel_id, denom)
-        },
-        _ => return Err(TokenTransferError::InvalidTraceLength {
-            len: denom.len() as u64,
-        })
+        }
+        _ => {
+            return Err(TokenTransferError::InvalidTraceLength {
+                len: denom.len() as u64,
+            })
+        }
     };
     let seeds = [
         crate::MINT,
@@ -267,12 +269,12 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
            - mint authority
         */
         let token_mint = get_token_mint(&coin.denom)?;
-        
+
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -305,15 +307,15 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
            - token account
            - token mint ( with seeds as `mint` as prefixed constant, portId, channelId and denom )
            - mint authority
-           
+
            The token mint should be a PDA with seeds as ``
         */
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -371,7 +373,13 @@ impl IbcStorage<'_, '_> {
         // TODO(#180): Should we use full denom including prefix?
         let denom = coin.denom.base_denom.to_string();
         let escrow = get_escrow_account(port_id, channel_id, &denom);
-        msg!("This is channel id for deriving escrow {:?} derived escrow {:?} and expected {:?}", channel_id, escrow, accounts.escrow_account);
+        msg!(
+            "This is channel id for deriving escrow {:?} derived escrow {:?} \
+             and expected {:?}",
+            channel_id,
+            escrow,
+            accounts.escrow_account
+        );
 
         accounts
             .escrow_account
