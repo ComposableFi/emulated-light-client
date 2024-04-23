@@ -138,7 +138,7 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientState> for ClientState<PK> {
 
         let genesis_hash = make_hash(&msg.genesis_hash)?;
         let epoch_commitment = make_hash(&msg.epoch_commitment)?;
-        let prev_epoch_commitment = if msg.epoch_commitment.is_empty() {
+        let prev_epoch_commitment = if msg.prev_epoch_commitment.is_empty() {
             epoch_commitment.clone()
         } else {
             make_hash(&msg.prev_epoch_commitment)?
@@ -159,4 +159,63 @@ proto_utils::define_wrapper! {
     proto: proto::ClientState,
     wrapper: ClientState<PK> where
         PK: guestchain::PubKey = guestchain::validators::MockPubKey,
+}
+
+#[test]
+fn test_decode() {
+    use guestchain::validators::MockPubKey;
+    use prost::Message;
+
+    const MESSAGE: [u8; 79] = [
+        10u8, 32, 51, 149, 5, 79, 50, 53, 152, 49, 180, 107, 202, 134, 169,
+        136, 236, 63, 188, 148, 223, 47, 72, 42, 1, 239, 198, 197, 0, 114, 147,
+        202, 130, 249, 16, 211, 7, 24, 128, 128, 144, 202, 210, 198, 14, 34,
+        32, 86, 12, 131, 131, 127, 125, 82, 54, 32, 207, 121, 149, 204, 11,
+        121, 102, 180, 211, 111, 54, 0, 207, 247, 125, 195, 57, 10, 10, 80, 84,
+        86, 152,
+    ];
+
+    const GENESIS_HASH: [u8; 32] = [
+        51, 149, 5, 79, 50, 53, 152, 49, 180, 107, 202, 134, 169, 136, 236, 63,
+        188, 148, 223, 47, 72, 42, 1, 239, 198, 197, 0, 114, 147, 202, 130,
+        249,
+    ];
+    const EPOCH_COMMITMENT: [u8; 32] = [
+        86, 12, 131, 131, 127, 125, 82, 54, 32, 207, 121, 149, 204, 11, 121,
+        102, 180, 211, 111, 54, 0, 207, 247, 125, 195, 57, 10, 10, 80, 84, 86,
+        152,
+    ];
+
+    let want_proto = proto::ClientState {
+        genesis_hash: GENESIS_HASH.to_vec(),
+        latest_height: 979,
+        trusting_period_ns: 64000000000000,
+        epoch_commitment: EPOCH_COMMITMENT.to_vec(),
+        prev_epoch_commitment: Default::default(),
+        is_frozen: false,
+    };
+
+    let want_state = ClientState::<MockPubKey> {
+        genesis_hash: CryptoHash::from(GENESIS_HASH),
+        latest_height: 979.into(),
+        trusting_period_ns: 64000000000000,
+        epoch_commitment: CryptoHash::from(EPOCH_COMMITMENT),
+        prev_epoch_commitment: CryptoHash::from(EPOCH_COMMITMENT),
+        is_frozen: false,
+        _ph: Default::default(),
+    };
+
+    let proto = proto::ClientState::decode(MESSAGE.as_slice()).unwrap();
+    assert_eq!(want_proto, proto);
+
+    let state =
+        ClientState::<guestchain::validators::MockPubKey>::try_from(proto)
+            .unwrap();
+    assert_eq!(want_state, state);
+
+    let state = ClientState::<guestchain::validators::MockPubKey>::decode(
+        MESSAGE.as_slice(),
+    )
+    .unwrap();
+    assert_eq!(want_state, state);
 }
