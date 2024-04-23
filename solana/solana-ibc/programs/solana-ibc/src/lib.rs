@@ -508,7 +508,6 @@ pub struct InitMint<'info> {
               bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
-    associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
 }
@@ -634,7 +633,6 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
-    associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
 }
