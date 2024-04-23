@@ -53,16 +53,14 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     let base_denom = denom.base_denom.as_str().as_bytes();
     let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
     let trace_path = denom.trace_path.to_string();
-    let trace_path: Vec<&str> = trace_path.split('/').collect();
-    let (port_id, channel_id) = match trace_path.as_slice() {
-        [.., port_id, channel_id] => {
-            (port_id, channel_id)
-        }
-        _ => {
-            return Err(TokenTransferError::InvalidTraceLength {
-                len: trace_path.len() as u64,
-            })
-        }
+    let mut trace_path = trace_path.split('/');
+    let channel_id = trace_path.next_back();
+    let port_id = trace_path.next_back();
+    let (port_id, channel_id) = match (port_id, channel_id) {
+        (Some(port_id), Some(channel_id)) => (port_id, channel_id),
+        (_, last) => return Err(TokenTransferError::InvalidTraceLength {
+            len: trace_path.count() as u64 + u64::from(last.is_some()),
+        }),
     };
     let seeds = [
         crate::MINT,
