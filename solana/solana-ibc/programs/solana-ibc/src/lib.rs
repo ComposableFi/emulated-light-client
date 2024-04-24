@@ -366,6 +366,10 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
+        let height = store.borrow().chain.head()?.block_height;
+        // height just before the data is added to the trie.
+        msg!("Current Block height {}", height);
+
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,
