@@ -59,8 +59,13 @@ pub enum Error {
     /// below required minimum.
     NotEnoughValidators,
 
-    // CPI call from an unidentified program
+    /// CPI call from an unidentified program
     InvalidCPICall,
+
+    /// Unexpected Fee Collector
+    InvalidFeeCollector,
+
+    FeeCollectorChangeProposalNotSet,
 }
 
 impl Error {

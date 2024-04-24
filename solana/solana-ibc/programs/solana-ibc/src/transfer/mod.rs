@@ -4,10 +4,11 @@ use std::str;
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::ibc;
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
+use crate::ibc::{ModuleExtras, TokenTransferError};
 use crate::storage::IbcStorage;
+use crate::{ibc, FEE_AMOUNT_IN_LAMPORTS};
 
 mod impls;
 
@@ -238,9 +239,29 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 relayer,
             );
 
+        // refund fee if there was an error on the counterparty chain
         if result.1.is_err() {
-            // ensure that this is the source chain
-            // refund fee if there was an error on the counterparty chain
+            let store = self.borrow();
+            let accounts = &store.accounts;
+            let data = match serde_json::from_slice::<PacketData>(&packet.data)
+            {
+                Ok(data) => data,
+                Err(_) => {
+                    return (
+                        ModuleExtras::empty(),
+                        Err(TokenTransferError::PacketDataDeserialization)
+                            .map_err(|e| ibc::PacketError::AppModule {
+                                description: e.to_string(),
+                            }),
+                    );
+                }
+            };
+            let sender = accounts.sender.clone().unwrap();
+            let fee_collector = accounts.fee_collector.clone().unwrap();
+            **fee_collector.try_borrow_mut_lamports().unwrap() -=
+                crate::FEE_AMOUNT_IN_LAMPORTS;
+            **sender.try_borrow_mut_lamports().unwrap() +=
+                crate::FEE_AMOUNT_IN_LAMPORTS;
         }
         (
             result.0,
@@ -258,8 +279,29 @@ impl ibc::Module for IbcStorage<'_, '_> {
         let result = ibc::apps::transfer::module::on_timeout_packet_execute(
             self, packet, relayer,
         );
+        // refund the fee as the timeout has been successfully processed
         if result.1.is_ok() {
-            // refund the fee as the timeout has been succulesfuly processed
+            let store = self.borrow();
+            let accounts = &store.accounts;
+            let data = match serde_json::from_slice::<PacketData>(&packet.data)
+            {
+                Ok(data) => data,
+                Err(_) => {
+                    return (
+                        ModuleExtras::empty(),
+                        Err(TokenTransferError::PacketDataDeserialization)
+                            .map_err(|e| ibc::PacketError::AppModule {
+                                description: e.to_string(),
+                            }),
+                    );
+                }
+            };
+            let sender = accounts.sender.clone().unwrap();
+            let fee_collector = accounts.fee_collector.clone().unwrap();
+            **fee_collector.try_borrow_mut_lamports().unwrap() -=
+                crate::FEE_AMOUNT_IN_LAMPORTS;
+            **sender.try_borrow_mut_lamports().unwrap() +=
+                crate::FEE_AMOUNT_IN_LAMPORTS;
         }
         (
             result.0,
