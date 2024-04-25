@@ -279,6 +279,11 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx);
 
+        // Check if atleast one of the timeouts is non zero.
+        if !timeout_height.is_set() && !timeout_timestamp.is_set() {
+            return Err(error::Error::InvalidTimeout.into());
+        }
+
         let sequence = store
             .get_next_sequence_send(&ibc::path::SeqSendPath::new(
                 &port_id,
@@ -366,7 +371,7 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
-        // Check if atleast one of the timeouts non zero.
+        // Check if atleast one of the timeouts is non zero.
         if !msg.timeout_height_on_b.is_set() && !msg.timeout_timestamp_on_b.is_set() {
             return Err(error::Error::InvalidTimeout.into());
         }
