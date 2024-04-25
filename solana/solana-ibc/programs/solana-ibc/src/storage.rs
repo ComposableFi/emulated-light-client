@@ -259,6 +259,10 @@ pub struct PrivateStorage {
     pub port_channel: map::Map<trie_ids::PortChannelPK, PortChannelStore>,
 
     pub channel_counter: u32,
+
+    pub fee_collector: Pubkey,
+
+    pub new_fee_collector_proposal: Option<Pubkey>,
 }
 
 impl PrivateStorage {
@@ -374,6 +378,7 @@ pub struct TransferAccounts<'a> {
     pub escrow_account: Option<AccountInfo<'a>>,
     pub mint_authority: Option<AccountInfo<'a>>,
     pub token_program: Option<AccountInfo<'a>>,
+    pub fee_collector: Option<AccountInfo<'a>>,
 }
 
 #[derive(Debug)]
@@ -469,6 +474,10 @@ macro_rules! from_ctx {
                 .map(ToAccountInfo::to_account_info),
             token_program: accounts
                 .token_program
+                .as_deref()
+                .map(ToAccountInfo::to_account_info),
+            fee_collector: accounts
+                .fee_collector
                 .as_deref()
                 .map(ToAccountInfo::to_account_info),
         };

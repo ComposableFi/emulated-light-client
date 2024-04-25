@@ -20,12 +20,14 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
+use spl_token::solana_program::sysvar::SysvarId;
 
 use crate::ibc::ClientStateCommon;
 use crate::{
     accounts, chain, ibc, instruction, ix_data_account, CryptoHash,
     MINT_ESCROW_SEED,
 };
+
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
@@ -88,6 +90,14 @@ fn anchor_test_deliver() -> Result<()> {
             .unwrap()
             .pubkey();
 
+    let fee_collector_keypair = Rc::new(Keypair::new());
+    let fee_collector = fee_collector_keypair.pubkey();
+
+    let sol_rpc_client = program.rpc();
+    let _airdrop_signature =
+        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    let _airdrop_signature = airdrop(&sol_rpc_client, fee_collector, lamports);
+
     // Build, sign, and send program instruction
     let storage = Pubkey::find_program_address(
         &[crate::SOLANA_IBC_STORAGE_SEED],
@@ -97,6 +107,8 @@ fn anchor_test_deliver() -> Result<()> {
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
+    let fee_collector_pda =
+        Pubkey::find_program_address(&[crate::FEE_SEED], &crate::ID).0;
 
     let mint_keypair = Keypair::new();
     let native_token_mint_key = mint_keypair.pubkey();
@@ -251,6 +263,7 @@ fn anchor_test_deliver() -> Result<()> {
                 system_program: system_program::ID,
                 mint_authority: None,
                 token_mint: None,
+                fee_collector: None,
                 escrow_account: None,
                 receiver_token_account: None,
                 associated_token_program: None,
@@ -305,6 +318,7 @@ fn anchor_test_deliver() -> Result<()> {
             system_program: system_program::ID,
             mint_authority: None,
             token_mint: None,
+            fee_collector: None,
             escrow_account: None,
             receiver_token_account: None,
             associated_token_program: None,
@@ -345,6 +359,30 @@ fn anchor_test_deliver() -> Result<()> {
             commitment_prefix,
             client_id: client_id.clone(),
             counterparty_client_id: counter_party_client_id,
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
+       Set up fee account
+    */
+    println!("\nSetting up Fee Account");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::SetupFeeCollector {
+            fee_collector: authority.pubkey(),
+            storage,
+        })
+        .args(instruction::SetupFeeCollector {
+            new_fee_collector: fee_collector,
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -476,6 +514,7 @@ fn anchor_test_deliver() -> Result<()> {
             mint_authority: Some(mint_authority_key),
             token_mint: Some(native_token_mint_key),
             escrow_account: Some(escrow_account_key),
+            fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(associated_token_addr),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
@@ -498,12 +537,22 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&associated_token_addr)
         .unwrap();
 
+    let min_balance_for_rent_exemption =
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(0).unwrap();
+    let fee_account_balance_after =
+        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+
     assert_eq!(
         ((account_balance_before.ui_amount.unwrap() -
             account_balance_after.ui_amount.unwrap()) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
+    );
+
+    assert_eq!(
+        fee_account_balance_after - min_balance_for_rent_exemption,
+        crate::FEE_AMOUNT_IN_LAMPORTS
     );
 
     /*
@@ -556,6 +605,7 @@ fn anchor_test_deliver() -> Result<()> {
             mint_authority: Some(mint_authority_key),
             token_mint: Some(token_mint_key),
             escrow_account: None,
+            fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(receiver_token_address),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
@@ -597,6 +647,9 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
 
+    let fee_account_balance_before =
+        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -610,9 +663,10 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
-            token_mint: Some(token_mint_key),
-            escrow_account: None,
-            receiver_token_account: Some(receiver_token_address),
+            token_mint: Some(native_token_mint_key),
+            escrow_account: Some(escrow_account_key),
+            fee_collector: Some(fee_collector_pda),
+            receiver_token_account: Some(associated_token_addr),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
@@ -634,12 +688,20 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
 
+    let fee_account_balance_after =
+        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+
     assert_eq!(
         ((account_balance_before.ui_amount.unwrap() -
             account_balance_after.ui_amount.unwrap()) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
+    );
+
+    assert_eq!(
+        fee_account_balance_after - fee_account_balance_before,
+        crate::FEE_AMOUNT_IN_LAMPORTS
     );
 
     /*
@@ -704,6 +766,7 @@ fn anchor_test_deliver() -> Result<()> {
             mint_authority: Some(mint_authority_key),
             token_mint: Some(native_token_mint_key),
             escrow_account: Some(escrow_account_key),
+            fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(receiver_native_token_address),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
@@ -771,6 +834,27 @@ fn anchor_test_deliver() -> Result<()> {
         })
         .payer(authority.clone())
         .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    /*
+     * Collect all fees from the fee collector
+     */
+
+    let sig = program
+        .request()
+        .accounts(accounts::CollectFees {
+            fee_collector,
+            storage,
+            fee_account: fee_collector_pda,
+            rent: anchor_lang::solana_program::rent::Rent::id(),
+        })
+        .args(instruction::CollectFees {})
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
