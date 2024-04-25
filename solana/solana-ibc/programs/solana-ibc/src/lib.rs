@@ -13,8 +13,7 @@ use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
-use storage::PrivateStorage;
-use storage::TransferAccounts;
+use storage::{PrivateStorage, TransferAccounts};
 use trie_ids::PortChannelPK;
 
 use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
@@ -89,9 +88,9 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
-        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
-        CreateMetadataAccountsV3,
+        create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
 
     use super::*;
@@ -282,8 +281,7 @@ pub mod solana_ibc {
         token_uri: String,
     ) -> Result<()> {
         let bump = ctx.bumps.mint_authority;
-        let seeds =
-            [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 

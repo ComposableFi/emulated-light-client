@@ -269,7 +269,6 @@ pub struct PrivateStorage {
 pub struct Assets {
     pub port_channel: trie_ids::PortChannelPK,
     pub denom: String,
-
 }
 
 impl PrivateStorage {
