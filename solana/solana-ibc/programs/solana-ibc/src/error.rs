@@ -61,6 +61,9 @@ pub enum Error {
 
     // CPI call from an unidentified program
     InvalidCPICall,
+
+    /// If both timeout timestamp and timeout height are zero
+    InvalidTimeout
 }
 
 impl Error {
