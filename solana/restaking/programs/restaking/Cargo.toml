@@ -9,13 +9,13 @@ crate-type = ["cdylib", "lib"]
 name = "restaking"
 
 [features]
-# added so that we can compile this along with `solana-ibc` with mocks features. Currently unused.
-mocks = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
+mocks = ["solana-ibc/mocks"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-cpi = ["no-entrypoint"]
-default = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
