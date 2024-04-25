@@ -9,9 +9,11 @@ use ::ibc::core::client::types::error::ClientError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
+use storage::PrivateStorage;
 use storage::TransferAccounts;
 use trie_ids::PortChannelPK;
 
@@ -87,6 +89,11 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use anchor_spl::metadata::{
+        create_metadata_accounts_v3, mpl_token_metadata::types::DataV2,
+        CreateMetadataAccountsV3,
+    };
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -256,7 +263,6 @@ pub mod solana_ibc {
         Ok(())
     }
 
-
     /// Called to set up escrow and mint accounts for given channel
     /// and denom.
     ///
@@ -267,10 +273,51 @@ pub mod solana_ibc {
     #[allow(unused_variables)]
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
+        decimals: u8,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         hashed_base_denom: CryptoHash,
+        token_name: String,
+        token_symbol: String,
+        token_uri: String,
     ) -> Result<()> {
+        let bump = ctx.bumps.mint_authority;
+        let seeds =
+            [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+
+        let token_data: DataV2 = DataV2 {
+            name: token_name,
+            symbol: token_symbol,
+            uri: token_uri,
+            seller_fee_basis_points: 0,
+            creators: None,
+            collection: None,
+            uses: None,
+        };
+
+        let metadata_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_metadata_program.to_account_info(),
+            CreateMetadataAccountsV3 {
+                payer: ctx.accounts.sender.to_account_info(),
+                update_authority: ctx.accounts.mint_authority.to_account_info(),
+                mint: ctx.accounts.token_mint.to_account_info(),
+                metadata: ctx.accounts.metadata.to_account_info(),
+                mint_authority: ctx.accounts.mint_authority.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                rent: ctx.accounts.rent.to_account_info(),
+            },
+            seeds,
+        );
+
+        create_metadata_accounts_v3(
+            metadata_ctx,
+            token_data,
+            false,
+            true,
+            None,
+        )?;
         Ok(())
     }
 
@@ -584,25 +631,44 @@ pub struct CollectFees<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
+#[instruction(decimals: u8, port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct InitMint<'info> {
-    #[account(mut)]
+    #[account(mut, constraint = sender.key == &storage.fee_collector)]
     sender: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            b"metadata".as_ref(),
+            token_metadata_program.key().as_ref(),
+            token_mint.key().as_ref(),
+        ],
+        bump,
+        seeds::program = token_metadata_program.key()
+    )]
+    /// CHECK:
+    pub metadata: UncheckedAccount<'info>,
 
     /// CHECK:
     #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
-    bump, space = 100)]
+    bump, space = 0, )]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender,
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, PrivateStorage>,
+
+    #[account(init, payer = sender,
               seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(),
                        hashed_base_denom.as_ref()],
-              bump, mint::decimals = 6, mint::authority = mint_authority)]
+              bump, mint::decimals = decimals, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
     associated_token_program: Program<'info, AssociatedToken>,
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>,
+
+    rent: Sysvar<'info, Rent>,
+    token_metadata_program: Program<'info, Metadata>,
 }
 
 #[derive(Accounts, Clone)]

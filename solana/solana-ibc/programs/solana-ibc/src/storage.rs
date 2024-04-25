@@ -265,6 +265,13 @@ pub struct PrivateStorage {
     pub new_fee_collector_proposal: Option<Pubkey>,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub struct Assets {
+    pub port_channel: trie_ids::PortChannelPK,
+    pub denom: String,
+
+}
+
 impl PrivateStorage {
     /// Returns number of known clients; or counter for the next client.
     pub fn client_counter(&self) -> u64 {

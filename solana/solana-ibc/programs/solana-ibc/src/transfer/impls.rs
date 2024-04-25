@@ -311,6 +311,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
            The token mint should be a PDA with seeds as ``
         */
+        msg!("This is coin while burning {:?}", coin);
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -329,9 +330,11 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         if !account.0.eq(token_account.key) {
+            msg!("Token account not found {} {:?}", account, token_account.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
         if !token_mint.eq(token_mint_account.key) {
+            msg!("Token mint not found {:?} {:?}", token_mint, token_mint_account.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
