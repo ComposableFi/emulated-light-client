@@ -372,7 +372,9 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() && !msg.timeout_timestamp_on_b.is_set() {
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
+        {
             return Err(error::Error::InvalidTimeout.into());
         }
 

@@ -63,7 +63,7 @@ pub enum Error {
     InvalidCPICall,
 
     /// If both timeout timestamp and timeout height are zero
-    InvalidTimeout
+    InvalidTimeout,
 }
 
 impl Error {
