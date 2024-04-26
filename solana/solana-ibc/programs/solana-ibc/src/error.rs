@@ -66,6 +66,11 @@ pub enum Error {
     InvalidFeeCollector,
 
     FeeCollectorChangeProposalNotSet,
+
+    AssetAlreadyExists,
+
+    /// Effective deciamls can either be less than equal to the original decimals but not more.
+    InvalidDecimals,
 }
 
 impl Error {

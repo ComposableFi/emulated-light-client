@@ -37,7 +37,10 @@ pub const TOKEN_SYMBOL: &str = "RTRD";
 pub const TOKEN_URI: &str = "https://github.com";
 // const BASE_DENOM: &str = "PICA";
 
-const TRANSFER_AMOUNT: u64 = 1000000;
+const TRANSFER_AMOUNT: u64 = 1000000_000_000_000;
+
+const ORIGINAL_DECIMALS: u8 = 9;
+const EFFECTIVE_DECIMALS: u8 = 6;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -433,10 +436,11 @@ fn anchor_test_deliver() -> Result<()> {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_a.clone(),
             hashed_base_denom: hashed_denom.clone(),
-            decimals: 6,
             token_name: TOKEN_NAME.to_string(),
             token_symbol: TOKEN_SYMBOL.to_string(),
             token_uri: TOKEN_URI.to_string(),
+            effective_decimals: EFFECTIVE_DECIMALS,
+            original_decimals: ORIGINAL_DECIMALS,
         })
         .payer(fee_collector_keypair.clone())
         .signer(&*fee_collector_keypair)
@@ -483,7 +487,7 @@ fn anchor_test_deliver() -> Result<()> {
         &associated_token_addr,
         &authority.pubkey(),
         &[&authority.pubkey()],
-        1000000000,
+        1000000000_000_000_000,
     )
     .unwrap();
 
@@ -594,7 +598,7 @@ fn anchor_test_deliver() -> Result<()> {
         2,
         sender_token_address,
         receiver_token_address,
-        String::from("Tx from destination chain"),
+        String::from(""),
     );
     let proof_height_on_a = mock_client_state.header.height;
 
@@ -648,7 +652,8 @@ fn anchor_test_deliver() -> Result<()> {
         ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -718,7 +723,8 @@ fn anchor_test_deliver() -> Result<()> {
             account_balance_after.ui_amount.unwrap()) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     assert_eq!(
@@ -745,7 +751,7 @@ fn anchor_test_deliver() -> Result<()> {
         3,
         sender_token_address,
         receiver_native_token_address,
-        String::from("Tx from Source chain"),
+        String::from(""),
     );
 
     let proof_height_on_a = mock_client_state.header.height;

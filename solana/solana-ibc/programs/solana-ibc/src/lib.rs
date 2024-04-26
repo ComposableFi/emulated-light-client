@@ -30,7 +30,7 @@ pub const FEE_SEED: &[u8] = b"fee";
 
 pub const FEE_AMOUNT_IN_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
 
-declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
+declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
 mod allocator;
 pub mod chain;
@@ -272,14 +272,41 @@ pub mod solana_ibc {
     #[allow(unused_variables)]
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
-        decimals: u8,
+        effective_decimals: u8,
         port_id: ibc::PortId,
         channel_id_on_b: ibc::ChannelId,
         hashed_base_denom: CryptoHash,
+        original_decimals: u8,
         token_name: String,
         token_symbol: String,
         token_uri: String,
     ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        if effective_decimals > original_decimals {
+            return Err(error!(error::Error::InvalidDecimals));
+        }
+
+        if private_storage
+            .assets
+            .iter()
+            .find(|asset| asset.hashed_base_denom == hashed_base_denom)
+            .is_none()
+        {
+            private_storage.assets.push(storage::Asset {
+                hashed_base_denom,
+                port_channel: trie_ids::PortChannelPK::try_from(
+                    port_id,
+                    channel_id_on_b,
+                )
+                .unwrap(),
+                original_decimals,
+                effective_decimals_on_sol: effective_decimals,
+            })
+        } else {
+            return Err(error!(error::Error::AssetAlreadyExists));
+        }
+
         let bump = ctx.bumps.mint_authority;
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
@@ -316,6 +343,7 @@ pub mod solana_ibc {
             true,
             None,
         )?;
+
         Ok(())
     }
 
