@@ -289,8 +289,7 @@ macro_rules! define_wrapper {
     (
         proto: $Proto:ty,
         wrapper: $Type:ty $( where $T:ident: $bound:path = $concrete:path )?,
-        // Expression performing conversion from Any to the object.
-        $(conv: $any:ident => $from_any:expr,)?
+        custom_any
     ) => {
         impl $(<$T: $bound>)* $Type {
             /// Encodes the object into a vector as protocol buffer message.
@@ -321,43 +320,37 @@ macro_rules! define_wrapper {
             }
         }
 
-        impl $(<$T: $bound>)* proto_utils::AnyConvert for $Type {
-            fn to_any(&self) -> (&'static str, alloc::vec::Vec<u8>) {
-                (<$Proto>::IBC_TYPE_URL, self.encode())
-            }
-            $crate::define_wrapper!(@try_from_any $Proto; $($any => $from_any)?);
-        }
-
-       $crate::impl_from_to_any!($Type $(where $T: $bound)?);
+        $crate::impl_from_to_any!($Type $(where $T: $bound)?);
 
         impl $(<$T: $bound>)* ibc_primitives::proto::Protobuf<$Proto>
             for $Type { }
     };
 
-    (@try_from_any $Proto:ty;) => {
-        fn try_from_any(
-            type_url: &str,
-            value: &[u8],
-        ) -> Result<Self, $crate::DecodeError> {
-            if type_url.ends_with(<$Proto>::IBC_TYPE_URL) {
-                Self::decode(value).map_err(|err| err.into())
-            } else {
-                Err($crate::DecodeError::BadType)
-            }
+    (
+        proto: $Proto:ty,
+        wrapper: $Type:ty $( where $T:ident: $bound:path = $concrete:path )?,
+    ) => {
+        $crate::define_wrapper! {
+            proto: $Proto,
+            wrapper: $Type $( where $T: $bound = $concrete )*,
+            custom_any
         }
-    };
 
-    (@try_from_any $Proto:ty; $any:ident => $expr:expr) => {
-        fn try_from_any(
-            type_url: &str,
-            value: &[u8],
-        ) -> Result<Self, $crate::DecodeError> {
-            struct Any<'a> {
-                type_url: &'a str,
-                value: &'a [u8]
+        impl $(<$T: $bound>)* $crate::AnyConvert for $Type {
+            fn to_any(&self) -> (&'static str, alloc::vec::Vec<u8>) {
+                (<$Proto>::IBC_TYPE_URL, self.encode())
             }
-            let $any = Any { type_url, value };
-            $expr
+
+            fn try_from_any(
+                type_url: &str,
+                value: &[u8],
+            ) -> Result<Self, $crate::DecodeError> {
+                if type_url.ends_with(<$Proto>::IBC_TYPE_URL) {
+                    Self::decode(value).map_err(|err| err.into())
+                } else {
+                    Err($crate::DecodeError::BadType)
+                }
+            }
         }
     };
 }
