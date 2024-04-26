@@ -801,6 +801,10 @@ fn anchor_test_deliver() -> Result<()> {
     Ok(())
 }
 
+fn max_timeout_height() -> ibc::TimeoutHeight {
+    ibc::TimeoutHeight::At(ibc::Height::new(u64::MAX, u64::MAX).unwrap())
+}
+
 fn construct_packet_from_denom(
     base_denom: &str,
     port_id: ibc::PortId,
@@ -842,7 +846,7 @@ fn construct_packet_from_denom(
         port_id_on_b: port_id,
         chan_id_on_b: channel_id_on_b,
         data: serialized_data.clone(),
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
@@ -882,7 +886,7 @@ fn construct_transfer_packet_from_denom(
         port_id_on_a: port_id.clone(),
         chan_id_on_a: channel_id_on_a.clone(),
         packet_data,
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     }
 }
