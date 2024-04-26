@@ -146,9 +146,6 @@ fn anchor_test_deliver() -> Result<()> {
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
-    let sol_rpc_client = program.rpc();
-    let _airdrop_signature =
-        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
     let _airdrop_signature =
         airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
 

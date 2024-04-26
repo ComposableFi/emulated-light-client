@@ -30,7 +30,7 @@ pub const FEE_SEED: &[u8] = b"fee";
 pub const FEE_AMOUNT_IN_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
 pub const MINIMUM_FEE_TO_COLLECT: u64 = 1_000_000_000; // 1 SOL
 
-declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
+declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
 mod allocator;
 pub mod chain;
