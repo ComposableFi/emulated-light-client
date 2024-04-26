@@ -62,14 +62,14 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
 
     /// Inserts value into the trie starting at node pointed by given reference.
     fn handle(&mut self, nref: NodeRef) -> Result<(Ptr, CryptoHash)> {
-        let nref = (nref.ptr.ok_or(Error::Sealed)?, nref.hash);
-        let node = *self.wlog.allocator().get(nref.0);
+        let nptr = nref.ptr.ok_or(Error::Sealed)?;
+        let node = *self.wlog.allocator().get(nptr);
         let node = node.decode()?;
-        debug_assert_eq!(*nref.1, node.hash());
+        debug_assert_eq!(*nref.hash, node.hash());
         match node {
-            Node::Branch { children } => self.handle_branch(nref, children),
+            Node::Branch { children } => self.handle_branch(nptr, children),
             Node::Extension { key, child } => {
-                self.handle_extension(nref, key, child)
+                self.handle_extension(nptr, key, child)
             }
         }
     }
@@ -77,7 +77,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// Inserts value assuming current node is a Branch with given children.
     fn handle_branch(
         &mut self,
-        nref: (Ptr, &CryptoHash),
+        nptr: Ptr,
         children: [Reference<'_>; 2],
     ) -> Result<(Ptr, CryptoHash)> {
         // If we’ve reached the end of the key, it’s been a prefix of an
@@ -90,13 +90,13 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let child = owned_ref.to_ref();
         let children =
             if bit { [children[0], child] } else { [child, children[1]] };
-        self.set_node(nref.0, RawNode::branch(children[0], children[1]))
+        self.set_node(nptr, RawNode::branch(children[0], children[1]))
     }
 
     /// Inserts value assuming current node is an Extension.
     fn handle_extension(
         &mut self,
-        nref: (Ptr, &CryptoHash),
+        nptr: Ptr,
         ext_key: bits::ExtKey<'_>,
         child: Reference<'_>,
     ) -> Result<(Ptr, CryptoHash)> {
@@ -122,7 +122,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
             debug_assert_eq!(Some(ext_key), prefix);
             let owned_ref = self.handle_reference(child)?;
             let node = RawNode::extension(ext_key, owned_ref.to_ref());
-            return self.set_node(nref.0, node);
+            return self.set_node(nptr, node);
         };
 
         // If we’ve reached the end of the key, it’s been a prefix of an
@@ -164,7 +164,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         let mut children = [their_ref; 2];
         children[our] = our_ref.to_ref();
         let node = RawNode::branch(children[0], children[1]);
-        let (ptr, hash) = self.set_node(nref.0, node)?;
+        let (ptr, hash) = self.set_node(nptr, node)?;
 
         match prefix {
             Some(prefix) => {

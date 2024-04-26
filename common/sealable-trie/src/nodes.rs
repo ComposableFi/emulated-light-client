@@ -75,7 +75,7 @@ pub enum Node<'a, P = Option<Ptr>, S = bool> {
 // Extension: 1000_kkkk kkkk_kooo <key> <ref>
 //    `kkkk` is the length of the key in bits and `ooo` is number of most
 //    significant bits in <key> to skip before getting to the key.  <key> is
-//    36-byte array which holds the key extension.  Only `o..o+k` bits in it
+//    34-byte array which holds the key extension.  Only `o..o+k` bits in it
 //    are the actual key; others are set to zero.
 // ```
 //

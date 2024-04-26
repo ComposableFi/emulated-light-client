@@ -406,7 +406,6 @@ fn anchor_test_deliver() -> Result<()> {
             mint_authority: mint_authority_key,
             token_mint: token_mint_key,
             system_program: system_program::ID,
-            associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
         })
         .args(instruction::InitMint {
@@ -514,7 +513,6 @@ fn anchor_test_deliver() -> Result<()> {
             escrow_account: Some(escrow_account_key),
             fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(associated_token_addr),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
@@ -667,7 +665,6 @@ fn anchor_test_deliver() -> Result<()> {
             escrow_account: None,
             fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(receiver_token_address),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
