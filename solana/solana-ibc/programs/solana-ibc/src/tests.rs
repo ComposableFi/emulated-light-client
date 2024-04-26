@@ -639,7 +639,10 @@ fn anchor_test_deliver() -> Result<()> {
         sender_token_address,
     );
 
-    println!("This is length of message {:?}", msg_transfer.try_to_vec().unwrap().len());
+    println!(
+        "This is length of message {:?}",
+        msg_transfer.try_to_vec().unwrap().len()
+    );
 
     let account_balance_before = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
