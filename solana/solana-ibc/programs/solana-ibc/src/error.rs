@@ -69,6 +69,9 @@ pub enum Error {
 
     /// Fees can be collected only after a minimum amount
     InsufficientFeesToCollect,
+
+    /// If both timeout timestamp and timeout height are zero
+    InvalidTimeout,
 }
 
 impl Error {

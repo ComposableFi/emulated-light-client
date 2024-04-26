@@ -115,6 +115,43 @@ fn anchor_test_deliver() -> Result<()> {
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
 
+    let port_id = ibc::PortId::transfer();
+    let channel_id_on_a = ibc::ChannelId::new(0);
+    let channel_id_on_b = ibc::ChannelId::new(1);
+
+    let seeds = [
+        crate::ESCROW,
+        port_id.as_bytes(),
+        channel_id_on_a.as_bytes(),
+        hashed_denom.as_ref(),
+    ];
+    let (escrow_account_key, _bump) =
+        Pubkey::find_program_address(&seeds, &crate::ID);
+    let (token_mint_key, _bump) = Pubkey::find_program_address(
+        &[
+            crate::MINT,
+            port_id.as_bytes(),
+            channel_id_on_a.as_bytes(),
+            hashed_denom.as_ref(),
+        ],
+        &crate::ID,
+    );
+    let (mint_authority_key, _bump) =
+        Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
+
+    let receiver = Rc::new(Keypair::new());
+
+    let sender_token_address =
+        get_associated_token_address(&authority.pubkey(), &token_mint_key);
+    let receiver_token_address =
+        get_associated_token_address(&receiver.pubkey(), &token_mint_key);
+
+    let sol_rpc_client = program.rpc();
+    let _airdrop_signature =
+        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    let _airdrop_signature =
+        airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
+
     /*
      * Initialise chain
      */
@@ -296,19 +333,6 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
-    let port_id = ibc::PortId::transfer();
-    let channel_id_on_a = ibc::ChannelId::new(0);
-    let channel_id_on_b = ibc::ChannelId::new(1);
-
-    let seeds =
-        [port_id.as_bytes(), channel_id_on_a.as_bytes(), hashed_denom.as_ref()];
-    let (escrow_account_key, _bump) =
-        Pubkey::find_program_address(&seeds, &crate::ID);
-    let (token_mint_key, _bump) =
-        Pubkey::find_program_address(&[hashed_denom.as_ref()], &crate::ID);
-    let (mint_authority_key, _bump) =
-        Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-
     /*
      * Setup mock connection and channel
      *
@@ -317,12 +341,6 @@ fn anchor_test_deliver() -> Result<()> {
      *  - Get token account for receiver and sender
      */
     println!("\nSetting up mock connection and channel");
-    let receiver = Keypair::new();
-
-    let sender_token_address =
-        get_associated_token_address(&authority.pubkey(), &token_mint_key);
-    let receiver_token_address =
-        get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
     let sig = program
         .request()
@@ -471,7 +489,7 @@ fn anchor_test_deliver() -> Result<()> {
     let msg_transfer = construct_transfer_packet_from_denom(
         &base_denom,
         port_id.clone(),
-        channel_id_on_b.clone(),
+        true,
         channel_id_on_a.clone(),
         associated_token_addr,
         receiver_token_address,
@@ -548,9 +566,9 @@ fn anchor_test_deliver() -> Result<()> {
     let packet = construct_packet_from_denom(
         &base_denom,
         port_id.clone(),
+        false,
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
-        channel_id_on_b.clone(),
         2,
         sender_token_address,
         receiver_token_address,
@@ -619,14 +637,14 @@ fn anchor_test_deliver() -> Result<()> {
     let msg_transfer = construct_transfer_packet_from_denom(
         &base_denom,
         port_id.clone(),
+        false,
         channel_id_on_a.clone(),
-        channel_id_on_a.clone(),
-        associated_token_addr,
         receiver_token_address,
+        sender_token_address,
     );
 
     let account_balance_before = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
+        .get_token_account_balance(&receiver_token_address)
         .unwrap();
 
     let fee_account_balance_before =
@@ -638,8 +656,8 @@ fn anchor_test_deliver() -> Result<()> {
             1_000_000u32,
         ))
         .accounts(accounts::SendTransfer {
-            sender: authority.pubkey(),
-            receiver: Some(receiver.pubkey()),
+            sender: receiver.pubkey(),
+            receiver: Some(authority.pubkey()),
             storage,
             trie,
             chain,
@@ -658,8 +676,8 @@ fn anchor_test_deliver() -> Result<()> {
             hashed_base_denom: hashed_denom,
             msg: msg_transfer,
         })
-        .payer(authority.clone())
-        .signer(&*authority)
+        .payer(receiver.clone())
+        .signer(&*receiver)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
@@ -667,7 +685,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("  Signature: {sig}");
 
     let account_balance_after = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
+        .get_token_account_balance(&receiver_token_address)
         .unwrap();
 
     let fee_account_balance_after =
@@ -699,7 +717,7 @@ fn anchor_test_deliver() -> Result<()> {
     let packet = construct_packet_from_denom(
         &base_denom,
         port_id.clone(),
-        channel_id_on_b.clone(),
+        true,
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
         3,
@@ -789,7 +807,7 @@ fn anchor_test_deliver() -> Result<()> {
     let packet = construct_packet_from_denom(
         &base_denom,
         port_id.clone(),
-        channel_id_on_a.clone(),
+        true,
         channel_id_on_a.clone(),
         channel_id_on_b.clone(),
         1,
@@ -867,12 +885,16 @@ fn anchor_test_deliver() -> Result<()> {
     Ok(())
 }
 
+fn max_timeout_height() -> ibc::TimeoutHeight {
+    ibc::TimeoutHeight::At(ibc::Height::new(u64::MAX, u64::MAX).unwrap())
+}
+
 fn construct_packet_from_denom(
     base_denom: &str,
     port_id: ibc::PortId,
     // Channel id used to define if its source chain or destination chain (in
     // denom).
-    denom_channel_id: ibc::ChannelId,
+    is_destination: bool,
     channel_id_on_a: ibc::ChannelId,
     channel_id_on_b: ibc::ChannelId,
     sequence: u64,
@@ -880,7 +902,11 @@ fn construct_packet_from_denom(
     receiver_token_address: Pubkey,
     memo: String,
 ) -> ibc::Packet {
-    let denom = format!("{port_id}/{denom_channel_id}/{base_denom}");
+    let denom = if is_destination {
+        format!("{port_id}/{channel_id_on_a}/{base_denom}")
+    } else {
+        base_denom.to_string()
+    };
     let denom =
         ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
@@ -904,7 +930,7 @@ fn construct_packet_from_denom(
         port_id_on_b: port_id,
         chan_id_on_b: channel_id_on_b,
         data: serialized_data.clone(),
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
@@ -914,20 +940,24 @@ fn construct_packet_from_denom(
 fn construct_transfer_packet_from_denom(
     base_denom: &str,
     port_id: ibc::PortId,
-    // Channel id used to define if its source chain or destination chain (in
-    // denom).
-    denom_channel_id: ibc::ChannelId,
+    is_source: bool,
     channel_id_on_a: ibc::ChannelId,
     sender_address: Pubkey,
     receiver_address: Pubkey,
 ) -> MsgTransfer {
-    let denom = format!("{port_id}/{denom_channel_id}/{base_denom}");
+    let denom = if !is_source {
+        format!("{port_id}/{channel_id_on_a}/{base_denom}")
+    } else {
+        base_denom.to_string()
+    };
     let denom =
         ibc::apps::transfer::types::PrefixedDenom::from_str(&denom).unwrap();
     let token = ibc::apps::transfer::types::Coin {
         denom,
         amount: TRANSFER_AMOUNT.into(),
     };
+
+    println!("This is token {:?}", token);
 
     let packet_data = ibc::apps::transfer::types::packet::PacketData {
         token: token.into(),
@@ -940,7 +970,7 @@ fn construct_transfer_packet_from_denom(
         port_id_on_a: port_id.clone(),
         chan_id_on_a: channel_id_on_a.clone(),
         packet_data,
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     }
 }

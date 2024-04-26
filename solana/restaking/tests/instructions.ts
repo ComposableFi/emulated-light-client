@@ -263,7 +263,6 @@ export const withdrawalRequestInstruction = async (
       metadataProgram: new anchor.web3.PublicKey(
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
       ),
-      instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
     })
     .transaction();
 

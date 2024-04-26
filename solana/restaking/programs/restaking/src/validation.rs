@@ -15,7 +15,7 @@ use crate::ErrorCodes;
 /// - guest chain program ID: Should match the expected guest chain program ID
 ///
 /// Note: The accounts should be sent in above order.
-pub fn validate_remaining_accounts(
+pub(crate) fn validate_remaining_accounts(
     accounts: &[AccountInfo<'_>],
     expected_guest_chain_program_id: &Pubkey,
 ) -> Result<()> {
@@ -44,4 +44,16 @@ pub fn validate_remaining_accounts(
     }
 
     Ok(())
+}
+
+/// Verifies that given account is the Instruction sysvars and returns it if it
+/// is.
+pub(crate) fn check_instructions_sysvar<'info>(
+    account: &AccountInfo<'info>,
+) -> Result<AccountInfo<'info>> {
+    if solana_program::sysvar::instructions::check_id(account.key) {
+        Ok(account.clone())
+    } else {
+        Err(error!(ErrorCodes::AccountValidationFailedForCPI))
+    }
 }

@@ -22,6 +22,8 @@ pub const PACKET_SEED: &[u8] = b"packet";
 pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
+pub const MINT: &[u8] = b"mint";
+pub const ESCROW: &[u8] = b"escrow";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
@@ -181,7 +183,7 @@ pub mod solana_ibc {
         let caller_program_id =
             solana_program::sysvar::instructions::get_instruction_relative(
                 0,
-                &ctx.accounts.instruction.to_account_info(),
+                &ctx.accounts.instruction,
             )?
             .program_id;
         chain.check_staking_program(&caller_program_id)?;
@@ -345,6 +347,11 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let mut store = storage::from_ctx!(ctx);
 
+        // Check if atleast one of the timeouts is non zero.
+        if !timeout_height.is_set() && !timeout_timestamp.is_set() {
+            return Err(error::Error::InvalidTimeout.into());
+        }
+
         let sequence = store
             .get_next_sequence_send(&ibc::path::SeqSendPath::new(
                 &port_id,
@@ -432,6 +439,17 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
+        // Check if atleast one of the timeouts is non zero.
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
+        {
+            return Err(error::Error::InvalidTimeout.into());
+        }
+
+        let height = store.borrow().chain.head()?.block_height;
+        // height just before the data is added to the trie.
+        msg!("Current Block height {}", height);
+
         let fee_collector =
             ctx.accounts.fee_collector.as_ref().unwrap().to_account_info();
         let sender = ctx.accounts.sender.to_account_info();
@@ -445,6 +463,8 @@ pub mod solana_ibc {
             ),
             &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
+
+        
 
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
@@ -528,7 +548,7 @@ pub struct SetStake<'info> {
     #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
-    instruction: AccountInfo<'info>,
+    instruction: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -594,8 +614,10 @@ pub struct InitMint<'info> {
     bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
-    #[account(init_if_needed, payer = sender, seeds = [hashed_base_denom.as_ref()],
-    bump, mint::decimals = 6, mint::authority = mint_authority)]
+    #[account(init_if_needed, payer = sender,
+              seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(),
+                       hashed_base_denom.as_ref()],
+              bump, mint::decimals = 6, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
     associated_token_program: Program<'info, AssociatedToken>,
@@ -724,7 +746,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(init_if_needed, payer = sender, seeds = [
-    port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
+        ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]
