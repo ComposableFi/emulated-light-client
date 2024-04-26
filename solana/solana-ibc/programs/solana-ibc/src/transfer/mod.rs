@@ -243,24 +243,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if result.1.is_err() {
             let store = self.borrow();
             let accounts = &store.accounts;
-            let data = match serde_json::from_slice::<PacketData>(&packet.data)
-            {
-                Ok(data) => data,
-                Err(_) => {
-                    return (
-                        ModuleExtras::empty(),
-                        Err(TokenTransferError::PacketDataDeserialization)
-                            .map_err(|e| ibc::PacketError::AppModule {
-                                description: e.to_string(),
-                            }),
-                    );
-                }
-            };
-            let sender = accounts.sender.clone().unwrap();
+            let fee_payer = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
-            **sender.try_borrow_mut_lamports().unwrap() +=
+            **fee_payer.try_borrow_mut_lamports().unwrap() +=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
         }
         (
@@ -283,24 +270,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if result.1.is_ok() {
             let store = self.borrow();
             let accounts = &store.accounts;
-            let data = match serde_json::from_slice::<PacketData>(&packet.data)
-            {
-                Ok(data) => data,
-                Err(_) => {
-                    return (
-                        ModuleExtras::empty(),
-                        Err(TokenTransferError::PacketDataDeserialization)
-                            .map_err(|e| ibc::PacketError::AppModule {
-                                description: e.to_string(),
-                            }),
-                    );
-                }
-            };
-            let sender = accounts.sender.clone().unwrap();
+            let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
-            **sender.try_borrow_mut_lamports().unwrap() +=
+            **receiver.try_borrow_mut_lamports().unwrap() +=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
         }
         (

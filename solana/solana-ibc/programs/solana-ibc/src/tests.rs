@@ -865,7 +865,7 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Collect all fees from the fee collector
      */
-
+    println!("\nCollect all fees from the fee collector");
     let sig = program
         .request()
         .accounts(accounts::CollectFees {
