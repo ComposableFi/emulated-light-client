@@ -210,8 +210,7 @@ pub mod solana_ibc {
         } else if signer == private_storage.fee_collector {
             private_storage.new_fee_collector_proposal = Some(new_fee_collector)
         } else {
-            return Err(error::Error::InvalidFeeCollector)
-                .map_err(|err| error!((&err)));
+            return Err(error!(error::Error::InvalidFeeCollector));
         }
 
         Ok(())
@@ -232,8 +231,7 @@ pub mod solana_ibc {
             private_storage.fee_collector = new_admin;
             private_storage.new_fee_collector_proposal = None;
         } else {
-            return Err(error::Error::FeeCollectorChangeProposalNotSet)
-                .map_err(|err| error!((&err)));
+            return Err(error!(error::Error::FeeCollectorChangeProposalNotSet));
         }
 
         Ok(())
