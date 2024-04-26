@@ -4,11 +4,10 @@ use std::str;
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::ibc;
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
-use crate::ibc::{ModuleExtras, TokenTransferError};
 use crate::storage::IbcStorage;
-use crate::{ibc, FEE_AMOUNT_IN_LAMPORTS};
 
 mod impls;
 
@@ -243,11 +242,11 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if result.1.is_err() {
             let store = self.borrow();
             let accounts = &store.accounts;
-            let fee_payer = accounts.receiver.clone().unwrap();
+            let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
-            **fee_payer.try_borrow_mut_lamports().unwrap() +=
+            **receiver.try_borrow_mut_lamports().unwrap() +=
                 crate::FEE_AMOUNT_IN_LAMPORTS;
         }
         (
