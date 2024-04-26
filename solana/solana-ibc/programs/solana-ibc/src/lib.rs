@@ -26,6 +26,7 @@ pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const FEE_SEED: &[u8] = b"fee";
 
 pub const FEE_AMOUNT_IN_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
+pub const MINIMUM_FEE_TO_COLLECT: u64 = 1_000_000_000; // 1 SOL
 
 declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
 
@@ -242,9 +243,12 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, CollectFees<'info>>,
     ) -> Result<()> {
         let fee_collector_balance = ctx.accounts.fee_account.lamports();
-        let minimum_rent_balance = ctx.accounts.rent.minimum_balance(0);
+        
+        if fee_collector_balance < MINIMUM_FEE_TO_COLLECT {
+            return Err(error!(error::Error::InsufficientFeesToCollect));
+        }
 
-        let total_fees_collected = fee_collector_balance - minimum_rent_balance;
+        let total_fees_collected = fee_collector_balance - MINIMUM_FEE_TO_COLLECT;
 
         **ctx.accounts.fee_account.try_borrow_mut_lamports().unwrap() -=
             total_fees_collected;
