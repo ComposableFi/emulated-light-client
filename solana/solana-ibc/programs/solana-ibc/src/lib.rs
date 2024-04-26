@@ -606,6 +606,7 @@ pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    #[account(mut)]
     receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
@@ -698,6 +699,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    #[account(mut)]
     receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
