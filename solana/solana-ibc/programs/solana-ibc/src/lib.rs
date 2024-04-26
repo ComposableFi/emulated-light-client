@@ -241,12 +241,13 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, CollectFees<'info>>,
     ) -> Result<()> {
         let fee_collector_balance = ctx.accounts.fee_account.lamports();
-        
+
         if fee_collector_balance < MINIMUM_FEE_TO_COLLECT {
             return Err(error!(error::Error::InsufficientFeesToCollect));
         }
 
-        let total_fees_collected = fee_collector_balance - MINIMUM_FEE_TO_COLLECT;
+        let total_fees_collected =
+            fee_collector_balance - MINIMUM_FEE_TO_COLLECT;
 
         **ctx.accounts.fee_account.try_borrow_mut_lamports().unwrap() -=
             total_fees_collected;
@@ -255,7 +256,6 @@ pub mod solana_ibc {
 
         Ok(())
     }
-
 
     /// Called to set up escrow and mint accounts for given channel
     /// and denom.

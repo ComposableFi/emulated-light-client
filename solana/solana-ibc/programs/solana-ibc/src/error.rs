@@ -67,8 +67,8 @@ pub enum Error {
 
     FeeCollectorChangeProposalNotSet,
 
-    /// Fees can be collected only after a minimum amount 
-    InsufficientFeesToCollect
+    /// Fees can be collected only after a minimum amount
+    InsufficientFeesToCollect,
 }
 
 impl Error {
