@@ -14,8 +14,9 @@ use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
 use anchor_client::solana_sdk::transaction::Transaction;
-use anchor_client::{Client, Cluster};
+use anchor_client::{Client, ClientError, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
+use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
@@ -640,6 +641,8 @@ fn anchor_test_deliver() -> Result<()> {
         sender_token_address,
     );
 
+    println!("This is length of message {:?}", msg_transfer.try_to_vec().unwrap().len());
+
     let account_balance_before = sol_rpc_client
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
@@ -660,10 +663,10 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
-            token_mint: Some(native_token_mint_key),
-            escrow_account: Some(escrow_account_key),
+            token_mint: Some(token_mint_key),
+            escrow_account: None,
             fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(associated_token_addr),
+            receiver_token_account: Some(receiver_token_address),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
@@ -720,7 +723,7 @@ fn anchor_test_deliver() -> Result<()> {
         3,
         sender_token_address,
         receiver_native_token_address,
-        String::from("Tx from Source chain"),
+        String::from(""),
     );
 
     let proof_height_on_a = mock_client_state.header.height;
@@ -738,9 +741,6 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::PacketMsg::Recv,
         ibc::MsgEnvelope::Packet,
     );
-
-    // println!("  This is trie {:?}", trie);
-    // println!("  This is storage {:?}", storage);
 
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
@@ -855,8 +855,7 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+        });
 
     /*
      * Free Write account
