@@ -189,18 +189,30 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
         ibc::ValidationContext::consensus_state(self, client_cons_state_path)
     }
 
+    /// Returns **only the earliest** consensus height.
+    ///
+    /// This method is used by Tendermint light client to prune old states.
+    /// Unfortunately, with Solana’s strict compute units limits, we end up
+    /// failing transaction if the light client tries to delete too many old
+    /// states.  Because of that, we hack this method to return only the
+    /// easiest height rather than all of them.  This limit the light client to
+    /// delete only one state at a time.
     fn consensus_state_heights(
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<Vec<ibc::Height>, ibc::ContextError> {
-        Ok(self
+        let height = self
             .borrow()
             .private
             .client(client_id)?
             .consensus_states
             .keys()
             .copied()
-            .collect())
+            .min();
+        match height {
+            Some(height) => Ok(alloc::vec![height]),
+            None => Ok(Vec::new()),
+        }
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp, ibc::ContextError> {
