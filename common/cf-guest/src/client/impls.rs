@@ -149,10 +149,11 @@ pub trait CommonContext<PK: guestchain::PubKey> {
         height: ibc::Height,
     ) -> Result;
 
-    fn sorted_consensus_state_heights(
+    /// Returns earliest consensus state for given client.
+    fn earliest_consensus_state(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<Vec<ibc::Height>>;
+    ) -> Result<Option<(ibc::Height, Self::AnyConsensusState)>>;
 }
 
 impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
@@ -628,14 +629,13 @@ impl<PK: PubKey> ClientState<PK> {
         client_id: &ibc::ClientId,
         host_timestamp: ibc::Timestamp,
     ) -> Result {
-        for height in ctx.sorted_consensus_state_heights(client_id)? {
-            let consensus: ConsensusState = ctx
-                .consensus_state(client_id, height)
-                .and_then(|state| state.try_into().map_err(error))?;
-            if !self.consensus_has_expired(&consensus, host_timestamp) {
-                break;
+        if let Some((height, state)) =
+            ctx.earliest_consensus_state(client_id)?
+        {
+            let state = state.try_into().map_err(error)?;
+            if self.consensus_has_expired(&state, host_timestamp) {
+                ctx.delete_consensus_state_and_metadata(client_id, height)?;
             }
-            ctx.delete_consensus_state_and_metadata(client_id, height)?;
         }
         Ok(())
     }
