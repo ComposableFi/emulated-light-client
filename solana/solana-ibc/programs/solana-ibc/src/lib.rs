@@ -88,6 +88,7 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -488,7 +489,7 @@ pub struct Initialise<'info> {
     /// This account isn’t used directly by the instruction.  It is however
     /// initialised.
     #[account(init, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
-    bump, space = 10240)]
+              bump, space = 10240)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The guest blockchain data.
@@ -581,8 +582,7 @@ pub struct SetupFeeCollector<'info> {
     fee_collector: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],
-    bump)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Account<'info, storage::PrivateStorage>,
 }
 
@@ -592,8 +592,8 @@ pub struct CollectFees<'info> {
     fee_collector: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],
-    bump, has_one = fee_collector)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump,
+              has_one = fee_collector)]
     storage: Account<'info, storage::PrivateStorage>,
 
     #[account(mut, seeds = [FEE_SEED], bump)]
@@ -611,7 +611,7 @@ pub struct InitMint<'info> {
 
     /// CHECK:
     #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
-    bump, space = 100)]
+              bump, space = 100)]
     mint_authority: UncheckedAccount<'info>,
 
     #[account(init_if_needed, payer = sender,
@@ -634,7 +634,7 @@ pub struct Deliver<'info> {
 
     /// The account holding private IBC storage.
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],
-    bump)]
+              bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
@@ -656,8 +656,8 @@ pub struct Deliver<'info> {
     #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(init_if_needed, payer = sender,
-    associated_token::mint = token_mint,
-    associated_token::authority = receiver)]
+        associated_token::mint = token_mint,
+        associated_token::authority = receiver)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
     #[account(mut, seeds = [FEE_SEED], bump)]
