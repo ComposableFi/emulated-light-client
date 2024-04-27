@@ -395,10 +395,9 @@ pub mod solana_ibc {
     /// realloc the accounts only.  Anchor sets up the accounts
     /// given in this call’s context before the body of the method is
     /// executed.
-    #[allow(unused_variables)]
     pub fn realloc_accounts(
-        ctx: Context<ReallocAccounts>,
-        new_length: u64,
+        _ctx: Context<ReallocAccounts>,
+        _new_length: u64,
     ) -> Result<()> {
         Ok(())
     }
