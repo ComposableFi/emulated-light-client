@@ -396,7 +396,10 @@ pub mod solana_ibc {
     /// given in this call’s context before the body of the method is
     /// executed.
     #[allow(unused_variables)]
-    pub fn realloc_accounts(ctx: Context<ReallocAccounts>, new_length: u64) -> Result<()> {
+    pub fn realloc_accounts(
+        ctx: Context<ReallocAccounts>,
+        new_length: u64,
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -661,7 +664,6 @@ pub struct ReallocAccounts<'info> {
     chain: Box<Account<'info, chain::ChainData>>,
 
     system_program: Program<'info, System>,
-
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
