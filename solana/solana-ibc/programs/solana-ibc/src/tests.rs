@@ -37,7 +37,7 @@ pub const TOKEN_SYMBOL: &str = "RTRD";
 pub const TOKEN_URI: &str = "https://github.com";
 // const BASE_DENOM: &str = "PICA";
 
-const TRANSFER_AMOUNT: u64 = 1000000_000_000_000;
+const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
 
 const ORIGINAL_DECIMALS: u8 = 9;
 const EFFECTIVE_DECIMALS: u8 = 6;
