@@ -126,7 +126,7 @@ pub fn submit_call(
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-                60_000,
+                300_000,
             ))
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 *priority_fees,
@@ -176,7 +176,7 @@ pub fn submit_generate_block_call(
                 *priority_fees,
             ))
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-                60_000,
+                300_000,
             ))
             .accounts(accounts::Chain {
                 sender: validator.pubkey(),
