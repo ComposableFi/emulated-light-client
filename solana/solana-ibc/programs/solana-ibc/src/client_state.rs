@@ -297,20 +297,18 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
         self.delete_consensus_state_impl(client_id, height)
     }
 
-    fn sorted_consensus_state_heights(
+    fn earliest_consensus_state(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<Vec<ibc::Height>> {
-        let mut heights: Vec<_> = self
-            .borrow()
+    ) -> Result<Option<(ibc::Height, Self::AnyConsensusState)>> {
+        self.borrow()
             .private
             .client(client_id)?
             .consensus_states
-            .keys()
-            .copied()
-            .collect();
-        heights.sort();
-        Ok(heights)
+            .iter()
+            .min_by(|(ref a, _), (ref b, _)| a.cmp(b))
+            .map(|(height, state)| state.state().map(|state| (*height, state)))
+            .transpose()
     }
 }
 

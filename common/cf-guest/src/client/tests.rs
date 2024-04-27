@@ -390,13 +390,14 @@ impl CommonContext<MockPubKey> for TestContext {
         Ok(())
     }
 
-    fn sorted_consensus_state_heights(
+    fn earliest_consensus_state(
         &self,
         client_id: &ibc::ClientId,
-    ) -> Result<Vec<ibc::Height>> {
+    ) -> Result<Option<(ibc::Height, Self::AnyConsensusState)>> {
         self.check_client_id(client_id);
-        let min = ibc::Height::min(0);
-        let max = ibc::Height::new(u64::MAX, u64::MAX).unwrap();
-        Ok(self.states.range(min..=max).map(|(key, _)| key.clone()).collect())
+        Ok(self
+            .states
+            .first_key_value()
+            .map(|(key, value)| (*key, value.clone())))
     }
 }
