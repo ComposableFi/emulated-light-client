@@ -390,6 +390,15 @@ pub mod solana_ibc {
         .map_err(error::Error::TokenTransferError)
         .map_err(|err| error!((&err)))
     }
+
+    /// The body of this method is empty since it is called to
+    /// realloc the accounts only.  Anchor sets up the accounts
+    /// given in this call’s context before the body of the method is
+    /// executed.
+    #[allow(unused_variables)]
+    pub fn realloc_accounts(ctx: Context<ReallocAccounts>, new_length: u64) -> Result<()> {
+        Ok(())
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -635,6 +644,24 @@ pub struct SendTransfer<'info> {
 
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(new_length: usize)]
+pub struct ReallocAccounts<'info> {
+    #[account(mut)]
+    sender: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, realloc = new_length, realloc::payer = sender, realloc::zero = false, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The guest blockchain data.
+    #[account(mut, realloc = new_length, realloc::payer = sender, realloc::zero = false, seeds = [CHAIN_SEED], bump)]
+    chain: Box<Account<'info, chain::ChainData>>,
+
+    system_program: Program<'info, System>,
+
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
