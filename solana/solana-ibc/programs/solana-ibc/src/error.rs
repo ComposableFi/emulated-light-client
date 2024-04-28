@@ -65,8 +65,11 @@ pub enum Error {
     /// Unexpected Fee Collector
     InvalidFeeCollector,
 
+    /// When the new fee collector calls the approve method without the
+    /// new fee collector being set.
     FeeCollectorChangeProposalNotSet,
 
+    /// When an asset is added which already exists
     AssetAlreadyExists,
 
     /// Effective deciamls can either be less than equal to the original decimals but not more.
