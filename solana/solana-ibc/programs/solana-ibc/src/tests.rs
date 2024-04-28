@@ -841,7 +841,7 @@ fn anchor_test_deliver() -> Result<()> {
      * Collect all fees from the fee collector
      */
     println!("\nCollect all fees from the fee collector");
-    let sig = program
+    let _sig = program
         .request()
         .accounts(accounts::CollectFees {
             fee_collector,
@@ -856,7 +856,6 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         });
-    println!("  Signature {sig}");
 
     /*
      * Free Write account
