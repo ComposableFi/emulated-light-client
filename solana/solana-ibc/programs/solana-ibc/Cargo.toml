@@ -20,7 +20,7 @@ no-log-ix-name = []
 
 [dependencies]
 anchor-lang.workspace = true
-anchor-spl.workspace = true
+anchor-spl = { workspace = true, features = ["metadata"] }
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true

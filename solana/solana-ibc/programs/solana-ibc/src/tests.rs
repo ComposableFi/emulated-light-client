@@ -33,9 +33,16 @@ const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
+pub const TOKEN_NAME: &str = "RETARDIO";
+pub const TOKEN_SYMBOL: &str = "RTRD";
+pub const TOKEN_URI: &str = "https://github.com";
 // const BASE_DENOM: &str = "PICA";
 
-const TRANSFER_AMOUNT: u64 = 1000000;
+const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
+const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
+
+const ORIGINAL_DECIMALS: u8 = 9;
+const EFFECTIVE_DECIMALS: u8 = 6;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -396,25 +403,45 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Setup deliver escrow.
      */
+
+    let token_metadata_pda = Pubkey::find_program_address(
+        &[
+            "metadata".as_bytes(),
+            &anchor_spl::metadata::ID.to_bytes(),
+            &token_mint_key.to_bytes(),
+        ],
+        &anchor_spl::metadata::ID,
+    )
+    .0;
+
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
         .accounts(accounts::InitMint {
-            sender: authority.pubkey(),
+            sender: fee_collector,
             mint_authority: mint_authority_key,
             token_mint: token_mint_key,
             system_program: system_program::ID,
             token_program: anchor_spl::token::ID,
+            rent: anchor_lang::solana_program::rent::Rent::id(),
+            storage,
+            metadata: token_metadata_pda,
+            token_metadata_program: anchor_spl::metadata::ID,
         })
         .args(instruction::InitMint {
             port_id: port_id.clone(),
             channel_id_on_b: channel_id_on_a.clone(),
             hashed_base_denom: hashed_denom.clone(),
+            token_name: TOKEN_NAME.to_string(),
+            token_symbol: TOKEN_SYMBOL.to_string(),
+            token_uri: TOKEN_URI.to_string(),
+            effective_decimals: EFFECTIVE_DECIMALS,
+            original_decimals: ORIGINAL_DECIMALS,
         })
-        .payer(authority.clone())
-        .signer(&*authority)
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
@@ -458,7 +485,7 @@ fn anchor_test_deliver() -> Result<()> {
         &associated_token_addr,
         &authority.pubkey(),
         &[&authority.pubkey()],
-        1000000000,
+        MINT_AMOUNT,
     )
     .unwrap();
 
@@ -568,7 +595,7 @@ fn anchor_test_deliver() -> Result<()> {
         2,
         sender_token_address,
         receiver_token_address,
-        String::from("Tx from destination chain"),
+        String::from(""),
     );
     let proof_height_on_a = mock_client_state.header.height;
 
@@ -622,7 +649,8 @@ fn anchor_test_deliver() -> Result<()> {
         ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -696,7 +724,8 @@ fn anchor_test_deliver() -> Result<()> {
             account_balance_after.ui_amount.unwrap()) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     assert_eq!(
@@ -877,6 +906,9 @@ fn anchor_test_deliver() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
     println!("  Signature {sig}");
+
+    let chain_account: chain::ChainData = program.account(chain).unwrap();
+    println!("THis is chain account {:?}", chain_account);
 
     Ok(())
 }
