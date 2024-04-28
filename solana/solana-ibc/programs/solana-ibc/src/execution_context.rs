@@ -77,7 +77,7 @@ impl IbcStorage<'_, '_> {
         height: ibc::Height,
         state: AnyConsensusState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_consensus_state({}, {:?})", client_id, state);
+        // msg!("store_consensus_state({}, {:?})", client_id, state);
         let mut store = self.borrow_mut();
         // TODO(mina86): This should be host timestamp and height.
         let (processed_time, processed_height) = {
@@ -109,7 +109,7 @@ impl IbcStorage<'_, '_> {
         client_id: &ibc::ClientId,
         height: ibc::Height,
     ) -> Result<(), ibc::ClientError> {
-        msg!("delete_consensus_state({}, {})", client_id, height);
+        // msg!("delete_consensus_state({}, {})", client_id, height);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(client_id, false)?;
         client.consensus_states.remove(&height);

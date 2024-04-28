@@ -33,16 +33,16 @@ const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
-pub const TOKEN_NAME: &str = "RETARDIO";
-pub const TOKEN_SYMBOL: &str = "RTRD";
-pub const TOKEN_URI: &str = "https://github.com";
+pub const TOKEN_NAME: &str = "PICASSO";
+pub const TOKEN_SYMBOL: &str = "PICA";
+pub const TOKEN_URI: &str = "https://raw.githubusercontent.com/ComposableFi/FE-assets/f1bf383c1daaf3d934fbc82be345e797c3fab3dc/assets%20/pica.svg";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
 const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
 
-const ORIGINAL_DECIMALS: u8 = 9;
-const EFFECTIVE_DECIMALS: u8 = 6;
+const ORIGINAL_DECIMALS: u8 = 12;
+const EFFECTIVE_DECIMALS: u8 = 9;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -79,12 +79,12 @@ macro_rules! make_message {
 #[test]
 #[ignore = "Requires local validator to run"]
 fn anchor_test_deliver() -> Result<()> {
-    let authority = Rc::new(read_keypair_file("../../keypair.json").unwrap());
+    let authority = Rc::new(read_keypair_file("../../orignal_leaked.json").unwrap());
     println!("This is pubkey {}", authority.pubkey().to_string());
     let lamports = 2_000_000_000;
 
     let client = Client::new_with_options(
-        Cluster::Localnet,
+        Cluster::Devnet,
         authority.clone(),
         CommitmentConfig::processed(),
     );
@@ -98,13 +98,13 @@ fn anchor_test_deliver() -> Result<()> {
             .unwrap()
             .pubkey();
 
-    let fee_collector_keypair = Rc::new(Keypair::new());
+    let fee_collector_keypair = authority.clone();
     let fee_collector = fee_collector_keypair.pubkey();
 
     let sol_rpc_client = program.rpc();
-    let _airdrop_signature =
-        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
-    let _airdrop_signature = airdrop(&sol_rpc_client, fee_collector, lamports);
+    // let _airdrop_signature =
+    //     airdrop(&sol_rpc_client, authority.pubkey(), lamports);
+    // let _airdrop_signature = airdrop(&sol_rpc_client, fee_collector, lamports);
 
     // Build, sign, and send program instruction
     let storage = Pubkey::find_program_address(
@@ -118,13 +118,13 @@ fn anchor_test_deliver() -> Result<()> {
     let fee_collector_pda =
         Pubkey::find_program_address(&[crate::FEE_SEED], &crate::ID).0;
 
-    let mint_keypair = Keypair::new();
+    let mint_keypair = read_keypair_file("../../token_mint_keypair.json").unwrap();
     let native_token_mint_key = mint_keypair.pubkey();
-    let base_denom = native_token_mint_key.to_string();
+    let base_denom = "ppica".to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
 
     let port_id = ibc::PortId::transfer();
-    let channel_id_on_a = ibc::ChannelId::new(0);
+    let channel_id_on_a = ibc::ChannelId::new(58);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
     let seeds = [
@@ -154,248 +154,257 @@ fn anchor_test_deliver() -> Result<()> {
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
-    let _airdrop_signature =
-        airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
+    // let chain_acc: chain::ChainData = program.account(chain).unwrap();
+
+    // let private_storage_acc: crate::PrivateStorage = program.account(storage).unwrap();
+
+    // println!("{:?}", chain_acc);
+    // println!("{:?}", private_storage_acc);
+
+    // let _airdrop_signature =
+    //     airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
 
     /*
      * Initialise chain
      */
-    println!("\nInitialising");
-    let sig = program
-        .request()
-        .accounts(accounts::Initialise {
-            sender: authority.pubkey(),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-        })
-        .args(instruction::Initialise {
-            config: chain::Config {
-                min_validators: NonZeroU16::MIN,
-                max_validators: NonZeroU16::MAX,
-                min_validator_stake: NonZeroU128::new(1000).unwrap(),
-                min_total_stake: NonZeroU128::new(1000).unwrap(),
-                min_quorum_stake: NonZeroU128::new(1000).unwrap(),
-                min_block_length: 5.into(),
-                max_block_age_ns: 3600 * 1_000_000_000,
-                min_epoch_length: 200_000.into(),
-            },
-            staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
-            sig_verify_program_id,
-            genesis_epoch: chain::Epoch::new(
-                vec![chain::Validator::new(
-                    authority.pubkey().into(),
-                    NonZeroU128::new(2000).unwrap(),
-                )],
-                NonZeroU128::new(1000).unwrap(),
-            )
-            .unwrap(),
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // println!("\nInitialising");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
+    //     .accounts(accounts::Initialise {
+    //         sender: authority.pubkey(),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //     })
+    //     .args(instruction::Initialise {
+    //         config: chain::Config {
+    //             min_validators: NonZeroU16::MIN,
+    //             max_validators: NonZeroU16::new(50).unwrap(),
+    //             min_validator_stake: NonZeroU128::new(1000).unwrap(),
+    //             min_total_stake: NonZeroU128::new(1000).unwrap(),
+    //             min_quorum_stake: NonZeroU128::new(1000).unwrap(),
+    //             min_block_length: 5.into(),
+    //             max_block_age_ns: 10 * 1_000_000_000,
+    //             min_epoch_length: 200_000.into(),
+    //         },
+    //         staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
+    //         sig_verify_program_id,
+    //         genesis_epoch: chain::Epoch::new(
+    //             vec![chain::Validator::new(
+    //                 authority.pubkey().into(),
+    //                 NonZeroU128::new(2000).unwrap(),
+    //             )],
+    //             NonZeroU128::new(1000).unwrap(),
+    //         )
+    //         .unwrap(),
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let chain_account: chain::ChainData = program.account(chain).unwrap();
+    // let chain_account: chain::ChainData = program.account(chain).unwrap();
 
-    let genesis_hash = chain_account.genesis().unwrap();
-    println!("This is genesis hash {}", genesis_hash.to_string());
+    // let genesis_hash = chain_account.genesis().unwrap();
+    // println!("This is genesis hash {}", genesis_hash.to_string());
 
-    /*
-     * Create New Mock Client
-     */
-    println!("\nCreating Mock Client");
-    let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
-    let message = make_message!(
-        ibc::MsgCreateClient::new(
-            ibc::Any::from(mock_client_state),
-            ibc::Any::from(mock_cs_state),
-            ibc::Signer::from(authority.pubkey().to_string()),
-        ),
-        ibc::ClientMsg::CreateClient,
-        ibc::MsgEnvelope::Client,
-    );
+    // /*
+    //  * Create New Mock Client
+    //  */
+    // println!("\nCreating Mock Client");
+    // let (mock_client_state, mock_cs_state) = create_mock_client_and_cs_state();
+    // let message = make_message!(
+    //     ibc::MsgCreateClient::new(
+    //         ibc::Any::from(mock_client_state),
+    //         ibc::Any::from(mock_cs_state),
+    //         ibc::Signer::from(authority.pubkey().to_string()),
+    //     ),
+    //     ibc::ClientMsg::CreateClient,
+    //     ibc::MsgEnvelope::Client,
+    // );
 
-    println!(
-        "\nSplitting the message into chunks and sending it to write-account \
-         program"
-    );
-    let mut instruction_data =
-        anchor_lang::InstructionData::data(&instruction::Deliver { message });
-    let instruction_len = instruction_data.len() as u32;
-    instruction_data.splice(..0, instruction_len.to_le_bytes());
+    // println!(
+    //     "\nSplitting the message into chunks and sending it to write-account \
+    //      program"
+    // );
+    // let mut instruction_data =
+    //     anchor_lang::InstructionData::data(&instruction::Deliver { message });
+    // let instruction_len = instruction_data.len() as u32;
+    // instruction_data.splice(..0, instruction_len.to_le_bytes());
 
-    let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
+    // let blockhash = sol_rpc_client.get_latest_blockhash().unwrap();
 
-    let (mut chunks, chunk_account, _) = write::instruction::WriteIter::new(
-        &write_account_program_id,
-        authority.pubkey(),
-        WRITE_ACCOUNT_SEED,
-        instruction_data,
-    )
-    .unwrap();
-    // Note: We’re using small chunks size on purpose to test the behaviour of
-    // the write account program.
-    chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
-    for instruction in &mut chunks {
-        let transaction = Transaction::new_signed_with_payer(
-            &[instruction],
-            Some(&authority.pubkey()),
-            &[&*authority],
-            blockhash,
-        );
-        let sig = sol_rpc_client
-            .send_and_confirm_transaction_with_spinner(&transaction)
-            .unwrap();
-        println!("  Signature {sig}");
-    }
-    let (write_account, write_account_bump) = chunks.into_account();
+    // let (mut chunks, chunk_account, _) = write::instruction::WriteIter::new(
+    //     &write_account_program_id,
+    //     authority.pubkey(),
+    //     WRITE_ACCOUNT_SEED,
+    //     instruction_data,
+    // )
+    // .unwrap();
+    // // Note: We’re using small chunks size on purpose to test the behaviour of
+    // // the write account program.
+    // chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
+    // for instruction in &mut chunks {
+    //     let transaction = Transaction::new_signed_with_payer(
+    //         &[instruction],
+    //         Some(&authority.pubkey()),
+    //         &[&*authority],
+    //         blockhash,
+    //     );
+    //     let sig = sol_rpc_client
+    //         .send_and_confirm_transaction_with_spinner(&transaction)
+    //         .unwrap();
+    //     println!("  Signature {sig}");
+    // }
+    // let (write_account, write_account_bump) = chunks.into_account();
 
-    println!("\nCreating Mock Client");
-    let sig = program
-        .request()
-        .accounts(ix_data_account::Accounts::new(
-            accounts::Deliver {
-                sender: authority.pubkey(),
-                receiver: None,
-                storage,
-                trie,
-                chain,
-                system_program: system_program::ID,
-                mint_authority: None,
-                token_mint: None,
-                fee_collector: None,
-                escrow_account: None,
-                receiver_token_account: None,
-                associated_token_program: None,
-                token_program: None,
-            },
-            chunk_account,
-        ))
-        .args(ix_data_account::Instruction)
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // println!("\nCreating Mock Client");
+    // let sig = program
+    //     .request()
+    //     .accounts(ix_data_account::Accounts::new(
+    //         accounts::Deliver {
+    //             sender: authority.pubkey(),
+    //             receiver: None,
+    //             storage,
+    //             trie,
+    //             chain,
+    //             system_program: system_program::ID,
+    //             mint_authority: None,
+    //             token_mint: None,
+    //             fee_collector: None,
+    //             escrow_account: None,
+    //             receiver_token_account: None,
+    //             associated_token_program: None,
+    //             token_program: None,
+    //         },
+    //         chunk_account,
+    //     ))
+    //     .args(ix_data_account::Instruction)
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    /*
-     * Create New Mock Connection Open Init
-     */
-    println!("\nIssuing Connection Open Init");
-    let client_id = mock_client_state.client_type().build_client_id(0);
-    let counter_party_client_id =
-        mock_client_state.client_type().build_client_id(1);
+    // /*
+    //  * Create New Mock Connection Open Init
+    //  */
+    // println!("\nIssuing Connection Open Init");
+    // let client_id = mock_client_state.client_type().build_client_id(0);
+    // let counter_party_client_id =
+    //     mock_client_state.client_type().build_client_id(1);
 
-    let commitment_prefix: ibc::CommitmentPrefix =
-        IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
+    // let commitment_prefix: ibc::CommitmentPrefix =
+    //     IBC_TRIE_PREFIX.to_vec().try_into().unwrap();
 
-    let message = make_message!(
-        ibc::MsgConnectionOpenInit {
-            client_id_on_a: mock_client_state.client_type().build_client_id(0),
-            version: Some(Default::default()),
-            counterparty: ibc::conn::Counterparty::new(
-                counter_party_client_id.clone(),
-                None,
-                commitment_prefix.clone(),
-            ),
-            delay_period: Duration::from_secs(5),
-            signer: ibc::Signer::from(authority.pubkey().to_string()),
-        },
-        ibc::ConnectionMsg::OpenInit,
-        ibc::MsgEnvelope::Connection,
-    );
+    // let message = make_message!(
+    //     ibc::MsgConnectionOpenInit {
+    //         client_id_on_a: mock_client_state.client_type().build_client_id(0),
+    //         version: Some(Default::default()),
+    //         counterparty: ibc::conn::Counterparty::new(
+    //             counter_party_client_id.clone(),
+    //             None,
+    //             commitment_prefix.clone(),
+    //         ),
+    //         delay_period: Duration::from_secs(5),
+    //         signer: ibc::Signer::from(authority.pubkey().to_string()),
+    //     },
+    //     ibc::ConnectionMsg::OpenInit,
+    //     ibc::MsgEnvelope::Connection,
+    // );
 
-    let sig = program
-        .request()
-        .accounts(accounts::Deliver {
-            sender: authority.pubkey(),
-            receiver: None,
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-            mint_authority: None,
-            token_mint: None,
-            fee_collector: None,
-            escrow_account: None,
-            receiver_token_account: None,
-            associated_token_program: None,
-            token_program: None,
-        })
-        .args(instruction::Deliver { message })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .accounts(accounts::Deliver {
+    //         sender: authority.pubkey(),
+    //         receiver: None,
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //         mint_authority: None,
+    //         token_mint: None,
+    //         fee_collector: None,
+    //         escrow_account: None,
+    //         receiver_token_account: None,
+    //         associated_token_program: None,
+    //         token_program: None,
+    //     })
+    //     .args(instruction::Deliver { message })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    /*
-     * Setup mock connection and channel
-     *
-     * Steps before we proceed
-     *  - Create PDAs for the above keys,
-     *  - Get token account for receiver and sender
-     */
-    println!("\nSetting up mock connection and channel");
+    // /*
+    //  * Setup mock connection and channel
+    //  *
+    //  * Steps before we proceed
+    //  *  - Create PDAs for the above keys,
+    //  *  - Get token account for receiver and sender
+    //  */
+    // println!("\nSetting up mock connection and channel");
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::MockDeliver {
-            sender: authority.pubkey(),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-        })
-        .args(instruction::MockDeliver {
-            port_id: port_id.clone(),
-            commitment_prefix,
-            client_id: client_id.clone(),
-            counterparty_client_id: counter_party_client_id,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::MockDeliver {
+    //         sender: authority.pubkey(),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //     })
+    //     .args(instruction::MockDeliver {
+    //         port_id: port_id.clone(),
+    //         commitment_prefix,
+    //         client_id: client_id.clone(),
+    //         counterparty_client_id: counter_party_client_id,
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
     /*
        Set up fee account
     */
-    println!("\nSetting up Fee Account");
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::SetupFeeCollector {
-            fee_collector: authority.pubkey(),
-            storage,
-        })
-        .args(instruction::SetupFeeCollector {
-            new_fee_collector: fee_collector,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // println!("\nSetting up Fee Account");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
+    //     .accounts(accounts::SetupFeeCollector {
+    //         fee_collector: authority.pubkey(),
+    //         storage,
+    //     })
+    //     .args(instruction::SetupFeeCollector {
+    //         new_fee_collector: fee_collector,
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
@@ -404,512 +413,512 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
-    let token_metadata_pda = Pubkey::find_program_address(
-        &[
-            "metadata".as_bytes(),
-            &anchor_spl::metadata::ID.to_bytes(),
-            &token_mint_key.to_bytes(),
-        ],
-        &anchor_spl::metadata::ID,
-    )
-    .0;
+    // let token_metadata_pda = Pubkey::find_program_address(
+    //     &[
+    //         "metadata".as_bytes(),
+    //         &anchor_spl::metadata::ID.to_bytes(),
+    //         &token_mint_key.to_bytes(),
+    //     ],
+    //     &anchor_spl::metadata::ID,
+    // )
+    // .0;
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::InitMint {
-            sender: fee_collector,
-            mint_authority: mint_authority_key,
-            token_mint: token_mint_key,
-            system_program: system_program::ID,
-            token_program: anchor_spl::token::ID,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
-            storage,
-            metadata: token_metadata_pda,
-            token_metadata_program: anchor_spl::metadata::ID,
-        })
-        .args(instruction::InitMint {
-            port_id: port_id.clone(),
-            channel_id_on_b: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
-            token_name: TOKEN_NAME.to_string(),
-            token_symbol: TOKEN_SYMBOL.to_string(),
-            token_uri: TOKEN_URI.to_string(),
-            effective_decimals: EFFECTIVE_DECIMALS,
-            original_decimals: ORIGINAL_DECIMALS,
-        })
-        .payer(fee_collector_keypair.clone())
-        .signer(&*fee_collector_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::InitMint {
+    //         sender: fee_collector,
+    //         mint_authority: mint_authority_key,
+    //         token_mint: token_mint_key,
+    //         system_program: system_program::ID,
+    //         token_program: anchor_spl::token::ID,
+    //         rent: anchor_lang::solana_program::rent::Rent::id(),
+    //         storage,
+    //         metadata: token_metadata_pda,
+    //         token_metadata_program: anchor_spl::metadata::ID,
+    //     })
+    //     .args(instruction::InitMint {
+    //         port_id: port_id.clone(),
+    //         channel_id_on_b: channel_id_on_a.clone(),
+    //         hashed_base_denom: hashed_denom.clone(),
+    //         token_name: TOKEN_NAME.to_string(),
+    //         token_symbol: TOKEN_SYMBOL.to_string(),
+    //         token_uri: TOKEN_URI.to_string(),
+    //         effective_decimals: EFFECTIVE_DECIMALS,
+    //         original_decimals: ORIGINAL_DECIMALS,
+    //     })
+    //     .payer(fee_collector_keypair.clone())
+    //     .signer(&*fee_collector_keypair)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+    // let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
-    println!("  This is the mint information {:?}", mint_info);
+    // println!("  This is the mint information {:?}", mint_info);
 
-    /*
-     * Creating Token Mint
-     */
-    println!("\nCreating a token mint");
+    // /*
+    //  * Creating Token Mint
+    //  */
+    // println!("\nCreating a token mint");
 
-    let create_account_ix = create_account(
-        &authority.pubkey(),
-        &native_token_mint_key,
-        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
-        82,
-        &anchor_spl::token::ID,
-    );
+    // let create_account_ix = create_account(
+    //     &authority.pubkey(),
+    //     &native_token_mint_key,
+    //     sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+    //     82,
+    //     &anchor_spl::token::ID,
+    // );
 
-    let create_mint_ix = initialize_mint2(
-        &anchor_spl::token::ID,
-        &native_token_mint_key,
-        &authority.pubkey(),
-        Some(&authority.pubkey()),
-        6,
-    )
-    .expect("invalid mint instruction");
+    // let create_mint_ix = initialize_mint2(
+    //     &anchor_spl::token::ID,
+    //     &native_token_mint_key,
+    //     &authority.pubkey(),
+    //     Some(&authority.pubkey()),
+    //     6,
+    // )
+    // .expect("invalid mint instruction");
 
-    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &native_token_mint_key, &anchor_spl::token::ID);
-    let associated_token_addr = get_associated_token_address(
-        &authority.pubkey(),
-        &native_token_mint_key,
-    );
-    let mint_ix = spl_token::instruction::mint_to(
-        &anchor_spl::token::ID,
-        &native_token_mint_key,
-        &associated_token_addr,
-        &authority.pubkey(),
-        &[&authority.pubkey()],
-        MINT_AMOUNT,
-    )
-    .unwrap();
+    // let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &native_token_mint_key, &anchor_spl::token::ID);
+    // let associated_token_addr = get_associated_token_address(
+    //     &authority.pubkey(),
+    //     &native_token_mint_key,
+    // );
+    // let mint_ix = spl_token::instruction::mint_to(
+    //     &anchor_spl::token::ID,
+    //     &native_token_mint_key,
+    //     &associated_token_addr,
+    //     &authority.pubkey(),
+    //     &[&authority.pubkey()],
+    //     MINT_AMOUNT,
+    // )
+    // .unwrap();
 
-    let tx = program
-        .request()
-        .instruction(create_account_ix)
-        .instruction(create_mint_ix)
-        .instruction(create_token_acc_ix)
-        .instruction(mint_ix)
-        .payer(authority.clone())
-        .signer(&*authority)
-        .signer(&mint_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
+    // let tx = program
+    //     .request()
+    //     .instruction(create_account_ix)
+    //     .instruction(create_mint_ix)
+    //     .instruction(create_token_acc_ix)
+    //     .instruction(mint_ix)
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .signer(&mint_keypair)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
 
-    println!("  Signature: {}", tx);
+    // println!("  Signature: {}", tx);
 
-    /*
-     * Sending transfer on source chain
-     */
-    println!("\nSend Transfer On Source Chain");
+    // /*
+    //  * Sending transfer on source chain
+    //  */
+    // println!("\nSend Transfer On Source Chain");
 
-    let msg_transfer = construct_transfer_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        true,
-        channel_id_on_a.clone(),
-        associated_token_addr,
-        receiver_token_address,
-    );
+    // let msg_transfer = construct_transfer_packet_from_denom(
+    //     &base_denom,
+    //     port_id.clone(),
+    //     true,
+    //     channel_id_on_a.clone(),
+    //     associated_token_addr,
+    //     receiver_token_address,
+    // );
 
-    let account_balance_before = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
-        .unwrap();
+    // let account_balance_before = sol_rpc_client
+    //     .get_token_account_balance(&associated_token_addr)
+    //     .unwrap();
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::SendTransfer {
-            sender: authority.pubkey(),
-            receiver: Some(receiver.pubkey()),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-            mint_authority: Some(mint_authority_key),
-            token_mint: Some(native_token_mint_key),
-            escrow_account: Some(escrow_account_key),
-            fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(associated_token_addr),
-            token_program: Some(anchor_spl::token::ID),
-        })
-        .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
-            msg: msg_transfer,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::SendTransfer {
+    //         sender: authority.pubkey(),
+    //         receiver: Some(receiver.pubkey()),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //         mint_authority: Some(mint_authority_key),
+    //         token_mint: Some(native_token_mint_key),
+    //         escrow_account: Some(escrow_account_key),
+    //         fee_collector: Some(fee_collector_pda),
+    //         receiver_token_account: Some(associated_token_addr),
+    //         token_program: Some(anchor_spl::token::ID),
+    //     })
+    //     .args(instruction::SendTransfer {
+    //         port_id: port_id.clone(),
+    //         channel_id: channel_id_on_a.clone(),
+    //         hashed_base_denom: hashed_denom.clone(),
+    //         msg: msg_transfer,
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let account_balance_after = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
-        .unwrap();
+    // let account_balance_after = sol_rpc_client
+    //     .get_token_account_balance(&associated_token_addr)
+    //     .unwrap();
 
-    let min_balance_for_rent_exemption =
-        sol_rpc_client.get_minimum_balance_for_rent_exemption(0).unwrap();
-    let fee_account_balance_after =
-        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+    // let min_balance_for_rent_exemption =
+    //     sol_rpc_client.get_minimum_balance_for_rent_exemption(0).unwrap();
+    // let fee_account_balance_after =
+    //     sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
-    assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
-        TRANSFER_AMOUNT
-    );
+    // assert_eq!(
+    //     ((account_balance_before.ui_amount.unwrap() -
+    //         account_balance_after.ui_amount.unwrap()) *
+    //         10_f64.powf(mint_info.decimals.into()))
+    //     .round() as u64,
+    //     TRANSFER_AMOUNT
+    // );
 
-    assert_eq!(
-        fee_account_balance_after - min_balance_for_rent_exemption,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    // assert_eq!(
+    //     fee_account_balance_after - min_balance_for_rent_exemption,
+    //     crate::FEE_AMOUNT_IN_LAMPORTS
+    // );
 
-    /*
-     * On Destination chain
-     */
-    println!("\nRecving on destination chain");
-    let account_balance_before = sol_rpc_client
-        .get_token_account_balance(&receiver_token_address)
-        .map_or(0f64, |balance| balance.ui_amount.unwrap());
+    // /*
+    //  * On Destination chain
+    //  */
+    // println!("\nRecving on destination chain");
+    // let account_balance_before = sol_rpc_client
+    //     .get_token_account_balance(&receiver_token_address)
+    //     .map_or(0f64, |balance| balance.ui_amount.unwrap());
 
-    let packet = construct_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        false,
-        channel_id_on_b.clone(),
-        channel_id_on_a.clone(),
-        2,
-        sender_token_address,
-        receiver_token_address,
-        String::from(""),
-    );
-    let proof_height_on_a = mock_client_state.header.height;
+    // let packet = construct_packet_from_denom(
+    //     &base_denom,
+    //     port_id.clone(),
+    //     false,
+    //     channel_id_on_b.clone(),
+    //     channel_id_on_a.clone(),
+    //     2,
+    //     sender_token_address,
+    //     receiver_token_address,
+    //     String::from(""),
+    // );
+    // let proof_height_on_a = mock_client_state.header.height;
 
-    let message = make_message!(
-        ibc::MsgRecvPacket {
-            packet: packet.clone(),
-            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
-                packet.data
-            )
-            .unwrap(),
-            proof_height_on_a,
-            signer: ibc::Signer::from(authority.pubkey().to_string())
-        },
-        ibc::PacketMsg::Recv,
-        ibc::MsgEnvelope::Packet,
-    );
+    // let message = make_message!(
+    //     ibc::MsgRecvPacket {
+    //         packet: packet.clone(),
+    //         proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
+    //             packet.data
+    //         )
+    //         .unwrap(),
+    //         proof_height_on_a,
+    //         signer: ibc::Signer::from(authority.pubkey().to_string())
+    //     },
+    //     ibc::PacketMsg::Recv,
+    //     ibc::MsgEnvelope::Packet,
+    // );
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::Deliver {
-            sender: authority.pubkey(),
-            receiver: Some(receiver.pubkey()),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-            mint_authority: Some(mint_authority_key),
-            token_mint: Some(token_mint_key),
-            escrow_account: None,
-            fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(receiver_token_address),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
-            token_program: Some(anchor_spl::token::ID),
-        })
-        .args(instruction::Deliver { message })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::Deliver {
+    //         sender: authority.pubkey(),
+    //         receiver: Some(receiver.pubkey()),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //         mint_authority: Some(mint_authority_key),
+    //         token_mint: Some(token_mint_key),
+    //         escrow_account: None,
+    //         fee_collector: Some(fee_collector_pda),
+    //         receiver_token_account: Some(receiver_token_address),
+    //         associated_token_program: Some(anchor_spl::associated_token::ID),
+    //         token_program: Some(anchor_spl::token::ID),
+    //     })
+    //     .args(instruction::Deliver { message })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let account_balance_after = sol_rpc_client
-        .get_token_account_balance(&receiver_token_address)
-        .unwrap();
-    assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
-    );
+    // let account_balance_after = sol_rpc_client
+    //     .get_token_account_balance(&receiver_token_address)
+    //     .unwrap();
+    // assert_eq!(
+    //     ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
+    //         10_f64.powf(mint_info.decimals.into()))
+    //     .round() as u64,
+    //     TRANSFER_AMOUNT /
+    //         (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+    // );
 
-    /*
-     * Sending transfer on destination chain
-     */
-    println!("\nSend Transfer On Destination Chain");
+    // /*
+    //  * Sending transfer on destination chain
+    //  */
+    // println!("\nSend Transfer On Destination Chain");
 
-    let msg_transfer = construct_transfer_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        false,
-        channel_id_on_a.clone(),
-        receiver_token_address,
-        sender_token_address,
-    );
+    // let msg_transfer = construct_transfer_packet_from_denom(
+    //     &base_denom,
+    //     port_id.clone(),
+    //     false,
+    //     channel_id_on_a.clone(),
+    //     receiver_token_address,
+    //     sender_token_address,
+    // );
 
-    println!(
-        "This is length of message {:?}",
-        msg_transfer.try_to_vec().unwrap().len()
-    );
+    // println!(
+    //     "This is length of message {:?}",
+    //     msg_transfer.try_to_vec().unwrap().len()
+    // );
 
-    let account_balance_before = sol_rpc_client
-        .get_token_account_balance(&receiver_token_address)
-        .unwrap();
+    // let account_balance_before = sol_rpc_client
+    //     .get_token_account_balance(&receiver_token_address)
+    //     .unwrap();
 
-    let fee_account_balance_before =
-        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+    // let fee_account_balance_before =
+    //     sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::SendTransfer {
-            sender: receiver.pubkey(),
-            receiver: Some(authority.pubkey()),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-            mint_authority: Some(mint_authority_key),
-            token_mint: Some(token_mint_key),
-            escrow_account: None,
-            fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(receiver_token_address),
-            token_program: Some(anchor_spl::token::ID),
-        })
-        .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom,
-            msg: msg_transfer,
-        })
-        .payer(receiver.clone())
-        .signer(&*receiver)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::SendTransfer {
+    //         sender: receiver.pubkey(),
+    //         receiver: Some(authority.pubkey()),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //         mint_authority: Some(mint_authority_key),
+    //         token_mint: Some(token_mint_key),
+    //         escrow_account: None,
+    //         fee_collector: Some(fee_collector_pda),
+    //         receiver_token_account: Some(receiver_token_address),
+    //         token_program: Some(anchor_spl::token::ID),
+    //     })
+    //     .args(instruction::SendTransfer {
+    //         port_id: port_id.clone(),
+    //         channel_id: channel_id_on_a.clone(),
+    //         hashed_base_denom: hashed_denom,
+    //         msg: msg_transfer,
+    //     })
+    //     .payer(receiver.clone())
+    //     .signer(&*receiver)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let account_balance_after = sol_rpc_client
-        .get_token_account_balance(&receiver_token_address)
-        .unwrap();
+    // let account_balance_after = sol_rpc_client
+    //     .get_token_account_balance(&receiver_token_address)
+    //     .unwrap();
 
-    let fee_account_balance_after =
-        sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+    // let fee_account_balance_after =
+    //     sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
-    assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
-    );
+    // assert_eq!(
+    //     ((account_balance_before.ui_amount.unwrap() -
+    //         account_balance_after.ui_amount.unwrap()) *
+    //         10_f64.powf(mint_info.decimals.into()))
+    //     .round() as u64,
+    //     TRANSFER_AMOUNT /
+    //         (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+    // );
 
-    assert_eq!(
-        fee_account_balance_after - fee_account_balance_before,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    // assert_eq!(
+    //     fee_account_balance_after - fee_account_balance_before,
+    //     crate::FEE_AMOUNT_IN_LAMPORTS
+    // );
 
-    /*
-     * On Source chain
-     */
-    println!("\nRecving on source chain");
+    // /*
+    //  * On Source chain
+    //  */
+    // println!("\nRecving on source chain");
 
-    let receiver_native_token_address = get_associated_token_address(
-        &receiver.pubkey(),
-        &native_token_mint_key,
-    );
+    // let receiver_native_token_address = get_associated_token_address(
+    //     &receiver.pubkey(),
+    //     &native_token_mint_key,
+    // );
 
-    let packet = construct_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        true,
-        channel_id_on_b.clone(),
-        channel_id_on_a.clone(),
-        3,
-        sender_token_address,
-        receiver_native_token_address,
-        String::from(""),
-    );
+    // let packet = construct_packet_from_denom(
+    //     &base_denom,
+    //     port_id.clone(),
+    //     true,
+    //     channel_id_on_b.clone(),
+    //     channel_id_on_a.clone(),
+    //     3,
+    //     sender_token_address,
+    //     receiver_native_token_address,
+    //     String::from(""),
+    // );
 
-    let proof_height_on_a = mock_client_state.header.height;
+    // let proof_height_on_a = mock_client_state.header.height;
 
-    let message = make_message!(
-        ibc::MsgRecvPacket {
-            packet: packet.clone(),
-            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
-                packet.data
-            )
-            .unwrap(),
-            proof_height_on_a,
-            signer: ibc::Signer::from(authority.pubkey().to_string())
-        },
-        ibc::PacketMsg::Recv,
-        ibc::MsgEnvelope::Packet,
-    );
+    // let message = make_message!(
+    //     ibc::MsgRecvPacket {
+    //         packet: packet.clone(),
+    //         proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
+    //             packet.data
+    //         )
+    //         .unwrap(),
+    //         proof_height_on_a,
+    //         signer: ibc::Signer::from(authority.pubkey().to_string())
+    //     },
+    //     ibc::PacketMsg::Recv,
+    //     ibc::MsgEnvelope::Packet,
+    // );
 
-    let escrow_account_balance_before =
-        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_before = sol_rpc_client
-        .get_token_account_balance(&receiver_native_token_address)
-        .map_or(0f64, |balance| balance.ui_amount.unwrap());
+    // let escrow_account_balance_before =
+    //     sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    // let receiver_account_balance_before = sol_rpc_client
+    //     .get_token_account_balance(&receiver_native_token_address)
+    //     .map_or(0f64, |balance| balance.ui_amount.unwrap());
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000u32,
-        ))
-        .accounts(accounts::Deliver {
-            sender: authority.pubkey(),
-            receiver: Some(receiver.pubkey()),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-            mint_authority: Some(mint_authority_key),
-            token_mint: Some(native_token_mint_key),
-            escrow_account: Some(escrow_account_key),
-            fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(receiver_native_token_address),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
-            token_program: Some(anchor_spl::token::ID),
-        })
-        .args(instruction::Deliver { message })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000u32,
+    //     ))
+    //     .accounts(accounts::Deliver {
+    //         sender: authority.pubkey(),
+    //         receiver: Some(receiver.pubkey()),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //         mint_authority: Some(mint_authority_key),
+    //         token_mint: Some(native_token_mint_key),
+    //         escrow_account: Some(escrow_account_key),
+    //         fee_collector: Some(fee_collector_pda),
+    //         receiver_token_account: Some(receiver_native_token_address),
+    //         associated_token_program: Some(anchor_spl::associated_token::ID),
+    //         token_program: Some(anchor_spl::token::ID),
+    //     })
+    //     .args(instruction::Deliver { message })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let escrow_account_balance_after =
-        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_after = sol_rpc_client
-        .get_token_account_balance(&receiver_native_token_address)
-        .unwrap();
-    assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap() -
-            escrow_account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
-        TRANSFER_AMOUNT
-    );
-    assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap() -
-            receiver_account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
-        TRANSFER_AMOUNT
-    );
+    // let escrow_account_balance_after =
+    //     sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
+    // let receiver_account_balance_after = sol_rpc_client
+    //     .get_token_account_balance(&receiver_native_token_address)
+    //     .unwrap();
+    // assert_eq!(
+    //     ((escrow_account_balance_before.ui_amount.unwrap() -
+    //         escrow_account_balance_after.ui_amount.unwrap()) *
+    //         10_f64.powf(mint_info.decimals.into()))
+    //     .round() as u64,
+    //     TRANSFER_AMOUNT
+    // );
+    // assert_eq!(
+    //     ((receiver_account_balance_after.ui_amount.unwrap() -
+    //         receiver_account_balance_before) *
+    //         10_f64.powf(mint_info.decimals.into()))
+    //     .round() as u64,
+    //     TRANSFER_AMOUNT
+    // );
 
-    /*
-     * Send Packets
-     */
-    println!("\nSend packet");
-    let packet = construct_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        true,
-        channel_id_on_a.clone(),
-        channel_id_on_b.clone(),
-        1,
-        sender_token_address,
-        receiver_token_address,
-        String::from("Just a packet"),
-    );
+    // /*
+    //  * Send Packets
+    //  */
+    // println!("\nSend packet");
+    // let packet = construct_packet_from_denom(
+    //     &base_denom,
+    //     port_id.clone(),
+    //     true,
+    //     channel_id_on_a.clone(),
+    //     channel_id_on_b.clone(),
+    //     1,
+    //     sender_token_address,
+    //     receiver_token_address,
+    //     String::from("Just a packet"),
+    // );
 
-    let sig = program
-        .request()
-        .accounts(accounts::SendPacket {
-            sender: authority.pubkey(),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-        })
-        .args(instruction::SendPacket {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            data: packet.data,
-            timeout_height: packet.timeout_height_on_b,
-            timeout_timestamp: packet.timeout_timestamp_on_b,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .accounts(accounts::SendPacket {
+    //         sender: authority.pubkey(),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         system_program: system_program::ID,
+    //     })
+    //     .args(instruction::SendPacket {
+    //         port_id: port_id.clone(),
+    //         channel_id: channel_id_on_a.clone(),
+    //         data: packet.data,
+    //         timeout_height: packet.timeout_height_on_b,
+    //         timeout_timestamp: packet.timeout_timestamp_on_b,
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    /*
-     * Collect all fees from the fee collector
-     */
-    println!("\nCollect all fees from the fee collector");
-    let _sig = program
-        .request()
-        .accounts(accounts::CollectFees {
-            fee_collector,
-            storage,
-            fee_account: fee_collector_pda,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
-        })
-        .args(instruction::CollectFees {})
-        .payer(fee_collector_keypair.clone())
-        .signer(&*fee_collector_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        });
+    // /*
+    //  * Collect all fees from the fee collector
+    //  */
+    // println!("\nCollect all fees from the fee collector");
+    // let _sig = program
+    //     .request()
+    //     .accounts(accounts::CollectFees {
+    //         fee_collector,
+    //         storage,
+    //         fee_account: fee_collector_pda,
+    //         rent: anchor_lang::solana_program::rent::Rent::id(),
+    //     })
+    //     .args(instruction::CollectFees {})
+    //     .payer(fee_collector_keypair.clone())
+    //     .signer(&*fee_collector_keypair)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     });
 
-    /*
-     * Free Write account
-     */
-    println!("\nFreeing Write account");
-    let sig = program
-        .request()
-        .instruction(write::instruction::free(
-            write_account_program_id,
-            authority.pubkey(),
-            Some(write_account),
-            WRITE_ACCOUNT_SEED,
-            write_account_bump,
-        )?)
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature {sig}");
+    // /*
+    //  * Free Write account
+    //  */
+    // println!("\nFreeing Write account");
+    // let sig = program
+    //     .request()
+    //     .instruction(write::instruction::free(
+    //         write_account_program_id,
+    //         authority.pubkey(),
+    //         Some(write_account),
+    //         WRITE_ACCOUNT_SEED,
+    //         write_account_bump,
+    //     )?)
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature {sig}");
 
-    /*
-     * Realloc Accounts
-     */
+    // /*
+    //  * Realloc Accounts
+    //  */
 
     let storage_acc_length_before =
         sol_rpc_client.get_account(&storage).unwrap();
@@ -944,39 +953,39 @@ fn anchor_test_deliver() -> Result<()> {
         1024 * 10
     );
 
-    let storage_acc_length_before =
-        sol_rpc_client.get_account(&storage).unwrap();
-    println!(
-        "\nReallocating Accounts but with lower length. NO change in length"
-    );
-    let sig = program
-        .request()
-        .accounts(accounts::ReallocAccounts {
-            payer: authority.pubkey(),
-            account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,
-            system_program: system_program::ID,
-        })
-        .args(instruction::ReallocAccounts {
-            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
-            new_length: (1024 * 10),
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        });
-    println!("  Signature {:?}", sig);
+    // let storage_acc_length_before =
+    //     sol_rpc_client.get_account(&storage).unwrap();
+    // println!(
+    //     "\nReallocating Accounts but with lower length. NO change in length"
+    // );
+    // let sig = program
+    //     .request()
+    //     .accounts(accounts::ReallocAccounts {
+    //         payer: authority.pubkey(),
+    //         account: storage,
+    //         rent: anchor_lang::solana_program::sysvar::rent::ID,
+    //         system_program: system_program::ID,
+    //     })
+    //     .args(instruction::ReallocAccounts {
+    //         // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+    //         new_length: (1024 * 10),
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     });
+    // println!("  Signature {:?}", sig);
 
-    let storage_acc_length_after =
-        sol_rpc_client.get_account(&storage).unwrap();
+    // let storage_acc_length_after =
+    //     sol_rpc_client.get_account(&storage).unwrap();
 
-    assert_eq!(
-        storage_acc_length_after.data.len() -
-            storage_acc_length_before.data.len(),
-        0
-    );
+    // assert_eq!(
+    //     storage_acc_length_after.data.len() -
+    //         storage_acc_length_before.data.len(),
+    //     0
+    // );
 
     Ok(())
 }

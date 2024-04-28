@@ -46,6 +46,8 @@ export const getGuestChainAccounts = (portId: string, channelId: string, hashedD
       solanaIbcProgramId
     );
 
+  const [feePDA, feeBump] = anchor.web3.PublicKey.findProgramAddressSync([Buffer.from("fee")], solanaIbcProgramId);
+
   const [ibcStoragePDA, ibcStorageBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("private")],
@@ -55,6 +57,7 @@ export const getGuestChainAccounts = (portId: string, channelId: string, hashedD
     const [escrowAccountPDA, escrowAccountBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
       [
+        Buffer.from("escrow"),
         Buffer.from(portId),
         Buffer.from(channelId),
         Buffer.from(hashedDenom),
@@ -62,5 +65,5 @@ export const getGuestChainAccounts = (portId: string, channelId: string, hashedD
       solanaIbcProgramId
     );
 
-  return { guestChainPDA, triePDA, ibcStoragePDA, mintAuthorityPDA, escrowAccountPDA };
+  return { guestChainPDA, triePDA, ibcStoragePDA, mintAuthorityPDA, escrowAccountPDA, feePDA };
 };

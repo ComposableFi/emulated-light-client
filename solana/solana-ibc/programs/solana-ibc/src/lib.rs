@@ -35,7 +35,7 @@ pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
 pub const MINIMUM_FEE_TO_COLLECT: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
+declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
 
 mod allocator;
 pub mod chain;
@@ -98,6 +98,7 @@ pub mod solana_ibc {
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
 
+    use ::ibc::core::client::types::msgs::ClientMsg;
     use spl_token::solana_program::system_instruction;
 
     use super::*;
@@ -383,13 +384,13 @@ pub mod solana_ibc {
         // height just before the data is added to the trie.
         msg!("Current Block height {}", height);
 
-        ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
+        ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message.clone())
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))?;
 
         // Log client state only when it is updated which is when `UpdateClient` message
         // sent.
-        if ctx.remaining_accounts.split_last().is_some() {
+        if matches!(message, ibc::MsgEnvelope::Client(ClientMsg::UpdateClient(_))) {
             let storage = &store.borrow().private;
             let client_state = &storage.clients[0].client_state;
             msg!("This is updated client state {:?}", client_state.as_bytes());

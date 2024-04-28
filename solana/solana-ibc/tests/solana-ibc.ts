@@ -18,10 +18,10 @@ describe("solana-ibc", () => {
   it("This is test", async () => {
     // Parameters
     const sender = depositor.publicKey; // solana account address
-    const receiver = ""; // cosmos address
-    const amount = 0; // amount to send
+    const receiver = "centauri1src4utrx6llsteqd7wf5qcuxcgjg6s8tq0f0v5"; // cosmos address
+    const amount = 100; // amount to send
     const channelIdOfSolana = "channel-0"; // example channel id
-    const channelIdOfCosmos = "channel-1"; // example channel id
+    const channelIdOfCosmos = "channel-58"; // example channel id
     const portId = "transfer"; // always the same
     const memo = "";
     const tokenMint = new anchor.web3.PublicKey(
@@ -68,11 +68,11 @@ const sendTransfer = async (
 
   const msgTransferPayload = {
     port_id_on_a: portId,
-    chan_id_on_a: channelIdOfCosmos,
+    chan_id_on_a: channelIdOfSolana,
     packet_data: {
       token: {
         denom: {
-          trace_path: [{ port_id: portId, channel_id: channelIdOfCosmos }],
+          trace_path: [],
           base_denom: tokenMint.toString(),
         },
         amount: finalAmount,
@@ -85,7 +85,7 @@ const sendTransfer = async (
       Never: {},
     },
     timeout_timestamp_on_b: {
-      time: 0,
+      time: 1724312839000000000,
     },
   };
 
@@ -105,6 +105,7 @@ const sendTransfer = async (
     ibcStoragePDA,
     mintAuthorityPDA,
     escrowAccountPDA,
+    feePDA
   } = getGuestChainAccounts(portId, channelIdOfSolana, hashedDenom);
 
   const instruction = new TransactionInstruction({
@@ -118,11 +119,7 @@ const sendTransfer = async (
       { pubkey: tokenMint, isSigner: false, isWritable: true },
       { pubkey: escrowAccountPDA, isSigner: false, isWritable: true },
       { pubkey: senderTokenAccount, isSigner: false, isWritable: true },
-      {
-        pubkey: spl.ASSOCIATED_TOKEN_PROGRAM_ID,
-        isSigner: false,
-        isWritable: true,
-      },
+      { pubkey: feePDA, isSigner: false, isWritable: true },
       { pubkey: spl.TOKEN_PROGRAM_ID, isSigner: false, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: true },
     ],
