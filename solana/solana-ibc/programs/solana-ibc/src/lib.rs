@@ -27,8 +27,10 @@ pub const ESCROW: &[u8] = b"escrow";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
-pub const FEE_AMOUNT_IN_LAMPORTS: u64 = 10_000_000; // 0.01 SOL
-pub const MINIMUM_FEE_TO_COLLECT: u64 = 1_000_000_000; // 1 SOL
+pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
+    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+pub const MINIMUM_FEE_TO_COLLECT: u64 =
+    solana_program::native_token::LAMPORTS_PER_SOL;
 
 declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
