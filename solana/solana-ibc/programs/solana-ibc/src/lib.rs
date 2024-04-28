@@ -84,6 +84,8 @@ solana_program::custom_panic_default!();
 #[anchor_lang::program]
 pub mod solana_ibc {
 
+    use spl_token::solana_program::system_instruction;
+
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -372,8 +374,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -396,10 +398,26 @@ pub mod solana_ibc {
     /// given in this call’s context before the body of the method is
     /// executed.
     pub fn realloc_accounts(
-        _ctx: Context<ReallocAccounts>,
-        _new_length: u64,
+        ctx: Context<ReallocAccounts>,
+        new_length: usize,
     ) -> Result<()> {
-        Ok(())
+        let payer = &ctx.accounts.payer.to_account_info();
+        let account = &ctx.accounts.account.to_account_info();
+        let new_length = new_length.max(account.data_len());
+        let lamports = Rent::get()?
+            .minimum_balance(new_length)
+            .saturating_sub(account.lamports());
+        if lamports > 0 {
+            solana_program::program::invoke(
+                &system_instruction::transfer(
+                    &payer.key(),
+                    &account.key(),
+                    lamports,
+                ),
+                &[payer.clone(), account.clone()],
+            )?;
+        }
+        Ok(account.realloc(new_length, false)?)
     }
 }
 
@@ -652,15 +670,13 @@ pub struct SendTransfer<'info> {
 #[instruction(new_length: usize)]
 pub struct ReallocAccounts<'info> {
     #[account(mut)]
-    sender: Signer<'info>,
+    payer: Signer<'info>,
 
-    /// The account holding private IBC storage.
-    #[account(mut, realloc = new_length, realloc::payer = sender, realloc::zero = false, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
-    storage: Account<'info, storage::PrivateStorage>,
+    #[account(mut)]
+    /// CHECK:
+    account: UncheckedAccount<'info>,
 
-    /// The guest blockchain data.
-    #[account(mut, realloc = new_length, realloc::payer = sender, realloc::zero = false, seeds = [CHAIN_SEED], bump)]
-    chain: Box<Account<'info, chain::ChainData>>,
+    rent: Sysvar<'info, Rent>,
 
     system_program: Program<'info, System>,
 }
