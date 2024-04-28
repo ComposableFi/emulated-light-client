@@ -808,7 +808,7 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::ReallocAccounts {
             payer: authority.pubkey(),
             account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,    
+            rent: anchor_lang::solana_program::sysvar::rent::ID,
             system_program: system_program::ID,
         })
         .args(instruction::ReallocAccounts {
@@ -834,13 +834,15 @@ fn anchor_test_deliver() -> Result<()> {
 
     let storage_acc_length_before =
         sol_rpc_client.get_account(&storage).unwrap();
-    println!("\nReallocating Accounts but with lower length. NO change in length");
+    println!(
+        "\nReallocating Accounts but with lower length. NO change in length"
+    );
     let sig = program
         .request()
         .accounts(accounts::ReallocAccounts {
             payer: authority.pubkey(),
             account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,    
+            rent: anchor_lang::solana_program::sysvar::rent::ID,
             system_program: system_program::ID,
         })
         .args(instruction::ReallocAccounts {
