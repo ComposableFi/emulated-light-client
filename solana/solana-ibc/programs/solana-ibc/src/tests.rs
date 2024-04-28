@@ -38,6 +38,7 @@ pub const TOKEN_URI: &str = "https://github.com";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
+const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
 
 const ORIGINAL_DECIMALS: u8 = 9;
 const EFFECTIVE_DECIMALS: u8 = 6;
@@ -487,7 +488,7 @@ fn anchor_test_deliver() -> Result<()> {
         &associated_token_addr,
         &authority.pubkey(),
         &[&authority.pubkey()],
-        1000000000_000_000_000,
+        MINT_AMOUNT,
     )
     .unwrap();
 
