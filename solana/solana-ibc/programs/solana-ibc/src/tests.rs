@@ -14,7 +14,7 @@ use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer,
 };
 use anchor_client::solana_sdk::transaction::Transaction;
-use anchor_client::{Client, ClientError, Cluster};
+use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
@@ -856,6 +856,7 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         });
+    println!("  Signature {sig}");
 
     /*
      * Free Write account
