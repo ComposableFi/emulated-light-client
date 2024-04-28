@@ -723,7 +723,7 @@ fn anchor_test_deliver() -> Result<()> {
         3,
         sender_token_address,
         receiver_native_token_address,
-        String::from(""),
+        String::new(),
     );
 
     let proof_height_on_a = mock_client_state.header.height;
