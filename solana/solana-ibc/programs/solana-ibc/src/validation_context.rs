@@ -234,8 +234,8 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
 
     fn max_expected_time_per_block(&self) -> Duration {
         // The blocks are only produced when the state root
-        // changes or if the block age is more than the one 
-        // in the config. And then it also depends on how 
+        // changes or if the block age is more than the one
+        // in the config. And then it also depends on how
         // fast the validators sign.
         Duration::from_secs(3600)
     }
