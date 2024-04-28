@@ -65,6 +65,8 @@ pub enum Error {
     /// Unexpected Fee Collector
     InvalidFeeCollector,
 
+    /// When the new fee collector calls the approve method without the
+    /// new fee collector being set.
     FeeCollectorChangeProposalNotSet,
 
     /// Fees can be collected only after a minimum amount
