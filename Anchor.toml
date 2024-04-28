@@ -1,34 +1,28 @@
+[toolchain]
+
 [features]
 seeds = false
 skip-lint = false
 
 [programs.devnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
+solana_ibc = "9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7"
 
 [programs.localnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
+solana_ibc = "9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-<<<<<<< HEAD
-cluster = "localnet"
-=======
 cluster = "Localnet"
->>>>>>> ebf7188eff1cd4dd93882efc57cc86f31511053d
-wallet = "~/.config/solana/id.json"
+wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]
-members = [
-  "solana/restaking/programs/restaking",
-  "solana/solana-ibc/programs/solana-ibc"
-]
+members = ["solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
 
 [scripts]
-# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 solana/restaking/tests/**/*.ts"
 test = "./solana-test.sh"
 
 [test]

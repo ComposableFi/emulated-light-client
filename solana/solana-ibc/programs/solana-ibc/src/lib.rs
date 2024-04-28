@@ -35,7 +35,7 @@ pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
 pub const MINIMUM_FEE_TO_COLLECT: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7");
 
 mod allocator;
 pub mod chain;
@@ -97,6 +97,8 @@ pub mod solana_ibc {
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
+
+    use spl_token::solana_program::system_instruction;
 
     use super::*;
 
@@ -551,6 +553,33 @@ pub mod solana_ibc {
         .map_err(error::Error::TokenTransferError)
         .map_err(|err| error!((&err)))
     }
+
+    /// The body of this method is empty since it is called to
+    /// realloc the accounts only.  Anchor sets up the accounts
+    /// given in this call’s context before the body of the method is
+    /// executed.
+    pub fn realloc_accounts(
+        ctx: Context<ReallocAccounts>,
+        new_length: usize,
+    ) -> Result<()> {
+        let payer = &ctx.accounts.payer.to_account_info();
+        let account = &ctx.accounts.account.to_account_info();
+        let new_length = new_length.max(account.data_len());
+        let lamports = Rent::get()?
+            .minimum_balance(new_length)
+            .saturating_sub(account.lamports());
+        if lamports > 0 {
+            solana_program::program::invoke(
+                &system_instruction::transfer(
+                    &payer.key(),
+                    &account.key(),
+                    lamports,
+                ),
+                &[payer.clone(), account.clone()],
+            )?;
+        }
+        Ok(account.realloc(new_length, false)?)
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -851,6 +880,21 @@ pub struct SendTransfer<'info> {
     fee_collector: Option<UncheckedAccount<'info>>,
 
     token_program: Option<Program<'info, Token>>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(new_length: usize)]
+pub struct ReallocAccounts<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    #[account(mut)]
+    /// CHECK:
+    account: UncheckedAccount<'info>,
+
+    rent: Sysvar<'info, Rent>,
+
     system_program: Program<'info, System>,
 }
 
