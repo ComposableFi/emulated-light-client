@@ -83,7 +83,6 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -390,6 +389,31 @@ pub mod solana_ibc {
         .map_err(error::Error::TokenTransferError)
         .map_err(|err| error!((&err)))
     }
+
+    /// Reallocates the specified account to the new length.
+    ///
+    /// Would fail if the account is not owned by the program.
+    pub fn realloc_accounts(
+        ctx: Context<ReallocAccounts>,
+        new_length: usize,
+    ) -> Result<()> {
+        let payer = &ctx.accounts.payer.to_account_info();
+        let account = &ctx.accounts.account.to_account_info();
+        let new_length = new_length.max(account.data_len());
+        let old_length = account.data_len();
+        let rent = Rent::get()?;
+        let old_rent = rent.minimum_balance(old_length);
+        let new_rent = rent.minimum_balance(new_length);
+        solana_program::program::invoke(
+            &solana_program::system_instruction::transfer(
+                &payer.key(),
+                &account.key(),
+                new_rent - old_rent,
+            ),
+            &[payer.clone(), account.clone()],
+        )?;
+        Ok(account.realloc(new_length, false)?)
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -634,6 +658,19 @@ pub struct SendTransfer<'info> {
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
     token_program: Option<Program<'info, Token>>,
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(new_length: usize)]
+pub struct ReallocAccounts<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    #[account(mut)]
+    /// CHECK:
+    account: UncheckedAccount<'info>,
+
     system_program: Program<'info, System>,
 }
 

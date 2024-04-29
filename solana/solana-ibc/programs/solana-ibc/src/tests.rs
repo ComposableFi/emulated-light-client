@@ -795,6 +795,62 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature {sig}");
 
+    /*
+     * Realloc Accounts
+     */
+
+    println!("\nReallocating Accounts");
+    let sig = program
+        .request()
+        .accounts(accounts::ReallocAccounts {
+            payer: authority.pubkey(),
+            account: storage,
+            system_program: system_program::ID,
+        })
+        .args(instruction::ReallocAccounts {
+            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+            new_length: 2 * (1024 * 10),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature {sig}");
+
+    let storage_acc_length_after =
+        sol_rpc_client.get_account(&storage).unwrap();
+
+    assert_eq!(20 * 1024, storage_acc_length_after.data.len());
+
+    println!(
+        "\nReallocating Accounts but with lower length. NO change in length"
+    );
+    let sig = program
+        .request()
+        .accounts(accounts::ReallocAccounts {
+            payer: authority.pubkey(),
+            account: storage,
+            system_program: system_program::ID,
+        })
+        .args(instruction::ReallocAccounts {
+            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+            new_length: (1024 * 10),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        });
+    println!("  Signature {:?}", sig);
+
+    let storage_acc_length_after =
+        sol_rpc_client.get_account(&storage).unwrap();
+
+    assert_eq!(storage_acc_length_after.data.len(), 20 * 1024);
+
     Ok(())
 }
 
