@@ -452,8 +452,8 @@ fn anchor_test_deliver() -> Result<()> {
         port_id.clone(),
         true,
         channel_id_on_a.clone(),
-        associated_token_addr,
-        receiver_token_address,
+        authority.pubkey(),
+        receiver.pubkey(),
     );
 
     let account_balance_before = sol_rpc_client
@@ -519,8 +519,8 @@ fn anchor_test_deliver() -> Result<()> {
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
         2,
-        sender_token_address,
-        receiver_token_address,
+        authority.pubkey(),
+        receiver.pubkey(),
         String::from("Tx from destination chain"),
     );
     let proof_height_on_a = mock_client_state.header.height;
@@ -587,8 +587,8 @@ fn anchor_test_deliver() -> Result<()> {
         port_id.clone(),
         false,
         channel_id_on_a.clone(),
-        receiver_token_address,
-        sender_token_address,
+        receiver.pubkey(),
+        authority.pubkey(),
     );
 
     let account_balance_before = sol_rpc_client
@@ -656,8 +656,8 @@ fn anchor_test_deliver() -> Result<()> {
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
         3,
-        sender_token_address,
-        receiver_native_token_address,
+        authority.pubkey(),
+        receiver.pubkey(),
         String::from("Tx from Source chain"),
     );
 
