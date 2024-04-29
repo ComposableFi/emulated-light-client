@@ -374,8 +374,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set()
-            && !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -393,8 +393,8 @@ pub mod solana_ibc {
         .map_err(|err| error!((&err)))
     }
 
-    /// Reallocates the specified account to the new length. 
-    /// 
+    /// Reallocates the specified account to the new length.
+    ///
     /// Would fail if the account is not owned by the program.
     pub fn realloc_accounts(
         ctx: Context<ReallocAccounts>,
