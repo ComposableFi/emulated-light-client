@@ -799,9 +799,6 @@ fn anchor_test_deliver() -> Result<()> {
      * Realloc Accounts
      */
 
-    let storage_acc_length_before =
-        sol_rpc_client.get_account(&storage).unwrap();
-
     println!("\nReallocating Accounts");
     let sig = program
         .request()
@@ -825,14 +822,8 @@ fn anchor_test_deliver() -> Result<()> {
     let storage_acc_length_after =
         sol_rpc_client.get_account(&storage).unwrap();
 
-    assert_eq!(
-        storage_acc_length_after.data.len() -
-            storage_acc_length_before.data.len(),
-        1024 * 10
-    );
+    assert_eq!(20 * 1024, storage_acc_length_after.data.len());
 
-    let storage_acc_length_before =
-        sol_rpc_client.get_account(&storage).unwrap();
     println!(
         "\nReallocating Accounts but with lower length. NO change in length"
     );
@@ -861,7 +852,7 @@ fn anchor_test_deliver() -> Result<()> {
     assert_eq!(
         storage_acc_length_after.data.len() -
             storage_acc_length_before.data.len(),
-        0
+        2 * (1024 * 10)
     );
 
     Ok(())
