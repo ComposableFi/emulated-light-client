@@ -237,6 +237,18 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 acknowledgement,
                 relayer,
             );
+
+        // refund fee if there was an error on the counterparty chain
+        if result.1.is_err() {
+            let store = self.borrow();
+            let accounts = &store.accounts;
+            let receiver = accounts.receiver.clone().unwrap();
+            let fee_collector = accounts.fee_collector.clone().unwrap();
+            **fee_collector.try_borrow_mut_lamports().unwrap() -=
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+            **receiver.try_borrow_mut_lamports().unwrap() +=
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+        }
         (
             result.0,
             result.1.map_err(|e| ibc::PacketError::AppModule {
@@ -253,6 +265,17 @@ impl ibc::Module for IbcStorage<'_, '_> {
         let result = ibc::apps::transfer::module::on_timeout_packet_execute(
             self, packet, relayer,
         );
+        // refund the fee as the timeout has been successfully processed
+        if result.1.is_ok() {
+            let store = self.borrow();
+            let accounts = &store.accounts;
+            let receiver = accounts.receiver.clone().unwrap();
+            let fee_collector = accounts.fee_collector.clone().unwrap();
+            **fee_collector.try_borrow_mut_lamports().unwrap() -=
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+            **receiver.try_borrow_mut_lamports().unwrap() +=
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+        }
         (
             result.0,
             result.1.map_err(|e| ibc::PacketError::AppModule {

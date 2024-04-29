@@ -25,6 +25,15 @@ pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MINT: &[u8] = b"mint";
 pub const ESCROW: &[u8] = b"escrow";
 
+pub const FEE_SEED: &[u8] = b"fee";
+
+pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
+    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
+    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
+    solana_program::native_token::LAMPORTS_PER_SOL;
+
 declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
 mod allocator;
@@ -188,6 +197,68 @@ pub mod solana_ibc {
         )?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((validator).into(), amount)
+    }
+
+    /// Sets up new fee collector proposal which wont be changed until the new fee collector
+    /// calls `accept_fee_collector_change`. If the method is called for the first time, the fee
+    /// collector would just be set without needing for any approval.
+    ///
+    pub fn setup_fee_collector<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetupFeeCollector<'info>>,
+        new_fee_collector: Pubkey,
+    ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        let signer = ctx.accounts.fee_collector.key();
+
+        if private_storage.fee_collector == Pubkey::default() {
+            private_storage.fee_collector = new_fee_collector;
+        } else if signer == private_storage.fee_collector {
+            private_storage.new_fee_collector_proposal = Some(new_fee_collector)
+        } else {
+            return Err(error!(error::Error::InvalidFeeCollector));
+        }
+
+        Ok(())
+    }
+
+    pub fn accept_fee_collector_change<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetupFeeCollector<'info>>,
+    ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        let signer = ctx.accounts.fee_collector.key();
+
+        if let Some(new_admin) = private_storage.new_fee_collector_proposal {
+            if signer != new_admin {
+                return Err(error!(error::Error::InvalidFeeCollector));
+            }
+            private_storage.fee_collector = new_admin;
+            private_storage.new_fee_collector_proposal = None;
+        } else {
+            return Err(error!(error::Error::FeeCollectorChangeProposalNotSet));
+        }
+
+        Ok(())
+    }
+
+    pub fn collect_fees<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, CollectFees<'info>>,
+    ) -> Result<()> {
+        let fee_account = &ctx.accounts.fee_account;
+        let minimum_balance = Rent::get()?
+            .minimum_balance(fee_account.data_len()) +
+            MINIMUM_FEE_ACCOUNT_BALANCE;
+        let mut available_balance = fee_account.try_borrow_mut_lamports()?;
+        if **available_balance > minimum_balance {
+            **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
+                **available_balance - minimum_balance;
+            **available_balance = minimum_balance;
+        } else {
+            return Err(error!(error::Error::InsufficientFeesToCollect));
+        }
+
+        Ok(())
     }
 
     /// Called to set up escrow and mint accounts for given channel
@@ -381,6 +452,20 @@ pub mod solana_ibc {
         // height just before the data is added to the trie.
         msg!("Current Block height {}", height);
 
+        let fee_collector =
+            ctx.accounts.fee_collector.as_ref().unwrap().to_account_info();
+        let sender = ctx.accounts.sender.to_account_info();
+        let system_program = ctx.accounts.system_program.to_account_info();
+
+        solana_program::program::invoke(
+            &solana_program::system_instruction::transfer(
+                &sender.key(),
+                &fee_collector.key(),
+                FEE_AMOUNT_IN_LAMPORTS,
+            ),
+            &[sender.clone(), fee_collector.clone(), system_program.clone()],
+        )?;
+
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,
@@ -516,6 +601,31 @@ pub struct ChainWithVerifier<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetupFeeCollector<'info> {
+    #[account(mut)]
+    fee_collector: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, storage::PrivateStorage>,
+}
+
+#[derive(Accounts)]
+pub struct CollectFees<'info> {
+    #[account(mut)]
+    fee_collector: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump,
+              has_one = fee_collector)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    #[account(mut, seeds = [FEE_SEED], bump)]
+    /// CHECK:
+    fee_account: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
 #[instruction(port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct InitMint<'info> {
     #[account(mut)]
@@ -541,10 +651,11 @@ pub struct Deliver<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    #[account(mut)]
     receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
-    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED],
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],
               bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
@@ -571,6 +682,10 @@ pub struct Deliver<'info> {
         associated_token::authority = receiver)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
+    #[account(mut, seeds = [FEE_SEED], bump)]
+    /// CHECK:
+    fee_collector: Option<UncheckedAccount<'info>>,
+
     associated_token_program: Option<Program<'info, AssociatedToken>>,
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
@@ -582,14 +697,14 @@ pub struct MockDeliver<'info> {
     sender: Signer<'info>,
 
     /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED],bump)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Box<Account<'info, storage::PrivateStorage>>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(mut , seeds = [TRIE_SEED], bump)]
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
@@ -629,10 +744,11 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
 
+    #[account(mut)]
     receiver: Option<AccountInfo<'info>>,
 
     /// The account holding private IBC storage.
-    #[account(mut,seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
@@ -656,6 +772,10 @@ pub struct SendTransfer<'info> {
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    #[account(init_if_needed, payer = sender, seeds = [FEE_SEED], bump, space = 0)]
+    /// CHECK:
+    fee_collector: Option<UncheckedAccount<'info>>,
 
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
