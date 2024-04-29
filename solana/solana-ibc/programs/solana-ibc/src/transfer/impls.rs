@@ -300,7 +300,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let receiver_token_account = get_token_account(&account.0, &token_mint);
 
-        if !account.0.eq(receiver.key) {
+        if account.0 != *receiver.key {
             msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -362,7 +362,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let sender_token_account = get_token_account(&account.0, &token_mint);
 
-        if !account.0.eq(sender.key) {
+        if account.0 != *sender.key {
             msg!("Token account not found {} {:?}", account, sender.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
