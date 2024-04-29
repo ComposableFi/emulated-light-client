@@ -73,7 +73,7 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
-fn get_token_account(owner: Pubkey, token_mint: Pubkey) -> Pubkey {
+fn get_token_account(owner: &Pubkey, token_mint: &Pubkey) -> Pubkey {
     let seeds =
         [owner.as_ref(), anchor_spl::token::ID.as_ref(), token_mint.as_ref()];
     Pubkey::find_program_address(&seeds, &anchor_spl::associated_token::ID).0
@@ -298,7 +298,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        let receiver_token_account = get_token_account(account.0, token_mint);
+        let receiver_token_account = get_token_account(&account.0, &token_mint);
 
         if !account.0.eq(receiver.key) {
             msg!("Token account not found {} {:?}", account, receiver.key);
@@ -360,7 +360,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        let sender_token_account = get_token_account(account.0, token_mint);
+        let sender_token_account = get_token_account(&account.0, &token_mint);
 
         if !account.0.eq(sender.key) {
             msg!("Token account not found {} {:?}", account, sender.key);
