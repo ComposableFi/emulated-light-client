@@ -404,15 +404,16 @@ pub mod solana_ibc {
         let payer = &ctx.accounts.payer.to_account_info();
         let account = &ctx.accounts.account.to_account_info();
         let new_length = new_length.max(account.data_len());
-        let lamports = Rent::get()?
-            .minimum_balance(new_length)
-            .saturating_sub(account.lamports());
-        if lamports > 0 {
+        let old_length = account.data_len();
+        if new_length > old_length {
+            let rent = Rent::get()?;
+            let old_rent = rent.minimum_balance(old_length);
+            let new_rent = rent.minimum_balance(new_length);
             solana_program::program::invoke(
                 &system_instruction::transfer(
                     &payer.key(),
                     &account.key(),
-                    lamports,
+                    new_rent - old_rent,
                 ),
                 &[payer.clone(), account.clone()],
             )?;
