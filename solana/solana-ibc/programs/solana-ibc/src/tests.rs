@@ -850,9 +850,8 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_account(&storage).unwrap();
 
     assert_eq!(
-        storage_acc_length_after.data.len() -
-            storage_acc_length_before.data.len(),
-        2 * (1024 * 10)
+        storage_acc_length_after.data.len(),
+        20 * 1024
     );
 
     Ok(())
