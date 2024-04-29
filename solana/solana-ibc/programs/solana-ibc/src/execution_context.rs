@@ -306,7 +306,7 @@ impl storage::IbcStorage<'_, '_> {
         client_id: &ibc::ClientId,
         state: AnyClientState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_client_state({}, {:?})", client_id, state);
+        // msg!("store_client_state({}, {:?})", client_id, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(client_id, true)?;
         client.client_state.set(&state)?;

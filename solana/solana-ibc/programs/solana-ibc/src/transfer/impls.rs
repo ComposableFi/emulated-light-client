@@ -75,6 +75,12 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
+fn get_token_account(owner: Pubkey, token_mint: Pubkey) -> Pubkey {
+    let seeds =
+        [owner.as_ref(), anchor_spl::token::ID.as_ref(), token_mint.as_ref()];
+    Pubkey::find_program_address(&seeds, &anchor_spl::associated_token::ID).0
+}
+
 /// Direction of an escrow operation.
 enum EscrowOp {
     Escrow,
@@ -326,9 +332,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -340,10 +346,31 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
+        let receiver = accounts
+            .receiver
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let receiver_token_account = get_token_account(account.0, token_mint);
+
+        if !account.0.eq(receiver.key) {
+            msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
         if !token_mint.eq(token_mint_account.key) {
+            msg!(
+                "Token mint not found {:?} {:?}",
+                token_mint,
+                token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if !receiver_token_account.eq(token_account.key) {
+            msg!(
+                "Receiver token account not found {} {:?}",
+                receiver_token_account,
+                token_account.key
+            );
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -368,9 +395,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -382,8 +409,15 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
-            msg!("Token account not found {} {:?}", account, token_account.key);
+        let receiver = accounts
+            .receiver
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let receiver_token_account = get_token_account(account.0, token_mint);
+
+        if !account.0.eq(receiver.key) {
+            msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
         if !token_mint.eq(token_mint_account.key) {
@@ -391,6 +425,14 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
                 "Token mint not found {:?} {:?}",
                 token_mint,
                 token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if !receiver_token_account.eq(token_account.key) {
+            msg!(
+                "Receiver token account not found {} {:?}",
+                receiver_token_account,
+                token_account.key
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -449,9 +491,9 @@ impl IbcStorage<'_, '_> {
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
         accounts
-            .token_account
+            .sender
             .as_ref()
-            .filter(|token_account| account.0.eq(token_account.key))
+            .filter(|sender| account.0.eq(sender.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
         let ok = match op {
@@ -569,8 +611,11 @@ mod tests {
     use std::str::FromStr;
 
     use ibc::apps::transfer::types::Amount;
+    use spl_token::solana_program::pubkey::Pubkey;
 
     use crate::transfer::impls::{check_amount_overflow, convert_decimals};
+
+    use super::{get_token_account, get_token_mint};
 
     fn ok(src: &str, input_decimals: u8, output_decimals: u8, dst: &str) {
         let src = src.chars().filter(|chr| *chr != '_').collect::<String>();
@@ -614,6 +659,23 @@ mod tests {
             10,
             5,
             "1_000_000_000_000_000_000_000_000_000_000_0",
+        );
+    }
+
+    #[test]
+    pub fn testing_token_mint() {
+        let owner =
+            Pubkey::from_str("1ryziZbFQW4fcWck9wW4vU4KD4qxPHKhmAht6pXPFWo")
+                .unwrap();
+        let token_mint =
+            Pubkey::from_str("AAyByZZeUjVcSmhM5PskKa1c6hg79AH6gHCZMSUrmt8f")
+                .unwrap();
+
+        let account = get_token_account(owner, token_mint);
+        assert_eq!(
+            account,
+            Pubkey::from_str("CkeVjzbeHCypmUWEtfNFVoJT3SqsHsvV69ANanhFsDa6")
+                .unwrap()
         );
     }
 }

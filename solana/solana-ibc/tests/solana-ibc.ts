@@ -18,7 +18,7 @@ describe("solana-ibc", () => {
   it("This is test", async () => {
     // Parameters
     const sender = depositor.publicKey; // solana account address
-    const receiver = "centauri1src4utrx6llsteqd7wf5qcuxcgjg6s8tq0f0v5"; // cosmos address
+    const receiver = "centauri1w6hwrenw4gug7gqhrgaa20hsruwdyum4hscdpx"; // cosmos address
     const amount = 100; // amount to send
     const channelIdOfSolana = "channel-0"; // example channel id
     const channelIdOfCosmos = "channel-58"; // example channel id
@@ -51,6 +51,15 @@ const sendTransfer = async (
   memo: string,
   tokenMint: anchor.web3.PublicKey
 ) => {
+
+  const tokenMints = new anchor.web3.PublicKey("AAyByZZeUjVcSmhM5PskKa1c6hg79AH6gHCZMSUrmt8f");
+  const address = new anchor.web3.PublicKey("1ryziZbFQW4fcWck9wW4vU4KD4qxPHKhmAht6pXPFWo");
+
+  const tokenAddress = await spl.getAssociatedTokenAddress(tokenMints, address);
+  console.log(tokenAddress);
+
+  throw Error("Fuck u");
+
   const senderPublicKey = new anchor.web3.PublicKey(sender);
 
   const emptyArray = [

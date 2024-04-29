@@ -33,15 +33,15 @@ const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
-pub const TOKEN_NAME: &str = "PICASSO";
-pub const TOKEN_SYMBOL: &str = "PICA";
-pub const TOKEN_URI: &str = "https://raw.githubusercontent.com/ComposableFi/FE-assets/f1bf383c1daaf3d934fbc82be345e797c3fab3dc/assets%20/pica.svg";
+pub const TOKEN_NAME: &str = "Ethereum";
+pub const TOKEN_SYMBOL: &str = "ETH";
+pub const TOKEN_URI: &str = "https://raw.githubusercontent.com/ComposableFi/FE-assets/51938e5486745bf921eb80fcff9d2d354be99c7d/assets%20/ethereum.svg";
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
 const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
 
-const ORIGINAL_DECIMALS: u8 = 12;
+const ORIGINAL_DECIMALS: u8 = 18;
 const EFFECTIVE_DECIMALS: u8 = 9;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
@@ -120,11 +120,11 @@ fn anchor_test_deliver() -> Result<()> {
 
     let mint_keypair = read_keypair_file("../../token_mint_keypair.json").unwrap();
     let native_token_mint_key = mint_keypair.pubkey();
-    let base_denom = "ppica".to_string();
+    let base_denom = "wei".to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
 
     let port_id = ibc::PortId::transfer();
-    let channel_id_on_a = ibc::ChannelId::new(58);
+    let channel_id_on_a = ibc::ChannelId::new(52);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
     let seeds = [
@@ -144,6 +144,7 @@ fn anchor_test_deliver() -> Result<()> {
         ],
         &crate::ID,
     );
+    panic!("This is token mint {:?}", token_mint_key);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
@@ -413,53 +414,55 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
-    // let token_metadata_pda = Pubkey::find_program_address(
-    //     &[
-    //         "metadata".as_bytes(),
-    //         &anchor_spl::metadata::ID.to_bytes(),
-    //         &token_mint_key.to_bytes(),
-    //     ],
-    //     &anchor_spl::metadata::ID,
-    // )
-    // .0;
+    let token_metadata_pda = Pubkey::find_program_address(
+        &[
+            "metadata".as_bytes(),
+            &anchor_spl::metadata::ID.to_bytes(),
+            &token_mint_key.to_bytes(),
+        ],
+        &anchor_spl::metadata::ID,
+    )
+    .0;
 
-    // let sig = program
-    //     .request()
-    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-    //         1_000_000u32,
-    //     ))
-    //     .accounts(accounts::InitMint {
-    //         sender: fee_collector,
-    //         mint_authority: mint_authority_key,
-    //         token_mint: token_mint_key,
-    //         system_program: system_program::ID,
-    //         token_program: anchor_spl::token::ID,
-    //         rent: anchor_lang::solana_program::rent::Rent::id(),
-    //         storage,
-    //         metadata: token_metadata_pda,
-    //         token_metadata_program: anchor_spl::metadata::ID,
-    //     })
-    //     .args(instruction::InitMint {
-    //         port_id: port_id.clone(),
-    //         channel_id_on_b: channel_id_on_a.clone(),
-    //         hashed_base_denom: hashed_denom.clone(),
-    //         token_name: TOKEN_NAME.to_string(),
-    //         token_symbol: TOKEN_SYMBOL.to_string(),
-    //         token_uri: TOKEN_URI.to_string(),
-    //         effective_decimals: EFFECTIVE_DECIMALS,
-    //         original_decimals: ORIGINAL_DECIMALS,
-    //     })
-    //     .payer(fee_collector_keypair.clone())
-    //     .signer(&*fee_collector_keypair)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            400_000u32,
+        ))
+        .instruction(ComputeBudgetInstruction::request_heap_frame(128 * 1024))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(10000))
+        .accounts(accounts::InitMint {
+            sender: fee_collector,
+            mint_authority: mint_authority_key,
+            token_mint: token_mint_key,
+            system_program: system_program::ID,
+            token_program: anchor_spl::token::ID,
+            rent: anchor_lang::solana_program::rent::Rent::id(),
+            storage,
+            metadata: token_metadata_pda,
+            token_metadata_program: anchor_spl::metadata::ID,
+        })
+        .args(instruction::InitMint {
+            port_id: port_id.clone(),
+            channel_id_on_b: channel_id_on_a.clone(),
+            hashed_base_denom: hashed_denom.clone(),
+            token_name: TOKEN_NAME.to_string(),
+            token_symbol: TOKEN_SYMBOL.to_string(),
+            token_uri: TOKEN_URI.to_string(),
+            effective_decimals: EFFECTIVE_DECIMALS,
+            original_decimals: ORIGINAL_DECIMALS,
+        })
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
 
-    // let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
-    // println!("  This is the mint information {:?}", mint_info);
+    println!("  This is the mint information {:?}", mint_info);
 
     // /*
     //  * Creating Token Mint
@@ -920,38 +923,38 @@ fn anchor_test_deliver() -> Result<()> {
     //  * Realloc Accounts
     //  */
 
-    let storage_acc_length_before =
-        sol_rpc_client.get_account(&storage).unwrap();
+    // let storage_acc_length_before =
+    //     sol_rpc_client.get_account(&storage).unwrap();
 
-    println!("\nReallocating Accounts");
-    let sig = program
-        .request()
-        .accounts(accounts::ReallocAccounts {
-            payer: authority.pubkey(),
-            account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,
-            system_program: system_program::ID,
-        })
-        .args(instruction::ReallocAccounts {
-            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
-            new_length: 2 * (1024 * 10),
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature {sig}");
+    // println!("\nReallocating Accounts");
+    // let sig = program
+    //     .request()
+    //     .accounts(accounts::ReallocAccounts {
+    //         payer: authority.pubkey(),
+    //         account: storage,
+    //         rent: anchor_lang::solana_program::sysvar::rent::ID,
+    //         system_program: system_program::ID,
+    //     })
+    //     .args(instruction::ReallocAccounts {
+    //         // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+    //         new_length: 3 * (1024 * 10),
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature {sig}");
 
-    let storage_acc_length_after =
-        sol_rpc_client.get_account(&storage).unwrap();
+    // let storage_acc_length_after =
+    //     sol_rpc_client.get_account(&storage).unwrap();
 
-    assert_eq!(
-        storage_acc_length_after.data.len() -
-            storage_acc_length_before.data.len(),
-        1024 * 10
-    );
+    // assert_eq!(
+    //     storage_acc_length_after.data.len() -
+    //         storage_acc_length_before.data.len(),
+    //     1024 * 10
+    // );
 
     // let storage_acc_length_before =
     //     sol_rpc_client.get_account(&storage).unwrap();

@@ -9,6 +9,6 @@ set -eux
 # cd ../..
 # solana program deploy target/deploy/write.so
 # solana program deploy target/deploy/sigverify.so
-cargo test  --lib -- --nocapture --include-ignored ::anchor
-# find solana/solana-ibc/tests/ -name '*.ts' \
-#      -exec yarn run ts-mocha -p ./tsconfig.json -t 1000000 {} +
+# cargo test  --lib -- --nocapture --include-ignored ::anchor
+find solana/solana-ibc/tests/ -name '*.ts' \
+     -exec yarn run ts-mocha -p ./tsconfig.json -t 1000000 {} +

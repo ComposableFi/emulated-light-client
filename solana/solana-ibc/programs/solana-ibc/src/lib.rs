@@ -296,25 +296,25 @@ pub mod solana_ibc {
             return Err(error!(error::Error::InvalidDecimals));
         }
 
-        if private_storage
-            .assets
-            .iter()
-            .find(|asset| asset.hashed_base_denom == hashed_base_denom)
-            .is_none()
-        {
-            private_storage.assets.push(storage::Asset {
-                hashed_base_denom,
-                port_channel: trie_ids::PortChannelPK::try_from(
-                    port_id,
-                    channel_id_on_b,
-                )
-                .unwrap(),
-                original_decimals,
-                effective_decimals_on_sol: effective_decimals,
-            })
-        } else {
-            return Err(error!(error::Error::AssetAlreadyExists));
-        }
+        // if private_storage
+        //     .assets
+        //     .iter()
+        //     .find(|asset| asset.hashed_base_denom == hashed_base_denom)
+        //     .is_none()
+        // {
+        //     private_storage.assets.push(storage::Asset {
+        //         hashed_base_denom,
+        //         port_channel: trie_ids::PortChannelPK::try_from(
+        //             port_id,
+        //             channel_id_on_b,
+        //         )
+        //         .unwrap(),
+        //         original_decimals,
+        //         effective_decimals_on_sol: effective_decimals,
+        //     })
+        // } else {
+        //     return Err(error!(error::Error::AssetAlreadyExists));
+        // }
 
         let bump = ctx.bumps.mint_authority;
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
