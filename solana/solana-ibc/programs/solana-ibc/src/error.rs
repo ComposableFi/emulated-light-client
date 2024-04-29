@@ -59,8 +59,18 @@ pub enum Error {
     /// below required minimum.
     NotEnoughValidators,
 
-    // CPI call from an unidentified program
+    /// CPI call from an unidentified program
     InvalidCPICall,
+
+    /// Unexpected Fee Collector
+    InvalidFeeCollector,
+
+    /// When the new fee collector calls the approve method without the
+    /// new fee collector being set.
+    FeeCollectorChangeProposalNotSet,
+
+    /// Fees can be collected only after a minimum amount
+    InsufficientFeesToCollect,
 
     /// If both timeout timestamp and timeout height are zero
     InvalidTimeout,
