@@ -120,10 +120,10 @@ aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591a
 curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
 
 # Uses solana sys call as default hashing
-tendermint                       = { git = "https://github.com/mina86/tendermint-rs", rev = "7cad235b651728dbfe6d2bfbd9110c329f0d6e7e" }
-tendermint-light-client          = { git = "https://github.com/mina86/tendermint-rs", rev = "7cad235b651728dbfe6d2bfbd9110c329f0d6e7e" }
-tendermint-light-client-verifier = { git = "https://github.com/mina86/tendermint-rs", rev = "7cad235b651728dbfe6d2bfbd9110c329f0d6e7e" }
-tendermint-proto                 = { git = "https://github.com/mina86/tendermint-rs", rev = "7cad235b651728dbfe6d2bfbd9110c329f0d6e7e" }
+tendermint                       = { git = "https://github.com/mina86/tendermint-rs", rev = "9f157c06f9053940bd182f4b3e8e958e5731d0c7" }
+tendermint-light-client          = { git = "https://github.com/mina86/tendermint-rs", rev = "9f157c06f9053940bd182f4b3e8e958e5731d0c7" }
+tendermint-light-client-verifier = { git = "https://github.com/mina86/tendermint-rs", rev = "9f157c06f9053940bd182f4b3e8e958e5731d0c7" }
+tendermint-proto                 = { git = "https://github.com/mina86/tendermint-rs", rev = "9f157c06f9053940bd182f4b3e8e958e5731d0c7" }
 
 # Adds support for custom-entrypoint feature
 anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
