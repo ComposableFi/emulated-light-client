@@ -808,7 +808,6 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::ReallocAccounts {
             payer: authority.pubkey(),
             account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,
             system_program: system_program::ID,
         })
         .args(instruction::ReallocAccounts {
@@ -842,7 +841,6 @@ fn anchor_test_deliver() -> Result<()> {
         .accounts(accounts::ReallocAccounts {
             payer: authority.pubkey(),
             account: storage,
-            rent: anchor_lang::solana_program::sysvar::rent::ID,
             system_program: system_program::ID,
         })
         .args(instruction::ReallocAccounts {

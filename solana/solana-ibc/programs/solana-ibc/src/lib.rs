@@ -677,8 +677,6 @@ pub struct ReallocAccounts<'info> {
     /// CHECK:
     account: UncheckedAccount<'info>,
 
-    rent: Sysvar<'info, Rent>,
-
     system_program: Program<'info, System>,
 }
 
