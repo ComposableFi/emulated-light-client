@@ -83,9 +83,6 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-
-    use spl_token::solana_program::system_instruction;
-
     use super::*;
 
     /// Initialises the guest blockchain with given configuration and genesis
@@ -408,7 +405,7 @@ pub mod solana_ibc {
         let old_rent = rent.minimum_balance(old_length);
         let new_rent = rent.minimum_balance(new_length);
         solana_program::program::invoke(
-            &system_instruction::transfer(
+            &solana_program::system_instruction::transfer(
                 &payer.key(),
                 &account.key(),
                 new_rent - old_rent,
