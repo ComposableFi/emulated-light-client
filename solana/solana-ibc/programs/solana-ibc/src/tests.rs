@@ -722,7 +722,7 @@ fn anchor_test_deliver() -> Result<()> {
         3,
         authority.pubkey(),
         receiver.pubkey(),
-        String::from("Tx from Source chain"),
+        String::from(""),
     );
 
     let proof_height_on_a = mock_client_state.header.height;
