@@ -21,7 +21,6 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
-use spl_token::solana_program::sysvar::SysvarId;
 
 use crate::ibc::ClientStateCommon;
 use crate::{
