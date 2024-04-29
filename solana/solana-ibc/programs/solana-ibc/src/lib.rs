@@ -374,8 +374,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -393,10 +393,9 @@ pub mod solana_ibc {
         .map_err(|err| error!((&err)))
     }
 
-    /// The body of this method is empty since it is called to
-    /// realloc the accounts only.  Anchor sets up the accounts
-    /// given in this call’s context before the body of the method is
-    /// executed.
+    /// Reallocates the specified account to the new length. 
+    /// 
+    /// Would fail if the account is not owned by the program.
     pub fn realloc_accounts(
         ctx: Context<ReallocAccounts>,
         new_length: usize,
@@ -405,19 +404,17 @@ pub mod solana_ibc {
         let account = &ctx.accounts.account.to_account_info();
         let new_length = new_length.max(account.data_len());
         let old_length = account.data_len();
-        if new_length > old_length {
-            let rent = Rent::get()?;
-            let old_rent = rent.minimum_balance(old_length);
-            let new_rent = rent.minimum_balance(new_length);
-            solana_program::program::invoke(
-                &system_instruction::transfer(
-                    &payer.key(),
-                    &account.key(),
-                    new_rent - old_rent,
-                ),
-                &[payer.clone(), account.clone()],
-            )?;
-        }
+        let rent = Rent::get()?;
+        let old_rent = rent.minimum_balance(old_length);
+        let new_rent = rent.minimum_balance(new_length);
+        solana_program::program::invoke(
+            &system_instruction::transfer(
+                &payer.key(),
+                &account.key(),
+                new_rent - old_rent,
+            ),
+            &[payer.clone(), account.clone()],
+        )?;
         Ok(account.realloc(new_length, false)?)
     }
 }
