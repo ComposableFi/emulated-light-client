@@ -31,7 +31,7 @@ pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL / 100;
 pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL / 100;
-pub const MINIMUM_FEE_TO_COLLECT: u64 =
+pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
 declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
@@ -246,19 +246,18 @@ pub mod solana_ibc {
     pub fn collect_fees<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, CollectFees<'info>>,
     ) -> Result<()> {
-        let fee_collector_balance = ctx.accounts.fee_account.lamports();
-
-        if fee_collector_balance < MINIMUM_FEE_TO_COLLECT {
+        let fee_account = &ctx.accounts.fee_account;
+        let minimum_balance = Rent::get()?
+            .minimum_balance(fee_account.data_len())
+            + MINIMUM_FEE_ACCOUNT_BALANCE;
+        let mut available_balance = fee_account.try_borrow_mut_lamports()?;
+        if **available_balance > minimum_balance {
+            **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
+                **available_balance - minimum_balance;
+            **available_balance = minimum_balance;
+        } else {
             return Err(error!(error::Error::InsufficientFeesToCollect));
         }
-
-        let total_fees_collected =
-            fee_collector_balance - MINIMUM_FEE_TO_COLLECT;
-
-        **ctx.accounts.fee_account.try_borrow_mut_lamports().unwrap() -=
-            total_fees_collected;
-        **ctx.accounts.fee_collector.try_borrow_mut_lamports().unwrap() +=
-            total_fees_collected;
 
         Ok(())
     }
@@ -444,8 +443,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -467,8 +466,6 @@ pub mod solana_ibc {
             ),
             &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
-
-
 
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
