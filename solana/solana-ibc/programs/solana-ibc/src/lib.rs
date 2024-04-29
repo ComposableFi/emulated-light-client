@@ -248,8 +248,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len())
-            + MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len()) +
+            MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -443,8 +443,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set()
-            && !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -599,8 +599,6 @@ pub struct CollectFees<'info> {
     #[account(mut, seeds = [FEE_SEED], bump)]
     /// CHECK:
     fee_account: UncheckedAccount<'info>,
-
-    pub rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]

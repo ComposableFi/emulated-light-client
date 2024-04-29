@@ -847,7 +847,6 @@ fn anchor_test_deliver() -> Result<()> {
             fee_collector,
             storage,
             fee_account: fee_collector_pda,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
         })
         .args(instruction::CollectFees {})
         .payer(fee_collector_keypair.clone())
