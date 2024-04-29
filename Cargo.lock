@@ -6093,7 +6093,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.34.36"
-source = "git+https://github.com/mina86/tendermint-rs?rev=7b674c3693076de393069ab80bc1f703f639949a#7b674c3693076de393069ab80bc1f703f639949a"
+source = "git+https://github.com/mina86/tendermint-rs?rev=9f157c06f9053940bd182f4b3e8e958e5731d0c7#7b674c3693076de393069ab80bc1f703f639949a"
 dependencies = [
  "bytes",
  "digest 0.10.7",
@@ -6121,7 +6121,7 @@ dependencies = [
 [[package]]
 name = "tendermint-light-client-verifier"
 version = "0.34.36"
-source = "git+https://github.com/mina86/tendermint-rs?rev=7b674c3693076de393069ab80bc1f703f639949a#7b674c3693076de393069ab80bc1f703f639949a"
+source = "git+https://github.com/mina86/tendermint-rs?rev=9f157c06f9053940bd182f4b3e8e958e5731d0c7#7b674c3693076de393069ab80bc1f703f639949a"
 dependencies = [
  "derive_more",
  "flex-error",
@@ -6133,7 +6133,7 @@ dependencies = [
 [[package]]
 name = "tendermint-proto"
 version = "0.34.36"
-source = "git+https://github.com/mina86/tendermint-rs?rev=7b674c3693076de393069ab80bc1f703f639949a#7b674c3693076de393069ab80bc1f703f639949a"
+source = "git+https://github.com/mina86/tendermint-rs?rev=9f157c06f9053940bd182f4b3e8e958e5731d0c7#7b674c3693076de393069ab80bc1f703f639949a"
 dependencies = [
  "bytes",
  "flex-error",
@@ -7254,4 +7254,4 @@ dependencies = [
 [[patch.unused]]
 name = "tendermint-light-client"
 version = "0.34.36"
-source = "git+https://github.com/mina86/tendermint-rs?rev=7b674c3693076de393069ab80bc1f703f639949a#7b674c3693076de393069ab80bc1f703f639949a"
+source = "git+https://github.com/mina86/tendermint-rs?rev=9f157c06f9053940bd182f4b3e8e958e5731d0c7#7b674c3693076de393069ab80bc1f703f639949a"
