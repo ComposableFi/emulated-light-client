@@ -239,10 +239,9 @@ pub mod solana_ibc {
         if let Some(new_admin) = private_storage.new_fee_collector_proposal {
             if signer != new_admin {
                 return Err(error!(error::Error::InvalidFeeCollector));
-            } else {
-                private_storage.fee_collector = new_admin;
-                private_storage.new_fee_collector_proposal = None;
             }
+            private_storage.fee_collector = new_admin;
+            private_storage.new_fee_collector_proposal = None;
         } else {
             return Err(error!(error::Error::FeeCollectorChangeProposalNotSet));
         }
