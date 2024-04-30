@@ -579,8 +579,7 @@ fn convert_decimals(
 mod tests {
     use std::str::FromStr;
 
-    use ibc::apps::transfer::types::{Amount, TracePath, TracePrefix};
-    use ibc::core::host::types::identifiers::{ChannelId, PortId};
+    use ibc::apps::transfer::types::Amount;
 
     use crate::transfer::impls::{check_amount_overflow, convert_decimals};
 
