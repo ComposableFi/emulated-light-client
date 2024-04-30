@@ -198,7 +198,7 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
     /// method returns an empty list.
     fn consensus_state_heights(
         &self,
-        client_id: &ibc::ClientId,
+        _client_id: &ibc::ClientId,
     ) -> Result<Vec<ibc::Height>, ibc::ContextError> {
         Ok(Vec::new())
     }
@@ -306,7 +306,7 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     /// method returns `None`.
     fn earliest_consensus_state(
         &self,
-        client_id: &ibc::ClientId,
+        _client_id: &ibc::ClientId,
     ) -> Result<Option<(ibc::Height, Self::AnyConsensusState)>> {
         Ok(None)
     }
