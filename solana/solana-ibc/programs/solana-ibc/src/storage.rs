@@ -312,7 +312,7 @@ pub struct PrivateStorage {
     pub assets: map::Map<CryptoHash, Asset>,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 pub struct Asset {
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
