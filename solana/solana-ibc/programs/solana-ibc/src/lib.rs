@@ -25,6 +25,7 @@ pub const TRIE_SEED: &[u8] = b"trie";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MINT: &[u8] = b"mint";
 pub const ESCROW: &[u8] = b"escrow";
+pub const METADATA: &[u8] = b"metadata";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
@@ -704,7 +705,7 @@ pub struct InitMint<'info> {
     #[account(
         mut,
         seeds = [
-            b"metadata".as_ref(),
+            METADATA,
             token_metadata_program.key().as_ref(),
             token_mint.key().as_ref(),
         ],
