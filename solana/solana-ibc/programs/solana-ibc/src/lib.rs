@@ -500,7 +500,7 @@ pub mod solana_ibc {
         ctx: Context<SendTransfer>,
         port_id: ibc::PortId,
         channel_id: ibc::ChannelId,
-        hashed_base_denom: CryptoHash,
+        hashed_full_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
         let full_denom = CryptoHash::digest(
@@ -508,7 +508,7 @@ pub mod solana_ibc {
         );
         if port_id != msg.port_id_on_a
             || channel_id != msg.chan_id_on_a
-            || full_denom != hashed_base_denom
+            || full_denom != hashed_full_denom
         {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }

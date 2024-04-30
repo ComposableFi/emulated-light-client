@@ -549,7 +549,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
+            hashed_full_denom: hashed_denom.clone(),
             msg: msg_transfer,
         })
         .payer(authority.clone())
@@ -705,7 +705,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_full_denom,
+            hashed_full_denom,
             msg: msg_transfer,
         })
         .payer(receiver.clone())
