@@ -240,9 +240,8 @@ pub mod solana_ibc {
             if signer != new_admin {
                 return Err(error!(error::Error::InvalidFeeCollector));
             } else {
-                return Err(error!(
-                    error::Error::FeeCollectorChangeProposalNotSet
-                ));
+                private_storage.fee_collector = new_admin;
+                private_storage.new_fee_collector_proposal = None; 
             }
         }
 
