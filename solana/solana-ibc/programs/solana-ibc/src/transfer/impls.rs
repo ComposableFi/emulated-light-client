@@ -82,7 +82,7 @@ pub fn get_token_mint(
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
-/// Removes the destination source and port id and 
+/// Removes the destination source and port id and
 /// returns the hash of full denom.
 pub fn get_hashed_full_denom(denom: &PrefixedDenom) -> CryptoHash {
     let mut prefixed_denom = denom.clone();
@@ -91,12 +91,13 @@ pub fn get_hashed_full_denom(denom: &PrefixedDenom) -> CryptoHash {
     let dest_port_id = trace_path.next();
     let dest_channel_id = trace_path.next();
     match (dest_port_id, dest_channel_id) {
-        (Some(port_id), Some(channel_id)) => prefixed_denom.remove_trace_prefix(&TracePrefix::new(
-            PortId::from_str(port_id).unwrap(),
-            ChannelId::from_str(channel_id).unwrap(),
-        )),
-        (_, _) => ()
-        };
+        (Some(port_id), Some(channel_id)) => prefixed_denom
+            .remove_trace_prefix(&TracePrefix::new(
+                PortId::from_str(port_id).unwrap(),
+                ChannelId::from_str(channel_id).unwrap(),
+            )),
+        (..) => (),
+    };
     let full_denom = prefixed_denom.to_string();
     CryptoHash::digest(full_denom.as_bytes())
 }
@@ -148,10 +149,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let asset = private_storage
             .assets
-            .iter()
-            .find(|asset| {
-                asset.hashed_full_denom.eq(&hashed_full_denom)
-            })
+            .get(&hashed_full_denom)
             .ok_or(TokenTransferError::InvalidToken)?;
 
         let converted_amount = convert_decimals(
@@ -233,10 +231,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let asset = private_storage
             .assets
-            .iter()
-            .find(|asset| {
-                asset.hashed_full_denom.eq(&hashed_full_denom)
-            })
+            .get(&hashed_full_denom)
             .ok_or(TokenTransferError::InvalidToken)?;
 
         let converted_amount = convert_decimals(
@@ -352,9 +347,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -394,9 +389,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -594,7 +589,8 @@ fn convert_decimals(
 mod tests {
     use std::str::FromStr;
 
-    use ibc::{apps::transfer::types::{Amount, TracePath, TracePrefix}, core::host::types::identifiers::{ChannelId, PortId}};
+    use ibc::apps::transfer::types::{Amount, TracePath, TracePrefix};
+    use ibc::core::host::types::identifiers::{ChannelId, PortId};
 
     use crate::transfer::impls::{check_amount_overflow, convert_decimals};
 
@@ -645,18 +641,18 @@ mod tests {
 
     #[test]
     fn testing_trace_path() {
-        let denom = format!("transfer/channel-1/transfer/channel-0/APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in");
-        let mut trace_path_split = denom.split('/').collect::<Vec<&str>>();
-        assert_eq!(
-            trace_path_split,
-            vec![
-                "transfer",
-                "channel-1",
-                "transfer",
-                "channel-0",
-                "APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
-            ]
+        let denom = format!(
+            "transfer/channel-1/transfer/channel-0/\
+             APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
         );
+        let mut trace_path_split = denom.split('/').collect::<Vec<&str>>();
+        assert_eq!(trace_path_split, vec![
+            "transfer",
+            "channel-1",
+            "transfer",
+            "channel-0",
+            "APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
+        ]);
         // Remove base denom
         trace_path_split.pop();
         let trace_path = TracePath::try_from(trace_path_split).unwrap();

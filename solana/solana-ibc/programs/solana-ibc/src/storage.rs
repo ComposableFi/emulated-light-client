@@ -264,12 +264,11 @@ pub struct PrivateStorage {
 
     pub new_fee_collector_proposal: Option<Pubkey>,
 
-    pub assets: Vec<Asset>,
+    pub assets: map::Map<CryptoHash, Asset>,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Asset {
-    pub hashed_full_denom: CryptoHash,
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
 }

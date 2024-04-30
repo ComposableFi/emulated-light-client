@@ -288,17 +288,11 @@ pub mod solana_ibc {
             return Err(error!(error::Error::InvalidDecimals));
         }
 
-        if private_storage
-            .assets
-            .iter()
-            .find(|asset| asset.hashed_full_denom == hashed_full_denom)
-            .is_none()
-        {
-            private_storage.assets.push(storage::Asset {
-                hashed_full_denom,
+        if !private_storage.assets.contains_key(&hashed_full_denom) {
+            private_storage.assets.insert(hashed_full_denom, storage::Asset {
                 original_decimals,
                 effective_decimals_on_sol: effective_decimals,
-            })
+            });
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -494,7 +488,7 @@ pub mod solana_ibc {
     /// The port_id, channel_id and hashed_base_denom are passed
     /// so that they can be used to create ESCROW account if it
     /// doesnt exists.
-    /// 
+    ///
     /// Would panic if it doesnt match the one that is in the packet
     pub fn send_transfer(
         ctx: Context<SendTransfer>,
@@ -506,9 +500,9 @@ pub mod solana_ibc {
         let full_denom = CryptoHash::digest(
             msg.packet_data.token.denom.to_string().as_bytes(),
         );
-        if port_id != msg.port_id_on_a
-            || channel_id != msg.chan_id_on_a
-            || full_denom != hashed_full_denom
+        if port_id != msg.port_id_on_a ||
+            channel_id != msg.chan_id_on_a ||
+            full_denom != hashed_full_denom
         {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }

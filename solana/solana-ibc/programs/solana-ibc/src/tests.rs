@@ -570,9 +570,9 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap()
-            - account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap() -
+            account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -650,11 +650,11 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before)
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
-            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -724,12 +724,12 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap()
-            - account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap() -
+            account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
-            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     assert_eq!(
@@ -764,10 +764,8 @@ fn anchor_test_deliver() -> Result<()> {
     let message = make_message!(
         ibc::MsgRecvPacket {
             packet: packet.clone(),
-            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
-                vec![1]
-            )
-            .unwrap(),
+            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(vec![1])
+                .unwrap(),
             proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
@@ -819,16 +817,16 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_native_token_address)
         .unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap()
-            - escrow_account_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((escrow_account_balance_before.ui_amount.unwrap() -
+            escrow_account_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap()
-            - receiver_account_balance_before)
-            * 10_f64.powf(mint_info.decimals.into()))
+        ((receiver_account_balance_after.ui_amount.unwrap() -
+            receiver_account_balance_before) *
+            10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
         TRANSFER_AMOUNT
     );
