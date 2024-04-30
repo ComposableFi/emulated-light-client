@@ -239,8 +239,7 @@ pub mod solana_ibc {
             if signer != new_admin {
                 return Err(error!(error::Error::InvalidFeeCollector));
             } else {
-                return Err(error::Error::FeeCollectorChangeProposalNotSet)
-                    .map_err(|err| error!((&err)));
+                return Err(error!(error::Error::FeeCollectorChangeProposalNotSet))
             }
         }
 
