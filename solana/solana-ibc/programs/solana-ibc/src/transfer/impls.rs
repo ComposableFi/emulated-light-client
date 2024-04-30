@@ -51,13 +51,19 @@ fn get_escrow_account(
     Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
-fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
+pub fn get_token_mint(
+    denom: &PrefixedDenom,
+) -> Result<Pubkey, TokenTransferError> {
     let base_denom = denom.base_denom.as_str().as_bytes();
     let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
     let trace_path = denom.trace_path.to_string();
     let mut trace_path = trace_path.split('/');
-    let channel_id = trace_path.next_back();
-    let port_id = trace_path.next_back();
+    // Since trace path is converted in reverse from string, the latest port and channel id
+    // would be in the beginning. Also refer to the test below.
+    //
+    // Ref: https://docs.rs/ibc-app-transfer-types/0.51.0/src/ibc_app_transfer_types/denom.rs.html#156
+    let port_id = trace_path.next();
+    let channel_id = trace_path.next();
     let (port_id, channel_id) = match (port_id, channel_id) {
         (Some(port_id), Some(channel_id)) => (port_id, channel_id),
         (_, last) => {
@@ -326,9 +332,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -368,9 +374,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none() ||
-            accounts.token_mint.is_none() ||
-            accounts.mint_authority.is_none()
+        if accounts.token_program.is_none()
+            || accounts.token_mint.is_none()
+            || accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -568,7 +574,7 @@ fn convert_decimals(
 mod tests {
     use std::str::FromStr;
 
-    use ibc::apps::transfer::types::Amount;
+    use ibc::{apps::transfer::types::{Amount, TracePath, TracePrefix}, core::host::types::identifiers::{ChannelId, PortId}};
 
     use crate::transfer::impls::{check_amount_overflow, convert_decimals};
 
@@ -615,5 +621,29 @@ mod tests {
             5,
             "1_000_000_000_000_000_000_000_000_000_000_0",
         );
+    }
+
+    #[test]
+    fn testing_trace_path() {
+        let denom = format!("transfer/channel-1/transfer/channel-0/APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in");
+        let mut trace_path_split = denom.split('/').collect::<Vec<&str>>();
+        assert_eq!(
+            trace_path_split,
+            vec![
+                "transfer",
+                "channel-1",
+                "transfer",
+                "channel-0",
+                "APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
+            ]
+        );
+        // Remove base denom
+        trace_path_split.pop();
+        let trace_path = TracePath::try_from(trace_path_split).unwrap();
+        let expected_trace_path = vec![
+            TracePrefix::new(PortId::transfer(), ChannelId::new(0)),
+            TracePrefix::new(PortId::transfer(), ChannelId::new(1)),
+        ];
+        assert_eq!(trace_path, expected_trace_path.into());
     }
 }

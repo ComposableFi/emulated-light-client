@@ -6,11 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
-use crate::ibc::{ModuleExtras, TokenTransferError};
 use crate::storage::IbcStorage;
-use crate::{ibc, FEE_AMOUNT_IN_LAMPORTS};
+use crate::ibc;
 
-mod impls;
+pub mod impls;
 
 impl ibc::Module for IbcStorage<'_, '_> {
     fn on_chan_open_init_validate(
