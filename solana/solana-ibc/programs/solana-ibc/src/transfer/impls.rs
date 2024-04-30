@@ -56,8 +56,8 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
     let trace_path = denom.trace_path.to_string();
     let mut trace_path = trace_path.split('/');
-    let channel_id = trace_path.next_back();
-    let port_id = trace_path.next_back();
+    let port_id = trace_path.next();
+    let channel_id = trace_path.next();
     let (port_id, channel_id) = match (port_id, channel_id) {
         (Some(port_id), Some(channel_id)) => (port_id, channel_id),
         (_, last) => {
