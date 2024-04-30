@@ -79,7 +79,7 @@ macro_rules! make_message {
 #[test]
 #[ignore = "Requires local validator to run"]
 fn anchor_test_deliver() -> Result<()> {
-    let authority = Rc::new(read_keypair_file("../../orignal_leaked.json").unwrap());
+    let authority = Rc::new(read_keypair_file("../../keypair.json").unwrap());
     println!("This is pubkey {}", authority.pubkey().to_string());
     let lamports = 2_000_000_000;
 
@@ -144,7 +144,6 @@ fn anchor_test_deliver() -> Result<()> {
         ],
         &crate::ID,
     );
-    panic!("This is token mint {:?}", token_mint_key);
     let (mint_authority_key, _bump) =
         Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
 
@@ -385,27 +384,28 @@ fn anchor_test_deliver() -> Result<()> {
     /*
        Set up fee account
     */
-    // println!("\nSetting up Fee Account");
-    // let sig = program
-    //     .request()
-    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-    //         1_000_000u32,
-    //     ))
-    //     .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
-    //     .accounts(accounts::SetupFeeCollector {
-    //         fee_collector: authority.pubkey(),
-    //         storage,
-    //     })
-    //     .args(instruction::SetupFeeCollector {
-    //         new_fee_collector: fee_collector,
-    //     })
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
+    println!("\nClearing cs states");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
+        .instruction(ComputeBudgetInstruction::request_heap_frame(128 * 1024))
+        .accounts(accounts::SetupFeeCollector {
+            fee_collector: authority.pubkey(),
+            storage,
+        })
+        .args(instruction::RemoveCsStates {
+            client_idx: 7
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
@@ -414,55 +414,55 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
-    let token_metadata_pda = Pubkey::find_program_address(
-        &[
-            "metadata".as_bytes(),
-            &anchor_spl::metadata::ID.to_bytes(),
-            &token_mint_key.to_bytes(),
-        ],
-        &anchor_spl::metadata::ID,
-    )
-    .0;
+    // let token_metadata_pda = Pubkey::find_program_address(
+    //     &[
+    //         "metadata".as_bytes(),
+    //         &anchor_spl::metadata::ID.to_bytes(),
+    //         &token_mint_key.to_bytes(),
+    //     ],
+    //     &anchor_spl::metadata::ID,
+    // )
+    // .0;
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            400_000u32,
-        ))
-        .instruction(ComputeBudgetInstruction::request_heap_frame(128 * 1024))
-        .instruction(ComputeBudgetInstruction::set_compute_unit_price(10000))
-        .accounts(accounts::InitMint {
-            sender: fee_collector,
-            mint_authority: mint_authority_key,
-            token_mint: token_mint_key,
-            system_program: system_program::ID,
-            token_program: anchor_spl::token::ID,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
-            storage,
-            metadata: token_metadata_pda,
-            token_metadata_program: anchor_spl::metadata::ID,
-        })
-        .args(instruction::InitMint {
-            port_id: port_id.clone(),
-            channel_id_on_b: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
-            token_name: TOKEN_NAME.to_string(),
-            token_symbol: TOKEN_SYMBOL.to_string(),
-            token_uri: TOKEN_URI.to_string(),
-            effective_decimals: EFFECTIVE_DECIMALS,
-            original_decimals: ORIGINAL_DECIMALS,
-        })
-        .payer(fee_collector_keypair.clone())
-        .signer(&*fee_collector_keypair)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         400_000u32,
+    //     ))
+    //     .instruction(ComputeBudgetInstruction::request_heap_frame(128 * 1024))
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_price(10000))
+    //     .accounts(accounts::InitMint {
+    //         sender: fee_collector,
+    //         mint_authority: mint_authority_key,
+    //         token_mint: token_mint_key,
+    //         system_program: system_program::ID,
+    //         token_program: anchor_spl::token::ID,
+    //         rent: anchor_lang::solana_program::rent::Rent::id(),
+    //         storage,
+    //         metadata: token_metadata_pda,
+    //         token_metadata_program: anchor_spl::metadata::ID,
+    //     })
+    //     .args(instruction::InitMint {
+    //         port_id: port_id.clone(),
+    //         channel_id_on_b: channel_id_on_a.clone(),
+    //         hashed_base_denom: hashed_denom.clone(),
+    //         token_name: TOKEN_NAME.to_string(),
+    //         token_symbol: TOKEN_SYMBOL.to_string(),
+    //         token_uri: TOKEN_URI.to_string(),
+    //         effective_decimals: EFFECTIVE_DECIMALS,
+    //         original_decimals: ORIGINAL_DECIMALS,
+    //     })
+    //     .payer(fee_collector_keypair.clone())
+    //     .signer(&*fee_collector_keypair)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
 
-    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+    // let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
-    println!("  This is the mint information {:?}", mint_info);
+    // println!("  This is the mint information {:?}", mint_info);
 
     // /*
     //  * Creating Token Mint

@@ -581,6 +581,21 @@ pub mod solana_ibc {
         }
         Ok(account.realloc(new_length, false)?)
     }
+
+    pub fn remove_cs_states(ctx: Context<SetupFeeCollector>, client_idx: u8) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+        let consensus_states = &mut private_storage.clients[client_idx as usize].consensus_states;
+
+        for (key, value) in consensus_states.clone().iter() {
+             if key < &ibc::Height::new(1, 4940143).unwrap() {
+                msg!("Removed {:?}", key.revision_height());
+                consensus_states.remove(&key); 
+             }
+        }
+
+        Ok(())
+    }
+
 }
 
 /// All the storage accounts are initialized here since it is only called once
