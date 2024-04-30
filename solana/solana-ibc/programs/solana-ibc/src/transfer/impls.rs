@@ -279,9 +279,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -341,9 +341,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
