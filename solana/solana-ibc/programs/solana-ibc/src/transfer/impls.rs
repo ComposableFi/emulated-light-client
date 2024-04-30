@@ -304,7 +304,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
             msg!(
                 "Token mint not found {:?} {:?}",
                 token_mint,
@@ -312,7 +312,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !receiver_token_account.eq(token_account.key) {
+        if receiver_token_account != *token_account.key {
             msg!(
                 "Receiver token account not found {} {:?}",
                 receiver_token_account,
@@ -366,7 +366,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             msg!("Token account not found {} {:?}", account, sender.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
             msg!(
                 "Token mint not found {:?} {:?}",
                 token_mint,
@@ -374,7 +374,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !sender_token_account.eq(token_account.key) {
+        if sender_token_account != *token_account.key {
             msg!(
                 "sender token account not found {} {:?}",
                 sender_token_account,
