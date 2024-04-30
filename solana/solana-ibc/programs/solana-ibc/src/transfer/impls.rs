@@ -374,7 +374,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !sender_token_account.eq(token_account.key) {
+        if sender_token_account != *token_account.key {
             msg!(
                 "sender token account not found {} {:?}",
                 sender_token_account,
