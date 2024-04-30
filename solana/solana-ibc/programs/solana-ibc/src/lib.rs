@@ -268,14 +268,13 @@ pub mod solana_ibc {
         Ok(())
     }
 
-    /// Called to set up escrow and mint accounts for given channel
-    /// and denom.
-    ///
-    /// The body of this method is empty since it is called to
-    /// initialise the accounts only.  Anchor sets up the accounts
-    /// given in this call’s context before the body of the method is
-    /// executed.
-    #[allow(unused_variables)]
+    /// Called to create token mint for wrapped tokens 
+    /// 
+    /// It has to be ensured that the right denom is hashed
+    /// and proper decimals are passed.
+    /// 
+    /// Note: The denom will always contain port and channel id
+    /// of solana.
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         effective_decimals: u8,
@@ -492,7 +491,7 @@ pub mod solana_ibc {
             .map_err(|err| error!((&err)))
     }
 
-    /// The port_id, channel_id and hashed_full_denom are passed
+    /// The hashed_full_denom are passed
     /// so that they can be used to create ESCROW account if it
     /// doesnt exists.
     ///
