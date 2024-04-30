@@ -128,19 +128,15 @@ fn anchor_test_deliver() -> Result<()> {
     let channel_id_on_a = ibc::ChannelId::new(0);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
-    let hashed_full_denom_on_source = CryptoHash::digest(format!("{}/{}/{}", port_id, channel_id_on_b, base_denom).as_bytes());
+    let hashed_full_denom_on_source = CryptoHash::digest(
+        format!("{}/{}/{}", port_id, channel_id_on_b, base_denom).as_bytes(),
+    );
 
-    let seeds = [
-        crate::ESCROW,
-        hashed_denom.as_ref(),
-    ];
+    let seeds = [crate::ESCROW, hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) = Pubkey::find_program_address(
-        &[
-            crate::MINT,
-            hashed_full_denom_on_source.as_ref(),
-        ],
+        &[crate::MINT, hashed_full_denom_on_source.as_ref()],
         &crate::ID,
     );
     let (mint_authority_key, _bump) =

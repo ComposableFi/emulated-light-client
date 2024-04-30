@@ -239,7 +239,9 @@ pub mod solana_ibc {
             if signer != new_admin {
                 return Err(error!(error::Error::InvalidFeeCollector));
             } else {
-                return Err(error!(error::Error::FeeCollectorChangeProposalNotSet))
+                return Err(error!(
+                    error::Error::FeeCollectorChangeProposalNotSet
+                ));
             }
         }
 
@@ -502,8 +504,7 @@ pub mod solana_ibc {
         let full_denom = CryptoHash::digest(
             msg.packet_data.token.denom.to_string().as_bytes(),
         );
-        if full_denom != hashed_full_denom
-        {
+        if full_denom != hashed_full_denom {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }
 

@@ -37,25 +37,17 @@ impl TryFrom<ibc::Signer> for AccountId {
 }
 
 /// Returns escrow account corresponding to given (port, channel, denom) triple.
-fn get_escrow_account(
-    denom: &PrefixedDenom,
-) -> Pubkey {
-    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes()); 
-    let seeds = [
-        crate::ESCROW,
-        hashed_full_denom.as_slice(),
-    ];
+fn get_escrow_account(denom: &PrefixedDenom) -> Pubkey {
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes());
+    let seeds = [crate::ESCROW, hashed_full_denom.as_slice()];
     Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
 pub fn get_token_mint(
     denom: &PrefixedDenom,
 ) -> Result<Pubkey, TokenTransferError> {
-    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes()); 
-    let seeds = [
-        crate::MINT,
-        hashed_full_denom.as_slice(),
-    ];
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes());
+    let seeds = [crate::MINT, hashed_full_denom.as_slice()];
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
@@ -108,7 +100,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let private_storage = &store.private;
 
-        let hashed_full_denom = CryptoHash::digest(amt.denom.to_string().as_bytes()); 
+        let hashed_full_denom =
+            CryptoHash::digest(amt.denom.to_string().as_bytes());
 
         let asset = private_storage
             .assets
@@ -190,7 +183,8 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let private_storage = &store.private;
 
-        let hashed_full_denom = CryptoHash::digest(amt.denom.to_string().as_bytes()); 
+        let hashed_full_denom =
+            CryptoHash::digest(amt.denom.to_string().as_bytes());
 
         let asset = private_storage
             .assets
