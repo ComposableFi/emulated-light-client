@@ -123,14 +123,15 @@ fn anchor_test_deliver() -> Result<()> {
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
 
+
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
+    let hashed_full_denom_on_source = CryptoHash::digest(format!("{}/{}/{}", port_id, channel_id_on_b, base_denom).as_bytes());
+
     let seeds = [
         crate::ESCROW,
-        port_id.as_bytes(),
-        channel_id_on_a.as_bytes(),
         hashed_denom.as_ref(),
     ];
     let (escrow_account_key, _bump) =
@@ -138,9 +139,7 @@ fn anchor_test_deliver() -> Result<()> {
     let (token_mint_key, _bump) = Pubkey::find_program_address(
         &[
             crate::MINT,
-            port_id.as_bytes(),
-            channel_id_on_a.as_bytes(),
-            hashed_denom.as_ref(),
+            hashed_full_denom_on_source.as_ref(),
         ],
         &crate::ID,
     );
@@ -431,9 +430,7 @@ fn anchor_test_deliver() -> Result<()> {
             token_metadata_program: anchor_spl::metadata::ID,
         })
         .args(instruction::InitMint {
-            port_id_on_sol: port_id.clone(),
-            channel_id_on_sol: channel_id_on_a.clone(),
-            hashed_full_denom: hashed_denom.clone(),
+            hashed_full_denom: hashed_full_denom_on_source.clone(),
             token_name: TOKEN_NAME.to_string(),
             token_symbol: TOKEN_SYMBOL.to_string(),
             token_uri: TOKEN_URI.to_string(),
@@ -543,8 +540,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
             hashed_full_denom: hashed_denom.clone(),
             msg: msg_transfer,
         })
@@ -590,8 +585,8 @@ fn anchor_test_deliver() -> Result<()> {
         &base_denom,
         port_id.clone(),
         false,
-        channel_id_on_b.clone(),
         channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
         2,
         authority.pubkey(),
         receiver.pubkey(),
@@ -662,7 +657,7 @@ fn anchor_test_deliver() -> Result<()> {
         &base_denom,
         port_id.clone(),
         false,
-        channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
         receiver.pubkey(),
         authority.pubkey(),
     );
@@ -703,8 +698,6 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
             hashed_full_denom,
             msg: msg_transfer,
         })

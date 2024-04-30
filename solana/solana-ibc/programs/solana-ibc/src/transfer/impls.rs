@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-use ::ibc::apps::transfer::types::{PrefixedDenom, TracePrefix};
+use ::ibc::apps::transfer::types::PrefixedDenom;
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
@@ -38,16 +38,12 @@ impl TryFrom<ibc::Signer> for AccountId {
 
 /// Returns escrow account corresponding to given (port, channel, denom) triple.
 fn get_escrow_account(
-    port_id: &PortId,
-    channel_id: &ChannelId,
-    denom: &str,
+    denom: &PrefixedDenom,
 ) -> Pubkey {
-    let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes()); 
     let seeds = [
         crate::ESCROW,
-        port_id.as_bytes(),
-        channel_id.as_bytes(),
-        denom.as_slice(),
+        hashed_full_denom.as_slice(),
     ];
     Pubkey::find_program_address(&seeds, &crate::ID).0
 }
@@ -55,49 +51,12 @@ fn get_escrow_account(
 pub fn get_token_mint(
     denom: &PrefixedDenom,
 ) -> Result<Pubkey, TokenTransferError> {
-    let (port_id, channel_id, hashed_full_denom) =
-        get_hashed_full_denom(denom)?;
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes()); 
     let seeds = [
         crate::MINT,
-        port_id.as_bytes(),
-        channel_id.as_bytes(),
         hashed_full_denom.as_slice(),
     ];
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
-}
-
-/// Removes the destination source and port id and
-/// returns the hash of full denom.
-pub fn get_hashed_full_denom(
-    denom: &PrefixedDenom,
-) -> Result<(PortId, ChannelId, CryptoHash), TokenTransferError> {
-    let mut prefixed_denom = denom.clone();
-    let trace_path = prefixed_denom.trace_path.to_string();
-    let mut trace_path = trace_path.split('/');
-    // Since trace path is converted in reverse from string, the latest port and channel id
-    // would be in the beginning. Also refer to the test below.
-    //
-    // Ref: https://docs.rs/ibc-app-transfer-types/0.51.0/src/ibc_app_transfer_types/denom.rs.html#156
-    let dest_port_id = trace_path.next();
-    let dest_channel_id = trace_path.next();
-    let (port_id, channel_id) = match (dest_port_id, dest_channel_id) {
-        (Some(port_id), Some(channel_id)) => {
-            let port_id = PortId::from_str(port_id).unwrap();
-            let channel_id = ChannelId::from_str(channel_id).unwrap();
-            prefixed_denom.remove_trace_prefix(&TracePrefix::new(
-                port_id.clone(),
-                channel_id.clone(),
-            ));
-            (port_id, channel_id)
-        }
-        (_, last) => {
-            return Err(TokenTransferError::InvalidTraceLength {
-                len: trace_path.count() as u64 + u64::from(last.is_some()),
-            })
-        }
-    };
-    let full_denom = prefixed_denom.to_string();
-    Ok((port_id, channel_id, CryptoHash::digest(full_denom.as_bytes())))
 }
 
 fn get_token_account(owner: &Pubkey, token_mint: &Pubkey) -> Pubkey {
@@ -149,7 +108,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let private_storage = &store.private;
 
-        let (_, _, hashed_full_denom) = get_hashed_full_denom(&amt.denom)?;
+        let hashed_full_denom = CryptoHash::digest(amt.denom.to_string().as_bytes()); 
 
         let asset = private_storage
             .assets
@@ -231,7 +190,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let private_storage = &store.private;
 
-        let (_, _, hashed_full_denom) = get_hashed_full_denom(&amt.denom)?;
+        let hashed_full_denom = CryptoHash::digest(amt.denom.to_string().as_bytes()); 
 
         let asset = private_storage
             .assets
@@ -464,7 +423,7 @@ impl IbcStorage<'_, '_> {
         &self,
         op: EscrowOp,
         account: &AccountId,
-        port_id: &PortId,
+        _port_id: &PortId,
         channel_id: &ChannelId,
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
@@ -493,8 +452,7 @@ impl IbcStorage<'_, '_> {
         }
 
         // TODO(#180): Should we use full denom including prefix?
-        let denom = coin.denom.base_denom.to_string();
-        let escrow = get_escrow_account(port_id, channel_id, &denom);
+        let escrow = get_escrow_account(&coin.denom);
         msg!(
             "This is channel id for deriving escrow {:?} derived escrow {:?} \
              and expected {:?}",

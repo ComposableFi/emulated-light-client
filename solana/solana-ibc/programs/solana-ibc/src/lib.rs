@@ -277,8 +277,6 @@ pub mod solana_ibc {
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         effective_decimals: u8,
-        port_id_on_sol: ibc::PortId,
-        channel_id_on_sol: ibc::ChannelId,
         hashed_full_denom: CryptoHash,
         original_decimals: u8,
         token_name: String,
@@ -492,7 +490,6 @@ pub mod solana_ibc {
             .map_err(|err| error!((&err)))
     }
 
-    #[allow(unused_variables)]
     /// The port_id, channel_id and hashed_full_denom are passed
     /// so that they can be used to create ESCROW account if it
     /// doesnt exists.
@@ -500,17 +497,13 @@ pub mod solana_ibc {
     /// Would panic if it doesnt match the one that is in the packet
     pub fn send_transfer(
         ctx: Context<SendTransfer>,
-        port_id: ibc::PortId,
-        channel_id: ibc::ChannelId,
         hashed_full_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
         let full_denom = CryptoHash::digest(
             msg.packet_data.token.denom.to_string().as_bytes(),
         );
-        if port_id != msg.port_id_on_a ||
-            channel_id != msg.chan_id_on_a ||
-            full_denom != hashed_full_denom
+        if full_denom != hashed_full_denom
         {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }
@@ -703,7 +696,7 @@ pub struct CollectFees<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(decimals: u8, port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_full_denom: CryptoHash)]
+#[instruction(decimals: u8, hashed_full_denom: CryptoHash)]
 pub struct InitMint<'info> {
     #[account(mut, constraint = sender.key == &storage.fee_collector)]
     sender: Signer<'info>,
@@ -730,8 +723,7 @@ pub struct InitMint<'info> {
     storage: Account<'info, PrivateStorage>,
 
     #[account(init, payer = sender,
-              seeds = [MINT, port_id.as_bytes(), channel_id.as_bytes(),
-                       hashed_full_denom.as_ref()],
+              seeds = [MINT, hashed_full_denom.as_ref()],
               bump, mint::decimals = decimals, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
 
@@ -835,7 +827,7 @@ pub struct SendPacket<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_full_denom: CryptoHash)]
+#[instruction(hashed_full_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -863,7 +855,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(init_if_needed, payer = sender, seeds = [
-        ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_full_denom.as_ref()
+        ESCROW, hashed_full_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, associated_token::mint = token_mint, associated_token::authority = sender)]
