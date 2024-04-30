@@ -1,9 +1,12 @@
+use std::cmp::Ordering;
 use std::str::FromStr;
 
 use ::ibc::apps::transfer::types::PrefixedDenom;
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
+use lib::hash::CryptoHash;
+use primitive_types::U256;
 
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -34,42 +37,17 @@ impl TryFrom<ibc::Signer> for AccountId {
 }
 
 /// Returns escrow account corresponding to given (port, channel, denom) triple.
-fn get_escrow_account(
-    port_id: &PortId,
-    channel_id: &ChannelId,
-    denom: &str,
-) -> Pubkey {
-    let denom = lib::hash::CryptoHash::digest(denom.as_bytes());
-    let seeds = [
-        crate::ESCROW,
-        port_id.as_bytes(),
-        channel_id.as_bytes(),
-        denom.as_slice(),
-    ];
+fn get_escrow_account(denom: &PrefixedDenom) -> Pubkey {
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes());
+    let seeds = [crate::ESCROW, hashed_full_denom.as_slice()];
     Pubkey::find_program_address(&seeds, &crate::ID).0
 }
 
-fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
-    let base_denom = denom.base_denom.as_str().as_bytes();
-    let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
-    let trace_path = denom.trace_path.to_string();
-    let mut trace_path = trace_path.split('/');
-    let channel_id = trace_path.next_back();
-    let port_id = trace_path.next_back();
-    let (port_id, channel_id) = match (port_id, channel_id) {
-        (Some(port_id), Some(channel_id)) => (port_id, channel_id),
-        (_, last) => {
-            return Err(TokenTransferError::InvalidTraceLength {
-                len: trace_path.count() as u64 + u64::from(last.is_some()),
-            })
-        }
-    };
-    let seeds = [
-        crate::MINT,
-        port_id.as_bytes(),
-        channel_id.as_bytes(),
-        hashed_base_denom.as_slice(),
-    ];
+pub fn get_token_mint(
+    denom: &PrefixedDenom,
+) -> Result<Pubkey, TokenTransferError> {
+    let hashed_full_denom = CryptoHash::digest(denom.to_string().as_bytes());
+    let seeds = [crate::MINT, hashed_full_denom.as_slice()];
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
@@ -118,11 +96,40 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let amount_in_u64 = check_amount_overflow(amt.amount)?;
+        let store = self.borrow();
+
+        let private_storage = &store.private;
+
+        let hashed_full_denom =
+            CryptoHash::digest(amt.denom.to_string().as_bytes());
+
+        let asset = private_storage
+            .assets
+            .get(&hashed_full_denom)
+            .ok_or(TokenTransferError::InvalidToken)?;
+
+        let converted_amount = convert_decimals(
+            &amt.amount,
+            asset.original_decimals,
+            asset.effective_decimals_on_sol,
+        )
+        .ok_or(TokenTransferError::InvalidAmount(
+            uint::FromDecStrErr::InvalidLength,
+        ))?;
+
+        let amount_to_mint = check_amount_overflow(converted_amount)?;
+
+        msg!(
+            "Original amount {} converted amount {} original decimals {} \
+             effective decimals {}",
+            amt.amount,
+            amount_to_mint,
+            asset.original_decimals,
+            asset.effective_decimals_on_sol
+        );
 
         let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-        let store = self.borrow();
         let accounts = &store.accounts;
         let receiver = accounts
             .token_account
@@ -157,7 +164,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             seeds, //signer PDA
         );
 
-        anchor_spl::token::mint_to(cpi_ctx, amount_in_u64).unwrap();
+        anchor_spl::token::mint_to(cpi_ctx, amount_to_mint).unwrap();
         Ok(())
     }
 
@@ -173,10 +180,28 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
-        let amount_in_u64 = check_amount_overflow(amt.amount)?;
+        let store = self.borrow();
+        let private_storage = &store.private;
+
+        let hashed_full_denom =
+            CryptoHash::digest(amt.denom.to_string().as_bytes());
+
+        let asset = private_storage
+            .assets
+            .get(&hashed_full_denom)
+            .ok_or(TokenTransferError::InvalidToken)?;
+
+        let converted_amount = convert_decimals(
+            &amt.amount,
+            asset.original_decimals,
+            asset.effective_decimals_on_sol,
+        )
+        .ok_or(TokenTransferError::InvalidAmount(
+            uint::FromDecStrErr::InvalidLength,
+        ))?;
+        let amount_to_burn = check_amount_overflow(converted_amount)?;
         let (_mint_authority_key, bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-        let store = self.borrow();
         let accounts = &store.accounts;
         let burner = accounts
             .token_account
@@ -208,7 +233,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             seeds, //signer PDA
         );
 
-        anchor_spl::token::burn(cpi_ctx, amount_in_u64).unwrap();
+        anchor_spl::token::burn(cpi_ctx, amount_to_burn).unwrap();
         Ok(())
     }
 }
@@ -338,6 +363,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
            The token mint should be a PDA with seeds as ``
         */
+        msg!("This is coin while burning {:?}", coin);
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
@@ -391,7 +417,7 @@ impl IbcStorage<'_, '_> {
         &self,
         op: EscrowOp,
         account: &AccountId,
-        port_id: &PortId,
+        _port_id: &PortId,
         channel_id: &ChannelId,
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
@@ -420,8 +446,7 @@ impl IbcStorage<'_, '_> {
         }
 
         // TODO(#180): Should we use full denom including prefix?
-        let denom = coin.denom.base_denom.to_string();
-        let escrow = get_escrow_account(port_id, channel_id, &denom);
+        let escrow = get_escrow_account(&coin.denom);
         msg!(
             "This is channel id for deriving escrow {:?} derived escrow {:?} \
              and expected {:?}",
@@ -526,4 +551,80 @@ fn check_amount_overflow(amount: Amount) -> Result<u64, TokenTransferError> {
     u64::try_from(primitive_types::U256::from(amount)).map_err(|_| {
         TokenTransferError::InvalidAmount(uint::FromDecStrErr::InvalidLength)
     })
+}
+
+fn convert_decimals(
+    amount: &Amount,
+    original_decimals: u8,
+    effective_decimals_on_sol: u8,
+) -> Option<Amount> {
+    match original_decimals.cmp(&effective_decimals_on_sol) {
+        Ordering::Greater => {
+            let shift = U256::exp10(
+                (original_decimals - effective_decimals_on_sol).into(),
+            );
+            (*amount.as_ref()).checked_div(shift).map(Amount::from)
+        }
+        Ordering::Equal => Some(*amount),
+        Ordering::Less => {
+            let shift = U256::exp10(
+                (effective_decimals_on_sol - original_decimals).into(),
+            );
+            (*amount.as_ref()).checked_mul(shift).map(Amount::from)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use ibc::apps::transfer::types::Amount;
+
+    use crate::transfer::impls::{check_amount_overflow, convert_decimals};
+
+    fn ok(src: &str, input_decimals: u8, output_decimals: u8, dst: &str) {
+        let src = src.chars().filter(|chr| *chr != '_').collect::<String>();
+        let src = Amount::from_str(&src).unwrap();
+        let want =
+            Some(dst.chars().filter(|chr| *chr != '_').collect::<String>())
+                .map(|val| val.parse::<u64>().ok());
+        let got = convert_decimals(&src, input_decimals, output_decimals);
+        let got = got.and_then(|val| Some(check_amount_overflow(val).ok()));
+        assert_eq!(
+            want, got,
+            "{src} {input_decimals} → {dst} {output_decimals}"
+        );
+    }
+
+    #[test]
+    fn testing_chopping_decimals() {
+        ok("1000000000000000", 9, 6, "1000000000000");
+
+        for s in 0..70 {
+            // Source and destination have the same number of decimals.  No change
+            // happens.
+            ok("42", s, s, "42");
+            for d in 0..70 {
+                // Zero remains zero.
+                ok("0", s, d, "0");
+            }
+        }
+
+        for d in 0..20 {
+            ok("1_000_000", d, 5 + d, "1_000_000_00000");
+            ok("1_000_000_00000", 5 + d, d, "1_000_000");
+            ok("1_000_000_99999", 5 + d, d, "1_000_000");
+        }
+
+        ok("99999", 10, 5, "0");
+
+        // Value is more than u64::MAX
+        ok(
+            "1_000_000_000_000_000_000_000_000_000_000_000_000",
+            10,
+            5,
+            "1_000_000_000_000_000_000_000_000_000_000_0",
+        );
+    }
 }

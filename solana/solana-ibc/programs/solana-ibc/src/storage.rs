@@ -308,7 +308,16 @@ pub struct PrivateStorage {
     pub fee_collector: Pubkey,
 
     pub new_fee_collector_proposal: Option<Pubkey>,
+
+    pub assets: map::Map<CryptoHash, Asset>,
 }
+
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct Asset {
+    pub original_decimals: u8,
+    pub effective_decimals_on_sol: u8,
+}
+
 
 impl PrivateStorage {
     /// Returns number of known clients; or counter for the next client.

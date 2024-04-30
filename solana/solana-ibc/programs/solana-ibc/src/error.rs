@@ -69,6 +69,16 @@ pub enum Error {
     /// new fee collector being set.
     FeeCollectorChangeProposalNotSet,
 
+    /// When an asset is added which already exists
+    AssetAlreadyExists,
+
+    /// Effective deciamls can either be less than equal to the original decimals but not more.
+    InvalidDecimals,
+
+    /// When port id, channel id or hased denom passed as arguments
+    /// dont match the ones in the packet.
+    InvalidSendTransferParams,
+
     /// Fees can be collected only after a minimum amount
     InsufficientFeesToCollect,
 

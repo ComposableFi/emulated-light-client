@@ -21,6 +21,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_token::instruction::initialize_mint2;
+use spl_token::solana_program::sysvar::SysvarId;
 
 use crate::ibc::ClientStateCommon;
 use crate::{
@@ -32,9 +33,16 @@ const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
 pub const STAKING_PROGRAM_ID: &str =
     "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
+pub const TOKEN_NAME: &str = "RETARDIO";
+pub const TOKEN_SYMBOL: &str = "RTRD";
+pub const TOKEN_URI: &str = "https://github.com";
 // const BASE_DENOM: &str = "PICA";
 
-const TRANSFER_AMOUNT: u64 = 1000000;
+const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
+const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
+
+const ORIGINAL_DECIMALS: u8 = 9;
+const EFFECTIVE_DECIMALS: u8 = 6;
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -115,25 +123,20 @@ fn anchor_test_deliver() -> Result<()> {
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
 
+
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
     let channel_id_on_b = ibc::ChannelId::new(1);
 
-    let seeds = [
-        crate::ESCROW,
-        port_id.as_bytes(),
-        channel_id_on_a.as_bytes(),
-        hashed_denom.as_ref(),
-    ];
+    let hashed_full_denom_on_source = CryptoHash::digest(
+        format!("{}/{}/{}", port_id, channel_id_on_b, base_denom).as_bytes(),
+    );
+
+    let seeds = [crate::ESCROW, hashed_denom.as_ref()];
     let (escrow_account_key, _bump) =
         Pubkey::find_program_address(&seeds, &crate::ID);
     let (token_mint_key, _bump) = Pubkey::find_program_address(
-        &[
-            crate::MINT,
-            port_id.as_bytes(),
-            channel_id_on_a.as_bytes(),
-            hashed_denom.as_ref(),
-        ],
+        &[crate::MINT, hashed_full_denom_on_source.as_ref()],
         &crate::ID,
     );
     let (mint_authority_key, _bump) =
@@ -395,25 +398,43 @@ fn anchor_test_deliver() -> Result<()> {
     /*
      * Setup deliver escrow.
      */
+
+    let token_metadata_pda = Pubkey::find_program_address(
+        &[
+            "metadata".as_bytes(),
+            &anchor_spl::metadata::ID.to_bytes(),
+            &token_mint_key.to_bytes(),
+        ],
+        &anchor_spl::metadata::ID,
+    )
+    .0;
+
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
         .accounts(accounts::InitMint {
-            sender: authority.pubkey(),
+            sender: fee_collector,
             mint_authority: mint_authority_key,
             token_mint: token_mint_key,
             system_program: system_program::ID,
             token_program: anchor_spl::token::ID,
+            rent: anchor_lang::solana_program::rent::Rent::id(),
+            storage,
+            metadata: token_metadata_pda,
+            token_metadata_program: anchor_spl::metadata::ID,
         })
         .args(instruction::InitMint {
-            port_id: port_id.clone(),
-            channel_id_on_b: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
+            hashed_full_denom: hashed_full_denom_on_source.clone(),
+            token_name: TOKEN_NAME.to_string(),
+            token_symbol: TOKEN_SYMBOL.to_string(),
+            token_uri: TOKEN_URI.to_string(),
+            effective_decimals: EFFECTIVE_DECIMALS,
+            original_decimals: ORIGINAL_DECIMALS,
         })
-        .payer(authority.clone())
-        .signer(&*authority)
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
@@ -457,7 +478,7 @@ fn anchor_test_deliver() -> Result<()> {
         &associated_token_addr,
         &authority.pubkey(),
         &[&authority.pubkey()],
-        1000000000,
+        MINT_AMOUNT,
     )
     .unwrap();
 
@@ -515,9 +536,7 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
+            hashed_full_denom: hashed_denom.clone(),
             msg: msg_transfer,
         })
         .payer(authority.clone())
@@ -562,8 +581,8 @@ fn anchor_test_deliver() -> Result<()> {
         &base_denom,
         port_id.clone(),
         false,
-        channel_id_on_b.clone(),
         channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
         2,
         authority.pubkey(),
         receiver.pubkey(),
@@ -621,7 +640,8 @@ fn anchor_test_deliver() -> Result<()> {
         ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -633,7 +653,7 @@ fn anchor_test_deliver() -> Result<()> {
         &base_denom,
         port_id.clone(),
         false,
-        channel_id_on_a.clone(),
+        channel_id_on_b.clone(),
         receiver.pubkey(),
         authority.pubkey(),
     );
@@ -649,6 +669,10 @@ fn anchor_test_deliver() -> Result<()> {
 
     let fee_account_balance_before =
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
+
+    let hashed_full_denom = CryptoHash::digest(
+        msg_transfer.packet_data.token.denom.to_string().as_bytes(),
+    );
 
     let sig = program
         .request()
@@ -670,9 +694,7 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom,
+            hashed_full_denom,
             msg: msg_transfer,
         })
         .payer(receiver.clone())
@@ -695,7 +717,13 @@ fn anchor_test_deliver() -> Result<()> {
             account_balance_after.ui_amount.unwrap()) *
             10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT
+        TRANSFER_AMOUNT /
+            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+    );
+
+    assert_eq!(
+        fee_account_balance_after - fee_account_balance_before,
+        crate::FEE_AMOUNT_IN_LAMPORTS
     );
 
     assert_eq!(
@@ -730,10 +758,8 @@ fn anchor_test_deliver() -> Result<()> {
     let message = make_message!(
         ibc::MsgRecvPacket {
             packet: packet.clone(),
-            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(
-                packet.data
-            )
-            .unwrap(),
+            proof_commitment_on_a: ibc::CommitmentProofBytes::try_from(vec![1])
+                .unwrap(),
             proof_height_on_a,
             signer: ibc::Signer::from(authority.pubkey().to_string())
         },
