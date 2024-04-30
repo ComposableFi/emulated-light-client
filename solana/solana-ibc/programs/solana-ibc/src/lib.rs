@@ -584,7 +584,7 @@ pub struct Initialise<'info> {
     /// This account isn’t used directly by the instruction.  It is however
     /// initialised.
     #[account(init, payer = sender, seeds = [SOLANA_IBC_STORAGE_SEED],
-    bump, space = 10240)]
+              bump, space = 10240)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The guest blockchain data.
@@ -717,7 +717,7 @@ pub struct InitMint<'info> {
 
     /// CHECK:
     #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
-    bump, space = 0, )]
+              bump, space = 0)]
     mint_authority: UncheckedAccount<'info>,
 
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
@@ -752,8 +752,7 @@ pub struct Deliver<'info> {
     ///
     /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
     /// function.
-    #[account(mut, seeds = [TRIE_SEED],
-    bump)]
+    #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
@@ -767,8 +766,8 @@ pub struct Deliver<'info> {
     #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(init_if_needed, payer = sender,
-    associated_token::mint = token_mint,
-    associated_token::authority = receiver)]
+        associated_token::mint = token_mint,
+        associated_token::authority = receiver)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
     #[account(mut, seeds = [FEE_SEED], bump)]
