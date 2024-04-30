@@ -563,14 +563,14 @@ fn convert_decimals(
             let shift = U256::exp10(
                 (original_decimals - effective_decimals_on_sol).into(),
             );
-            amount.as_ref().clone().checked_div(shift).map(Amount::from)
+            (*amount.as_ref()).checked_div(shift).map(Amount::from)
         }
-        Ordering::Equal => Some(amount.clone()),
+        Ordering::Equal => Some(*amount),
         Ordering::Less => {
             let shift = U256::exp10(
                 (effective_decimals_on_sol - original_decimals).into(),
             );
-            amount.as_ref().clone().checked_mul(shift).map(Amount::from)
+            (*amount.as_ref()).checked_mul(shift).map(Amount::from)
         }
     }
 }
