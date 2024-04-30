@@ -274,9 +274,9 @@ pub mod solana_ibc {
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         effective_decimals: u8,
-        port_id: ibc::PortId,
-        channel_id_on_b: ibc::ChannelId,
-        hashed_base_denom: CryptoHash,
+        port_id_on_sol: ibc::PortId,
+        channel_id_on_sol: ibc::ChannelId,
+        hashed_full_denom: CryptoHash,
         original_decimals: u8,
         token_name: String,
         token_symbol: String,
@@ -291,16 +291,11 @@ pub mod solana_ibc {
         if private_storage
             .assets
             .iter()
-            .find(|asset| asset.hashed_base_denom == hashed_base_denom)
+            .find(|asset| asset.hashed_full_denom == hashed_full_denom)
             .is_none()
         {
             private_storage.assets.push(storage::Asset {
-                hashed_base_denom,
-                port_channel: trie_ids::PortChannelPK::try_from(
-                    port_id,
-                    channel_id_on_b,
-                )
-                .unwrap(),
+                hashed_full_denom,
                 original_decimals,
                 effective_decimals_on_sol: effective_decimals,
             })
@@ -496,6 +491,11 @@ pub mod solana_ibc {
     }
 
     #[allow(unused_variables)]
+    /// The port_id, channel_id and hashed_base_denom are passed
+    /// so that they can be used to create ESCROW account if it
+    /// doesnt exists.
+    /// 
+    /// Would panic if it doesnt match the one that is in the packet
     pub fn send_transfer(
         ctx: Context<SendTransfer>,
         port_id: ibc::PortId,
@@ -503,6 +503,16 @@ pub mod solana_ibc {
         hashed_base_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
+        let full_denom = CryptoHash::digest(
+            msg.packet_data.token.denom.to_string().as_bytes(),
+        );
+        if port_id != msg.port_id_on_a
+            || channel_id != msg.chan_id_on_a
+            || full_denom != hashed_base_denom
+        {
+            return Err(error!(error::Error::InvalidSendTransferParams));
+        }
+
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
@@ -658,7 +668,7 @@ pub struct CollectFees<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(decimals: u8, port_id: ibc::PortId, channel_id_on_b: ibc::ChannelId, hashed_base_denom: CryptoHash)]
+#[instruction(decimals: u8, port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_base_denom: CryptoHash)]
 pub struct InitMint<'info> {
     #[account(mut, constraint = sender.key == &storage.fee_collector)]
     sender: Signer<'info>,
@@ -685,7 +695,7 @@ pub struct InitMint<'info> {
     storage: Account<'info, PrivateStorage>,
 
     #[account(init, payer = sender,
-              seeds = [MINT, port_id.as_bytes(), channel_id_on_b.as_bytes(),
+              seeds = [MINT, port_id.as_bytes(), channel_id.as_bytes(),
                        hashed_base_denom.as_ref()],
               bump, mint::decimals = decimals, mint::authority = mint_authority)]
     token_mint: Account<'info, Mint>,
@@ -790,7 +800,7 @@ pub struct SendPacket<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_base_denom: CryptoHash)]
+#[instruction(port_id: ibc::PortId, channel_id: ibc::ChannelId, hashed_full_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
     sender: Signer<'info>,
@@ -817,7 +827,7 @@ pub struct SendTransfer<'info> {
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
     #[account(init_if_needed, payer = sender, seeds = [
-        ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
+        ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_full_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut)]

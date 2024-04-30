@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 
-use ::ibc::apps::transfer::types::PrefixedDenom;
+use ::ibc::apps::transfer::types::{PrefixedDenom, TracePrefix};
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, MintTo, Transfer};
+use lib::hash::CryptoHash;
 use primitive_types::U256;
 
 use crate::ibc::apps::transfer::context::{
@@ -81,6 +82,25 @@ pub fn get_token_mint(
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
+/// Removes the destination source and port id and 
+/// returns the hash of full denom.
+pub fn get_hashed_full_denom(denom: &PrefixedDenom) -> CryptoHash {
+    let mut prefixed_denom = denom.clone();
+    let trace_path = prefixed_denom.trace_path.to_string();
+    let mut trace_path = trace_path.split('/');
+    let dest_port_id = trace_path.next();
+    let dest_channel_id = trace_path.next();
+    match (dest_port_id, dest_channel_id) {
+        (Some(port_id), Some(channel_id)) => prefixed_denom.remove_trace_prefix(&TracePrefix::new(
+            PortId::from_str(port_id).unwrap(),
+            ChannelId::from_str(channel_id).unwrap(),
+        )),
+        (_, _) => ()
+        };
+    let full_denom = prefixed_denom.to_string();
+    CryptoHash::digest(full_denom.as_bytes())
+}
+
 /// Direction of an escrow operation.
 enum EscrowOp {
     Escrow,
@@ -124,13 +144,13 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let private_storage = &store.private;
 
+        let hashed_full_denom = get_hashed_full_denom(&amt.denom);
+
         let asset = private_storage
             .assets
             .iter()
             .find(|asset| {
-                asset.hashed_base_denom.eq(&lib::hash::CryptoHash::digest(
-                    &amt.denom.base_denom.as_str().as_bytes(),
-                ))
+                asset.hashed_full_denom.eq(&hashed_full_denom)
             })
             .ok_or(TokenTransferError::InvalidToken)?;
 
@@ -209,13 +229,13 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let private_storage = &store.private;
 
+        let hashed_full_denom = get_hashed_full_denom(&amt.denom);
+
         let asset = private_storage
             .assets
             .iter()
             .find(|asset| {
-                asset.hashed_base_denom.eq(&lib::hash::CryptoHash::digest(
-                    &amt.denom.base_denom.as_str().as_bytes(),
-                ))
+                asset.hashed_full_denom.eq(&hashed_full_denom)
             })
             .ok_or(TokenTransferError::InvalidToken)?;
 

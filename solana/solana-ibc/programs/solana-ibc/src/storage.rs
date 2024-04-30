@@ -269,8 +269,7 @@ pub struct PrivateStorage {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct Asset {
-    pub port_channel: trie_ids::PortChannelPK,
-    pub hashed_base_denom: CryptoHash,
+    pub hashed_full_denom: CryptoHash,
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
 }

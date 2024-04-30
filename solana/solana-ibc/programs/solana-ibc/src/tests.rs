@@ -434,9 +434,9 @@ fn anchor_test_deliver() -> Result<()> {
             token_metadata_program: anchor_spl::metadata::ID,
         })
         .args(instruction::InitMint {
-            port_id: port_id.clone(),
-            channel_id_on_b: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom.clone(),
+            port_id_on_sol: port_id.clone(),
+            channel_id_on_sol: channel_id_on_a.clone(),
+            hashed_full_denom: hashed_denom.clone(),
             token_name: TOKEN_NAME.to_string(),
             token_symbol: TOKEN_SYMBOL.to_string(),
             token_uri: TOKEN_URI.to_string(),
@@ -678,6 +678,10 @@ fn anchor_test_deliver() -> Result<()> {
     let fee_account_balance_before =
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
+    let hashed_full_denom = CryptoHash::digest(
+        msg_transfer.packet_data.token.denom.to_string().as_bytes(),
+    );
+
     let sig = program
         .request()
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
@@ -701,7 +705,7 @@ fn anchor_test_deliver() -> Result<()> {
         .args(instruction::SendTransfer {
             port_id: port_id.clone(),
             channel_id: channel_id_on_a.clone(),
-            hashed_base_denom: hashed_denom,
+            hashed_base_denom: hashed_full_denom,
             msg: msg_transfer,
         })
         .payer(receiver.clone())
