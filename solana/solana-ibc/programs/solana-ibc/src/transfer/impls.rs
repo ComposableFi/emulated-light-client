@@ -308,7 +308,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         self.escrow_coins_validate_impl(
-            EscrowOp::Escrow,
+            EscrowOp::Unescrow,
             to_account,
             port_id,
             channel_id,
@@ -409,15 +409,15 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let receiver = accounts
-            .receiver
+        let sender = accounts
+            .sender
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        let receiver_token_account = get_token_account(account.0, token_mint);
+        let sender_token_account = get_token_account(account.0, token_mint);
 
-        if !account.0.eq(receiver.key) {
-            msg!("Token account not found {} {:?}", account, receiver.key);
+        if !account.0.eq(sender.key) {
+            msg!("Token account not found {} {:?}", account, sender.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
         if !token_mint.eq(token_mint_account.key) {
@@ -428,10 +428,10 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !receiver_token_account.eq(token_account.key) {
+        if !sender_token_account.eq(token_account.key) {
             msg!(
-                "Receiver token account not found {} {:?}",
-                receiver_token_account,
+                "sender token account not found {} {:?}",
+                sender_token_account,
                 token_account.key
             );
             return Err(TokenTransferError::ParseAccountFailure);
@@ -490,17 +490,23 @@ impl IbcStorage<'_, '_> {
             .filter(|escrow_account| escrow.eq(escrow_account.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        accounts
-            .sender
-            .as_ref()
-            .filter(|sender| account.0.eq(sender.key))
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-
         let ok = match op {
             EscrowOp::Escrow => {
+                accounts
+                    .sender
+                    .as_ref()
+                    .filter(|sender| account.0.eq(sender.key))
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
                 accounts.sender.as_ref().map_or(false, |acc| acc.is_signer)
             }
-            EscrowOp::Unescrow => accounts.mint_authority.is_some(),
+            EscrowOp::Unescrow => {
+                accounts
+                    .receiver
+                    .as_ref()
+                    .filter(|receiver| account.0.eq(receiver.key))
+                    .ok_or(TokenTransferError::ParseAccountFailure)?;
+                accounts.mint_authority.is_some()
+            }
         };
         if ok {
             Ok(())

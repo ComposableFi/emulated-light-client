@@ -296,25 +296,25 @@ pub mod solana_ibc {
             return Err(error!(error::Error::InvalidDecimals));
         }
 
-        // if private_storage
-        //     .assets
-        //     .iter()
-        //     .find(|asset| asset.hashed_base_denom == hashed_base_denom)
-        //     .is_none()
-        // {
-        //     private_storage.assets.push(storage::Asset {
-        //         hashed_base_denom,
-        //         port_channel: trie_ids::PortChannelPK::try_from(
-        //             port_id,
-        //             channel_id_on_b,
-        //         )
-        //         .unwrap(),
-        //         original_decimals,
-        //         effective_decimals_on_sol: effective_decimals,
-        //     })
-        // } else {
-        //     return Err(error!(error::Error::AssetAlreadyExists));
-        // }
+        if private_storage
+            .assets
+            .iter()
+            .find(|asset| asset.hashed_base_denom == hashed_base_denom)
+            .is_none()
+        {
+            private_storage.assets.push(storage::Asset {
+                hashed_base_denom,
+                port_channel: trie_ids::PortChannelPK::try_from(
+                    port_id,
+                    channel_id_on_b,
+                )
+                .unwrap(),
+                original_decimals,
+                effective_decimals_on_sol: effective_decimals,
+            })
+        } else {
+            return Err(error!(error::Error::AssetAlreadyExists));
+        }
 
         let bump = ctx.bumps.mint_authority;
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
@@ -544,8 +544,6 @@ pub mod solana_ibc {
             &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
 
-
-
         ibc::apps::transfer::handler::send_transfer(
             &mut store,
             &mut token_ctx,
@@ -555,10 +553,9 @@ pub mod solana_ibc {
         .map_err(|err| error!((&err)))
     }
 
-    /// The body of this method is empty since it is called to
-    /// realloc the accounts only.  Anchor sets up the accounts
-    /// given in this call’s context before the body of the method is
-    /// executed.
+    /// Reallocates the specified account to the new length.
+    ///
+    /// Would fail if the account is not owned by the program.
     pub fn realloc_accounts(
         ctx: Context<ReallocAccounts>,
         new_length: usize,
@@ -587,7 +584,7 @@ pub mod solana_ibc {
         let consensus_states = &mut private_storage.clients[client_idx as usize].consensus_states;
 
         for (key, value) in consensus_states.clone().iter() {
-             if key < &ibc::Height::new(1, 4940143).unwrap() {
+             if key < &ibc::Height::new(1, 50040143).unwrap() {
                 msg!("Removed {:?}", key.revision_height());
                 consensus_states.remove(&key); 
              }
@@ -888,7 +885,7 @@ pub struct SendTransfer<'info> {
         ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
-    #[account(mut)]
+    #[account(mut, token::authority = sender, token::mint = token_mint)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
     #[account(init_if_needed, payer = sender, seeds = [FEE_SEED], bump, space = 0)]

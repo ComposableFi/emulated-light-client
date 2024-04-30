@@ -10,3 +10,4 @@ target
 test-ledger
 *.so
 .idea
+solana/solana-ibc/test-keypair.json

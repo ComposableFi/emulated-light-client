@@ -20,12 +20,12 @@ describe("solana-ibc", () => {
     const sender = depositor.publicKey; // solana account address
     const receiver = "centauri1w6hwrenw4gug7gqhrgaa20hsruwdyum4hscdpx"; // cosmos address
     const amount = 100; // amount to send
-    const channelIdOfSolana = "channel-0"; // example channel id
-    const channelIdOfCosmos = "channel-58"; // example channel id
+    const channelIdOfSolana = "channel-1"; // example channel id
+    const channelIdOfCosmos = "channel-59"; // example channel id
     const portId = "transfer"; // always the same
     const memo = "";
     const tokenMint = new anchor.web3.PublicKey(
-      "CAb5AhUMS4EbKp1rEoNJqXGy94Abha4Tg4FrHz7zZDZ3"
+      "So11111111111111111111111111111111111111112"
     ); // Token that is being sent
 
     await sendTransfer(
@@ -41,6 +41,10 @@ describe("solana-ibc", () => {
   });
 });
 
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const sendTransfer = async (
   sender: anchor.web3.PublicKey,
   receiver: string,
@@ -51,111 +55,118 @@ const sendTransfer = async (
   memo: string,
   tokenMint: anchor.web3.PublicKey
 ) => {
+  // const tokenMints = new anchor.web3.PublicKey("AAyByZZeUjVcSmhM5PskKa1c6hg79AH6gHCZMSUrmt8f");
+  // const address = new anchor.web3.PublicKey("1ryziZbFQW4fcWck9wW4vU4KD4qxPHKhmAht6pXPFWo");
 
-  const tokenMints = new anchor.web3.PublicKey("AAyByZZeUjVcSmhM5PskKa1c6hg79AH6gHCZMSUrmt8f");
-  const address = new anchor.web3.PublicKey("1ryziZbFQW4fcWck9wW4vU4KD4qxPHKhmAht6pXPFWo");
+  // const tokenAddress = await spl.getAssociatedTokenAddress(tokenMints, address);
+  // console.log(tokenAddress);
 
-  const tokenAddress = await spl.getAssociatedTokenAddress(tokenMints, address);
-  console.log(tokenAddress);
+  // throw Error("Fuck u");
 
-  throw Error("Fuck u");
+  // for (let i in [...Array(100).keys()]) {
 
-  const senderPublicKey = new anchor.web3.PublicKey(sender);
+    // await sleep(500);
 
-  const emptyArray = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  ];
+    // let amount = Math.random() * 10000;
 
-  const convertedAmount = getInt64Bytes(amount);
-  const finalAmount = convertedAmount.concat(emptyArray);
+    const senderPublicKey = new anchor.web3.PublicKey(sender);
 
-  const senderTokenAccount = await spl.getAssociatedTokenAddress(
-    tokenMint,
-    senderPublicKey
-  );
-  let hashedDenom = hexToBytes(hash(tokenMint.toString()));
+    const emptyArray = [
+      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
 
-  const msgTransferPayload = {
-    port_id_on_a: portId,
-    chan_id_on_a: channelIdOfSolana,
-    packet_data: {
-      token: {
-        denom: {
-          trace_path: [],
-          base_denom: tokenMint.toString(),
+    const convertedAmount = getInt64Bytes(amount);
+    const finalAmount = convertedAmount.concat(emptyArray);
+
+    const senderTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      senderPublicKey
+    );
+    let hashedDenom = hexToBytes(hash(tokenMint.toString()));
+
+    const msgTransferPayload = {
+      port_id_on_a: portId,
+      chan_id_on_a: channelIdOfSolana,
+      packet_data: {
+        token: {
+          denom: {
+            trace_path: [],
+            base_denom: tokenMint.toString(),
+          },
+          amount: finalAmount,
         },
-        amount: finalAmount,
+        sender: senderPublicKey.toString(),
+        receiver,
+        memo,
       },
-      sender: senderTokenAccount.toString(),
-      receiver,
-      memo,
-    },
-    timeout_height_on_b: {
-      Never: {},
-    },
-    timeout_timestamp_on_b: {
-      time: 1724312839000000000,
-    },
-  };
+      timeout_height_on_b: {
+        Never: {},
+      },
+      timeout_timestamp_on_b: {
+        time: 1724312839000000000,
+      },
+    };
 
-  const instructionPayload = {
-    discriminator: [153, 182, 142, 63, 227, 31, 140, 239],
-    port_id: portId,
-    channel_id: channelIdOfSolana,
-    hashed_base_denom: hashedDenom,
-    msg: msgTransferPayload,
-  };
+    const instructionPayload = {
+      discriminator: [153, 182, 142, 63, 227, 31, 140, 239],
+      port_id: portId,
+      channel_id: channelIdOfSolana,
+      hashed_base_denom: hashedDenom,
+      msg: msgTransferPayload,
+    };
 
-  const buffer = borshSerialize(instructionSchema, instructionPayload);
+    const buffer = borshSerialize(instructionSchema, instructionPayload);
 
-  const {
-    guestChainPDA,
-    triePDA,
-    ibcStoragePDA,
-    mintAuthorityPDA,
-    escrowAccountPDA,
-    feePDA
-  } = getGuestChainAccounts(portId, channelIdOfSolana, hashedDenom);
+    const {
+      guestChainPDA,
+      triePDA,
+      ibcStoragePDA,
+      mintAuthorityPDA,
+      escrowAccountPDA,
+      feePDA,
+    } = getGuestChainAccounts(portId, channelIdOfSolana, hashedDenom);
 
-  const instruction = new TransactionInstruction({
-    keys: [
-      { pubkey: senderPublicKey, isSigner: true, isWritable: true },
-      { pubkey: solanaIbcProgramId, isSigner: false, isWritable: true },
-      { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
-      { pubkey: triePDA, isSigner: false, isWritable: true },
-      { pubkey: guestChainPDA, isSigner: false, isWritable: true },
-      { pubkey: mintAuthorityPDA, isSigner: false, isWritable: true },
-      { pubkey: tokenMint, isSigner: false, isWritable: true },
-      { pubkey: escrowAccountPDA, isSigner: false, isWritable: true },
-      { pubkey: senderTokenAccount, isSigner: false, isWritable: true },
-      { pubkey: feePDA, isSigner: false, isWritable: true },
-      { pubkey: spl.TOKEN_PROGRAM_ID, isSigner: false, isWritable: true },
-      { pubkey: SystemProgram.programId, isSigner: false, isWritable: true },
-    ],
-    programId: solanaIbcProgramId,
-    data: buffer, // All instructions are hellos
-  });
+    const instruction = new TransactionInstruction({
+      keys: [
+        { pubkey: senderPublicKey, isSigner: true, isWritable: true },
+        { pubkey: solanaIbcProgramId, isSigner: false, isWritable: true },
+        { pubkey: ibcStoragePDA, isSigner: false, isWritable: true },
+        { pubkey: triePDA, isSigner: false, isWritable: true },
+        { pubkey: guestChainPDA, isSigner: false, isWritable: true },
+        { pubkey: mintAuthorityPDA, isSigner: false, isWritable: true },
+        { pubkey: tokenMint, isSigner: false, isWritable: true },
+        { pubkey: escrowAccountPDA, isSigner: false, isWritable: true },
+        { pubkey: senderTokenAccount, isSigner: false, isWritable: true },
+        { pubkey: feePDA, isSigner: false, isWritable: true },
+        { pubkey: spl.TOKEN_PROGRAM_ID, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: true },
+      ],
+      programId: solanaIbcProgramId,
+      data: buffer, // All instructions are hellos
+    });
 
-  const connection = new Connection(rpcUrl, "confirmed");
+    const connection = new Connection(rpcUrl, "confirmed");
 
-  let transactions = new Transaction();
+    let transactions = new Transaction();
 
-  transactions.add(
-    ComputeBudgetProgram.requestHeapFrame({ bytes: 128 * 1024 })
-  );
-  transactions.add(
-    ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 })
-  );
-  transactions.add(instruction);
+    transactions.add(
+      ComputeBudgetProgram.requestHeapFrame({ bytes: 128 * 1024 })
+    );
+    transactions.add(
+      ComputeBudgetProgram.setComputeUnitLimit({ units: 500_000 })
+    );
+    transactions.add(instruction);
 
-  let tx = await sendAndConfirmTransaction(
-    connection,
-    transactions,
-    [depositor],
-    {
-      skipPreflight: true,
-    }
-  );
+    let tx = await sendAndConfirmTransaction(
+      connection,
+      transactions,
+      [depositor],
+      {
+        skipPreflight: true,
+      }
+    );
 
-  console.log("This is transaction, ", tx);
+    console.log("This is transaction, ", tx);
+    console.log("Amount is ", amount);
+  // }
 };
