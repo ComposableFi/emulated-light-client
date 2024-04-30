@@ -130,13 +130,29 @@ proto_utils::define_wrapper! {
     proto: proto::ClientMessage,
     wrapper: ClientMessage<PK> where
         PK: guestchain::PubKey = guestchain::validators::MockPubKey,
-    conv: any => if any.type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
-        Self::decode(any.value)
-    } else if any.type_url.ends_with(proto::Header::IBC_TYPE_URL) {
-        Header::decode(any.value).map(Self::Header)
-    } else if any.type_url.ends_with(proto::Misbehaviour::IBC_TYPE_URL) {
-        Misbehaviour::decode(any.value).map(Self::Misbehaviour)
-    } else {
-        Err(crate::proto::DecodeError::BadType)
-    },
+    custom_any
+}
+
+impl<PK: guestchain::PubKey> proto_utils::AnyConvert for ClientMessage<PK> {
+    fn to_any(&self) -> (&'static str, alloc::vec::Vec<u8>) {
+        match self {
+            Self::Header(msg) => msg.to_any(),
+            Self::Misbehaviour(msg) => msg.to_any(),
+        }
+    }
+
+    fn try_from_any(
+        type_url: &str,
+        value: &[u8],
+    ) -> Result<Self, proto_utils::DecodeError> {
+        if type_url.ends_with(proto::ClientMessage::IBC_TYPE_URL) {
+            Self::decode(value)
+        } else if type_url.ends_with(proto::Header::IBC_TYPE_URL) {
+            Header::decode(value).map(Self::Header)
+        } else if type_url.ends_with(proto::Misbehaviour::IBC_TYPE_URL) {
+            Misbehaviour::decode(value).map(Self::Misbehaviour)
+        } else {
+            Err(crate::proto::DecodeError::BadType)
+        }
+    }
 }

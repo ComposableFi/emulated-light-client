@@ -16,6 +16,7 @@ use anchor_client::solana_sdk::signature::{
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
+use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
@@ -153,9 +154,6 @@ fn anchor_test_deliver() -> Result<()> {
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
-    let sol_rpc_client = program.rpc();
-    let _airdrop_signature =
-        airdrop(&sol_rpc_client, authority.pubkey(), lamports);
     let _airdrop_signature =
         airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
 
@@ -426,7 +424,6 @@ fn anchor_test_deliver() -> Result<()> {
             mint_authority: mint_authority_key,
             token_mint: token_mint_key,
             system_program: system_program::ID,
-            associated_token_program: anchor_spl::associated_token::ID,
             token_program: anchor_spl::token::ID,
             rent: anchor_lang::solana_program::rent::Rent::id(),
             storage,
@@ -518,8 +515,8 @@ fn anchor_test_deliver() -> Result<()> {
         port_id.clone(),
         true,
         channel_id_on_a.clone(),
-        associated_token_addr,
-        receiver_token_address,
+        authority.pubkey(),
+        receiver.pubkey(),
     );
 
     let account_balance_before = sol_rpc_client
@@ -543,7 +540,6 @@ fn anchor_test_deliver() -> Result<()> {
             escrow_account: Some(escrow_account_key),
             fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(associated_token_addr),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
@@ -597,9 +593,9 @@ fn anchor_test_deliver() -> Result<()> {
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
         2,
-        sender_token_address,
-        receiver_token_address,
-        String::from(""),
+        authority.pubkey(),
+        receiver.pubkey(),
+        String::from("Tx from destination chain"),
     );
     let proof_height_on_a = mock_client_state.header.height;
 
@@ -667,8 +663,13 @@ fn anchor_test_deliver() -> Result<()> {
         port_id.clone(),
         false,
         channel_id_on_a.clone(),
-        receiver_token_address,
-        sender_token_address,
+        receiver.pubkey(),
+        authority.pubkey(),
+    );
+
+    println!(
+        "This is length of message {:?}",
+        msg_transfer.try_to_vec().unwrap().len()
     );
 
     let account_balance_before = sol_rpc_client
@@ -699,7 +700,6 @@ fn anchor_test_deliver() -> Result<()> {
             escrow_account: None,
             fee_collector: Some(fee_collector_pda),
             receiver_token_account: Some(receiver_token_address),
-            associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
@@ -737,6 +737,11 @@ fn anchor_test_deliver() -> Result<()> {
         crate::FEE_AMOUNT_IN_LAMPORTS
     );
 
+    assert_eq!(
+        fee_account_balance_after - fee_account_balance_before,
+        crate::FEE_AMOUNT_IN_LAMPORTS
+    );
+
     /*
      * On Source chain
      */
@@ -754,9 +759,9 @@ fn anchor_test_deliver() -> Result<()> {
         channel_id_on_b.clone(),
         channel_id_on_a.clone(),
         3,
-        sender_token_address,
-        receiver_native_token_address,
-        String::from(""),
+        authority.pubkey(),
+        receiver.pubkey(),
+        String::new(),
     );
 
     let proof_height_on_a = mock_client_state.header.height;
@@ -772,9 +777,6 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::PacketMsg::Recv,
         ibc::MsgEnvelope::Packet,
     );
-
-    // println!("  This is trie {:?}", trie);
-    // println!("  This is storage {:?}", storage);
 
     let escrow_account_balance_before =
         sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
@@ -875,13 +877,12 @@ fn anchor_test_deliver() -> Result<()> {
      * Collect all fees from the fee collector
      */
     println!("\nCollect all fees from the fee collector");
-    let sig = program
+    let _sig = program
         .request()
         .accounts(accounts::CollectFees {
             fee_collector,
             storage,
             fee_account: fee_collector_pda,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
         })
         .args(instruction::CollectFees {})
         .payer(fee_collector_keypair.clone())
@@ -889,8 +890,7 @@ fn anchor_test_deliver() -> Result<()> {
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+        });
 
     /*
      * Free Write account
@@ -913,7 +913,67 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature {sig}");
 
+    /*
+     * Realloc Accounts
+     */
+
+    println!("\nReallocating Accounts");
+    let sig = program
+        .request()
+        .accounts(accounts::ReallocAccounts {
+            payer: authority.pubkey(),
+            account: storage,
+            system_program: system_program::ID,
+        })
+        .args(instruction::ReallocAccounts {
+            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+            new_length: 2 * (1024 * 10),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature {sig}");
+
+    let storage_acc_length_after =
+        sol_rpc_client.get_account(&storage).unwrap();
+
+    assert_eq!(20 * 1024, storage_acc_length_after.data.len());
+
+    println!(
+        "\nReallocating Accounts but with lower length. NO change in length"
+    );
+    let sig = program
+        .request()
+        .accounts(accounts::ReallocAccounts {
+            payer: authority.pubkey(),
+            account: storage,
+            system_program: system_program::ID,
+        })
+        .args(instruction::ReallocAccounts {
+            // we can increase upto 10kb in each tx so increasing it to 20kb since 10kb was already allocated
+            new_length: (1024 * 10),
+        })
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        });
+    println!("  Signature {:?}", sig);
+
+    let storage_acc_length_after =
+        sol_rpc_client.get_account(&storage).unwrap();
+
+    assert_eq!(storage_acc_length_after.data.len(), 20 * 1024);
+
     Ok(())
+}
+
+fn max_timeout_height() -> ibc::TimeoutHeight {
+    ibc::TimeoutHeight::At(ibc::Height::new(u64::MAX, u64::MAX).unwrap())
 }
 
 fn construct_packet_from_denom(
@@ -957,7 +1017,7 @@ fn construct_packet_from_denom(
         port_id_on_b: port_id,
         chan_id_on_b: channel_id_on_b,
         data: serialized_data.clone(),
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     };
 
@@ -997,7 +1057,7 @@ fn construct_transfer_packet_from_denom(
         port_id_on_a: port_id.clone(),
         chan_id_on_a: channel_id_on_a.clone(),
         packet_data,
-        timeout_height_on_b: ibc::TimeoutHeight::Never,
+        timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     }
 }

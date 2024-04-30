@@ -123,23 +123,15 @@ pub mod restaking {
             &guest_chain_program_id,
         )?;
         core::mem::drop(borrowed_chain_data);
-        let bump = ctx.bumps.staking_params;
-        let seeds =
-            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-        let seeds = seeds.as_ref();
-        let seeds = core::slice::from_ref(&seeds);
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
             chain: ctx.remaining_accounts[0].clone(),
             trie: ctx.remaining_accounts[1].clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
-            instruction: validation::check_instructions_sysvar(
-                &ctx.accounts.instruction,
-            )?,
+            instruction: ctx.accounts.instruction.to_account_info(),
         };
         let cpi_program = ctx.remaining_accounts[2].clone();
-        let cpi_ctx =
-            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
@@ -371,8 +363,7 @@ pub mod restaking {
             )?,
         };
         let cpi_program = ctx.accounts.guest_chain_program.to_account_info();
-        let cpi_ctx =
-            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         solana_ibc::cpi::set_stake(cpi_ctx, *validator_key, validator_stake)?;
 
         // Transfer tokens from escrow
@@ -598,11 +589,6 @@ pub mod restaking {
         // Drop refcount on chain data so we can use it in CPI call
         core::mem::drop(borrowed_chain_data);
 
-        let bump = ctx.bumps.staking_params;
-        let seeds =
-            [STAKING_PARAMS_SEED, TEST_SEED, core::slice::from_ref(&bump)];
-        let seeds = seeds.as_ref();
-        let seeds = core::slice::from_ref(&seeds);
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
             chain: guest_chain.to_account_info(),
@@ -613,8 +599,7 @@ pub mod restaking {
             )?,
         };
         let cpi_program = ctx.remaining_accounts[2].clone();
-        let cpi_ctx =
-            CpiContext::new_with_signer(cpi_program, cpi_accounts, seeds);
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
@@ -811,18 +796,6 @@ pub struct WithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub master_edition_account: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub nft_metadata: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -867,18 +840,6 @@ pub struct CancelWithdrawalRequest<'info> {
     )]
     /// CHECK:
     pub master_edition_account: UncheckedAccount<'info>,
-    #[account(
-        mut,
-        seeds = [
-            b"metadata".as_ref(),
-            metadata_program.key().as_ref(),
-            receipt_token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = metadata_program.key()
-    )]
-    /// CHECK:
-    pub nft_metadata: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -922,7 +883,6 @@ pub struct Withdraw<'info> {
 
     pub guest_chain_program: Program<'info, SolanaIbc>,
     pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     pub metadata_program: Program<'info, Metadata>,
     pub rent: Sysvar<'info, Rent>,

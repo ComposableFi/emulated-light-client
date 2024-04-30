@@ -71,6 +71,7 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
 }
 
 impl IbcStorage<'_, '_> {
+    /// Stores given consensus state while limiting total number of states.
     pub(crate) fn store_consensus_state_impl(
         &mut self,
         client_id: &ibc::ClientId,
@@ -79,7 +80,6 @@ impl IbcStorage<'_, '_> {
     ) -> Result<(), ibc::ClientError> {
         msg!("store_consensus_state({}, {:?})", client_id, state);
         let mut store = self.borrow_mut();
-        // TODO(mina86): This should be host timestamp and height.
         let (processed_time, processed_height) = {
             let head = store.chain.head()?;
             (head.timestamp_ns, head.block_height)
@@ -96,8 +96,7 @@ impl IbcStorage<'_, '_> {
             processed_height,
             &state,
         )?;
-        client.consensus_states.insert(height, state);
-
+        client.insert_consensus_state(height, state);
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);

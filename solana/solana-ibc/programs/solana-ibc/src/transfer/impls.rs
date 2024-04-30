@@ -55,51 +55,55 @@ fn get_escrow_account(
 pub fn get_token_mint(
     denom: &PrefixedDenom,
 ) -> Result<Pubkey, TokenTransferError> {
-    let base_denom = denom.base_denom.as_str().as_bytes();
-    let hashed_base_denom = lib::hash::CryptoHash::digest(base_denom);
-    let trace_path = denom.trace_path.to_string();
-    let mut trace_path = trace_path.split('/');
-    // Since trace path is converted in reverse from string, the latest port and channel id
-    // would be in the beginning. Also refer to the test below.
-    //
-    // Ref: https://docs.rs/ibc-app-transfer-types/0.51.0/src/ibc_app_transfer_types/denom.rs.html#156
-    let port_id = trace_path.next();
-    let channel_id = trace_path.next();
-    let (port_id, channel_id) = match (port_id, channel_id) {
-        (Some(port_id), Some(channel_id)) => (port_id, channel_id),
-        (_, last) => {
-            return Err(TokenTransferError::InvalidTraceLength {
-                len: trace_path.count() as u64 + u64::from(last.is_some()),
-            })
-        }
-    };
+    let (port_id, channel_id, hashed_full_denom) =
+        get_hashed_full_denom(denom)?;
     let seeds = [
         crate::MINT,
         port_id.as_bytes(),
         channel_id.as_bytes(),
-        hashed_base_denom.as_slice(),
+        hashed_full_denom.as_slice(),
     ];
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
 /// Removes the destination source and port id and
 /// returns the hash of full denom.
-pub fn get_hashed_full_denom(denom: &PrefixedDenom) -> CryptoHash {
+pub fn get_hashed_full_denom(
+    denom: &PrefixedDenom,
+) -> Result<(PortId, ChannelId, CryptoHash), TokenTransferError> {
     let mut prefixed_denom = denom.clone();
     let trace_path = prefixed_denom.trace_path.to_string();
     let mut trace_path = trace_path.split('/');
+    // Since trace path is converted in reverse from string, the latest port and channel id
+    // would be in the beginning. Also refer to the test below.
+    //
+    // Ref: https://docs.rs/ibc-app-transfer-types/0.51.0/src/ibc_app_transfer_types/denom.rs.html#156
     let dest_port_id = trace_path.next();
     let dest_channel_id = trace_path.next();
-    match (dest_port_id, dest_channel_id) {
-        (Some(port_id), Some(channel_id)) => prefixed_denom
-            .remove_trace_prefix(&TracePrefix::new(
-                PortId::from_str(port_id).unwrap(),
-                ChannelId::from_str(channel_id).unwrap(),
-            )),
-        (..) => (),
+    let (port_id, channel_id) = match (dest_port_id, dest_channel_id) {
+        (Some(port_id), Some(channel_id)) => {
+            let port_id = PortId::from_str(port_id).unwrap();
+            let channel_id = ChannelId::from_str(channel_id).unwrap();
+            prefixed_denom.remove_trace_prefix(&TracePrefix::new(
+                port_id.clone(),
+                channel_id.clone(),
+            ));
+            (port_id, channel_id)
+        }
+        (_, last) => {
+            return Err(TokenTransferError::InvalidTraceLength {
+                len: trace_path.count() as u64 + u64::from(last.is_some()),
+            })
+        }
     };
     let full_denom = prefixed_denom.to_string();
-    CryptoHash::digest(full_denom.as_bytes())
+    Ok((port_id, channel_id, CryptoHash::digest(full_denom.as_bytes())))
+}
+
+fn get_token_account(owner: &Pubkey, token_mint: &Pubkey) -> Pubkey {
+    let seeds =
+        [owner.as_ref(), anchor_spl::token::ID.as_ref(), token_mint.as_ref()];
+    Pubkey::find_program_address(&seeds, &anchor_spl::associated_token::ID).0
 }
 
 /// Direction of an escrow operation.
@@ -145,7 +149,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let private_storage = &store.private;
 
-        let hashed_full_denom = get_hashed_full_denom(&amt.denom);
+        let (_, _, hashed_full_denom) = get_hashed_full_denom(&amt.denom)?;
 
         let asset = private_storage
             .assets
@@ -227,7 +231,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         let store = self.borrow();
         let private_storage = &store.private;
 
-        let hashed_full_denom = get_hashed_full_denom(&amt.denom);
+        let (_, _, hashed_full_denom) = get_hashed_full_denom(&amt.denom)?;
 
         let asset = private_storage
             .assets
@@ -323,7 +327,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         self.escrow_coins_validate_impl(
-            EscrowOp::Escrow,
+            EscrowOp::Unescrow,
             to_account,
             port_id,
             channel_id,
@@ -361,10 +365,31 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
+        let receiver = accounts
+            .receiver
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let receiver_token_account = get_token_account(&account.0, &token_mint);
+
+        if account.0 != *receiver.key {
+            msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
+            msg!(
+                "Token mint not found {:?} {:?}",
+                token_mint,
+                token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if receiver_token_account != *token_account.key {
+            msg!(
+                "Receiver token account not found {} {:?}",
+                receiver_token_account,
+                token_account.key
+            );
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -403,15 +428,30 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
-            msg!("Token account not found {} {:?}", account, token_account.key);
+        let sender = accounts
+            .sender
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let sender_token_account = get_token_account(&account.0, &token_mint);
+
+        if account.0 != *sender.key {
+            msg!("Token account not found {} {:?}", account, sender.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
             msg!(
                 "Token mint not found {:?} {:?}",
                 token_mint,
                 token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if sender_token_account != *token_account.key {
+            msg!(
+                "sender token account not found {} {:?}",
+                sender_token_account,
+                token_account.key
             );
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -469,23 +509,21 @@ impl IbcStorage<'_, '_> {
             .filter(|escrow_account| escrow.eq(escrow_account.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        accounts
-            .token_account
-            .as_ref()
-            .filter(|token_account| account.0.eq(token_account.key))
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-
-        let ok = match op {
+        // We only need to check for sender/receiver since the token account
+        // is always derived from the token mint so if sender/receiver are right,
+        // the token account would be right as well.
+        match op {
             EscrowOp::Escrow => {
-                accounts.sender.as_ref().map_or(false, |acc| acc.is_signer)
+                accounts.sender.as_ref().filter(|sender| sender.is_signer)
             }
-            EscrowOp::Unescrow => accounts.mint_authority.is_some(),
-        };
-        if ok {
-            Ok(())
-        } else {
-            Err(TokenTransferError::ParseAccountFailure)
+            EscrowOp::Unescrow => accounts
+                .receiver
+                .as_ref()
+                .filter(|_| accounts.mint_authority.is_some()),
         }
+        .filter(|acc| account.0 == *acc.key)
+        .map(|_| ())
+        .ok_or(TokenTransferError::ParseAccountFailure)
     }
 
     fn escrow_coins_execute_impl(

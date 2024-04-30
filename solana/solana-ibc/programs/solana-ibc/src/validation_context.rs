@@ -233,10 +233,11 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn max_expected_time_per_block(&self) -> Duration {
-        // In Solana protocol, the block time is 400ms second.
-        // Considering factors such as network latency, as a precaution,
-        // we set the duration to 1 seconds.
-        Duration::from_secs(1)
+        // The blocks are only produced when the state root
+        // changes or if the block age is more than the one
+        // in the config. And then it also depends on how
+        // fast the validators sign.
+        Duration::from_secs(3600)
     }
 
     fn validate_message_signer(&self, signer: &ibc::Signer) -> Result {

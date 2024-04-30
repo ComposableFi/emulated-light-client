@@ -155,7 +155,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
     /// Returns `None` if there’s no value at given key.  Returns an error if
     /// the value (or its ancestor) has been sealed.
     pub fn get(&self, key: &[u8]) -> Result<Option<CryptoHash>> {
-        let (value, _) = self.get_impl(key, true)?;
+        let (value, _) = self.get_impl(key, false)?;
         Ok(value)
     }
 

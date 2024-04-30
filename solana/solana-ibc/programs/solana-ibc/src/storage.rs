@@ -14,6 +14,12 @@ use crate::ibc;
 
 pub mod map;
 
+/// Maximum number of per-client consensus state to keep.
+///
+/// When storing consensus states, the list will be limited to this number of
+/// top states only.  Any older states will be dropped.
+const MAX_CONSENSUS_STATES: usize = 64;
+
 /// A triple of send, receive and acknowledge sequences.
 ///
 /// This is effectively a triple of `Option<Sequence>` values.  They are kept
@@ -72,6 +78,45 @@ impl ClientStore {
             client_id,
             client_state: Serialised::empty(),
             consensus_states: Default::default(),
+        }
+    }
+
+    /// Inserts a new consensus state limiting total number of states.
+    ///
+    /// If there are already [`MAX_CONSENSUS_STATES`] states stored for this
+    /// client, the one with lowest height is removed before the new one is
+    /// inserted.
+    pub(crate) fn insert_consensus_state(
+        &mut self,
+        height: ibc::Height,
+        state: ClientConsensusState,
+    ) {
+        let mut states = Vec::from(core::mem::take(&mut self.consensus_states));
+        Self::insert_consensus_state_impl(&mut states, height, state);
+        self.consensus_states = states.into();
+    }
+
+    fn insert_consensus_state_impl(
+        states: &mut Vec<(ibc::Height, ClientConsensusState)>,
+        height: ibc::Height,
+        state: ClientConsensusState,
+    ) {
+        let mut min_idx = usize::MAX;
+        let mut min_height = ibc::Height::new(u64::MAX, u64::MAX).unwrap();
+        for (idx, (h, s)) in states.iter_mut().enumerate() {
+            if *h == height {
+                *s = state;
+                return;
+            }
+            if *h < min_height {
+                min_idx = idx;
+                min_height = *h;
+            }
+        }
+        if states.len() < MAX_CONSENSUS_STATES {
+            states.push((height, state));
+        } else {
+            states[min_idx] = (height, state);
         }
     }
 }

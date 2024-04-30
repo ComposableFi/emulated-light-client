@@ -78,6 +78,12 @@ pub enum Error {
     /// When port id, channel id or hased denom passed as arguments
     /// dont match the ones in the packet.
     InvalidSendTransferParams,
+
+    /// Fees can be collected only after a minimum amount
+    InsufficientFeesToCollect,
+
+    /// If both timeout timestamp and timeout height are zero
+    InvalidTimeout,
 }
 
 impl Error {

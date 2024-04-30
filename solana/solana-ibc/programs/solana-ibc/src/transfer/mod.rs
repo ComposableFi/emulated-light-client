@@ -242,12 +242,12 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if result.1.is_err() {
             let store = self.borrow();
             let accounts = &store.accounts;
-            let fee_payer = accounts.receiver.clone().unwrap();
+            let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
-                crate::FEE_AMOUNT_IN_LAMPORTS;
-            **fee_payer.try_borrow_mut_lamports().unwrap() +=
-                crate::FEE_AMOUNT_IN_LAMPORTS;
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+            **receiver.try_borrow_mut_lamports().unwrap() +=
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
         }
         (
             result.0,
@@ -272,9 +272,9 @@ impl ibc::Module for IbcStorage<'_, '_> {
             let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
-                crate::FEE_AMOUNT_IN_LAMPORTS;
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
             **receiver.try_borrow_mut_lamports().unwrap() +=
-                crate::FEE_AMOUNT_IN_LAMPORTS;
+                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
         }
         (
             result.0,
