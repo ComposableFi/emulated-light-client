@@ -770,7 +770,7 @@ pub struct SendTransfer<'info> {
         ESCROW, port_id.as_bytes(), channel_id.as_bytes(), hashed_base_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
-    #[account(mut)]
+    #[account(mut, associated_token::mint = token_mint, associated_token::authority = sender)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
     #[account(init_if_needed, payer = sender, seeds = [FEE_SEED], bump, space = 0)]

@@ -73,6 +73,12 @@ fn get_token_mint(denom: &PrefixedDenom) -> Result<Pubkey, TokenTransferError> {
     Ok(Pubkey::find_program_address(&seeds, &crate::ID).0)
 }
 
+fn get_token_account(owner: &Pubkey, token_mint: &Pubkey) -> Pubkey {
+    let seeds =
+        [owner.as_ref(), anchor_spl::token::ID.as_ref(), token_mint.as_ref()];
+    Pubkey::find_program_address(&seeds, &anchor_spl::associated_token::ID).0
+}
+
 /// Direction of an escrow operation.
 enum EscrowOp {
     Escrow,
@@ -249,7 +255,7 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
         self.escrow_coins_validate_impl(
-            EscrowOp::Escrow,
+            EscrowOp::Unescrow,
             to_account,
             port_id,
             channel_id,
@@ -287,10 +293,31 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
+        let receiver = accounts
+            .receiver
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let receiver_token_account = get_token_account(&account.0, &token_mint);
+
+        if account.0 != *receiver.key {
+            msg!("Token account not found {} {:?}", account, receiver.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
+            msg!(
+                "Token mint not found {:?} {:?}",
+                token_mint,
+                token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if receiver_token_account != *token_account.key {
+            msg!(
+                "Receiver token account not found {} {:?}",
+                receiver_token_account,
+                token_account.key
+            );
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -328,10 +355,31 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
             .token_mint
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
-        if !account.0.eq(token_account.key) {
+        let sender = accounts
+            .sender
+            .as_ref()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        let sender_token_account = get_token_account(&account.0, &token_mint);
+
+        if account.0 != *sender.key {
+            msg!("Token account not found {} {:?}", account, sender.key);
             return Err(TokenTransferError::ParseAccountFailure);
         }
-        if !token_mint.eq(token_mint_account.key) {
+        if token_mint != *token_mint_account.key {
+            msg!(
+                "Token mint not found {:?} {:?}",
+                token_mint,
+                token_mint_account.key
+            );
+            return Err(TokenTransferError::ParseAccountFailure);
+        }
+        if sender_token_account != *token_account.key {
+            msg!(
+                "sender token account not found {} {:?}",
+                sender_token_account,
+                token_account.key
+            );
             return Err(TokenTransferError::ParseAccountFailure);
         }
         Ok(())
@@ -388,23 +436,21 @@ impl IbcStorage<'_, '_> {
             .filter(|escrow_account| escrow.eq(escrow_account.key))
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        accounts
-            .token_account
-            .as_ref()
-            .filter(|token_account| account.0.eq(token_account.key))
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-
-        let ok = match op {
+        // We only need to check for sender/receiver since the token account
+        // is always derived from the token mint so if sender/receiver are right,
+        // the token account would be right as well.
+        match op {
             EscrowOp::Escrow => {
-                accounts.sender.as_ref().map_or(false, |acc| acc.is_signer)
+                accounts.sender.as_ref().filter(|sender| sender.is_signer)
             }
-            EscrowOp::Unescrow => accounts.mint_authority.is_some(),
-        };
-        if ok {
-            Ok(())
-        } else {
-            Err(TokenTransferError::ParseAccountFailure)
+            EscrowOp::Unescrow => accounts
+                .receiver
+                .as_ref()
+                .filter(|_| accounts.mint_authority.is_some()),
         }
+        .filter(|acc| account.0 == *acc.key)
+        .map(|_| ())
+        .ok_or(TokenTransferError::ParseAccountFailure)
     }
 
     fn escrow_coins_execute_impl(
