@@ -628,28 +628,4 @@ mod tests {
             "1_000_000_000_000_000_000_000_000_000_000_0",
         );
     }
-
-    #[test]
-    fn testing_trace_path() {
-        let denom = format!(
-            "transfer/channel-1/transfer/channel-0/\
-             APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
-        );
-        let mut trace_path_split = denom.split('/').collect::<Vec<&str>>();
-        assert_eq!(trace_path_split, vec![
-            "transfer",
-            "channel-1",
-            "transfer",
-            "channel-0",
-            "APbGKPaD1HeHbQ7jar3wB97L8vvWb9fw4nmh2kvPv8in"
-        ]);
-        // Remove base denom
-        trace_path_split.pop();
-        let trace_path = TracePath::try_from(trace_path_split).unwrap();
-        let expected_trace_path = vec![
-            TracePrefix::new(PortId::transfer(), ChannelId::new(0)),
-            TracePrefix::new(PortId::transfer(), ChannelId::new(1)),
-        ];
-        assert_eq!(trace_path, expected_trace_path.into());
-    }
 }

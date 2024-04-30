@@ -241,7 +241,7 @@ pub mod solana_ibc {
                 return Err(error!(error::Error::InvalidFeeCollector));
             } else {
                 private_storage.fee_collector = new_admin;
-                private_storage.new_fee_collector_proposal = None; 
+                private_storage.new_fee_collector_proposal = None;
             }
         }
 
@@ -267,11 +267,11 @@ pub mod solana_ibc {
         Ok(())
     }
 
-    /// Called to create token mint for wrapped tokens 
-    /// 
+    /// Called to create token mint for wrapped tokens
+    ///
     /// It has to be ensured that the right denom is hashed
     /// and proper decimals are passed.
-    /// 
+    ///
     /// Note: The denom will always contain port and channel id
     /// of solana.
     pub fn init_mint<'a, 'info>(
