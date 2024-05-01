@@ -2,7 +2,7 @@ import { PublicKey, Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 
 export const solanaIbcProgramId = new PublicKey(
-  "9FeHRJLHJSEw4dYZrABHWTRKruFjxDmkLtPmhM5WFYL7"
+  "FeFjYj2YuMsk87Cp48ubzQPtW4MWDaKJrCs1TcdgosZJ"
 );
 
 export const depositorPrivate =

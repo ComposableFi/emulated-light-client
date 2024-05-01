@@ -28,7 +28,7 @@ export function hexToBytes(hex: string) {
   return bytes;
 }
 
-export const getGuestChainAccounts = (portId: string, channelId: string, hashedDenom: number[]) => {
+export const getGuestChainAccounts = (hashedDenom: number[]) => {
   const [guestChainPDA, guestChainBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("chain")],
@@ -55,12 +55,19 @@ export const getGuestChainAccounts = (portId: string, channelId: string, hashedD
     const [escrowAccountPDA, escrowAccountBump] =
     anchor.web3.PublicKey.findProgramAddressSync(
       [
-        Buffer.from(portId),
-        Buffer.from(channelId),
+        Buffer.from("escrow"),
         Buffer.from(hashedDenom),
       ],
       solanaIbcProgramId
     );
 
-  return { guestChainPDA, triePDA, ibcStoragePDA, mintAuthorityPDA, escrowAccountPDA };
+    const [feePDA, feeBump] =
+    anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("fee"),
+      ],
+      solanaIbcProgramId
+    );
+
+  return { guestChainPDA, triePDA, ibcStoragePDA, mintAuthorityPDA, escrowAccountPDA, feePDA };
 };
