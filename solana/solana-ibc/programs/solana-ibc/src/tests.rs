@@ -149,6 +149,10 @@ fn anchor_test_deliver() -> Result<()> {
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
+    let private_storage: crate::PrivateStorage = program.account(storage).unwrap();
+
+    panic!("{:?}", private_storage);
+
     // let _airdrop_signature =
     //     airdrop(&sol_rpc_client, receiver.pubkey(), lamports);
 
@@ -405,53 +409,53 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
-    let token_metadata_pda = Pubkey::find_program_address(
-        &[
-            "metadata".as_bytes(),
-            &anchor_spl::metadata::ID.to_bytes(),
-            &token_mint_key.to_bytes(),
-        ],
-        &anchor_spl::metadata::ID,
-    )
-    .0;
+    // let token_metadata_pda = Pubkey::find_program_address(
+    //     &[
+    //         "metadata".as_bytes(),
+    //         &anchor_spl::metadata::ID.to_bytes(),
+    //         &token_mint_key.to_bytes(),
+    //     ],
+    //     &anchor_spl::metadata::ID,
+    // )
+    // .0;
 
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            500_000u32,
-        ))
-        .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
-        .accounts(accounts::InitMint {
-            sender: authority.pubkey(),
-            mint_authority: mint_authority_key,
-            token_mint: token_mint_key,
-            system_program: system_program::ID,
-            token_program: anchor_spl::token::ID,
-            rent: anchor_lang::solana_program::rent::Rent::id(),
-            storage,
-            metadata: token_metadata_pda,
-            token_metadata_program: anchor_spl::metadata::ID,
-        })
-        .args(instruction::InitMint {
-            hashed_full_denom: hashed_full_denom_on_source.clone(),
-            token_name: TOKEN_NAME.to_string(),
-            token_symbol: TOKEN_SYMBOL.to_string(),
-            token_uri: TOKEN_URI.to_string(),
-            effective_decimals: EFFECTIVE_DECIMALS,
-            original_decimals: ORIGINAL_DECIMALS,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send()?;
-        // .send_with_spinner_and_config(RpcSendTransactionConfig {
-        //     skip_preflight: true,
-        //     ..RpcSendTransactionConfig::default()
-        // })?;
-    println!("  Signature: {sig}");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         500_000u32,
+    //     ))
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_price(100000))
+    //     .accounts(accounts::InitMint {
+    //         sender: authority.pubkey(),
+    //         mint_authority: mint_authority_key,
+    //         token_mint: token_mint_key,
+    //         system_program: system_program::ID,
+    //         token_program: anchor_spl::token::ID,
+    //         rent: anchor_lang::solana_program::rent::Rent::id(),
+    //         storage,
+    //         metadata: token_metadata_pda,
+    //         token_metadata_program: anchor_spl::metadata::ID,
+    //     })
+    //     .args(instruction::InitMint {
+    //         hashed_full_denom: hashed_full_denom_on_source.clone(),
+    //         token_name: TOKEN_NAME.to_string(),
+    //         token_symbol: TOKEN_SYMBOL.to_string(),
+    //         token_uri: TOKEN_URI.to_string(),
+    //         effective_decimals: EFFECTIVE_DECIMALS,
+    //         original_decimals: ORIGINAL_DECIMALS,
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send()?;
+    //     // .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //     //     skip_preflight: true,
+    //     //     ..RpcSendTransactionConfig::default()
+    //     // })?;
+    // println!("  Signature: {sig}");
 
-    let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
+    // let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
-    println!("  This is the mint information {:?}", mint_info);
+    // println!("  This is the mint information {:?}", mint_info);
 
     // /*
     //  * Creating Token Mint
@@ -964,6 +968,23 @@ fn anchor_test_deliver() -> Result<()> {
     //     sol_rpc_client.get_account(&storage).unwrap();
 
     // assert_eq!(storage_acc_length_after.data.len(), 20 * 1024);
+
+    //    let sig = program
+    //     .request()
+    //     .accounts(accounts::SetupFeeCollector {
+    //         fee_collector: authority.pubkey(),
+    //         storage,
+    //     })
+    //     .args(instruction::RemoveCsStates {
+    //         client_idx: 1
+    //     })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     });
+    // println!("  Signature {:?}", sig); 
 
     Ok(())
 }
