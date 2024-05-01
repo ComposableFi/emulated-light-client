@@ -39,8 +39,6 @@ export const msgTransferSchema = BorshSchema.Struct({
 
 export const instructionSchema = BorshSchema.Struct({
   discriminator: BorshSchema.Array(BorshSchema.u8, 8),
-  port_id: BorshSchema.String,
-  channel_id: BorshSchema.String,
-  hashed_base_denom: BorshSchema.Array(BorshSchema.u8, 32),
+  hashed_full_denom: BorshSchema.Array(BorshSchema.u8, 32),
   msg: msgTransferSchema,
 });

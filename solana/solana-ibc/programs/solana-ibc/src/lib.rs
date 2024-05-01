@@ -36,7 +36,7 @@ pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("FeFjYj2YuMsk87Cp48ubzQPtW4MWDaKJrCs1TcdgosZJ");
 
 mod allocator;
 pub mod chain;
@@ -698,7 +698,7 @@ pub struct CollectFees<'info> {
 #[derive(Accounts)]
 #[instruction(decimals: u8, hashed_full_denom: CryptoHash)]
 pub struct InitMint<'info> {
-    #[account(mut, constraint = sender.key == &storage.fee_collector)]
+    #[account(mut)]
     sender: Signer<'info>,
 
     #[account(
