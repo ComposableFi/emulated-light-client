@@ -305,10 +305,13 @@ impl storage::IbcStorage<'_, '_> {
         client_id: &ibc::ClientId,
         state: AnyClientState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_client_state({}, {:?})", client_id, state);
         let mut store = self.borrow_mut();
         let mut client = store.private.client_mut(client_id, true)?;
         client.client_state.set(&state)?;
+        msg!(
+            "This is updated client state {:?}",
+            client.client_state.as_bytes()
+        );
         let state_any = state.encode_vec();
         let hash =
             cf_guest::digest_with_client_id(client_id, state_any.as_slice());
