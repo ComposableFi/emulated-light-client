@@ -127,10 +127,7 @@ pub struct ClientStateUpdate<'a> {
     /// Client identifier which got updated.
     pub client_id: CowClientId<'a>,
 
-    /// Client state serialised as a protocol buffer.
-    ///
-    /// This is the value whose commitment (mixed with client id) is stored in
-    /// the trie.
+    /// Borsh-serialised [`crate::client_state::AnyClientState`].
     pub state: alloc::borrow::Cow<'a, [u8]>,
 }
 

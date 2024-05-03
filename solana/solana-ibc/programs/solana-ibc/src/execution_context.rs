@@ -79,7 +79,7 @@ impl IbcStorage<'_, '_> {
         height: ibc::Height,
         state: AnyConsensusState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_consensus_state({}, {:?})", client_id, state);
+        msg!("store_consensus_state({})", client_id);
         let mut store = self.borrow_mut();
         let (processed_time, processed_height) = {
             let head = store.chain.head()?;
@@ -306,22 +306,23 @@ impl storage::IbcStorage<'_, '_> {
         client_id: &ibc::ClientId,
         state: AnyClientState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_client_state({}, {:?})", client_id, state);
+        msg!("store_client_state({})", client_id);
         let mut store = self.borrow_mut();
+
         let mut client = store.private.client_mut(client_id, true)?;
         client.client_state.set(&state)?;
-        let encoded_state = state.encode_vec();
-        let hash = cf_guest::digest_with_client_id(
-            client_id,
-            encoded_state.as_slice(),
-        );
-        let key = trie_ids::TrieKey::for_client_state(client.index);
-        store.provable.set(&key, &hash).map_err(client_error)?;
+
         events::emit(events::ClientStateUpdate {
             client_id: events::client_id(client_id),
-            state: events::bytes(encoded_state.as_slice()),
+            state: events::bytes(client.client_state.as_bytes()),
         })
-        .map_err(client_error)
+        .map_err(client_error)?;
+
+        let state_any = state.encode_vec();
+        let hash =
+            cf_guest::digest_with_client_id(client_id, state_any.as_slice());
+        let key = trie_ids::TrieKey::for_client_state(client.index);
+        store.provable.set(&key, &hash).map_err(client_error)
     }
 
     fn store_commitment(
