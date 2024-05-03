@@ -1,14 +1,16 @@
 import { BorshSchema, Unit } from "borsher";
 
+const tracePathSchema = BorshSchema.Vec(
+  BorshSchema.Struct({
+    port_id: BorshSchema.String,
+    channel_id: BorshSchema.String,
+  })
+);
+
 const packetDataSchema = BorshSchema.Struct({
   token: BorshSchema.Struct({
     denom: BorshSchema.Struct({
-      trace_path: BorshSchema.Vec(
-        BorshSchema.Struct({
-          port_id: BorshSchema.String,
-          channel_id: BorshSchema.String,
-        })
-      ),
+      trace_path: tracePathSchema,
       base_denom: BorshSchema.String,
     }),
     amount: BorshSchema.Array(BorshSchema.u8, 32),
@@ -39,8 +41,6 @@ export const msgTransferSchema = BorshSchema.Struct({
 
 export const instructionSchema = BorshSchema.Struct({
   discriminator: BorshSchema.Array(BorshSchema.u8, 8),
-  port_id: BorshSchema.String,
-  channel_id: BorshSchema.String,
   hashed_base_denom: BorshSchema.Array(BorshSchema.u8, 32),
   msg: msgTransferSchema,
 });
