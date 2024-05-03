@@ -22,6 +22,8 @@ pub enum Event<'a> {
     NewBlock(NewBlock<'a>),
     BlockSigned(BlockSigned),
     BlockFinalised(BlockFinalised),
+    ClientStateUpdate(ClientStateUpdate<'a>),
+    ConsensusStateUpdate(ConsensusStateUpdate<'a>),
 }
 
 /// Event emitted once blockchain is implemented.
@@ -110,6 +112,50 @@ pub struct BlockFinalised {
     /// Technically this can be gathered by remembering mapping from block hash
     /// to height but is provided for convenience.
     pub block_height: guestchain::BlockHeight,
+}
+
+/// Event emitted each time IBC client state is updated.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    derive_more::From,
+)]
+pub struct ClientStateUpdate<'a> {
+    /// Client identifier which got updated.
+    pub client_id: CowClientId<'a>,
+
+    /// Client state serialised as a protocol buffer.
+    ///
+    /// This is the value whose commitment (mixed with client id) is stored in
+    /// the trie.
+    pub state: alloc::borrow::Cow<'a, [u8]>,
+}
+
+/// Event emitted each time IBC consensus state is updated.
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    derive_more::From,
+)]
+pub struct ConsensusStateUpdate<'a> {
+    /// Client identifier the state belongs to.
+    pub client_id: CowClientId<'a>,
+
+    /// Height of the consensus state.
+    pub height: ibc::Height,
+
+    /// Consensus state serialised as a protocol buffer.
+    ///
+    /// This is the value whose commitment is stored in the trie.
+    pub state: alloc::borrow::Cow<'a, [u8]>,
 }
 
 impl Event<'_> {
@@ -204,6 +250,19 @@ macro_rules! impl_cow {
 
 impl_cow!(header: BlockHeader, CowHeader, BoxedHeader);
 impl_cow!(epoch: Epoch, CowEpoch, BoxedEpoch);
+
+pub type CowClientId<'a> = alloc::borrow::Cow<'a, crate::ibc::ClientId>;
+
+#[inline]
+pub fn client_id(value: &crate::ibc::ClientId) -> CowClientId {
+    alloc::borrow::Cow::Borrowed(value)
+}
+
+#[inline]
+pub fn bytes(value: &[u8]) -> alloc::borrow::Cow<'_, [u8]> {
+    alloc::borrow::Cow::Borrowed(value)
+}
+
 
 #[cfg(test)]
 // insta uses open to read the snapshot file which is not available when running
