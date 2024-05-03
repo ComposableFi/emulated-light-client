@@ -23,7 +23,6 @@ pub enum Event<'a> {
     BlockSigned(BlockSigned),
     BlockFinalised(BlockFinalised),
     ClientStateUpdate(ClientStateUpdate<'a>),
-    ConsensusStateUpdate(ConsensusStateUpdate<'a>),
 }
 
 /// Event emitted once blockchain is implemented.
@@ -132,29 +131,6 @@ pub struct ClientStateUpdate<'a> {
     ///
     /// This is the value whose commitment (mixed with client id) is stored in
     /// the trie.
-    pub state: alloc::borrow::Cow<'a, [u8]>,
-}
-
-/// Event emitted each time IBC consensus state is updated.
-#[derive(
-    Clone,
-    Debug,
-    PartialEq,
-    Eq,
-    borsh::BorshSerialize,
-    borsh::BorshDeserialize,
-    derive_more::From,
-)]
-pub struct ConsensusStateUpdate<'a> {
-    /// Client identifier the state belongs to.
-    pub client_id: CowClientId<'a>,
-
-    /// Height of the consensus state.
-    pub height: ibc::Height,
-
-    /// Consensus state serialised as a protocol buffer.
-    ///
-    /// This is the value whose commitment is stored in the trie.
     pub state: alloc::borrow::Cow<'a, [u8]>,
 }
 

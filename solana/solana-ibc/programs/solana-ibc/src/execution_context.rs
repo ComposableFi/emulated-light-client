@@ -101,14 +101,7 @@ impl IbcStorage<'_, '_> {
 
         let trie_key =
             trie_ids::TrieKey::for_consensus_state(client.index, height);
-        store.provable.set(&trie_key, &hash).map_err(client_error)?;
-
-        events::emit(events::ConsensusStateUpdate {
-            client_id: events::client_id(client_id),
-            height,
-            state: events::bytes(encoded_state.as_slice()),
-        })
-        .map_err(client_error)
+        store.provable.set(&trie_key, &hash).map_err(client_error)
     }
 
     pub(crate) fn delete_consensus_state_impl(
