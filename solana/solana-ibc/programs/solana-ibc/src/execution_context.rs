@@ -4,8 +4,8 @@ use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::ibc;
 use crate::storage::{self, IbcStorage};
+use crate::{events, ibc};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -19,7 +19,8 @@ impl ibc::ClientExecutionContext for IbcStorage<'_, '_> {
         path: ibc::path::ClientStatePath,
         state: Self::AnyClientState,
     ) -> Result {
-        self.set_client_state(&path.0, state).map_err(ibc::ContextError::from)
+        self.store_client_state_impl(&path.0, state)
+            .map_err(ibc::ContextError::from)
     }
 
     fn store_consensus_state(
@@ -78,7 +79,7 @@ impl IbcStorage<'_, '_> {
         height: ibc::Height,
         state: AnyConsensusState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_consensus_state({}, {:?})", client_id, state);
+        msg!("store_consensus_state({})", client_id);
         let mut store = self.borrow_mut();
         let (processed_time, processed_height) = {
             let head = store.chain.head()?;
@@ -288,7 +289,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     }
 
     fn emit_ibc_event(&mut self, event: ibc::IbcEvent) -> Result {
-        crate::events::emit(event).map_err(ctx_error)
+        events::emit(event).map_err(ctx_error)
     }
 
     fn log_message(&mut self, message: String) -> Result {
@@ -300,15 +301,23 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
 }
 
 impl storage::IbcStorage<'_, '_> {
-    pub(crate) fn set_client_state(
+    pub(crate) fn store_client_state_impl(
         &mut self,
         client_id: &ibc::ClientId,
         state: AnyClientState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_client_state({}, {:?})", client_id, state);
+        msg!("store_client_state({})", client_id);
         let mut store = self.borrow_mut();
+
         let mut client = store.private.client_mut(client_id, true)?;
         client.client_state.set(&state)?;
+
+        events::emit(events::ClientStateUpdate {
+            client_id: events::client_id(client_id),
+            state: events::bytes(client.client_state.as_bytes()),
+        })
+        .map_err(client_error)?;
+
         let state_any = state.encode_vec();
         let hash =
             cf_guest::digest_with_client_id(client_id, state_any.as_slice());

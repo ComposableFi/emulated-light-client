@@ -371,13 +371,6 @@ pub mod solana_ibc {
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))?;
 
-        // Log client state only when it is updated which is when `UpdateClient` message
-        // sent.
-        if ctx.remaining_accounts.split_last().is_some() {
-            let storage = &store.borrow().private;
-            let client_state = &storage.clients[0].client_state;
-            msg!("This is updated client state {:?}", client_state.as_bytes());
-        }
         Ok(())
     }
 
