@@ -176,11 +176,13 @@ pub mod restaking {
          * Get the rewards from guest blockchain.
          */
 
-        let (rewards, _current_height) = chain.calculate_rewards(
+        let (rewards, current_height) = chain.calculate_rewards(
             vault_params.last_received_rewards_height,
             *validator_key,
             vault_params.stake_amount,
         )?;
+
+        vault_params.last_received_rewards_height = current_height;
 
         let bump = ctx.bumps.staking_params;
         let seeds =
