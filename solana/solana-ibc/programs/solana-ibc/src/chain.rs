@@ -207,7 +207,7 @@ impl ChainData {
             .cloned())
     }
 
-    /// Returns all Candidates with stake 
+    /// Returns all Candidates with stake
     pub fn candidates(&self) -> Result<Vec<Candidate>, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.candidates().to_vec())
