@@ -187,7 +187,13 @@ impl ChainData {
             .cloned())
     }
 
-    /// Returns the Candidate data with stake and rewards
+    /// Returns all validators with stake and rewards
+    pub fn validators(&self) -> Result<Vec<Validator>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.validators().to_vec())
+    }
+
+    /// Returns the Candidate data with stake
     pub fn candidate(
         &self,
         candidate: Pubkey,
@@ -200,6 +206,13 @@ impl ChainData {
             .find(|c| c.pubkey == candidate)
             .cloned())
     }
+
+    /// Returns all Candidates with stake
+    pub fn candidates(&self) -> Result<Vec<Candidate>, ChainNotInitialised> {
+        let inner = self.get()?;
+        Ok(inner.manager.candidates().to_vec())
+    }
+
     // Returns a pending block if present
     pub fn pending_block(
         &self,
