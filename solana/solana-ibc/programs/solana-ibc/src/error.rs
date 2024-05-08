@@ -84,6 +84,10 @@ pub enum Error {
 
     /// If both timeout timestamp and timeout height are zero
     InvalidTimeout,
+
+    /// If `deliver` method is called by address other than 
+    /// the expected relayer address
+    InvalidSigner,
 }
 
 impl Error {

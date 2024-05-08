@@ -36,7 +36,9 @@ pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+pub const RELAYER_ADDRESS: &str = "Ao2wBFe6VzG5B1kQKkNw4grnPRQZNpP4wwQW86vXGxpY";
+
+declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
 
 mod allocator;
 pub mod chain;
@@ -94,6 +96,8 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use std::str::FromStr;
+
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
@@ -344,6 +348,15 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+
+        let signer = ctx.accounts.sender.key(); 
+        let expected_signer = Pubkey::from_str(RELAYER_ADDRESS).unwrap();
+
+        if signer != expected_signer {
+            msg!("Only {} can call this method", RELAYER_ADDRESS);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+
         let sig_verify_program_id =
             ctx.accounts.chain.sig_verify_program_id()?;
 
