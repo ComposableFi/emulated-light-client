@@ -165,7 +165,10 @@ impl From<borsh::maybestd::io::Error> for VerifyError {
 ///    `google.protobuf.UInt64Value` protobuf and hash is calculated as
 ///    concatenation of the three sequence numbers as described in [`generate`].
 ///
-/// 3. Otherwise, the value is simply hashed.
+/// 3. If `path` is `Commitment`, `Receipt` or `Ack`, the `value` must be
+///    32-byte value which is directly the hash stored in the trie.
+///
+/// 4. Otherwise, the value is simply hashed.
 pub fn verify(
     prefix: &[u8],
     mut proof_bytes: &[u8],
