@@ -1,5 +1,6 @@
 use alloc::boxed::Box;
 use alloc::vec::Vec;
+use core::fmt;
 use core::num::NonZeroU16;
 
 use lib::hash::CryptoHash;
@@ -14,18 +15,18 @@ mod serialisation;
 ///
 /// The proof doesn’t include the key or value (in case of existence proofs).
 /// It’s caller responsibility to pair proof with correct key and value.
-#[derive(Clone, Debug, PartialEq, derive_more::From)]
+#[derive(Clone, PartialEq, derive_more::From)]
 pub enum Proof {
     Positive(Membership),
     Negative(NonMembership),
 }
 
 /// A proof of a membership of a key.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Membership(Vec<Item>);
 
 /// A proof of a membership of a key.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct NonMembership(Option<Box<Actual>>, Vec<Item>);
 
 /// A single item in a proof corresponding to a node in the trie.
@@ -54,7 +55,7 @@ pub(crate) enum Actual {
 }
 
 /// A reference to value or node.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct OwnedRef {
     /// Whether the reference is for a value (rather than node).
     is_value: bool,
@@ -358,6 +359,55 @@ impl<'a> From<&'a OwnedRef> for Reference<'a, (), ()> {
     }
 }
 
+impl fmt::Debug for Proof {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Positive(ref proof) => proof.fmt(fmtr),
+            Self::Negative(ref proof) => proof.fmt(fmtr),
+        }
+    }
+}
+
+impl fmt::Debug for Membership {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.is_empty() {
+            return fmtr.write_str("Membership []");
+        }
+        let mut sep = "Membership [ ";
+        for item in self.0.iter() {
+            write!(fmtr, "{sep}{item:?}")?;
+            sep = ", ";
+        }
+        fmtr.write_str(" ]")
+    }
+}
+
+impl fmt::Debug for NonMembership {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        if self.0.is_none() && self.1.is_empty() {
+            return fmtr.write_str("NonMembership []");
+        }
+        let mut sep = "NonMembership [ ";
+        if let Some(ref actual) = self.0 {
+            write!(fmtr, "{sep}Actual({actual:?})")?;
+            sep = ", ";
+        }
+        for item in self.1.iter() {
+            write!(fmtr, "{sep}{item:?}")?;
+            sep = ", ";
+        }
+        fmtr.write_str(" ]")
+    }
+}
+
+impl fmt::Debug for OwnedRef {
+    fn fmt(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+        let what = if self.is_value { "value:" } else { "node:" };
+        let hash = &self.hash;
+        write!(fmtr, "{{ {what:<6} {hash} }}")
+    }
+}
+
 #[test]
 fn test_simple_success() {
     let mut trie = crate::trie::Trie::test(1000);
@@ -401,4 +451,56 @@ fn test_simple_success() {
             "Unexpectedly succeeded {key} → {some_hash} proof: {proof:?}",
         );
     }
+}
+
+#[test]
+fn test_debug() {
+    use alloc::format;
+
+    #[track_caller]
+    fn check_format<T: fmt::Debug + Into<Proof>>(want: &str, proof: T) {
+        assert_eq!(want, format!("{:?}", proof));
+        assert_eq!(want, format!("{:?}", proof.into()));
+    }
+
+    check_format("Membership []", Membership(Vec::new()));
+    check_format("NonMembership []", NonMembership(None, Vec::new()));
+
+    let ref1 = OwnedRef::node(CryptoHash::test(1));
+    let ref2 = OwnedRef::value(CryptoHash::test(2));
+
+    let items = [
+        Item::Branch(ref1.clone()),
+        Item::Branch(ref2.clone()),
+        Item::extension(6).unwrap(),
+    ];
+    check_format(
+        "Membership [ Branch({ node:  \
+         AAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAE= }), Branch({ value: \
+         AAAAAgAAAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAAAI= }), Extension(6) ]",
+        Membership(items.to_vec()),
+    );
+
+    let check_negative = |want, actual: Option<Actual>| {
+        let actual = actual.map(Box::new);
+        let items = alloc::vec![Item::extension(8).unwrap()];
+        check_format(want, NonMembership(actual, items));
+    };
+
+    check_negative("NonMembership [ Extension(8) ]", None);
+    check_negative(
+        "NonMembership [ Actual(Branch({ node:  \
+         AAAAAQAAAAEAAAABAAAAAQAAAAEAAAABAAAAAQAAAAE= }, { value: \
+         AAAAAgAAAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAAAI= })), Extension(8) ]",
+        Some(Actual::Branch(ref1.clone(), ref2.clone())),
+    );
+
+    check_negative(
+        "NonMembership [ Actual(LookupKeyLeft(8, \
+         AAAAAgAAAAIAAAACAAAAAgAAAAIAAAACAAAAAgAAAAI=)), Extension(8) ]",
+        Some(Actual::LookupKeyLeft(
+            NonZeroU16::new(8).unwrap(),
+            CryptoHash::test(2),
+        )),
+    );
 }
