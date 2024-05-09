@@ -57,7 +57,11 @@ pub struct Initialised<'a> {
 pub struct NewBlock<'a> {
     /// The new block.
     pub block_header: CowHeader<'a>,
-    /// If `block` is at start of an epoch, the new epoch.
+
+    /// The epoch the block belongs to.
+    ///
+    /// Historically this was set at the start of new epoch only but currently
+    /// the field is always set.
     pub epoch: Option<CowEpoch<'a>>,
 }
 

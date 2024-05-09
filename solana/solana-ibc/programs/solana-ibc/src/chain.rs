@@ -327,15 +327,11 @@ impl ChainInner {
             false,
         );
         match res {
-            Ok(new_epoch) => {
+            Ok(_) => {
                 let (finalised, head) = self.manager.head();
                 assert!(!finalised);
                 let block_header = events::header(head);
-                let epoch = self
-                    .manager
-                    .pending_epoch()
-                    .filter(|_| new_epoch)
-                    .map(events::epoch);
+                let epoch = self.manager.pending_epoch().map(events::epoch);
                 events::emit(events::NewBlock { block_header, epoch })
                     .map_err(ProgramError::BorshIoError)?;
                 Ok(())
