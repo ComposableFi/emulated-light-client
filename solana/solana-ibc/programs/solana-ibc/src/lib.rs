@@ -30,9 +30,8 @@ pub const METADATA: &[u8] = b"metadata";
 pub const FEE_SEED: &[u8] = b"fee";
 
 pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
-pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+    7 * solana_program::native_token::LAMPORTS_PER_SOL / 100;
+pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 = FEE_AMOUNT_IN_LAMPORTS;
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
