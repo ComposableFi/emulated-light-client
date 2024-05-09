@@ -127,7 +127,14 @@ pub enum VerifyError {
     /// verify must be `google.protobuf.UInt64Value` holding the sequence
     /// number.  This error indicates that decoding that protocol message
     /// failed.
-    WrongSequenceNumber(prost::DecodeError),
+    BadSequenceNumber(prost::DecodeError),
+
+    /// Invalid value.
+    ///
+    /// Packet commitments (i.e. `Commitment`s, `Receipt`s and `Ack`s) are
+    /// always 32-byte values.  If a different value has been given the proof is
+    /// invalid.
+    BadPacketCommitment,
 
     /// Proof verification failed.
     VerificationFailed,
@@ -171,6 +178,12 @@ pub fn verify(
     }
     let root =
         <&CryptoHash>::try_from(root).map_err(|_| VerifyError::BadRoot)?;
+    let is_packet_commitment = matches!(
+        path,
+        ibc::path::Path::Commitment(_) |
+            ibc::path::Path::Receipt(_) |
+            ibc::path::Path::Ack(_)
+    );
     let path = trie_ids::PathInfo::try_from(path)?;
 
     let (state_root, proof) = {
@@ -212,6 +225,11 @@ pub fn verify(
             // If path includes client id, hash stored in the trie is calculated
             // with the id mixed in.
             super::digest_with_client_id(id, value)
+        } else if is_packet_commitment {
+            // If this is packet commitment than the value is already a hash and
+            // we don’t hash it again.
+            CryptoHash::try_from(value)
+                .map_err(|_| VerifyError::BadPacketCommitment)?
         } else {
             // Otherwise, simply hash the value.
             CryptoHash::digest(value)
@@ -251,6 +269,7 @@ fn test_proofs() {
         fn root(&self) -> &[u8] { self.trie.hash().as_slice() }
     }
 
+    #[track_caller]
     fn assert_path_proof(
         path: ibc::path::Path,
         value: &[u8],
@@ -374,6 +393,9 @@ fn test_proofs() {
         ($path:expr; having client) => {
             check!($path, value, &cv_hash)
         };
+        ($path:expr; raw hash) => {
+            check!($path, value_hash.as_slice(), &value_hash)
+        };
         ($path:expr, $value:expr, $hash:expr) => {
             assert_path_proof($path.into(), $value, $hash)
         };
@@ -409,15 +431,15 @@ fn test_proofs() {
         port_id: port_id.clone(),
         channel_id: channel_id.clone(),
         sequence,
-    });
+    }; raw hash);
     check!(ibc::path::AckPath {
         port_id: port_id.clone(),
         channel_id: channel_id.clone(),
         sequence,
-    });
+    }; raw hash);
     check!(ibc::path::ReceiptPath {
         port_id: port_id.clone(),
         channel_id: channel_id.clone(),
         sequence,
-    });
+    }; raw hash);
 }

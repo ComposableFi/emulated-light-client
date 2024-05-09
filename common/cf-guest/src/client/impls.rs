@@ -245,7 +245,7 @@ impl From<proof::VerifyError> for ibc::ClientError {
 
         Self::InvalidCommitmentProof(match err {
             ProofDecodingFailure(msg) => EncodingFailure(msg),
-            WrongSequenceNumber(err) => EncodingFailure(err.to_string()),
+            BadSequenceNumber(err) => EncodingFailure(err.to_string()),
             _ => ibc::CommitmentError::InvalidMerkleProof,
         })
     }
