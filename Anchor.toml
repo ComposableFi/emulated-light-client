@@ -1,30 +1,28 @@
+[toolchain]
+
 [features]
 seeds = false
 skip-lint = false
 
 [programs.devnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
+solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
 
 [programs.localnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX"
+solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+cluster = "Localnet"
+wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]
-members = [
-  "solana/restaking/programs/restaking",
-  "solana/solana-ibc/programs/solana-ibc"
-]
+members = ["solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
 
 [scripts]
-# test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 solana/restaking/tests/**/*.ts"
 test = "./solana-test.sh"
 
 [test]
@@ -34,9 +32,28 @@ upgradeable = true
 
 [test.validator]
 bind_address = "0.0.0.0"
-url = "https://api.devnet.solana.com"
+url = "https://mainnet.helius-rpc.com/?api-key=95c75572-fd0e-4898-b524-458e1e508d99"
 ledger = ".anchor/test-ledger"
 rpc_port = 8899
 
+[[test.genesis]]
+address = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
+program = "target/deploy/solana_ibc.so"
+
 [[test.validator.clone]]
 address = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+
+[[test.validator.clone]]
+address = "HfCyGERXHq5azhit6uVrx3HAaZugXpyadFrVAjCofoWa"
+
+[[test.validator.clone]]
+address = "A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm"
+
+[[test.validator.clone]]
+address = "3utWQTpSsGZQTE6iA48pPUuvPkMsioeZX8K7fCGbgGrC"
+
+[[test.validator.clone]]
+address = "CSRjVm2wtSXTuFZxZmdGE3gYWknXjwshN2eVj6L1XfPC"
+
+[[test.validator.clone]]
+address = "3PMnHtoATZxdXzhzZ2nR3EtzCX2wrB5ogownmcJtT38v"

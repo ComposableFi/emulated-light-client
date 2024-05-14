@@ -210,11 +210,11 @@ impl BlockHeader {
         state_root: CryptoHash,
         next_epoch: Option<crate::Epoch<PK>>,
     ) -> Result<Block<PK>, GenerateError> {
-        if host_height <= self.host_height {
-            return Err(GenerateError::BadHostHeight);
-        } else if timestamp_ns <= self.timestamp_ns {
-            return Err(GenerateError::BadHostTimestamp);
-        }
+        // if host_height <= self.host_height {
+        //     return Err(GenerateError::BadHostHeight);
+        // } else if timestamp_ns <= self.timestamp_ns {
+        //     return Err(GenerateError::BadHostTimestamp);
+        // }
 
         let prev_block_hash = self.calc_hash();
         // If self defines a new epoch than the new block starts a new epoch

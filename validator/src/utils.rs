@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
@@ -123,7 +124,7 @@ pub fn submit_call(
 ) -> Result<Signature, ClientError> {
     let mut tx = Ok(signature);
     for tries in 0..max_retries {
-        tx = program
+        let txs = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
                 300_000,
@@ -147,12 +148,17 @@ pub fn submit_call(
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
             .signer(validator)
-            .send();
-        if let Err(err @ ClientError::SolanaClientError(_)) = tx {
-            return Err(err);
-        } else if let Ok(tx) = tx {
-            return Ok(tx);
-        }
+            .send().unwrap();
+            // .send_with_spinner_and_config(RpcSendTransactionConfig {
+            //     skip_preflight: true,
+            //     ..Default::default()
+            // });
+        // if let Err(err @ ClientError::SolanaClientError(_)) = tx {
+        //     return Err(err);
+        // } else if let Ok(tx) = tx {
+        //     return Ok(tx);
+        // }
+        return Ok(txs);
         sleep(Duration::from_millis(500));
         log::info!("Retrying to send the transaction: Attempt {}", tries);
     }
@@ -170,7 +176,7 @@ pub fn submit_generate_block_call(
 ) -> Result<Signature, ClientError> {
     let mut tx = Ok(Signature::new_unique());
     for tries in 0..max_retries {
-        tx = program
+        let txs = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 *priority_fees,
@@ -187,12 +193,17 @@ pub fn submit_generate_block_call(
             .args(instruction::GenerateBlock {})
             .payer(validator.clone())
             .signer(validator)
-            .send();
-        if let Err(err @ ClientError::SolanaClientError(_)) = tx {
-            return Err(err);
-        } else if let Ok(tx) = tx {
-            return Ok(tx);
-        }
+            .send().unwrap();
+            // .send_with_spinner_and_config(RpcSendTransactionConfig {
+            //     skip_preflight: true,
+            //     ..Default::default()
+            // });
+            return Ok(txs);
+        // if let Err(err @ ClientError::SolanaClientError(_)) = tx {
+        //     return Err(err);
+        // } else if let Ok(tx) = tx {
+        //     return Ok(tx);
+        // }
         sleep(Duration::from_millis(500));
         log::info!("Retrying to send the transaction: Attempt {}", tries);
     }

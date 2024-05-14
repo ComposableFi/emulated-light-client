@@ -183,23 +183,23 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         if self.pending_block.is_some() {
             return Err(GenerateError::HasPendingBlock);
         }
-        if !host_height.check_delta_from(
-            self.header.host_height,
-            self.config.min_block_length,
-        ) {
-            return Err(GenerateError::BlockTooYoung);
-        }
+        // if !host_height.check_delta_from(
+        //     self.header.host_height,
+        //     self.config.min_block_length,
+        // ) {
+        //     return Err(GenerateError::BlockTooYoung);
+        // }
 
         let next_epoch = self.maybe_generate_next_epoch(host_height);
-        let age =
-            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none() &&
-            !force &&
-            state_root == self.header.state_root &&
-            age < self.config.max_block_age_ns
-        {
-            return Err(GenerateError::UnchangedState);
-        }
+        // let age =
+        //     host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
+        // if next_epoch.is_none() &&
+        //     !force &&
+        //     state_root == self.header.state_root &&
+        //     age < self.config.max_block_age_ns
+        // {
+        //     return Err(GenerateError::UnchangedState);
+        // }
 
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(

@@ -30,13 +30,13 @@ pub const METADATA: &[u8] = b"metadata";
 pub const FEE_SEED: &[u8] = b"fee";
 
 pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+    solana_program::native_token::LAMPORTS_PER_SOL / 1000000;
 pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+    solana_program::native_token::LAMPORTS_PER_SOL / 1000000;
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
 
 mod allocator;
 pub mod chain;
@@ -146,7 +146,7 @@ pub mod solana_ibc {
     ///
     /// `signature` is signature of the pending guest block made with private
     /// key corresponding to the sender account’s public key.
-    ///
+    //
     /// TODO(mina86): At the moment the call doesn’t provide rewards and doesn’t
     /// allow to submit signatures for finalised guest blocks.  Those features
     /// will be added at a later time.
@@ -167,7 +167,7 @@ pub mod solana_ibc {
             &signature.into(),
             &verifier,
         )? {
-            ctx.accounts.chain.maybe_generate_block(&provable)?;
+            ctx.accounts.chain.generate_block(&provable)?;
         }
         Ok(())
     }
