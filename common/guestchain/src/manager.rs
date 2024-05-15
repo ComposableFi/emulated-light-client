@@ -1,6 +1,6 @@
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use alloc::collections::VecDeque;
+use alloc::{boxed::Box, collections::VecDeque};
 use alloc::vec::Vec;
 use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
@@ -36,7 +36,10 @@ pub struct ChainManager<PK> {
     epoch_height: crate::HostHeight,
 
     /// Set of validator candidates to consider for the next epoch.
-    candidates: crate::Candidates<PK>,
+    // TODO(mina86): This is Boxed to help solana-ibc with stack usage.  It’s
+    // not entirely clear how this affects the stack but without boxing this we
+    // end up with failing contract.  Ideally this field would not be boxed.
+    candidates: Box<crate::Candidates<PK>>,
 
     /// previous Consensus states
     pub consensus_states: VecDeque<LocalConsensusState>,
@@ -139,7 +142,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             next_epoch,
             pending_block: None,
             epoch_height: header.host_height,
-            candidates,
+            candidates: Box::new(candidates),
             header,
             consensus_states: VecDeque::with_capacity(MAX_CONSENSUS_STATES),
         })
