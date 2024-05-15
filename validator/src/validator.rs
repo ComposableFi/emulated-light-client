@@ -56,7 +56,7 @@ pub fn run_validator(config: Config) {
                     .get(&validator.pubkey().into())
                     .is_some()
                 {
-                    log::info!("You have already signed the pending block");
+                    log::info!("Waiting for others to sign the current block...");
                     continue;
                 }
                 log::info!(
