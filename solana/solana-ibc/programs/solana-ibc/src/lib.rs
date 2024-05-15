@@ -156,19 +156,19 @@ pub mod solana_ibc {
         // non-literals in array sizes.  Yeah, it’s dumb.
         signature: [u8; 64],
     ) -> Result<()> {
-        let provable = storage::get_provable_from(
-            &ctx.accounts.trie,
-            &ctx.accounts.sender,
-        )?;
-        let mut verifier = sigverify::Verifier::default();
-        verifier.set_ix_sysvar(&ctx.accounts.ix_sysvar)?;
-        if ctx.accounts.chain.sign_block(
-            (*ctx.accounts.sender.key).into(),
-            &signature.into(),
-            &verifier,
-        )? {
-            ctx.accounts.chain.generate_block(&provable)?;
-        }
+        // let provable = storage::get_provable_from(
+        //     &ctx.accounts.trie,
+        //     &ctx.accounts.sender,
+        // )?;
+        // let mut verifier = sigverify::Verifier::default();
+        // verifier.set_ix_sysvar(&ctx.accounts.ix_sysvar)?;
+        // if ctx.accounts.chain.sign_block(
+        //     (*ctx.accounts.sender.key).into(),
+        //     &signature.into(),
+        //     &verifier,
+        // )? {
+        //     ctx.accounts.chain.generate_block(&provable)?;
+        // }
         Ok(())
     }
 

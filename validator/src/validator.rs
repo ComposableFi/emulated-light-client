@@ -43,6 +43,10 @@ pub fn run_validator(config: Config) {
     loop {
         sleep(Duration::from_secs(5));
         let chain_account: ChainData = program.account(chain).unwrap();
+        let candidates = chain_account.candidates().unwrap();
+        let validators = chain_account.validators().unwrap();
+        println!("This is lenght of candidates {:?}", candidates.len());
+        println!("This is length of validators {:?}", validators.len());
         if chain_account.pending_block().unwrap().is_some() {
             if let Some(pending_block) =
                 chain_account.pending_block().unwrap().as_ref()
