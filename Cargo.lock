@@ -3092,6 +3092,7 @@ checksum = "b1a46d1a171d865aa5f83f92695765caa047a9b4cbae2cbf37dbd613a793fd4c"
 [[package]]
 name = "jito-protos"
 version = "0.1.0"
+source = "git+https://github.com/dhruvja/searcher-examples#addf5b4ae654d79e4eaaa42131d2a05210980c59"
 dependencies = [
  "bincode",
  "bytes",
@@ -3106,6 +3107,7 @@ dependencies = [
 [[package]]
 name = "jito-searcher-client"
 version = "0.1.0"
+source = "git+https://github.com/dhruvja/searcher-examples#addf5b4ae654d79e4eaaa42131d2a05210980c59"
 dependencies = [
  "futures-util",
  "jito-protos",
@@ -6859,7 +6861,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
 name = "validator"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anchor-client",
  "anchor-lang",
