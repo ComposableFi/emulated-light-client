@@ -1,19 +1,28 @@
+use std::borrow::Borrow;
 use std::fs;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::str::FromStr;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
+use anchor_client::solana_sdk::transaction::VersionedTransaction;
 use anchor_client::{ClientError, Program};
 use anchor_lang::solana_program::instruction::Instruction;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use anchor_lang::system_program;
 use directories::ProjectDirs;
+use jito_protos::searcher::SubscribeBundleResultsRequest;
 use serde::{Deserialize, Serialize};
 use solana_ibc::{accounts, instruction};
+use tokio::runtime::Runtime;
+use tokio::sync::futures;
+
+use crate::validator::{BLOCK_ENGINE_URL, JITO_TIPPING_ADDRESS};
 
 /// Displays the error if present, waits for few seconds and
 /// retries execution.
@@ -112,61 +121,136 @@ pub struct BundleStatusResponse {
 
 #[allow(clippy::too_many_arguments)]
 pub fn submit_call(
-    program: &Program<Rc<Keypair>>,
+    program: &Program<Arc<Keypair>>,
     signature: Signature,
     message: &[u8],
-    validator: &Rc<Keypair>,
+    validator: &Arc<Keypair>,
     chain: Pubkey,
     trie: Pubkey,
     max_retries: usize,
     priority_fees: &u64,
+    submit_with_jito: bool,
+    jito_tip: u64,
 ) -> Result<Signature, ClientError> {
     let mut tx = Ok(signature);
     for tries in 0..max_retries {
-        tx = program
-            .request()
-            .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-                300_000,
-            ))
-            .instruction(ComputeBudgetInstruction::set_compute_unit_price(
-                *priority_fees,
-            ))
-            .instruction(new_ed25519_instruction_with_signature(
-                &validator.pubkey().to_bytes(),
-                signature.as_ref(),
-                message,
-            ))
-            .accounts(accounts::ChainWithVerifier {
-                sender: validator.pubkey(),
-                chain,
-                trie,
-                ix_sysvar:
-                    anchor_lang::solana_program::sysvar::instructions::ID,
-                system_program: system_program::ID,
-            })
-            .args(instruction::SignBlock { signature: signature.into() })
-            .payer(validator.clone())
-            .signer(validator)
-            .send();
-        if let Err(err @ ClientError::SolanaClientError(_)) = tx {
-            return Err(err);
-        } else if let Ok(tx) = tx {
-            return Ok(tx);
+        if submit_with_jito {
+            let rt = Runtime::new().unwrap();
+            let mut client = rt.block_on(async {
+                jito_searcher_client::get_searcher_client(
+                    &BLOCK_ENGINE_URL,
+                    &validator,
+                )
+                .await
+                .expect("connects to searcher client")
+            });
+            let mut bundle_results_subscription = rt.block_on(async {
+                client
+                    .subscribe_bundle_results(SubscribeBundleResultsRequest {})
+                    .await
+                    .expect("subscribe to bundle results")
+                    .into_inner()
+            });
+            let jito_address = Pubkey::from_str(JITO_TIPPING_ADDRESS).unwrap();
+            let transaction = program
+                .request()
+                .instruction(
+                    anchor_lang::solana_program::system_instruction::transfer(
+                        &validator.pubkey(),
+                        &jito_address,
+                        jito_tip,
+                    ),
+                )
+                .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+                    300_000,
+                ))
+                .instruction(new_ed25519_instruction_with_signature(
+                    &validator.pubkey().to_bytes(),
+                    signature.as_ref(),
+                    message,
+                ))
+                .accounts(accounts::ChainWithVerifier {
+                    sender: validator.pubkey(),
+                    chain,
+                    trie,
+                    ix_sysvar:
+                        anchor_lang::solana_program::sysvar::instructions::ID,
+                    system_program: system_program::ID,
+                })
+                .args(instruction::SignBlock { signature: signature.into() })
+                .payer(validator.clone())
+                .signed_transaction()
+                .unwrap();
+            let versioned_transactions: VersionedTransaction =
+                transaction.clone().into();
+
+            let signatures = rt.block_on(async {
+                jito_searcher_client::send_bundle_with_confirmation(
+                    &vec![versioned_transactions],
+                    &program.async_rpc(),
+                    &mut client,
+                    &mut bundle_results_subscription,
+                )
+                .await
+            });
+
+            if let Ok(sigs) = signatures {
+                tx = Ok(*sigs.last().unwrap());
+                return tx;
+            } else if let Err(error) = signatures {
+                log::error!("{:?}", error);
+                sleep(Duration::from_millis(500));
+                log::info!("Retrying to send the transaction: Attempt {}", tries);
+            } 
+            continue;
+        } else {
+            tx = program
+                .request()
+                .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+                    300_000,
+                ))
+                .instruction(ComputeBudgetInstruction::set_compute_unit_price(
+                    *priority_fees,
+                ))
+                .instruction(new_ed25519_instruction_with_signature(
+                    &validator.pubkey().to_bytes(),
+                    signature.as_ref(),
+                    message,
+                ))
+                .accounts(accounts::ChainWithVerifier {
+                    sender: validator.pubkey(),
+                    chain,
+                    trie,
+                    ix_sysvar:
+                        anchor_lang::solana_program::sysvar::instructions::ID,
+                    system_program: system_program::ID,
+                })
+                .args(instruction::SignBlock { signature: signature.into() })
+                .payer(validator.clone())
+                .signer(validator)
+                .send();
+            if let Err(err @ ClientError::SolanaClientError(_)) = tx {
+                return Err(err);
+            } else if let Ok(tx) = tx {
+                return Ok(tx);
+            }
+            sleep(Duration::from_millis(500));
+            log::info!("Retrying to send the transaction: Attempt {}", tries);
         }
-        sleep(Duration::from_millis(500));
-        log::info!("Retrying to send the transaction: Attempt {}", tries);
     }
     log::error!("Max retries for signing the block exceeded");
     tx
 }
 
 pub fn submit_generate_block_call(
-    program: &Program<Rc<Keypair>>,
-    validator: &Rc<Keypair>,
+    program: &Program<Arc<Keypair>>,
+    validator: &Arc<Keypair>,
     chain: Pubkey,
     trie: Pubkey,
     max_retries: usize,
     priority_fees: &u64,
+    submit_with_jito: bool,
+    jito_tip: u64,
 ) -> Result<Signature, ClientError> {
     let mut tx = Ok(Signature::new_unique());
     for tries in 0..max_retries {

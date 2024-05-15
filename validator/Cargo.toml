@@ -20,11 +20,14 @@ derive_more.workspace = true
 dialoguer.workspace = true
 directories.workspace = true
 env_logger.workspace = true
+jito-searcher-client.workspace = true
+jito-protos.workspace = true
 log.workspace = true
 reqwest = { workspace = true, features = ["blocking", "json"] }
 serde.workspace = true
 serde_json.workspace = true
 serde_bytes.workspace = true
+tokio.workspace = true
 toml.workspace = true
 
 guestchain.workspace = true

@@ -1,5 +1,6 @@
 use std::rc::Rc;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -13,8 +14,11 @@ use solana_ibc::chain::ChainData;
 use crate::command::Config;
 use crate::utils;
 
+pub const JITO_TIPPING_ADDRESS: &str = "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5";
+pub const BLOCK_ENGINE_URL: &str = "https://mainnet.block-engine.jito.wtf";
+
 pub fn run_validator(config: Config) {
-    let validator = Rc::new(Keypair::from(config.keypair));
+    let validator = Arc::new(Keypair::from(config.keypair));
     let client = Client::new_with_options(
         Cluster::from_str(&config.rpc_url).expect("Invalid cluster"),
         validator.clone(),
@@ -33,8 +37,8 @@ pub fn run_validator(config: Config) {
         &Pubkey::from_str(&config.program_id).unwrap(),
     )
     .0;
-
-
+    let submit_with_jito = config.with_jito;
+    let jito_tip = config.jito_tip;
 
     log::info!("Validator running");
 
@@ -78,6 +82,8 @@ pub fn run_validator(config: Config) {
                     trie,
                     max_tries,
                     &config.priority_fees,
+                    submit_with_jito,
+                    jito_tip,
                 );
                 match tx {
                     Ok(tx) => {
@@ -100,6 +106,8 @@ pub fn run_validator(config: Config) {
                 trie,
                 max_tries,
                 &config.priority_fees,
+                submit_with_jito,
+                jito_tip,
             );
             match tx {
                 Ok(tx) => {

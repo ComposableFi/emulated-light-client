@@ -26,6 +26,10 @@ pub struct Config {
     #[serde(default)]
     pub priority_fees: u64,
     pub log_level: String,
+    #[serde(default)]
+    pub with_jito: bool,
+    #[serde(default)]
+    pub jito_tip: u64,
 }
 
 #[derive(derive_more::From, derive_more::Into)]
@@ -108,6 +112,12 @@ struct RunArgs {
     /// Log Level
     #[arg(short, long)]
     log_level: Option<LevelFilter>,
+
+    #[arg(long)]
+    with_jito: Option<bool>,
+
+    #[arg(long)]
+    jito_tip: Option<u64>,
 }
 
 #[derive(Args, Debug)]
@@ -134,6 +144,12 @@ struct InitArgs {
     /// Log Level
     #[arg(short, long)]
     log_level: Option<LevelFilter>,
+
+    #[arg(long)]
+    with_jito: Option<bool>,
+
+    #[arg(long)]
+    jito_tip: Option<u64>,
 }
 
 #[derive(Args, Debug)]
@@ -168,6 +184,12 @@ struct StakeArgs {
     /// Log Level
     #[arg(short, long)]
     log_level: Option<LevelFilter>,
+
+    #[arg(long)]
+    with_jito: Option<bool>,
+
+    #[arg(long)]
+    jito_tip: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -223,6 +245,8 @@ pub fn process_command() {
                     .log_level
                     .unwrap_or(LevelFilter::Info)
                     .to_string(),
+                with_jito: cmd.with_jito.unwrap_or(false),
+                jito_tip: cmd.jito_tip.unwrap_or(1000),
             };
             setup_logging(LevelFilter::from_str(&config.log_level).unwrap());
             run_validator(config)
@@ -253,6 +277,8 @@ pub fn process_command() {
                     .log_level
                     .unwrap_or(LevelFilter::Info)
                     .to_string(),
+                with_jito: cmd.with_jito.unwrap_or(false),
+                jito_tip: cmd.jito_tip.unwrap_or(1000),
             };
             let toml_in_string = toml::to_string(&config).unwrap();
             fs::write(config_file, toml_in_string).unwrap();
@@ -282,6 +308,8 @@ pub fn process_command() {
                     .log_level
                     .unwrap_or(LevelFilter::Info)
                     .to_string(),
+                with_jito: cmd.with_jito.unwrap_or(false),
+                jito_tip: cmd.jito_tip.unwrap_or(1000),
             };
             setup_logging(LevelFilter::from_str(&config.log_level).unwrap());
             let token_mint = Pubkey::from_str(&cmd.token_mint).unwrap();

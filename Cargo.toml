@@ -60,6 +60,8 @@ ibc-testkit                 = { git = "https://github.com/mina86/ibc-rs", rev = 
 
 ibc-proto = { version = "0.41.0", default-features = false }
 insta = { version = "1.34.0" }
+jito-searcher-client = { git = "https://github.com/dhruvja/searcher-examples" }
+jito-protos = { git = "https://github.com/dhruvja/searcher-examples" }
 # https://github.com/contain-rs/linear-map/pull/38 adds no_std support
 linear-map = { git = "https://github.com/contain-rs/linear-map", rev = "57f1432e26ff902bc883b250a85e0b5716bd241c", default-features = false }
 log = "0.4.20"
