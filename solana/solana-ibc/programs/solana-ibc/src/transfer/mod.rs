@@ -1,6 +1,9 @@
 use std::result::Result;
 use std::str;
 
+use ::ibc::apps::transfer::types::error::TokenTransferError;
+use ::ibc::core::channel::types::acknowledgement::AcknowledgementStatus;
+use ::ibc::core::router::types::module::ModuleExtras;
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -238,8 +241,25 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 relayer,
             );
 
+        let acknowledgement = match serde_json::from_slice::<
+            AcknowledgementStatus,
+        >(acknowledgement.as_ref())
+        {
+            Ok(ack) => ack,
+            Err(_) => {
+                return (
+                    ModuleExtras::empty(),
+                    Err(TokenTransferError::AckDeserialization).map_err(|e| {
+                        ibc::PacketError::AppModule {
+                            description: e.to_string(),
+                        }
+                    }),
+                );
+            }
+        };
+
         // refund fee if there was an error on the counterparty chain
-        if result.1.is_err() {
+        if !acknowledgement.is_successful() {
             let store = self.borrow();
             let accounts = &store.accounts;
             let receiver = accounts.receiver.clone().unwrap();
