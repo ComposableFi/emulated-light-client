@@ -14,11 +14,15 @@ import {
 import bs58 from "bs58";
 import { solanaIbcProgramId } from "./constants";
 
-export function getInt64Bytes(x: number) {
-  let y = Math.floor(x / 2 ** 32);
-  return [y, y << 8, y << 16, y << 24, x, x << 8, x << 16, x << 24].map(
-    (z) => z >>> 24
-  );
+export function numberTo32ByteBuffer(num: bigint): Uint8Array {
+  const buffer = Buffer.alloc(32);
+  let numberHex = num.toString(16);
+  if (numberHex.length % 2 !== 0) {
+    numberHex = "0" + numberHex;
+  }
+  const numberBytes = Buffer.from(numberHex, "hex");
+  numberBytes.reverse().copy(buffer, 0);
+  return new Uint8Array(buffer);
 }
 
 export function hexToBytes(hex: string) {
