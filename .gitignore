@@ -1,0 +1,7 @@
+*.tar.xz
+/api-url.sh
+/raw-tx/
+/tmp/
+/tx/
+/txs
+__pycache__
