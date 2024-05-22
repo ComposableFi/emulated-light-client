@@ -1,20 +1,21 @@
+import pathlib
 import re
+import sys
+import time
+
+import requests
+
+RAW_TX_DIR = pathlib.Path('raw-tx')
+SIGNATURES_DIR = pathlib.Path('signatures')
+TX_DIR = pathlib.Path('tx')
 
 
-KNOWN_ACCOUNTS = {
-        '11111111111111111111111111111111': 'System',
-        'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL': 'Associated Token',
+OWN_PROGRAMS_BY_ADDRESS = {
         'C6r1VEbn3mSpecgrZ7NdBvWUtYVJWrDPv4uU9Xs956gc': 'sigverify',
-        'ComputeBudget111111111111111111111111111111': 'Compute Budget',
-        'Ed25519SigVerify111111111111111111111111111': 'Ed25519 Sig Verify',
         'FufGpHqMQgGVjtMH9AV8YMrJYq8zaK6USRsJkZP4yDjo': 'write-account',
-        'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token Program',
-        'Sysvar1nstructions1111111111111111111111111': 'Instructions SysVar',
-
         '2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT': 'solana-ibc',
-        'HfCyGERXHq5azhit6uVrx3HAaZugXpyadFrVAjCofoWa': 'solana-ibc/Chain',
-        'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm': 'solana-ibc/Trie',
 }
+OWN_PROGRAMS = {v: k for (k, v) in OWN_PROGRAMS_BY_ADDRESS.items()}
 
 VALIDATORS = frozenset((
         '27CnXybL6bvwgw869z2JmA6WtGypryEVJRYX2Wg3WM4F',
@@ -41,13 +42,20 @@ VALIDATORS = frozenset((
         'y9xFYMAEWQifJqkv3WV11GpgB3YNTKcZLqgZ78bZvJt',
 ))
 
-def rename_account(account):
-        acc = KNOWN_ACCOUNTS.get(account)
-        if acc:
-                return acc
-        if account in VALIDATORS:
-                return f'Validator<{account[:8]}...>'
-        return None
+KNOWN_ACCOUNTS = {
+        '11111111111111111111111111111111': 'System',
+        'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL': 'Associated Token',
+        'ComputeBudget111111111111111111111111111111': 'Compute Budget',
+        'Ed25519SigVerify111111111111111111111111111': 'Ed25519 Sig Verify',
+        'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token Program',
+        'Sysvar1nstructions1111111111111111111111111': 'Instructions SysVar',
+
+        'HfCyGERXHq5azhit6uVrx3HAaZugXpyadFrVAjCofoWa': 'solana-ibc/Chain',
+        'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm': 'solana-ibc/Trie',
+}
+
+KNOWN_ACCOUNTS.update(OWN_PROGRAMS_BY_ADDRESS)
+KNOWN_ACCOUNTS.update((acc, f'Validator<{acc[:8]}...>') for acc in VALIDATORS)
 
 
 DISCRIMINATOR = {
@@ -90,3 +98,43 @@ def parse_logs(messages):
                         continue
                 if program:
                         yield (program, msg)
+
+
+class API:
+        __url: str
+
+        def __init__(self, cluster=None):
+                if cluster:
+                        assert cluster in ('devnet', 'testnet', 'mainnet-beta')
+                        url = f'https://api.{cluster}.solana.com'
+                else:
+                        with open('api-url.sh', encoding='utf-8') as rd:
+                                data = rd.read()
+                                m = re.search('^url=(.*)$', data)
+                                assert m
+                                url = m.group(1)
+                self.__url = url
+
+        def call(self, method, params):
+                data = {
+                        'jsonrpc': '2.0',
+                        'id': 1,
+                        'method': method,
+                        'params': params
+                }
+                headers = {'Content-Type': 'application/json'}
+
+                for n in range(3):
+                        try:
+                                res = requests.post(self.__url, json=data, headers=headers)
+                                res.raise_for_status()
+                                break
+                        except requests.exceptions.HTTPError as e:
+                                if n == 2:
+                                        raise
+                                print(str(e), file=sys.stderr)
+                                time.sleep(10)
+
+                data = res.json()
+                assert data.get('id') == 1
+                return data['result']

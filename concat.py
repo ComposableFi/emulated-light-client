@@ -121,15 +121,10 @@ def acc_write(acc, offset, data):
         accounts[acc] = pre + data + post
 
 
-INVOKE_RE = re.compile('Program (.*?) invoke')
-
-
 def is_deliver(tx):
-        inside = False
-        for msg in tx['meta']['logMessages']:
-                if m := INVOKE_RE.search(msg):
-                        inside = m.group(1) == '`solana-ibc`'
-                if inside and msg == 'Program log: Instruction: Deliver':
+        for prog, msg in common.parse_logs(tx['meta']['logMessages']):
+                if (prog == 'solana-ibc' and
+                    msg == 'Program log: Instruction: Deliver'):
                         return True
         return False
 
