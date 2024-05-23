@@ -63,6 +63,7 @@ RAW_TX_DIR = DATA_DIR / 'raw-tx'
 SIGNATURES_DIR = DATA_DIR / 'signatures'
 TX_DIR = DATA_DIR / 'tx'
 TXS_FILE = DATA_DIR / 'txs.json'
+OUTPUT_DIR = pathlib.Path('output')
 
 
 DISCRIMINATOR = {
@@ -144,3 +145,24 @@ class API:
                 data = res.json()
                 assert data.get('id') == 1
                 return data['result']
+
+
+def identify_tx(tx):
+        signatures = 0
+        for ix in tx['instructions']:
+                if isinstance(ix, list):
+                        if ix[0] == 'Write':
+                                return ix[0], ix[2]
+                        if ix[0] == 'SigVerify':
+                                return ix[0], signatures
+                        if ix[0] not in COMPUTE_BUGDEGT_OPS:
+                                return ix[0], None
+                elif ix['programId'] == 'solana-ibc':
+                        return ix['data'][0], None
+                elif ix['programId'] == 'Ed25519 Sig Verify':
+                        signatures += len(ix['data'])
+        return None, None
+
+
+def csv(fd, *cols):
+        print(','.join(str(col) for col in cols), file=fd)

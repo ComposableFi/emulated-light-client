@@ -24,7 +24,7 @@ def process_instruction(ix):
                 acc = ix['accounts'][1]
                 if not rest:
                         accounts.pop(acc)
-                        return ['Free', acc]
+                        return ['FreeWrite', acc]
 
                 offset = int.from_bytes(rest[:4], 'little')
                 return ['Write', acc, offset, rest[4:].hex()]
@@ -32,7 +32,7 @@ def process_instruction(ix):
         if prog == 'sigverify':
                 acc = ix['accounts'][1]
                 if data[0] == 1:
-                        return ['Free', acc]
+                        return ['FreeSigs', acc]
 
                 assert data[0] == 0
                 seed_len = data[1]
@@ -102,11 +102,11 @@ def tx_key(tx):
         inst = tx['instructions'][-1]
         if not isinstance(inst, list) or inst[0] in common.COMPUTE_BUGDEGT_OPS:
                 return (slot, 100, 0)
-        if inst[0] == 'Free':
-                return (slot, 0, 0)
+        if inst[0] == 'FreeSigs':
+                return (slot, 75, 0)
         if inst[0] == 'SigVerify':
                 return (slot, 50, 0)
-        if inst[0] == 'Write':
+        if inst[0] in ('Write', 'FreeWrite'):
                 return (slot, 50, inst[2])
         assert False, inst
 
@@ -136,7 +136,7 @@ def is_deliver(tx):
 
 def handle_instruction(ix, tx):
         if isinstance(ix, list):
-                if ix[0] == 'Free':
+                if ix[0] in ('FreeWrite', 'FreeSigs'):
                         _, acc = ix
                         accounts.pop(acc, None)
                 elif ix[0] == 'Write':

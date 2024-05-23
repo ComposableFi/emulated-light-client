@@ -28,3 +28,6 @@ Tools for gathering statistics about Solana IBC bridge
   them into a single file in data/txs.json.  It filters out any
   transactions which resulted in an error and those which are outside
   of a slot range `common.START_SLOT..=common.END_SLOT`.
+
+* tools/collect-stats.py processes the data and collect various
+  statistics writing them out as CSV files into output directory.

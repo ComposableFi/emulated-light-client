@@ -3,5 +3,6 @@
 /data/signatures/
 /data/tx/
 /data/txs.json
+/output/
 __pycache__
 temp
