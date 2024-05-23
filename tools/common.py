@@ -5,11 +5,9 @@ import time
 
 import requests
 
-DATA_DIR = pathlib.Path('data')
-RAW_TX_DIR = DATA_DIR / 'raw-tx'
-SIGNATURES_DIR = DATA_DIR / 'signatures'
-TX_DIR = DATA_DIR / 'tx'
-TXS_FILE = DATA_DIR / 'txs.json'
+
+START_SLOT = 266978318
+END_SLOT = 267335724
 
 
 OWN_PROGRAMS_BY_ADDRESS = {
@@ -58,6 +56,13 @@ KNOWN_ACCOUNTS = {
 
 KNOWN_ACCOUNTS.update(OWN_PROGRAMS_BY_ADDRESS)
 KNOWN_ACCOUNTS.update((acc, f'Validator<{acc[:8]}...>') for acc in VALIDATORS)
+
+
+DATA_DIR = pathlib.Path('data')
+RAW_TX_DIR = DATA_DIR / 'raw-tx'
+SIGNATURES_DIR = DATA_DIR / 'signatures'
+TX_DIR = DATA_DIR / 'tx'
+TXS_FILE = DATA_DIR / 'txs.json'
 
 
 DISCRIMINATOR = {

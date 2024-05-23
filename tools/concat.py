@@ -75,7 +75,11 @@ for path in common.TX_DIR.iterdir():
         meta = tx['meta']
         status = meta.pop('status')
         if 'Ok' not in status:
-                #print(f'{path.stem}: {status["Err"]}', file=sys.stderr)
+                print(f'{path.stem}: {status["Err"]}', file=sys.stderr)
+                continue
+
+        if not (common.START_SLOT <= tx['slot'] <= common.END_SLOT):
+                print(f'{path.stem}: slot {tx["slot"]} out of range', file=sys.stderr)
                 continue
 
         for key in ('innerInstructions', 'loadedAddresses', 'postBalances',
@@ -155,9 +159,14 @@ def handle_instruction(ix, tx):
                                 else:
                                         ix['data'] = '(unknown)'
                                 return
-                disc = data[:8]
+                disc = common.DISCRIMINATOR[data[:8]]
+                if disc == 'Deliver':
+                        if 'Associated Token' in ix['accounts']:
+                                disc = 'Deliver/Token'
+                        else:
+                                disc = 'Deliver/Update'
                 data = data[8:]
-                ix['data'] = [common.DISCRIMINATOR[disc], data.hex()]
+                ix['data'] = [disc, data.hex()]
 
 
 for tx in txs:
@@ -167,3 +176,4 @@ for tx in txs:
 
 with open(common.TXS_FILE, 'w') as wr:
         json.dump(txs, wr, indent=2)
+print(len(txs))
