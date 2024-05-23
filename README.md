@@ -5,10 +5,13 @@ Tools for gathering statistics about Solana IBC bridge
 
 * tools/fetch-signatures.py fetches last 100k signatures for those
   addresses.  The signatures are saved to data/signatures directory.
+  Note there’s data/signatures.tar.xz file with already fetched
+  signatures.
 
 * tools/fetch-transactions.py fetches all of the transactions
   corresponding to those signatures.  The transactions are saved to
-  data/raw-tx directory.
+  data/raw-tx directory.  Note there’s data/raw-tx.tar.xz file with
+  already fetched signatures.
 
   It also prints at the end range of Solana slots which is common for
   all three addresses.  This range should be used to update
