@@ -1,7 +1,7 @@
-/api-url.sh
-/raw-tx/
-/tmp/
-/tx/
-/txs
+/api-url
+/data/raw-tx/
+/data/signatures/
+/data/tx/
+/data/txs.json
 __pycache__
-/signatures/
+temp

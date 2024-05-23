@@ -1,12 +1,14 @@
+#!/usr/bin/env python3
+
 import json
-import pathlib
 import sys
 import re
 
+import common
 
-with open('txs') as rd:
+
+with open(common.TXS_FILE) as rd:
         txs = json.load(rd)
-
 
 validators = set()
 for tx in txs:

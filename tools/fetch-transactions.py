@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import pathlib
 import time
@@ -36,7 +38,7 @@ signatures = sorted(
 
 
 API = common.API()
-common.RAW_TX_DIR.mkdir(exist_ok=True)
+common.RAW_TX_DIR.mkdir(parents=True, exist_ok=True)
 
 count = 0
 total = len(signatures)

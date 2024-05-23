@@ -5,9 +5,11 @@ import time
 
 import requests
 
-RAW_TX_DIR = pathlib.Path('raw-tx')
-SIGNATURES_DIR = pathlib.Path('signatures')
-TX_DIR = pathlib.Path('tx')
+DATA_DIR = pathlib.Path('data')
+RAW_TX_DIR = DATA_DIR / 'raw-tx'
+SIGNATURES_DIR = DATA_DIR / 'signatures'
+TX_DIR = DATA_DIR / 'tx'
+TXS_FILE = DATA_DIR / 'txs.json'
 
 
 OWN_PROGRAMS_BY_ADDRESS = {
@@ -108,11 +110,10 @@ class API:
                         assert cluster in ('devnet', 'testnet', 'mainnet-beta')
                         url = f'https://api.{cluster}.solana.com'
                 else:
-                        with open('api-url.sh', encoding='utf-8') as rd:
+                        with open('api-url', encoding='utf-8') as rd:
                                 data = rd.read()
-                                m = re.search('^url=(.*)$', data)
-                                assert m
-                                url = m.group(1)
+                        assert data.startswith('https://')
+                        url = data.strip()
                 self.__url = url
 
         def call(self, method, params):

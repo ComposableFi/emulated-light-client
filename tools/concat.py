@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+
 import json
-import pathlib
 import sys
 import re
 
@@ -65,7 +66,7 @@ def process_instruction(ix):
 
 txs = []
 
-for path in pathlib.Path('tx').iterdir():
+for path in common.TX_DIR.iterdir():
         if path.name[0] == '.':
                 continue
         with open(path) as rd:
@@ -164,5 +165,5 @@ for tx in txs:
                 handle_instruction(ix, tx)
 
 
-with open('txs', 'w') as wr:
+with open(common.TXS_FILE, 'w') as wr:
         json.dump(txs, wr, indent=2)

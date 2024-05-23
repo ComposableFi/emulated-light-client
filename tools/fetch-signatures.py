@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+
 import json
-import pathlib
 import time
 import sys
 
@@ -44,7 +45,7 @@ def get_signatures(program, limit=100_000):
                 time.sleep(5)
 
 
-common.SIGNATURES_DIR.mkdir(exist_ok=True)
+common.SIGNATURES_DIR.mkdir(parents=True, exist_ok=True)
 
 for program in common.OWN_PROGRAMS.keys():
         get_signatures(program)

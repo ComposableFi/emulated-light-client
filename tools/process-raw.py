@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import json
 import base64
 import base58
@@ -64,6 +66,8 @@ def process_raw_tx(path):
         with (common.TX_DIR / f'{path.name}.json').open('w') as wr:
                 json.dump(data, wr, indent=2)
 
+
+common.TX_DIR.mkdir(parents=True, exist_ok=True)
 
 for path in common.RAW_TX_DIR.iterdir():
         try:
