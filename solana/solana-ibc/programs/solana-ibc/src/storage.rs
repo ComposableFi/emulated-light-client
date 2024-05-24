@@ -310,6 +310,9 @@ pub struct PrivateStorage {
     pub new_fee_collector_proposal: Option<Pubkey>,
 
     pub assets: map::Map<CryptoHash, Asset>,
+
+    // Fee to be charged for each transfer
+    pub fee_in_lamports: u64,
 }
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
