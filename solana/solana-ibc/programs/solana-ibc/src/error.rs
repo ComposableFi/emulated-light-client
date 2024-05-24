@@ -72,7 +72,8 @@ pub enum Error {
     /// When an asset is added which already exists
     AssetAlreadyExists,
 
-    /// Effective deciamls can either be less than equal to the original decimals but not more.
+    /// Effective deciamls can either be less than equal to the original
+    /// decimals but not more.
     InvalidDecimals,
 
     /// When port id, channel id or hased denom passed as arguments
@@ -84,6 +85,13 @@ pub enum Error {
 
     /// If both timeout timestamp and timeout height are zero
     InvalidTimeout,
+
+    /// If an instruction is called by an address without proper permissions.
+    ///
+    /// At the moment the permissions are checked in `deliver` method (if the
+    /// smart contract is built without `mocks` feature) which requires the
+    /// sender to be a known authorised relayer.
+    InvalidSigner,
 }
 
 impl Error {

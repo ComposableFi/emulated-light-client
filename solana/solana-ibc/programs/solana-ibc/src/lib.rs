@@ -38,6 +38,11 @@ pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
 
 declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
 
+#[cfg(not(feature = "mocks"))]
+mod relayer {
+    anchor_lang::declare_id!("Ao2wBFe6VzG5B1kQKkNw4grnPRQZNpP4wwQW86vXGxpY");
+}
+
 mod allocator;
 pub mod chain;
 pub mod client_state;
@@ -344,6 +349,12 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !relayer::check_id(ctx.accounts.sender.key) {
+            msg!("Only {} can call this method", relayer::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+
         let sig_verify_program_id =
             ctx.accounts.chain.sig_verify_program_id()?;
 
