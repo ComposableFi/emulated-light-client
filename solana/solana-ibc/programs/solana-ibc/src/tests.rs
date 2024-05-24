@@ -36,6 +36,7 @@ pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
 pub const TOKEN_NAME: &str = "RETARDIO";
 pub const TOKEN_SYMBOL: &str = "RTRD";
 pub const TOKEN_URI: &str = "https://github.com";
+pub const FEE: u64 = 10_000_000;
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
@@ -122,7 +123,6 @@ fn anchor_test_deliver() -> Result<()> {
     let native_token_mint_key = mint_keypair.pubkey();
     let base_denom = native_token_mint_key.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
-
 
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
@@ -392,6 +392,26 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
+    /*
+        Set up the fees
+    */
+
+    println!("\nSetting up Fees");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::SetFeeAmount { fee_collector, storage })
+        .args(instruction::SetFeeAmount { new_amount: FEE })
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
@@ -399,6 +419,7 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
+    println!("\nCreating Token mint");
     let token_metadata_pda = Pubkey::find_program_address(
         &[
             "metadata".as_bytes(),
@@ -564,10 +585,7 @@ fn anchor_test_deliver() -> Result<()> {
         TRANSFER_AMOUNT
     );
 
-    assert_eq!(
-        fee_account_balance_after - min_balance_for_rent_exemption,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - min_balance_for_rent_exemption, FEE);
 
     /*
      * On Destination chain
@@ -721,15 +739,9 @@ fn anchor_test_deliver() -> Result<()> {
             (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
-    assert_eq!(
-        fee_account_balance_after - fee_account_balance_before,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);
 
-    assert_eq!(
-        fee_account_balance_after - fee_account_balance_before,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);
 
     /*
      * On Source chain

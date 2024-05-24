@@ -28,10 +28,6 @@ pub const METADATA: &[u8] = b"metadata";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
-pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
-pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
@@ -208,6 +204,20 @@ pub mod solana_ibc {
         )?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((validator).into(), amount)
+    }
+
+    pub fn set_fee_amount<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetFeeAmount<'info>>,
+        new_amount: u64,
+    ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        let previous_fees = private_storage.fee_in_lamports;
+        private_storage.fee_in_lamports = new_amount;
+
+        msg!("Fee updated to {} from {}", new_amount, previous_fees);
+
+        Ok(())
     }
 
     /// Sets up new fee collector proposal which wont be changed until the new fee collector
@@ -511,6 +521,8 @@ pub mod solana_ibc {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }
 
+        let fee_amount = ctx.accounts.storage.fee_in_lamports;
+
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
 
@@ -534,7 +546,7 @@ pub mod solana_ibc {
             &solana_program::system_instruction::transfer(
                 &sender.key(),
                 &fee_collector.key(),
-                FEE_AMOUNT_IN_LAMPORTS,
+                fee_amount,
             ),
             &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
@@ -671,6 +683,16 @@ pub struct ChainWithVerifier<'info> {
     ix_sysvar: AccountInfo<'info>,
 
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SetFeeAmount<'info> {
+    #[account(mut)]
+    fee_collector: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, has_one = fee_collector)]
+    storage: Account<'info, storage::PrivateStorage>,
 }
 
 #[derive(Accounts)]
