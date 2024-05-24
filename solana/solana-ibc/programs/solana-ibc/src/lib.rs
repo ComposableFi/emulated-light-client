@@ -5,7 +5,6 @@
 
 extern crate alloc;
 
-use ::ibc::core::client::types::error::ClientError;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
@@ -461,7 +460,7 @@ pub mod solana_ibc {
             .map_err(|e| error::Error::ContextError(e.into()))?;
         if !status.is_active() {
             return Err(error::Error::ContextError(
-                ClientError::ClientNotActive { status }.into(),
+                ibc::ClientError::ClientNotActive { status }.into(),
             )
             .into());
         }
