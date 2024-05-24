@@ -1,6 +1,7 @@
+use alloc::boxed::Box;
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
-use alloc::{boxed::Box, collections::VecDeque};
+use alloc::collections::VecDeque;
 use alloc::vec::Vec;
 use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
