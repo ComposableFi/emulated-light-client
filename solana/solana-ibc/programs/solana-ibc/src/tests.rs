@@ -36,7 +36,7 @@ pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
 pub const TOKEN_NAME: &str = "RETARDIO";
 pub const TOKEN_SYMBOL: &str = "RTRD";
 pub const TOKEN_URI: &str = "https://github.com";
-pub const FEE: u64 = 10000000;
+pub const FEE: u64 = 10_000_000;
 // const BASE_DENOM: &str = "PICA";
 
 const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
