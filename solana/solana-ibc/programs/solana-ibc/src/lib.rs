@@ -36,7 +36,7 @@ pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
 
 #[cfg(not(feature = "mocks"))]
 mod relayer {
