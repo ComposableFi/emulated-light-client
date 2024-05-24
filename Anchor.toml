@@ -18,7 +18,10 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [workspace]
-members = ["solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
+members = [
+  "solana/restaking/programs/restaking",
+  "solana/solana-ibc/programs/solana-ibc"
+]
 
 [scripts]
 test = "./solana-test.sh"
