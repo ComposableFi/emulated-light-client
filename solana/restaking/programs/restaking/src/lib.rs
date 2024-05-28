@@ -88,33 +88,43 @@ pub mod restaking {
         let token_price_update = &ctx.accounts.token_price_update;
         let sol_price_update = &ctx.accounts.sol_price_update;
 
+        let sol_price_feed_id = SOL_PRICE_FEED_ID.to_string();
         let token_feed_id = staking_params
             .token_oracle_addresses
             .get(token_index)
-            .ok_or_else(|| error!(ErrorCodes::TokenNotWhitelisted))?;
+            .unwrap_or(&sol_price_feed_id);
 
-        // let maximum_age_in_sec: u64 = 30;
-        let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
-        let token_price = token_price_update.get_price_unchecked(&feed_id)?;
-        let token_decimals = ctx.accounts.token_mint.decimals;
+        let final_amount_in_sol = if token_feed_id == &sol_price_feed_id {
+            // let maximum_age_in_sec: u64 = 30;
+            let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
+            let token_price =
+                token_price_update.get_price_unchecked(&feed_id)?;
+            let token_decimals = ctx.accounts.token_mint.decimals;
 
-        let sol_price = sol_price_update
-            .get_price_unchecked(&get_feed_id_from_hex(SOL_PRICE_FEED_ID)?)?;
+            let sol_price = sol_price_update.get_price_unchecked(
+                &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
+            )?;
 
-        let amount_in_sol_decimals = (amount * 10u64.pow(SOL_DECIMALS as u32)) /
-            10u64.pow(token_decimals as u32);
+            let amount_in_sol_decimals = (amount
+                * 10u64.pow(SOL_DECIMALS as u32))
+                / 10u64.pow(token_decimals as u32);
 
-        let final_amount_in_sol = ((token_price.price *
-            (amount_in_sol_decimals as i64)) /
-            sol_price.price) as u64;
+            let final_amount_in_sol = ((token_price.price
+                * (amount_in_sol_decimals as i64))
+                / sol_price.price) as u64;
 
-        msg!(
-            "The price of solana is ({} ± {}) * 10^{} and final price {}",
-            sol_price.price,
-            sol_price.conf,
-            sol_price.exponent,
+            msg!(
+                "The price of solana is ({} ± {}) * 10^{} and final price {}",
+                sol_price.price,
+                sol_price.conf,
+                sol_price.exponent,
+                final_amount_in_sol
+            );
+
             final_amount_in_sol
-        );
+        } else {
+            amount
+        };
 
         staking_params.total_deposited_amount += final_amount_in_sol as u128;
         if staking_params.total_deposited_amount > staking_params.staking_cap {
@@ -359,14 +369,14 @@ pub mod restaking {
             return Err(error!(ErrorCodes::InvalidWithdrawer));
         }
 
-        if ctx.accounts.withdrawer_token_account.key() !=
-            withdrawal_request_params.token_account
+        if ctx.accounts.withdrawer_token_account.key()
+            != withdrawal_request_params.token_account
         {
             return Err(error!(ErrorCodes::InvalidTokenAccount));
         };
 
-        let unbonding_period = withdrawal_request_params.timestamp_in_sec +
-            UNBONDING_PERIOD_IN_SEC;
+        let unbonding_period = withdrawal_request_params.timestamp_in_sec
+            + UNBONDING_PERIOD_IN_SEC;
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
         msg!(

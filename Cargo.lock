@@ -6748,6 +6748,7 @@ dependencies = [
  "guestchain",
  "lib",
  "log",
+ "pyth-solana-receiver-sdk",
  "reqwest 0.12.3",
  "restaking",
  "serde",

@@ -88,6 +88,27 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             &receipt_token_key,
         );
     log::info!("This is priority fee {:?}", config.priority_fees);
+
+    let staking_parameters: restaking::StakingParams =
+        program.account(staking_params).unwrap();
+
+    let whitelisted_token_index = staking_parameters
+        .whitelisted_tokens
+        .iter()
+        .position(|&whitelisted_token_mint| {
+            whitelisted_token_mint == token_mint
+        })
+        .expect("Token is not whitelisted");
+
+    let sol_price_feed_id = restaking::constants::SOL_PRICE_FEED_ID;
+
+    let token_feed_id = staking_parameters
+        .token_oracle_addresses
+        .get(whitelisted_token_index)
+        .unwrap_or(sol_price_feed_id);
+
+    pyth_solana_receiver_sdk
+
     for tries in 1..6 {
         let tx = program
             .request()
