@@ -18,6 +18,8 @@
     "@coral-xyz/anchor": "^0.27.0",
     "@metaplex-foundation/mpl-token-metadata": "^3.1.2",
     "@metaplex-foundation/umi": "^0.9.0",
+    "@pythnetwork/price-service-client": "^1.9.0",
+    "@pythnetwork/pyth-solana-receiver": "^0.7.0",
     "@solana/spl-token": "^0.3.10",
     "@solana/web3.js": "^1.91.3",
     "borsher": "^3.5.0",

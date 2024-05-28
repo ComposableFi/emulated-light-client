@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::{burn_nft, BurnNft, Metadata};
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use solana_ibc::chain::ChainData;
 use solana_ibc::cpi::accounts::SetStake;
 use solana_ibc::program::SolanaIbc;
@@ -22,19 +23,23 @@ declare_id!("8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3");
 pub mod restaking {
 
     use anchor_spl::token::CloseAccount;
+    use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 
     use self::constants::UNBONDING_PERIOD_IN_SEC;
     use super::*;
+    use crate::constants::{SOL_DECIMALS, SOL_PRICE_FEED_ID};
 
     pub fn initialize(
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<Pubkey>,
+        token_oracle_addresses: Vec<String>,
         staking_cap: u128,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
         staking_params.admin = ctx.accounts.admin.key();
         staking_params.whitelisted_tokens = whitelisted_tokens;
+        staking_params.token_oracle_addresses = token_oracle_addresses;
         staking_params.guest_chain_program_id = None;
         staking_params.staking_cap = staking_cap;
         staking_params.rewards_token_mint =
@@ -68,13 +73,50 @@ pub mod restaking {
             ctx.accounts.token_mint.key()
         );
 
-        staking_params
+        let token_index = staking_params
             .whitelisted_tokens
             .iter()
-            .find(|&&token_mint| token_mint == ctx.accounts.token_mint.key())
+            .enumerate()
+            .find_map(|(index, &token_mint)| {
+                if token_mint == ctx.accounts.token_mint.key() {
+                    return Some(index);
+                }
+                None
+            })
             .ok_or_else(|| error!(ErrorCodes::TokenNotWhitelisted))?;
 
-        staking_params.total_deposited_amount += amount as u128;
+        let token_price_update = &ctx.accounts.token_price_update;
+        let sol_price_update = &ctx.accounts.sol_price_update;
+
+        let token_feed_id = staking_params
+            .token_oracle_addresses
+            .get(token_index)
+            .ok_or_else(|| error!(ErrorCodes::TokenNotWhitelisted))?;
+
+        // let maximum_age_in_sec: u64 = 30;
+        let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
+        let token_price = token_price_update.get_price_unchecked(&feed_id)?;
+        let token_decimals = ctx.accounts.token_mint.decimals;
+
+        let sol_price = sol_price_update
+            .get_price_unchecked(&get_feed_id_from_hex(SOL_PRICE_FEED_ID)?)?;
+
+        let amount_in_sol_decimals = (amount * 10u64.pow(SOL_DECIMALS as u32)) /
+            10u64.pow(token_decimals as u32);
+
+        let final_amount_in_sol = ((token_price.price *
+            (amount_in_sol_decimals as i64)) /
+            sol_price.price) as u64;
+
+        msg!(
+            "The price of solana is ({} ± {}) * 10^{} and final price {}",
+            sol_price.price,
+            sol_price.conf,
+            sol_price.exponent,
+            final_amount_in_sol
+        );
+
+        staking_params.total_deposited_amount += final_amount_in_sol as u128;
         if staking_params.total_deposited_amount > staking_params.staking_cap {
             return Err(error!(ErrorCodes::StakingCapExceeded));
         }
@@ -88,6 +130,7 @@ pub mod restaking {
         vault_params.stake_amount = amount;
         vault_params.stake_mint = ctx.accounts.token_mint.key();
         vault_params.last_received_rewards_height = 0;
+        vault_params.stake_amount_in_sol = final_amount_in_sol;
 
         // Transfer tokens to escrow
 
@@ -115,14 +158,21 @@ pub mod restaking {
         let validator = chain
             .validator(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
-        let amount = validator.map_or(u128::from(amount), |val| {
-            u128::from(val.stake) + u128::from(amount)
-        });
+        let validator_stake_amount = validator
+            .map_or(u128::from(final_amount_in_sol), |val| {
+                u128::from(val.stake) + u128::from(final_amount_in_sol)
+            });
+        msg!(
+            "Validator stake {} stake amount {}",
+            validator_stake_amount,
+            final_amount_in_sol
+        );
         validation::validate_remaining_accounts(
             ctx.remaining_accounts,
             &guest_chain_program_id,
         )?;
         core::mem::drop(borrowed_chain_data);
+
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
             chain: ctx.remaining_accounts[0].clone(),
@@ -132,7 +182,11 @@ pub mod restaking {
         };
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
+        solana_ibc::cpi::set_stake(
+            cpi_ctx,
+            validator_key,
+            validator_stake_amount,
+        )
     }
 
     /// Creates a withdrawal request by escrowing the receipt token. Once the unbonding
@@ -336,7 +390,10 @@ pub mod restaking {
 
         // Since we dont have slashing yet, we would return the complete amount
         let amount = vault_params.stake_amount;
-        staking_params.total_deposited_amount -= amount as u128;
+
+        let stake_amount_in_sol = vault_params.stake_amount_in_sol;
+
+        staking_params.total_deposited_amount -= stake_amount_in_sol as u128;
 
         let bump = ctx.bumps.staking_params;
         let seeds =
@@ -353,7 +410,7 @@ pub mod restaking {
             .map_err(|_| ErrorCodes::OperationNotAllowed)?
             .ok_or(ErrorCodes::MissingService)?;
         let validator_stake = u128::from(validator.stake)
-            .checked_sub(u128::from(amount))
+            .checked_sub(u128::from(stake_amount_in_sol))
             .ok_or(ErrorCodes::SubtractionOverflow)?;
         let cpi_accounts = SetStake {
             sender: ctx.accounts.withdrawer.to_account_info(),
@@ -403,6 +460,7 @@ pub mod restaking {
     pub fn update_token_whitelist(
         ctx: Context<UpdateStakingParams>,
         new_token_mints: Vec<Pubkey>,
+        new_token_feed_ids: Vec<String>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.staking_params;
 
@@ -417,6 +475,40 @@ pub mod restaking {
         staking_params
             .whitelisted_tokens
             .append(&mut new_token_mints.as_slice().to_vec());
+
+        staking_params
+            .token_oracle_addresses
+            .append(&mut new_token_feed_ids.as_slice().to_vec());
+
+        Ok(())
+    }
+
+    /// Whitelists new tokens
+    ///
+    /// This method checks if any of the new token mints which are to be whitelisted
+    /// are already whitelisted. If they are the method fails to update the
+    /// whitelisted token list.
+    pub fn update_token_oracle_addresses(
+        ctx: Context<UpdateStakingParams>,
+        token_feed_ids: Vec<String>,
+        token_mints: Vec<Pubkey>,
+    ) -> Result<()> {
+        let staking_params = &mut ctx.accounts.staking_params;
+
+        if staking_params.token_oracle_addresses.is_empty() {
+            staking_params.token_oracle_addresses =
+                Vec::with_capacity(staking_params.whitelisted_tokens.len());
+        }
+
+        token_mints.iter().enumerate().for_each(|(index, token_mint)| {
+            let token_mint_index = staking_params
+                .whitelisted_tokens
+                .iter()
+                .position(|&mint| mint == *token_mint)
+                .unwrap(); // Fix
+            staking_params.token_oracle_addresses[token_mint_index] =
+                token_feed_ids[index].clone();
+        });
 
         Ok(())
     }
@@ -567,8 +659,6 @@ pub mod restaking {
 
         vault_params.service = Some(service);
 
-        let amount = vault_params.stake_amount;
-
         validation::validate_remaining_accounts(
             ctx.remaining_accounts,
             &guest_chain_program_id,
@@ -585,9 +675,11 @@ pub mod restaking {
         let validator = chain
             .validator(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
-        let amount = validator.map_or(u128::from(amount), |val| {
-            u128::from(val.stake) + u128::from(amount)
-        });
+        let stake_amount_in_sol = vault_params.stake_amount_in_sol;
+        let validator_stake_amount = validator
+            .map_or(u128::from(stake_amount_in_sol), |val| {
+                u128::from(val.stake) + u128::from(stake_amount_in_sol)
+            });
         // Drop refcount on chain data so we can use it in CPI call
         core::mem::drop(borrowed_chain_data);
 
@@ -602,7 +694,11 @@ pub mod restaking {
         };
         let cpi_program = ctx.remaining_accounts[2].clone();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-        solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
+        solana_ibc::cpi::set_stake(
+            cpi_ctx,
+            validator_key,
+            validator_stake_amount,
+        )
     }
 
     /// This method would only be called by `Admin` to withdraw all the funds from the rewards account
@@ -675,7 +771,7 @@ pub struct Deposit<'info> {
     /// Only token mint with 9 decimals can be staked for now since
     /// the guest chain expects that.  If a whitelisted token has 6
     /// decimals, it would just be invalid.
-    #[account(mut, mint::decimals = 9)]
+    #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = token_mint, token::authority = depositor.key())]
     pub depositor_token_account: Box<Account<'info, TokenAccount>>,
@@ -733,6 +829,9 @@ pub struct Deposit<'info> {
     )]
     /// CHECK:
     pub nft_metadata: UncheckedAccount<'info>,
+
+    pub token_price_update: Account<'info, PriceUpdateV2>,
+    pub sol_price_update: Account<'info, PriceUpdateV2>,
 }
 
 #[derive(Accounts)]
@@ -921,6 +1020,9 @@ pub struct Withdraw<'info> {
     /// address.  Nonetheless, the account is checked at each use.
     #[account(address = solana_program::sysvar::instructions::ID)]
     pub instruction: UncheckedAccount<'info>,
+
+    pub token_price_update: Account<'info, PriceUpdateV2>,
+    pub sol_price_update: Account<'info, PriceUpdateV2>,
 }
 
 #[derive(Accounts)]
@@ -1020,10 +1122,8 @@ pub struct WithdrawRewardFunds<'info> {
 }
 
 #[account]
-#[derive(InitSpace)]
 pub struct StakingParams {
     pub admin: Pubkey,
-    #[max_len(20)]
     pub whitelisted_tokens: Vec<Pubkey>,
     /// None means the guest chain is not initialized yet.
     pub guest_chain_program_id: Option<Pubkey>,
@@ -1032,6 +1132,7 @@ pub struct StakingParams {
     pub staking_cap: u128,
     pub total_deposited_amount: u128,
     pub new_admin_proposal: Option<Pubkey>,
+    pub token_oracle_addresses: Vec<String>,
 }
 
 /// Unused for now
@@ -1061,6 +1162,8 @@ pub struct Vault {
     /// is 0 initially
     pub last_received_rewards_height: u64,
     pub withdrawal_request: Option<WithdrawalRequestParams>,
+    /// Amount of stake in sol during the time of deposit
+    pub stake_amount_in_sol: u64,
 }
 
 #[error_code]
@@ -1113,4 +1216,8 @@ pub enum ErrorCodes {
          withdrawal"
     )]
     InvalidWithdrawer,
+    #[msg("Token Oracle address not found")]
+    TokenOracleAddressNotFound,
+    #[msg("Price has overflowed")]
+    PriceOverflow,
 }

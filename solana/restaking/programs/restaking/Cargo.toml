@@ -22,6 +22,7 @@ anchor-lang = { workspace = true, features = ["init-if-needed"] }
 anchor-spl = { workspace = true, features = ["metadata"] }
 solana-ibc = { workspace = true, features = ["cpi"] }
 solana-program.workspace = true
+pyth-solana-receiver-sdk.workspace = true
 
 [dev-dependencies]
 home = "=0.5.5"
