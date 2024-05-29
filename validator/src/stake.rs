@@ -100,14 +100,28 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
         })
         .expect("Token is not whitelisted");
 
-    let sol_price_feed_id = restaking::constants::SOL_PRICE_FEED_ID;
+    let sol_price_feed_id = restaking::constants::SOL_PRICE_FEED_ID.to_string();
 
     let token_feed_id = staking_parameters
         .token_oracle_addresses
         .get(whitelisted_token_index)
-        .unwrap_or(sol_price_feed_id);
+        .unwrap_or(&sol_price_feed_id);
 
-    pyth_solana_receiver_sdk
+    let (token_price_update_acc, _bump) = Pubkey::find_program_address(
+        &[
+            0u8.to_le_bytes().as_ref(), // SHARD ID
+            token_feed_id.as_bytes(),
+        ],
+        &pyth_solana_receiver_sdk::ID,
+    );
+
+    let (sol_price_update_acc, _bump) = Pubkey::find_program_address(
+        &[
+            0u8.to_le_bytes().as_ref(), // SHARD ID
+            sol_price_feed_id.as_bytes(),
+        ],
+        &pyth_solana_receiver_sdk::ID,
+    );
 
     for tries in 1..6 {
         let tx = program
@@ -136,6 +150,8 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
                     anchor_lang::solana_program::sysvar::instructions::ID,
                 master_edition_account,
                 nft_metadata,
+                token_price_update: token_price_update_acc,
+                sol_price_update: sol_price_update_acc,
             })
             .accounts(vec![
                 AccountMeta {
