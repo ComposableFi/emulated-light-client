@@ -13,9 +13,6 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
-use trie_ids::PortChannelPK;
-
-use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
