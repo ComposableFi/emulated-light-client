@@ -834,46 +834,6 @@ fn anchor_test_deliver() -> Result<()> {
         TRANSFER_AMOUNT
     );
 
-    // /*
-    //  * Send Packets
-    //  */
-    // println!("\nSend packet");
-    // let packet = construct_packet_from_denom(
-    //     &base_denom,
-    //     port_id.clone(),
-    //     true,
-    //     channel_id_on_a.clone(),
-    //     channel_id_on_b.clone(),
-    //     1,
-    //     sender_token_address,
-    //     receiver_token_address,
-    //     String::from("Just a packet"),
-    // );
-
-    // let sig = program
-    //     .request()
-    //     .accounts(accounts::SendPacket {
-    //         sender: authority.pubkey(),
-    //         storage,
-    //         trie,
-    //         chain,
-    //         system_program: system_program::ID,
-    //     })
-    //     .args(instruction::SendPacket {
-    //         port_id: port_id.clone(),
-    //         channel_id: channel_id_on_a.clone(),
-    //         data: packet.data,
-    //         timeout_height: packet.timeout_height_on_b,
-    //         timeout_timestamp: packet.timeout_timestamp_on_b,
-    //     })
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
-
     /*
      * Collect all fees from the fee collector
      */
