@@ -144,8 +144,6 @@ fn anchor_test_deliver() -> Result<()> {
 
     let receiver = Rc::new(Keypair::new());
 
-    let sender_token_address =
-        get_associated_token_address(&authority.pubkey(), &token_mint_key);
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
