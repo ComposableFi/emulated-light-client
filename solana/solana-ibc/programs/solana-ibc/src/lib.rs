@@ -413,8 +413,8 @@ pub mod solana_ibc {
     }
 
     /// This method is removed since we dont support cross chain messaging yet
-    /// 
-    /// 
+    ///
+    ///
     // /// Should be called after setting up client, connection and channels.
     // pub fn send_packet<'a, 'info>(
     //     ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
