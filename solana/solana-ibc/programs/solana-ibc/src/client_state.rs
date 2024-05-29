@@ -237,7 +237,7 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
         client_id: &ibc::ClientId,
         state: Self::AnyClientState,
     ) -> Result<()> {
-        Self::set_client_state(self, client_id, state)
+        self.store_client_state_impl(client_id, state)
     }
 
     fn consensus_state(

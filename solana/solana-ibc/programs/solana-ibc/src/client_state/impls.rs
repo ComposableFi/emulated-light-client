@@ -271,12 +271,22 @@ impl ibc::HostFunctionsProvider for SolanaHostFunctions {
         solana_program::hash::hash(message).to_bytes()
     }
 
-    fn keccak_256(message: &[u8]) -> [u8; 32] {
-        solana_program::keccak::hash(message).0
+    fn keccak_256(_message: &[u8]) -> [u8; 32] {
+        // Solana deploy break if code includes call to a syscall which is not
+        // implemented on the blockchain (even if the call is never executed).
+        // Even though Solana supports Kaccek, don’t implement it so that we
+        // don’t risk breaking deployment.
+        //solana_program::keccak::hash(message).0
+        unimplemented!()
     }
 
-    fn blake3(message: &[u8]) -> [u8; 32] {
-        solana_program::blake3::hash(message).0
+    fn blake3(_message: &[u8]) -> [u8; 32] {
+        // Solana deploy break if code includes call to a syscall which is not
+        // implemented on the blockchain (even if the call is never executed).
+        // Even though Solana supports Blake3, don’t implement it since as of
+        // May 2024, it’s not enabled in mainnet.
+        //solana_program::blake3::hash(message).0
+        unimplemented!()
     }
 
     fn sha2_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }

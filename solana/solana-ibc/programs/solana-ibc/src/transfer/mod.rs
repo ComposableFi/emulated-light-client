@@ -238,8 +238,22 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 relayer,
             );
 
+        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
+            acknowledgement.as_bytes(),
+        );
+        let success = if let Ok(status) = status {
+            status.is_successful()
+        } else {
+            let description =
+                ibc::TokenTransferError::AckDeserialization.to_string();
+            return (
+                ibc::ModuleExtras::empty(),
+                Err(ibc::PacketError::AppModule { description }),
+            );
+        };
+
         // refund fee if there was an error on the counterparty chain
-        if result.1.is_err() {
+        if !success {
             let store = self.borrow();
             let accounts = &store.accounts;
             let receiver = accounts.receiver.clone().unwrap();
