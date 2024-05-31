@@ -142,7 +142,7 @@ class DeliverStats:
                         'Total Signatures'
                 )
                 self._client_update = StatsBase('client-update.csv', hdr)
-                self._deliver = StatsBase('deliver.csv', hdr[:-1])
+                self._deliver = StatsBase('receive-transfer.csv', hdr[:-1])
                 self._costs = [None, 0, 0, 0, 0]
 
         def process_tx(self, tx, ident):
