@@ -11,7 +11,7 @@ def from_le_bytes(data):
         return int.from_bytes(data, 'little')
 
 
-def process_instruction(ix):
+def process_instruction(ix, tx):
         data = bytes.fromhex(ix['data'])
         prog = ix['programId']
 
@@ -70,7 +70,13 @@ def process_instruction(ix):
                 data = data[4:]
                 if inst == 'Transfer':
                         amount = from_le_bytes(data)
-                        return [inst, amount, *ix['accounts']]
+                        accounts = ix['accounts']
+                        if accounts[1] == 'Jito Tip Jar':
+                                meta = tx['meta']
+                                meta['tip'] = meta.get('tip', 0) + amount
+                                meta['fee'] += amount
+                                return None
+                        return [inst, amount, *accounts]
                 ix['data'] = [inst, data.hex()]
 
         return ix
@@ -88,11 +94,11 @@ for path in common.TX_DIR.iterdir():
         meta = tx['meta']
         status = meta.pop('status')
         if 'Ok' not in status:
-                print(f'{path.stem}: {status["Err"]}', file=sys.stderr)
+                #print(f'{path.stem}: {status["Err"]}', file=sys.stderr)
                 continue
 
         if not (common.START_SLOT <= tx['slot'] <= common.END_SLOT):
-                print(f'{path.stem}: slot {tx["slot"]} out of range', file=sys.stderr)
+                #print(f'{path.stem}: slot {tx["slot"]} out of range', file=sys.stderr)
                 continue
 
         for key in ('innerInstructions', 'loadedAddresses', 'postBalances',
@@ -104,7 +110,7 @@ for path in common.TX_DIR.iterdir():
         tx['instructions'] = [
                 ix
                 for i in tx['instructions']
-                if (ix := process_instruction(i))
+                if (ix := process_instruction(i, tx))
         ]
 
         txs.append(tx)
@@ -112,6 +118,12 @@ for path in common.TX_DIR.iterdir():
 
 def tx_key(tx):
         slot = tx['slot']
+
+        # Sort Jito tips first
+        if not tx['instructions']:
+                assert tx['meta']['tip']
+                return (slot, 0, 0)
+
         inst = tx['instructions'][-1]
         if (not isinstance(inst, list) or
             inst[0] in common.COMPUTE_BUGDEGT_OPS or
@@ -129,6 +141,18 @@ def tx_key(tx):
 
 txs.sort(key=tx_key)
 
+# Merge Jito tips transactions with the following transaction
+for idx, tx in enumerate(txs):
+        if not tx['instructions']:
+                tm = tx['blockTime']
+                txs[idx] = None
+                nx = txs[idx + 1]
+                if nx['blockTime'] == tx['blockTime']:
+                        tx, nx = tx['meta'], nx['meta']
+                        nx.setdefault('tip', 0)
+                        nx['fee'] += tx['fee']
+                        nx['tip'] += tx['tip']
+txs = list(filter(None, txs))
 
 
 accounts = {}
