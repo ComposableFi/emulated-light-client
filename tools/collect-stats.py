@@ -155,7 +155,7 @@ class DeliverStats:
                 cu = tx['meta']['computeUnitsConsumed']
 
                 if op in ('Write', 'FreeWrite', 'SigVerify', 'FreeSigs'):
-                        if self._costs[0] is None:
+                        if self._costs[0] is None and not op.startswith('Free'):
                                 self._costs[0] = now
                         self._costs[1] += fee
                         self._costs[2] += cu

@@ -49,6 +49,7 @@ KNOWN_ACCOUNTS = {
         'Ed25519SigVerify111111111111111111111111111': 'Ed25519 Sig Verify',
         'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token Program',
         'Sysvar1nstructions1111111111111111111111111': 'Instructions SysVar',
+        '96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5': 'Jito Tip Jar',
 
         'HfCyGERXHq5azhit6uVrx3HAaZugXpyadFrVAjCofoWa': 'solana-ibc/Chain',
         'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm': 'solana-ibc/Trie',
@@ -94,6 +95,26 @@ COMPUTE_BUGDEGT_TAGS = {
 }
 
 COMPUTE_BUGDEGT_OPS = tuple(COMPUTE_BUGDEGT_TAGS.values())
+
+
+SYSTEM_INSTRUCITONS_OPS = (
+        'CreateAccount',
+        'Assign',
+        'Transfer',
+        'CreateAccountWithSeed',
+        'AdvanceNonceAccount',
+        'WithdrawNonceAccount',
+        'InitializeNonceAccount',
+        'AuthorizeNonceAccount',
+        'Allocate',
+        'AllocateWithSeed',
+        'AssignWithSeed',
+        'TransferWithSeed',
+        'UpgradeNonceAccount',
+)
+SYSTEM_INSTRUCITONS = {
+        idx: inst for idx, inst in enumerate(SYSTEM_INSTRUCITONS_OPS)
+}
 
 
 INVOKE_RE = re.compile('^Program (?:`([^`]*)`|([0-9a-zA-Z]*)) invoke')
@@ -155,12 +176,13 @@ def identify_tx(tx):
                                 return ix[0], ix[2]
                         if ix[0] == 'SigVerify':
                                 return ix[0], signatures
-                        if ix[0] not in COMPUTE_BUGDEGT_OPS:
+                        if ix[0] == 'Ed25519 Sig Verify':
+                                signatures += len(ix) - 1
+                        elif (ix[0] not in COMPUTE_BUGDEGT_OPS and
+                              ix[0] not in SYSTEM_INSTRUCITONS_OPS):
                                 return ix[0], None
                 elif ix['programId'] == 'solana-ibc':
                         return ix['data'][0], None
-                elif ix['programId'] == 'Ed25519 Sig Verify':
-                        signatures += len(ix['data'])
         return None, None
 
 

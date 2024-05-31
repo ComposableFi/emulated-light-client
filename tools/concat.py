@@ -7,6 +7,10 @@ import re
 import common
 
 
+def from_le_bytes(data):
+        return int.from_bytes(data, 'little')
+
+
 def process_instruction(ix):
         data = bytes.fromhex(ix['data'])
         prog = ix['programId']
@@ -14,7 +18,7 @@ def process_instruction(ix):
         if prog == 'Compute Budget':
                 tag = common.COMPUTE_BUGDEGT_TAGS.get(data[0])
                 if tag:
-                        return [tag, int.from_bytes(data[1:], 'little')]
+                        return [tag, from_le_bytes(data[1:])]
 
         if prog == 'write-account':
                 assert data[0] == 0
@@ -26,7 +30,7 @@ def process_instruction(ix):
                         accounts.pop(acc)
                         return ['FreeWrite', acc]
 
-                offset = int.from_bytes(rest[:4], 'little')
+                offset = from_le_bytes(rest[:4])
                 return ['Write', acc, offset, rest[4:].hex()]
 
         if prog == 'sigverify':
@@ -38,16 +42,16 @@ def process_instruction(ix):
                 seed_len = data[1]
                 truncate = data[seed_len + 3:]
                 if truncate:
-                        return ['SigVerify', acc, int.from_bytes(truncate, 'little')]
+                        return ['SigVerify', acc, from_le_bytes(truncate)]
                 else:
                         return ['SigVerify', acc]
 
         if prog == 'Ed25519 Sig Verify':
                 num = data[0]
-                entries = []
+                entries = [prog]
                 for i in range(num):
                         entry = data[2 + i*14:]
-                        num = lambda o: int.from_bytes(entry[o*2:o*2+2], 'little')
+                        num = lambda o: from_le_bytes(entry[o*2:o*2+2])
 
                         def get(o, l):
                                 d = data[o:o+l]
@@ -58,7 +62,16 @@ def process_instruction(ix):
                         pk = get(num(2), 32)
                         msg = get(num(4), num(5))
                         entries.append(f'{pk.hex()} {sig.hex()} {msg.hex()}')
-                ix['data'] = entries
+                return entries
+
+        if prog == 'System':
+                inst = from_le_bytes(data[:4])
+                inst = common.SYSTEM_INSTRUCITONS.get(inst, str(inst))
+                data = data[4:]
+                if inst == 'Transfer':
+                        amount = from_le_bytes(data)
+                        return [inst, amount, *ix['accounts']]
+                ix['data'] = [inst, data.hex()]
 
         return ix
 
@@ -100,7 +113,10 @@ for path in common.TX_DIR.iterdir():
 def tx_key(tx):
         slot = tx['slot']
         inst = tx['instructions'][-1]
-        if not isinstance(inst, list) or inst[0] in common.COMPUTE_BUGDEGT_OPS:
+        if (not isinstance(inst, list) or
+            inst[0] in common.COMPUTE_BUGDEGT_OPS or
+            inst[0] in common.SYSTEM_INSTRUCITONS_OPS or
+            inst[0] == 'Ed25519 Sig Verify'):
                 return (slot, 100, 0)
         if inst[0] == 'FreeSigs':
                 return (slot, 75, 0)
@@ -150,7 +166,7 @@ def handle_instruction(ix, tx):
                         acc = ix['accounts'].pop()
                         ix['dataAccount'] = acc
                         data = accounts.get(acc, bytes(4))
-                        length = int.from_bytes(data[:4], 'little')
+                        length = from_le_bytes(data[:4])
                         data = data[4:4 + length]
                         assert len(data) == length
                         if not data:
