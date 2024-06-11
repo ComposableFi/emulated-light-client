@@ -34,3 +34,5 @@ Tools for gathering statistics about Solana IBC bridge
 
 * tools/collect-stats.py processes the data and collect various
   statistics writing them out as CSV files into output directory.
+
+* tools/plot.py generates plots from the statistics.
