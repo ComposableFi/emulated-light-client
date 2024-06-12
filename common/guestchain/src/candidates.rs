@@ -123,60 +123,68 @@ impl<PK: crate::PubKey> Candidates<PK> {
 
     /// Adds a new candidates or updates existing candidate’s stake.
     ///
-    /// If `stake` is zero, removes the candidate from the set.
-    pub fn update(
+    /// The `new_stake_fn` callback takes existing candidate or `None` (if
+    /// candidate with given `pubkey` doesn’t exist) as the argument and returns
+    /// the new stake for that candidate (or for a new candidate).  If the new
+    /// stake is zero, the candidate is removed.
+    pub fn update<F, E>(
         &mut self,
         cfg: &crate::Config,
         pubkey: PK,
-        stake: u128,
-    ) -> Result<(), UpdateCandidateError> {
-        match NonZeroU128::new(stake) {
-            None => self.do_remove(cfg, &pubkey),
-            Some(stake) if stake < cfg.min_validator_stake => {
+        new_stake_fn: F,
+    ) -> Result<(), E>
+    where
+        F: FnOnce(Option<&Candidate<PK>>) -> Result<u128, E>,
+        E: From<UpdateCandidateError>,
+    {
+        let pos = self.candidates.iter().position(|el| el.pubkey == pubkey);
+        let stake = new_stake_fn(pos.map(|pos| &self.candidates[pos]))?;
+        let res = if let Some(stake) = NonZeroU128::new(stake) {
+            if stake < cfg.min_validator_stake {
                 Err(UpdateCandidateError::NotEnoughValidatorStake)
+            } else {
+                self.do_update(cfg, pos, Candidate { pubkey, stake })
             }
-            Some(stake) => self.do_update(cfg, Candidate { pubkey, stake }),
-        }
+        } else if let Some(pos) = pos {
+            self.do_remove(cfg, pos)
+        } else {
+            Ok(())
+        };
+        self.debug_verify_state();
+        res.map_err(E::from)
     }
 
     /// Adds a new candidates or updates existing candidate’s stake.
     fn do_update(
         &mut self,
         cfg: &crate::Config,
+        old_pos: Option<usize>,
         candidate: Candidate<PK>,
     ) -> Result<(), UpdateCandidateError> {
-        let old_pos =
-            self.candidates.iter().position(|el| el.pubkey == candidate.pubkey);
         let mut new_pos =
             self.candidates.binary_search(&candidate).unwrap_or_else(|p| p);
-        let res = match old_pos {
-            None => Ok(self.add_impl(new_pos, candidate)),
-            Some(old_pos) => {
-                if new_pos > old_pos {
-                    new_pos -= 1;
-                }
-                self.update_impl(cfg, old_pos, new_pos, candidate)
+        if let Some(old_pos) = old_pos {
+            if new_pos > old_pos {
+                new_pos -= 1;
             }
-        };
-        self.debug_verify_state();
-        res
+            self.update_impl(cfg, old_pos, new_pos, candidate)
+        } else {
+            self.add_impl(new_pos, candidate);
+            Ok(())
+        }
     }
 
     /// Removes an existing candidate.
     fn do_remove(
         &mut self,
         cfg: &crate::Config,
-        pubkey: &PK,
+        pos: usize,
     ) -> Result<(), UpdateCandidateError> {
-        let pos = self.candidates.iter().position(|el| &el.pubkey == pubkey);
-        if let Some(pos) = pos {
-            if self.candidates.len() <= usize::from(cfg.min_validators.get()) {
-                return Err(UpdateCandidateError::NotEnoughValidators);
-            }
-            self.update_stake_for_remove(cfg, pos)?;
-            self.candidates.remove(pos);
-            self.debug_verify_state();
+        if self.candidates.len() <= usize::from(cfg.min_validators.get()) {
+            return Err(UpdateCandidateError::NotEnoughValidators);
         }
+        self.update_stake_for_remove(cfg, pos)?;
+        self.candidates.remove(pos);
         Ok(())
     }
 

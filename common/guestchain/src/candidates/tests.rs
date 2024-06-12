@@ -105,6 +105,23 @@ fn check<const N: usize>(
     )
 }
 
+#[track_caller]
+fn stake_setter(
+    pubkey: char,
+    old_stake: u128,
+    new_stake: u128,
+) -> impl Fn(Option<&Candidate<MockPubKey>>) -> Result<u128, UpdateCandidateError>
+{
+    move |got| {
+        let want = NonZeroU128::new(old_stake).map(|stake| {
+            let pubkey = MockPubKey(pubkey as u32);
+            Candidate { pubkey, stake }
+        });
+        assert_eq!(want.as_ref(), got);
+        Ok(new_stake)
+    }
+}
+
 #[test]
 fn test_candidates_0() {
     use candidate as c;
@@ -122,59 +139,101 @@ fn test_candidates_0() {
     // Check minimum total stake and count are checked
     assert_eq!(
         Err(NotEnoughTotalStake),
-        candidates.update(&cfg_with_min_total_stake(10), pk('E'), 0),
+        candidates.update(
+            &cfg_with_min_total_stake(10),
+            pk('E'),
+            stake_setter('E', 5, 0)
+        ),
     );
     assert_eq!(
         Err(NotEnoughValidators),
-        candidates.update(&cfg_with_min_validators(5), pk('E'), 0),
+        candidates.update(
+            &cfg_with_min_validators(5),
+            pk('E'),
+            stake_setter('E', 5, 0)
+        ),
     );
 
     // Removal is idempotent
-    for _ in 0..2 {
-        candidates.update(&cfg_with_min_validators(2), pk('E'), 0).unwrap();
-        check([('D', 4), ('C', 3), ('B', 2), ('A', 1)], &candidates);
-    }
+    candidates
+        .update(&cfg_with_min_validators(2), pk('E'), stake_setter('E', 5, 0))
+        .unwrap();
+    check([('D', 4), ('C', 3), ('B', 2), ('A', 1)], &candidates);
+    candidates
+        .update(&cfg_with_min_validators(2), pk('E'), stake_setter('E', 0, 0))
+        .unwrap();
+    check([('D', 4), ('C', 3), ('B', 2), ('A', 1)], &candidates);
 
     // Go below max_validators of candidates.
-    candidates.update(&cfg_with_min_validators(1), pk('C'), 0).unwrap();
-    candidates.update(&cfg_with_min_validators(1), pk('B'), 0).unwrap();
-    candidates.update(&cfg_with_min_validators(1), pk('A'), 0).unwrap();
+    candidates
+        .update(&cfg_with_min_validators(1), pk('C'), stake_setter('C', 3, 0))
+        .unwrap();
+    candidates
+        .update(&cfg_with_min_validators(1), pk('B'), stake_setter('B', 2, 0))
+        .unwrap();
+    candidates
+        .update(&cfg_with_min_validators(1), pk('A'), stake_setter('A', 1, 0))
+        .unwrap();
     check([('D', 4)], &candidates);
 
     // Minimum validator stake is checked
     assert_eq!(
         Err(NotEnoughValidatorStake),
-        candidates.update(&cfg_with_min_validator_stake(4), pk('C'), 3),
+        candidates.update(
+            &cfg_with_min_validator_stake(4),
+            pk('C'),
+            stake_setter('C', 0, 3)
+        ),
     );
 
     // Add back to have over max.  Minimums are not checked since we’re
     // adding candidates and stake.  This theoretically may be a situation
     // after chain configuration change so we need to support it.
-    candidates.update(&cfg_with_min_total_stake(20), pk('A'), 3).unwrap();
-    candidates.update(&cfg_with_min_total_stake(20), pk('B'), 2).unwrap();
-    candidates.update(&cfg_with_min_total_stake(20), pk('C'), 3).unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(20), pk('A'), stake_setter('A', 0, 3))
+        .unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(20), pk('B'), stake_setter('B', 0, 2))
+        .unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(20), pk('C'), stake_setter('C', 0, 3))
+        .unwrap();
     check([('D', 4), ('A', 3), ('C', 3), ('B', 2)], &candidates);
 
     // Increase stake.  Again, minimums are not checked.
-    candidates.update(&cfg_with_min_total_stake(20), pk('C'), 4).unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(20), pk('C'), stake_setter('C', 3, 4))
+        .unwrap();
     check([('C', 4), ('D', 4), ('A', 3), ('B', 2)], &candidates);
 
     // Reduce stake.  Now, minimums are checked.
     assert_eq!(
         Err(NotEnoughValidatorStake),
-        candidates.update(&cfg_with_min_validator_stake(3), pk('C'), 2),
+        candidates.update(
+            &cfg_with_min_validator_stake(3),
+            pk('C'),
+            stake_setter('C', 4, 2)
+        ),
     );
     assert_eq!(
         Err(NotEnoughTotalStake),
-        candidates.update(&cfg_with_min_total_stake(10), pk('C'), 2),
+        candidates.update(
+            &cfg_with_min_total_stake(10),
+            pk('C'),
+            stake_setter('C', 4, 2)
+        ),
     );
     check([('C', 4), ('D', 4), ('A', 3), ('B', 2)], &candidates);
 
-    candidates.update(&cfg_with_min_total_stake(10), pk('B'), 3).unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(10), pk('B'), stake_setter('B', 2, 3))
+        .unwrap();
     check([('C', 4), ('D', 4), ('A', 3), ('B', 3)], &candidates);
     // `C` is moved out of validators but incoming `B` candidate has enough
     // stake to meet min total stake limit.
-    candidates.update(&cfg_with_min_total_stake(10), pk('C'), 2).unwrap();
+    candidates
+        .update(&cfg_with_min_total_stake(10), pk('C'), stake_setter('C', 4, 2))
+        .unwrap();
     check([('D', 4), ('A', 3), ('B', 3), ('C', 2)], &candidates);
 }
 
@@ -188,7 +247,11 @@ fn test_candidiates_1() {
     );
 
     let cfg = TestCtx::make_config();
-    candidates.update(&cfg, MockPubKey('I' as u32), 254).unwrap();
+    candidates
+        .update(&cfg, MockPubKey('I' as u32), |_| {
+            Result::<_, UpdateCandidateError>::Ok(254)
+        })
+        .unwrap();
     check(
         [('I', 254), ('F', 168), ('D', 95), ('E', 81), ('C', 68)],
         &candidates,
@@ -262,7 +325,8 @@ impl TestCtx {
         let count = self.candidates.candidates.len();
         let head_stake = self.candidates.head_stake;
 
-        let res = self.candidates.update(&self.config, pubkey.clone(), 0);
+        let res =
+            self.candidates.update(&self.config, pubkey.clone(), |_| Ok(0));
         self.check();
 
         if let Err(err) = res {
@@ -309,8 +373,9 @@ impl TestCtx {
         let count = self.candidates.candidates.len();
         let head_stake = self.candidates.head_stake;
 
-        let res =
-            self.candidates.update(&self.config, pubkey.clone(), new_stake);
+        let res = self
+            .candidates
+            .update(&self.config, pubkey.clone(), |_| Ok(new_stake));
         self.check();
 
         if let Err(err) = res {
