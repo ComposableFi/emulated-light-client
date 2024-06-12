@@ -91,6 +91,8 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use std::str::FromStr;
+
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
@@ -208,6 +210,16 @@ pub mod solana_ibc {
         validator_change_in_stake: Vec<(Pubkey, u128)>,
         operation: StakeOperation,
     ) -> Result<()> {
+        let restaking_program_id = Pubkey::from_str("").unwrap();
+        let caller_program_id =
+            solana_program::sysvar::instructions::get_instruction_relative(
+                0,
+                &ctx.accounts.instruction,
+            )?
+            .program_id;
+        if caller_program_id == restaking_program_id {
+            return Err(error!(error::Error::InvalidCPICall));
+        };
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
