@@ -1,3 +1,4 @@
+use guestchain::config::UpdateConfigError;
 use guestchain::manager;
 
 use crate::ibc;
@@ -155,16 +156,16 @@ impl From<manager::AddSignatureError> for Error {
     }
 }
 
-impl From<manager::UpdateConfigError> for Error {
-    fn from(err: manager::UpdateConfigError) -> Self {
+impl From<UpdateConfigError> for Error {
+    fn from(err: UpdateConfigError) -> Self {
         match err {
-            manager::UpdateConfigError::MinValidatorsHigherThanExisting => {
+            UpdateConfigError::MinValidatorsHigherThanExisting => {
                 Self::MinValidatorsHigherThanExisting
             }
-            manager::UpdateConfigError::MinTotalStakeHigherThanExisting => {
+            UpdateConfigError::MinTotalStakeHigherThanExisting => {
                 Self::MinTotalStakeHigherThanExisting
             }
-            manager::UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
+            UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
                 Self::MinQuorumStakeHigherThanTotalStake
             }
         }

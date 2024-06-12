@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet as Set;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
-use core::num::{NonZeroU128, NonZeroU16, NonZeroU64};
+use core::num::{NonZeroU128, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
 
@@ -11,7 +11,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
-use crate::config::UpdateConfig;
+use crate::config::{UpdateConfig, UpdateConfigError};
 use crate::{BlockHeight, Validator};
 
 const MAX_CONSENSUS_STATES: usize = 20;
@@ -107,26 +107,7 @@ pub enum AddSignatureError {
     BadValidator,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum UpdateConfigError {
-    /// Minimum validators are more than existing
-    ///
-    /// If minimum validators are higher than existing, then the
-    /// none of the existing validators can leave unless the validators are more
-    /// than the minimum.
-    MinValidatorsHigherThanExisting,
-    /// Minimum Total Stake is higher than existing
-    ///
-    /// If minimum total stake is higher than existing, then none of them
-    /// can withdraw their unless the total stake is more than the minimum.
-    MinTotalStakeHigherThanExisting,
-    /// Minimum Quorum Stake is higher than existing total stake
-    ///
-    /// If minimum quorum stake is higher than existing total stake, then
-    /// blocks would never get finalized until more stake is added and quorum
-    /// stake is less than head stake.
-    MinQuorumStakeHigherThanTotalStake,
-}
+
 
 /// Result of adding a signature to the pending block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -194,44 +175,11 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         &mut self,
         config_payload: UpdateConfig,
     ) -> Result<(), UpdateConfigError> {
-        if let Some(min_validators) = config_payload.min_validators {
-            if min_validators >
-                NonZeroU16::new(self.validators().len() as u16).unwrap()
-            {
-                return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
-            }
-            self.config.min_validators = min_validators;
-        }
-        if let Some(max_validators) = config_payload.max_validators {
-            self.config.max_validators = max_validators;
-        }
-        if let Some(min_validator_stake) = config_payload.min_validator_stake {
-            self.config.min_validator_stake = min_validator_stake;
-        }
-        if let Some(min_total_stake) = config_payload.min_total_stake {
-            if u128::from(min_total_stake) > self.candidates.head_stake {
-                return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
-            }
-            self.config.min_total_stake = min_total_stake;
-        }
-        if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
-            if u128::from(min_quorum_stake) > self.candidates.head_stake {
-                return Err(
-                    UpdateConfigError::MinQuorumStakeHigherThanTotalStake,
-                );
-            }
-            self.config.min_quorum_stake = min_quorum_stake;
-        }
-        if let Some(min_block_length) = config_payload.min_block_length {
-            self.config.min_block_length = min_block_length;
-        }
-        if let Some(max_block_age_ns) = config_payload.max_block_age_ns {
-            self.config.max_block_age_ns = max_block_age_ns;
-        }
-        if let Some(min_epoch_length) = config_payload.min_epoch_length {
-            self.config.min_epoch_length = min_epoch_length;
-        }
-        Ok(())
+        self.config.update(
+            self.candidates.head_stake,
+            self.validators().len() as u16,
+            config_payload,
+        )
     }
 
     /// Generates a new block and sets it as pending.

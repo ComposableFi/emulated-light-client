@@ -103,3 +103,70 @@ pub struct UpdateConfig {
     pub max_block_age_ns: Option<u64>,
     pub min_epoch_length: Option<crate::height::HostDelta>,
 }
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpdateConfigError {
+    /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
+    MinValidatorsHigherThanExisting,
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
+    MinTotalStakeHigherThanExisting,
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
+    MinQuorumStakeHigherThanTotalStake,
+}
+
+impl Config {
+    pub fn update(
+        &mut self,
+        head_stake: u128,
+        total_validators: u16,
+        config_payload: UpdateConfig,
+    ) -> Result<(), UpdateConfigError> {
+        if let Some(min_validators) = config_payload.min_validators {
+            if min_validators > NonZeroU16::new(total_validators).unwrap() {
+                return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
+            }
+            self.min_validators = min_validators;
+        }
+        if let Some(max_validators) = config_payload.max_validators {
+            self.max_validators = max_validators;
+        }
+        if let Some(min_validator_stake) = config_payload.min_validator_stake {
+            self.min_validator_stake = min_validator_stake;
+        }
+        if let Some(min_total_stake) = config_payload.min_total_stake {
+            if u128::from(min_total_stake) > head_stake {
+                return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
+            }
+            self.min_total_stake = min_total_stake;
+        }
+        if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
+            if u128::from(min_quorum_stake) > head_stake {
+                return Err(
+                    UpdateConfigError::MinQuorumStakeHigherThanTotalStake,
+                );
+            }
+            self.min_quorum_stake = min_quorum_stake;
+        }
+        if let Some(min_block_length) = config_payload.min_block_length {
+            self.min_block_length = min_block_length;
+        }
+        if let Some(max_block_age_ns) = config_payload.max_block_age_ns {
+            self.max_block_age_ns = max_block_age_ns;
+        }
+        if let Some(min_epoch_length) = config_payload.min_epoch_length {
+            self.min_epoch_length = min_epoch_length;
+        }
+        Ok(())
+    }
+}
