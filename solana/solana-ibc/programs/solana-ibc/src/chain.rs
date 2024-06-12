@@ -173,7 +173,7 @@ impl ChainData {
             .map_err(Into::into)
     }
 
-    /// Updates multiple validators stake.
+    /// Updates multiple validators’ stake.
     ///
     /// Fails when trying to remove stake from a non-existent validator,
     /// removing more stake than a validator holds or if as a result configured
