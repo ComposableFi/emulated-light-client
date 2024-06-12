@@ -561,6 +561,13 @@ macro_rules! from_ctx {
 
 pub(crate) use from_ctx;
 
+/// Operation defining whether to remove or add stake to the validator
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
+pub enum StakeOperation {
+    Add,
+    Remove,
+}
+
 /// A wrapper type for a Borsh-serialised object.
 ///
 /// It is kept as a slice of bytes and only deserialised on demand.  This way

@@ -8,6 +8,7 @@ pub use sigverify::ed25519::{PubKey, Signature};
 pub use sigverify::Verifier;
 
 use crate::error::Error;
+use crate::storage::StakeOperation;
 use crate::{events, ibc, storage};
 
 type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
@@ -171,6 +172,42 @@ impl ChainData {
             .manager
             .update_candidate(pubkey, amount)
             .map_err(into_error)
+    }
+
+    /// Updates multiple validators stake based on the operation
+    ///
+    /// Fails if candidate is not found during remove operation
+    /// or if the subtraction overflows
+    pub fn set_stake_multiple(
+        &mut self,
+        validator_change_in_stake: Vec<(Pubkey, u128)>,
+        operation: StakeOperation,
+    ) -> Result<()> {
+        validator_change_in_stake.into_iter().try_for_each(
+            |(validator_pubkey, amount)| {
+                let validator =
+                    self.candidate(validator_pubkey).map_err(into_error)?;
+                let updated_stake = match operation {
+                    StakeOperation::Add => validator
+                        .map_or(amount, |val| u128::from(val.stake) + amount),
+                    StakeOperation::Remove => {
+                        let validator_stake = validator
+                            .ok_or(Error::CandidateNotFound)
+                            .map_err(into_error)?
+                            .stake;
+                        let validator_stake_in_u128 =
+                            u128::from(validator_stake);
+                        validator_stake_in_u128
+                            .checked_sub(amount)
+                            .ok_or(Error::SubtractionOverflow)?
+                    }
+                };
+                self.get_mut()?
+                    .manager
+                    .update_candidate((validator_pubkey).into(), updated_stake)
+                    .map_err(into_error)
+            },
+        )
     }
 
     /// Returns the validator data with stake and rewards

@@ -12,7 +12,7 @@ use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use lib::hash::CryptoHash;
-use storage::{PrivateStorage, TransferAccounts};
+use storage::{PrivateStorage, StakeOperation, TransferAccounts};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -201,6 +201,20 @@ pub mod solana_ibc {
         )?;
         chain.maybe_generate_block(&provable)?;
         chain.set_stake((validator).into(), amount)
+    }
+
+    pub fn set_stake_multiple(
+        ctx: Context<SetStake>,
+        validator_change_in_stake: Vec<(Pubkey, u128)>,
+        operation: StakeOperation,
+    ) -> Result<()> {
+        let chain = &mut ctx.accounts.chain;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
+        chain.maybe_generate_block(&provable)?;
+        chain.set_stake_multiple(validator_change_in_stake, operation)
     }
 
     pub fn set_fee_amount<'a, 'info>(

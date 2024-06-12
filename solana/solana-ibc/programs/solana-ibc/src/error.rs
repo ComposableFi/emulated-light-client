@@ -92,6 +92,12 @@ pub enum Error {
     /// smart contract is built without `mocks` feature) which requires the
     /// sender to be a known authorised relayer.
     InvalidSigner,
+
+    /// Candidate not found in the list of candidates.
+    CandidateNotFound,
+
+    /// Subtraction overflow
+    SubtractionOverflow,
 }
 
 impl Error {
