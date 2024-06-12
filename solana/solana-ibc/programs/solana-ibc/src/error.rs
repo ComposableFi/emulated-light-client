@@ -126,12 +126,10 @@ pub enum Error {
 }
 
 impl Error {
-    pub fn name(&self) -> String {
-        <&'static str>::from(self).into()
-    }
+    pub fn name(&self) -> String { <&'static str>::from(self).into() }
     pub fn code(&self) -> u32 {
-        anchor_lang::error::ERROR_CODE_OFFSET
-            + ErrorDiscriminants::from(self) as u32
+        anchor_lang::error::ERROR_CODE_OFFSET +
+            ErrorDiscriminants::from(self) as u32
     }
 }
 
@@ -147,21 +145,15 @@ impl core::fmt::Display for Error {
 }
 
 impl From<Error> for u32 {
-    fn from(err: Error) -> u32 {
-        err.code()
-    }
+    fn from(err: Error) -> u32 { err.code() }
 }
 
 impl From<&Error> for u32 {
-    fn from(err: &Error) -> u32 {
-        err.code()
-    }
+    fn from(err: &Error) -> u32 { err.code() }
 }
 
 impl From<manager::BadGenesis> for Error {
-    fn from(_: manager::BadGenesis) -> Self {
-        Self::Internal("BadGenesis")
-    }
+    fn from(_: manager::BadGenesis) -> Self { Self::Internal("BadGenesis") }
 }
 
 impl From<manager::GenerateError> for Error {
