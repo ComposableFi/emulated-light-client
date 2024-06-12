@@ -263,10 +263,7 @@ impl ChainData {
     }
 
     pub fn update_chain_config(&mut self, config: UpdateConfig) -> Result {
-        self.get_mut()?
-            .manager
-            .update_config(config)
-            .map_err(into_error)
+        self.get_mut()?.manager.update_config(config).map_err(into_error)
     }
 
     /// Returns a shared reference the inner chain data if it has been
