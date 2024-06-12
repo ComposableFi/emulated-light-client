@@ -96,8 +96,8 @@ pub enum Error {
     /// Candidate not found in the list of candidates.
     CandidateNotFound,
 
-    /// Subtraction overflow
-    SubtractionOverflow,
+    /// Validator has less stake than the amount attempted to remove.
+    InsufficientStake,
 }
 
 impl Error {

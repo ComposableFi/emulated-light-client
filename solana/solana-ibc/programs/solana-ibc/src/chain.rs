@@ -8,7 +8,6 @@ pub use sigverify::ed25519::{PubKey, Signature};
 pub use sigverify::Verifier;
 
 use crate::error::Error;
-use crate::storage::StakeOperation;
 use crate::{events, ibc, storage};
 
 type Result<T = (), E = anchor_lang::error::Error> = core::result::Result<T, E>;
@@ -174,40 +173,58 @@ impl ChainData {
             .map_err(Into::into)
     }
 
-    /// Updates multiple validators stake based on the operation
+    /// Updates multiple validators stake.
     ///
-    /// Fails if candidate is not found during remove operation
-    /// or if the subtraction overflows
-    pub fn set_stake_multiple(
+    /// Fails when trying to remove stake from a non-existent validator,
+    /// removing more stake than a validator holds or if as a result configured
+    /// block minimums won’t be held.
+    pub fn update_stake(
         &mut self,
-        validator_change_in_stake: Vec<(Pubkey, u128)>,
-        operation: StakeOperation,
+        stake_changes: Vec<(PubKey, i128)>,
     ) -> Result<()> {
-        validator_change_in_stake.into_iter().try_for_each(
-            |(validator_pubkey, amount)| {
-                let validator =
-                    self.candidate(validator_pubkey).map_err(into_error)?;
-                let updated_stake = match operation {
-                    StakeOperation::Add => validator
-                        .map_or(amount, |val| u128::from(val.stake) + amount),
-                    StakeOperation::Remove => {
-                        let validator_stake = validator
-                            .ok_or(Error::CandidateNotFound)
-                            .map_err(into_error)?
-                            .stake;
-                        let validator_stake_in_u128 =
-                            u128::from(validator_stake);
-                        validator_stake_in_u128
-                            .checked_sub(amount)
-                            .ok_or(Error::SubtractionOverflow)?
+        #[derive(derive_more::From)]
+        enum InnerError {
+            Update(guestchain::manager::UpdateCandidateError),
+            ArithmeticOverflow,
+            CandidateNotFound,
+            InsufficientStake,
+        }
+
+        impl From<InnerError> for anchor_lang::error::Error {
+            fn from(err: InnerError) -> Self {
+                match err {
+                    InnerError::Update(err) => Error::from(err).into(),
+                    InnerError::ArithmeticOverflow => {
+                        ProgramError::ArithmeticOverflow.into()
                     }
-                };
-                self.get_mut()?
-                    .manager
-                    .update_candidate((validator_pubkey).into(), updated_stake)
-                    .map_err(into_error)
-            },
-        )
+                    InnerError::CandidateNotFound => {
+                        Error::CandidateNotFound.into()
+                    }
+                    InnerError::InsufficientStake => {
+                        Error::InsufficientStake.into()
+                    }
+                }
+            }
+        }
+
+        let inner = self.get_mut()?;
+        for (pubkey, amount) in stake_changes {
+            inner.manager.update_candidate(pubkey, |candidate| {
+                candidate
+                    .map_or(0, |c| c.stake.get())
+                    .checked_add_signed(amount)
+                    .ok_or_else(|| {
+                        if amount > 0 {
+                            InnerError::ArithmeticOverflow
+                        } else if candidate.is_none() {
+                            InnerError::CandidateNotFound
+                        } else {
+                            InnerError::InsufficientStake
+                        }
+                    })
+            })?;
+        }
+        Ok(())
     }
 
     /// Returns the validator data with stake and rewards
