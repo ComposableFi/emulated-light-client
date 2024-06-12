@@ -100,4 +100,6 @@ pub struct UpdateChainConfigPayload {
     pub min_total_stake: Option<NonZeroU128>,
     pub min_quorum_stake: Option<NonZeroU128>,
     pub min_block_length: Option<crate::height::HostDelta>,
+    pub max_block_age_ns: Option<u64>,
+    pub min_epoch_length: Option<crate::height::HostDelta>,
 }

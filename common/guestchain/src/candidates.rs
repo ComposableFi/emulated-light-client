@@ -27,7 +27,7 @@ pub struct Candidates<PK> {
     changed: bool,
 
     /// Sum of the top `max_validators` stakes.
-    head_stake: u128,
+    pub head_stake: u128,
 }
 
 /// A candidate to become a validator.

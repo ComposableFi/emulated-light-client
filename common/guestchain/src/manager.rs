@@ -3,7 +3,7 @@ use alloc::boxed::Box;
 use alloc::collections::BTreeSet as Set;
 use alloc::collections::VecDeque;
 use alloc::vec::Vec;
-use core::num::{NonZeroU128, NonZeroU64};
+use core::num::{NonZeroU128, NonZeroU16, NonZeroU64};
 #[cfg(feature = "std")]
 use std::collections::HashSet as Set;
 
@@ -110,13 +110,22 @@ pub enum AddSignatureError {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum UpdateConfigError {
     /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
     MinValidatorsHigherThanExisting,
-    /// Maximum validators are less than existing
-    MaxValidatorsLowerThanExisting,
-    /// Total Stake is less than existing
-    MinTotalStakeLowerThanExisting,
-    /// Quorum Stake is less than existing
-    MinQuorumStakeLowerThanExisting,
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
+    MinTotalStakeHigherThanExisting,
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
+    MinQuorumStakeHigherThanTotalStake,
 }
 
 /// Result of adding a signature to the pending block.
@@ -186,34 +195,41 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         config_payload: UpdateChainConfigPayload,
     ) -> Result<(), UpdateConfigError> {
         if let Some(min_validators) = config_payload.min_validators {
-            if min_validators > self.config.min_validators {
+            if min_validators >
+                NonZeroU16::new(self.validators().len() as u16).unwrap()
+            {
                 return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
             }
             self.config.min_validators = min_validators;
         }
         if let Some(max_validators) = config_payload.max_validators {
-            if max_validators < self.config.max_validators {
-                return Err(UpdateConfigError::MaxValidatorsLowerThanExisting);
-            }
             self.config.max_validators = max_validators;
         }
         if let Some(min_validator_stake) = config_payload.min_validator_stake {
             self.config.min_validator_stake = min_validator_stake;
         }
         if let Some(min_total_stake) = config_payload.min_total_stake {
-            if min_total_stake < self.config.min_total_stake {
-                return Err(UpdateConfigError::MinTotalStakeLowerThanExisting);
+            if u128::from(min_total_stake) > self.candidates.head_stake {
+                return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
             }
             self.config.min_total_stake = min_total_stake;
         }
         if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
-            if min_quorum_stake < self.config.min_total_stake {
-                return Err(UpdateConfigError::MinQuorumStakeLowerThanExisting);
+            if u128::from(min_quorum_stake) > self.candidates.head_stake {
+                return Err(
+                    UpdateConfigError::MinQuorumStakeHigherThanTotalStake,
+                );
             }
             self.config.min_quorum_stake = min_quorum_stake;
         }
         if let Some(min_block_length) = config_payload.min_block_length {
             self.config.min_block_length = min_block_length;
+        }
+        if let Some(max_block_age_ns) = config_payload.max_block_age_ns {
+            self.config.max_block_age_ns = max_block_age_ns;
+        }
+        if let Some(min_epoch_length) = config_payload.min_epoch_length {
+            self.config.min_epoch_length = min_epoch_length;
         }
         Ok(())
     }
@@ -385,9 +401,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
 #[test]
 fn test_generate() {
+    use core::num::NonZeroU16;
+
     use crate::validators::MockPubKey;
 
     let epoch = crate::Epoch::test(&[(1, 2), (2, 2), (3, 2)]);
+    let total_stake = 6;
     assert_eq!(4, epoch.quorum_stake().get());
 
     let ali = epoch.validators()[0].clone();
@@ -412,7 +431,7 @@ fn test_generate() {
         max_block_age_ns: 1000,
         min_epoch_length: 8.into(),
     };
-    let mut mgr = ChainManager::new(config, genesis).unwrap();
+    let mut mgr = ChainManager::new(config.clone(), genesis).unwrap();
 
     let one = NonZeroU64::new(1).unwrap();
     let two = NonZeroU64::new(2).unwrap();
@@ -544,4 +563,51 @@ fn test_generate() {
         false,
     )
     .unwrap();
+
+    let update_chain_config = UpdateChainConfigPayload {
+        min_validators: Some(
+            NonZeroU16::new((mgr.validators().len() + 1) as u16).unwrap(),
+        ),
+        max_validators: None,
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinValidatorsHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateChainConfigPayload {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: Some(NonZeroU128::new(total_stake + 2).unwrap()),
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinTotalStakeHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateChainConfigPayload {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: Some(NonZeroU128::new(total_stake + 2).unwrap()),
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinQuorumStakeHigherThanTotalStake),
+        mgr.update_config(update_chain_config)
+    );
 }
