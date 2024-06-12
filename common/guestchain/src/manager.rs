@@ -11,6 +11,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
+use crate::config::UpdateChainConfigPayload;
 use crate::{BlockHeight, Validator};
 
 const MAX_CONSENSUS_STATES: usize = 20;
@@ -106,6 +107,18 @@ pub enum AddSignatureError {
     BadValidator,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpdateConfigError {
+    /// Minimum validators are more than existing
+    MinValidatorsHigherThanExisting,
+    /// Maximum validators are less than existing
+    MaxValidatorsLowerThanExisting,
+    /// Total Stake is less than existing
+    MinTotalStakeLowerThanExisting,
+    /// Quorum Stake is less than existing
+    MinQuorumStakeLowerThanExisting,
+}
+
 /// Result of adding a signature to the pending block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AddSignatureEffect {
@@ -166,6 +179,43 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// Returns the pending block
     pub fn pending_block(&self) -> Option<&PendingBlock<PK>> {
         self.pending_block.as_ref()
+    }
+
+    pub fn update_config(
+        &mut self,
+        config_payload: UpdateChainConfigPayload,
+    ) -> Result<(), UpdateConfigError> {
+        if let Some(min_validators) = config_payload.min_validators {
+            if min_validators > self.config.min_validators {
+                return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
+            }
+            self.config.min_validators = min_validators;
+        }
+        if let Some(max_validators) = config_payload.max_validators {
+            if max_validators < self.config.max_validators {
+                return Err(UpdateConfigError::MaxValidatorsLowerThanExisting);
+            }
+            self.config.max_validators = max_validators;
+        }
+        if let Some(min_validator_stake) = config_payload.min_validator_stake {
+            self.config.min_validator_stake = min_validator_stake;
+        }
+        if let Some(min_total_stake) = config_payload.min_total_stake {
+            if min_total_stake < self.config.min_total_stake {
+                return Err(UpdateConfigError::MinTotalStakeLowerThanExisting);
+            }
+            self.config.min_total_stake = min_total_stake;
+        }
+        if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
+            if min_quorum_stake < self.config.min_total_stake {
+                return Err(UpdateConfigError::MinQuorumStakeLowerThanExisting);
+            }
+            self.config.min_quorum_stake = min_quorum_stake;
+        }
+        if let Some(min_block_length) = config_payload.min_block_length {
+            self.config.min_block_length = min_block_length;
+        }
+        Ok(())
     }
 
     /// Generates a new block and sets it as pending.

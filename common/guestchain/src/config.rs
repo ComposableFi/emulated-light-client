@@ -91,3 +91,13 @@ pub struct Config {
     /// epoch.
     pub min_epoch_length: crate::height::HostDelta,
 }
+
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct UpdateChainConfigPayload {
+    pub min_validators: Option<NonZeroU16>,
+    pub max_validators: Option<NonZeroU16>,
+    pub min_validator_stake: Option<NonZeroU128>,
+    pub min_total_stake: Option<NonZeroU128>,
+    pub min_quorum_stake: Option<NonZeroU128>,
+    pub min_block_length: Option<crate::height::HostDelta>,
+}

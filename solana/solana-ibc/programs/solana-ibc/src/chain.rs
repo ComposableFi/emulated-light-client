@@ -1,6 +1,7 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
+use guestchain::config::UpdateChainConfigPayload;
 use guestchain::manager::PendingBlock;
 pub use guestchain::Config;
 use lib::hash::CryptoHash;
@@ -259,6 +260,16 @@ impl ChainData {
 
     pub fn sig_verify_program_id(&self) -> Result<Pubkey, Error> {
         Ok(*self.get()?.sig_verify_program_id)
+    }
+
+    pub fn update_chain_config(
+        &mut self,
+        config: UpdateChainConfigPayload,
+    ) -> Result {
+        self.get_mut()?
+            .manager
+            .update_config(config.into())
+            .map_err(|err| into_error(err))
     }
 
     /// Returns a shared reference the inner chain data if it has been

@@ -11,6 +11,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use guestchain::config::UpdateChainConfigPayload;
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
 
@@ -489,6 +490,14 @@ pub mod solana_ibc {
         )?;
         Ok(account.realloc(new_length, false)?)
     }
+
+    pub fn update_chain_config(
+        ctx: Context<UpdateChainConfig>,
+        config_payload: UpdateChainConfigPayload,
+    ) -> Result<()> {
+        let chain = &mut ctx.accounts.chain;
+        chain.update_chain_config(config_payload)
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -772,6 +781,20 @@ pub struct SendTransfer<'info> {
 
     token_program: Option<Program<'info, Token>>,
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateChainConfig<'info> {
+    #[account(mut)]
+    pub fee_collector: Signer<'info>,
+
+    // The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, has_one = fee_collector)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
 }
 
 #[derive(Accounts)]

@@ -92,6 +92,18 @@ pub enum Error {
     /// smart contract is built without `mocks` feature) which requires the
     /// sender to be a known authorised relayer.
     InvalidSigner,
+
+    /// Minimum validators are more than the current set of validators
+    MinValidatorsHigherThanExisting,
+
+    /// Maximum validators are less than the current set of validators
+    MaxValidatorsLowerThanExisting,
+
+    /// Total Stake is less than existing stake
+    MinTotalStakeLowerThanExisting,
+
+    /// Quorum Stake is less than existing stake
+    MinQuorumStakeLowerThanExisting,
 }
 
 impl Error {
@@ -142,6 +154,25 @@ impl From<manager::AddSignatureError> for Error {
             manager::AddSignatureError::NoPendingBlock => Self::UnknownBlock,
             manager::AddSignatureError::BadSignature => Self::BadSignature,
             manager::AddSignatureError::BadValidator => Self::BadValidator,
+        }
+    }
+}
+
+impl From<manager::UpdateConfigError> for Error {
+    fn from(err: manager::UpdateConfigError) -> Self {
+        match err {
+            manager::UpdateConfigError::MinValidatorsHigherThanExisting => {
+                Self::MinValidatorsHigherThanExisting
+            }
+            manager::UpdateConfigError::MaxValidatorsLowerThanExisting => {
+                Self::MaxValidatorsLowerThanExisting
+            }
+            manager::UpdateConfigError::MinTotalStakeLowerThanExisting => {
+                Self::MinTotalStakeLowerThanExisting
+            }
+            manager::UpdateConfigError::MinQuorumStakeLowerThanExisting => {
+                Self::MinQuorumStakeLowerThanExisting
+            }
         }
     }
 }
