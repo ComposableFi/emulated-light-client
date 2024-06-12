@@ -94,21 +94,44 @@ pub enum Error {
     /// sender to be a known authorised relayer.
     InvalidSigner,
 
-    /// Minimum validators are more than the current set of validators
+    /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
     MinValidatorsHigherThanExisting,
 
-    /// Maximum validators are less than the current set of validators
+    /// Maximum validators should always be equal or higher than minimum validators
+    MaxValidatorsCannotBeLowerThanMin,
+
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
     MinTotalStakeHigherThanExisting,
 
-    /// Total Stake is less than existing stake
+    /// Minimum total stake is lower than minimum quorum stake
+    ///
+    /// If minimum total stake is lower than minimum quorum stake, then
+    /// the total stake can be less than quorum and block would never be
+    /// finalized since the total stake is less than quroum stake.
+    MinTotalStakeHigherThanMinQuorumStake,
+
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
     MinQuorumStakeHigherThanTotalStake,
 }
 
 impl Error {
-    pub fn name(&self) -> String { <&'static str>::from(self).into() }
+    pub fn name(&self) -> String {
+        <&'static str>::from(self).into()
+    }
     pub fn code(&self) -> u32 {
-        anchor_lang::error::ERROR_CODE_OFFSET +
-            ErrorDiscriminants::from(self) as u32
+        anchor_lang::error::ERROR_CODE_OFFSET
+            + ErrorDiscriminants::from(self) as u32
     }
 }
 
@@ -124,15 +147,21 @@ impl core::fmt::Display for Error {
 }
 
 impl From<Error> for u32 {
-    fn from(err: Error) -> u32 { err.code() }
+    fn from(err: Error) -> u32 {
+        err.code()
+    }
 }
 
 impl From<&Error> for u32 {
-    fn from(err: &Error) -> u32 { err.code() }
+    fn from(err: &Error) -> u32 {
+        err.code()
+    }
 }
 
 impl From<manager::BadGenesis> for Error {
-    fn from(_: manager::BadGenesis) -> Self { Self::Internal("BadGenesis") }
+    fn from(_: manager::BadGenesis) -> Self {
+        Self::Internal("BadGenesis")
+    }
 }
 
 impl From<manager::GenerateError> for Error {
@@ -167,6 +196,12 @@ impl From<UpdateConfigError> for Error {
             }
             UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
                 Self::MinQuorumStakeHigherThanTotalStake
+            }
+            UpdateConfigError::MaxValidatorsCannotBeLowerThanMin => {
+                Self::MaxValidatorsCannotBeLowerThanMin
+            }
+            UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake => {
+                Self::MinTotalStakeHigherThanMinQuorumStake
             }
         }
     }

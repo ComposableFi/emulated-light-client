@@ -112,11 +112,23 @@ pub enum UpdateConfigError {
     /// none of the existing validators can leave unless the validators are more
     /// than the minimum.
     MinValidatorsHigherThanExisting,
+
+    /// Maximum validators should always be equal or higher than minimum validators
+    MaxValidatorsCannotBeLowerThanMin,
+
     /// Minimum Total Stake is higher than existing
     ///
     /// If minimum total stake is higher than existing, then none of them
     /// can withdraw their unless the total stake is more than the minimum.
     MinTotalStakeHigherThanExisting,
+
+    /// Minimum total stake is lower than minimum quorum stake
+    ///
+    /// If minimum total stake is lower than minimum quorum stake, then
+    /// the total stake can be less than quorum and block would never be
+    /// finalized since the total stake is less than quroum stake.
+    MinTotalStakeHigherThanMinQuorumStake,
+
     /// Minimum Quorum Stake is higher than existing total stake
     ///
     /// If minimum quorum stake is higher than existing total stake, then
@@ -139,6 +151,11 @@ impl Config {
             self.min_validators = min_validators;
         }
         if let Some(max_validators) = config_payload.max_validators {
+            if max_validators < self.min_validators {
+                return Err(
+                    UpdateConfigError::MaxValidatorsCannotBeLowerThanMin,
+                );
+            }
             self.max_validators = max_validators;
         }
         if let Some(min_validator_stake) = config_payload.min_validator_stake {
@@ -147,6 +164,11 @@ impl Config {
         if let Some(min_total_stake) = config_payload.min_total_stake {
             if u128::from(min_total_stake) > head_stake {
                 return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
+            }
+            if min_total_stake < self.min_quorum_stake {
+                return Err(
+                    UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
+                );
             }
             self.min_total_stake = min_total_stake;
         }
