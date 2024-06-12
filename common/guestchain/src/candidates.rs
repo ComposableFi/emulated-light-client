@@ -100,6 +100,11 @@ impl<PK: crate::PubKey> Candidates<PK> {
             .fold(0, |sum, c| sum.checked_add(c.stake.get()).unwrap())
     }
 
+    /// Updates max validators count.
+    pub fn update_max_validators(&mut self, max_validators: NonZeroU16) {
+        self.max_validators = max_validators;
+    }
+
     /// Returns top validators if changed since last time changed flag was
     /// cleared.
     ///

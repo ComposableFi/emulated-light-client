@@ -107,8 +107,6 @@ pub enum AddSignatureError {
     BadValidator,
 }
 
-
-
 /// Result of adding a signature to the pending block.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AddSignatureEffect {
@@ -178,8 +176,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.config.update(
             self.candidates.head_stake,
             self.validators().len() as u16,
-            config_payload,
-        )
+            config_payload.clone(),
+        )?;
+        if let Some(max_validators) = config_payload.max_validators {
+            self.candidates.update_max_validators(max_validators);
+        }
+        Ok(())
     }
 
     /// Generates a new block and sets it as pending.
