@@ -1,7 +1,7 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
-use guestchain::config::UpdateChainConfigPayload;
+use guestchain::config::UpdateConfig;
 use guestchain::manager::PendingBlock;
 pub use guestchain::Config;
 use lib::hash::CryptoHash;
@@ -262,10 +262,7 @@ impl ChainData {
         Ok(*self.get()?.sig_verify_program_id)
     }
 
-    pub fn update_chain_config(
-        &mut self,
-        config: UpdateChainConfigPayload,
-    ) -> Result {
+    pub fn update_chain_config(&mut self, config: UpdateConfig) -> Result {
         self.get_mut()?
             .manager
             .update_config(config.into())

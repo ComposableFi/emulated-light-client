@@ -97,13 +97,10 @@ pub enum Error {
     MinValidatorsHigherThanExisting,
 
     /// Maximum validators are less than the current set of validators
-    MaxValidatorsLowerThanExisting,
+    MinTotalStakeHigherThanExisting,
 
     /// Total Stake is less than existing stake
-    MinTotalStakeLowerThanExisting,
-
-    /// Quorum Stake is less than existing stake
-    MinQuorumStakeLowerThanExisting,
+    MinQuorumStakeHigherThanTotalStake,
 }
 
 impl Error {
@@ -164,14 +161,11 @@ impl From<manager::UpdateConfigError> for Error {
             manager::UpdateConfigError::MinValidatorsHigherThanExisting => {
                 Self::MinValidatorsHigherThanExisting
             }
-            manager::UpdateConfigError::MaxValidatorsLowerThanExisting => {
-                Self::MaxValidatorsLowerThanExisting
+            manager::UpdateConfigError::MinTotalStakeHigherThanExisting => {
+                Self::MinTotalStakeHigherThanExisting
             }
-            manager::UpdateConfigError::MinTotalStakeLowerThanExisting => {
-                Self::MinTotalStakeLowerThanExisting
-            }
-            manager::UpdateConfigError::MinQuorumStakeLowerThanExisting => {
-                Self::MinQuorumStakeLowerThanExisting
+            manager::UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
+                Self::MinQuorumStakeHigherThanTotalStake
             }
         }
     }

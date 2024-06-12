@@ -11,7 +11,7 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
-use guestchain::config::UpdateChainConfigPayload;
+use guestchain::config::UpdateConfig;
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
 
@@ -493,7 +493,7 @@ pub mod solana_ibc {
 
     pub fn update_chain_config(
         ctx: Context<UpdateChainConfig>,
-        config_payload: UpdateChainConfigPayload,
+        config_payload: UpdateConfig,
     ) -> Result<()> {
         let chain = &mut ctx.accounts.chain;
         chain.update_chain_config(config_payload)

@@ -11,7 +11,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
-use crate::config::UpdateChainConfigPayload;
+use crate::config::UpdateConfig;
 use crate::{BlockHeight, Validator};
 
 const MAX_CONSENSUS_STATES: usize = 20;
@@ -192,7 +192,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     pub fn update_config(
         &mut self,
-        config_payload: UpdateChainConfigPayload,
+        config_payload: UpdateConfig,
     ) -> Result<(), UpdateConfigError> {
         if let Some(min_validators) = config_payload.min_validators {
             if min_validators >
@@ -564,7 +564,7 @@ fn test_generate() {
     )
     .unwrap();
 
-    let update_chain_config = UpdateChainConfigPayload {
+    let update_chain_config = UpdateConfig {
         min_validators: Some(
             NonZeroU16::new((mgr.validators().len() + 1) as u16).unwrap(),
         ),
@@ -581,7 +581,7 @@ fn test_generate() {
         mgr.update_config(update_chain_config)
     );
 
-    let update_chain_config = UpdateChainConfigPayload {
+    let update_chain_config = UpdateConfig {
         min_validators: None,
         max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
         min_validator_stake: None,
@@ -596,7 +596,7 @@ fn test_generate() {
         mgr.update_config(update_chain_config)
     );
 
-    let update_chain_config = UpdateChainConfigPayload {
+    let update_chain_config = UpdateConfig {
         min_validators: None,
         max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
         min_validator_stake: None,

@@ -93,7 +93,7 @@ pub struct Config {
 }
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
-pub struct UpdateChainConfigPayload {
+pub struct UpdateConfig {
     pub min_validators: Option<NonZeroU16>,
     pub max_validators: Option<NonZeroU16>,
     pub min_validator_stake: Option<NonZeroU128>,
