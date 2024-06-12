@@ -169,8 +169,8 @@ impl ChainData {
     pub fn set_stake(&mut self, pubkey: PubKey, amount: u128) -> Result<()> {
         self.get_mut()?
             .manager
-            .update_candidate(pubkey, amount)
-            .map_err(into_error)
+            .update_candidate(pubkey, |_| Result::<u128, Error>::Ok(amount))
+            .map_err(Into::into)
     }
 
     /// Returns the validator data with stake and rewards
