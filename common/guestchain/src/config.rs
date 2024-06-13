@@ -141,90 +141,46 @@ impl Config {
     pub fn update(
         &mut self,
         head_stake: u128,
-        total_validators: u16,
-        config_payload: UpdateConfig,
+        total_validators: usize,
+        update: UpdateConfig,
     ) -> Result<(), UpdateConfigError> {
-        self.update_validate(head_stake, total_validators, &config_payload)?;
-        self.update_execute(config_payload);
-        Ok(())
-    }
-
-    pub fn update_validate(
-        &self,
-        head_stake: u128,
-        total_validators: u16,
-        config_payload: &UpdateConfig,
-    ) -> Result<(), UpdateConfigError> {
-        if let Some(min_validators) = config_payload.min_validators {
-            if usize::from(min_validators.get()) > total_validators as usize {
-                return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
-            }
-            if let Some(max_validators) = config_payload.max_validators {
-                if max_validators < min_validators {
-                    return Err(
-                        UpdateConfigError::MaxValidatorsCannotBeLowerThanMin,
-                    );
-                }
+        macro_rules! unwrap {
+            ($update:ident. $field:ident) => {
+                $update.$field.unwrap_or(self.$field)
             };
         }
-        if let Some(max_validators) = config_payload.max_validators {
-            if max_validators < self.min_validators {
-                return Err(
-                    UpdateConfigError::MaxValidatorsCannotBeLowerThanMin,
-                );
-            }
-        }
-        if let Some(min_total_stake) = config_payload.min_total_stake {
-            if u128::from(min_total_stake) > head_stake {
-                return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
-            }
-            if min_total_stake < self.min_quorum_stake {
-                return Err(
-                    UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
-                );
-            }
-            if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
-                if min_total_stake < min_quorum_stake {
-                    return Err(
-                    UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
-                );
-                }
-            }
-        }
-        if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
-            if u128::from(min_quorum_stake) > head_stake {
-                return Err(
-                    UpdateConfigError::MinQuorumStakeHigherThanTotalStake,
-                );
-            }
-        };
-        Ok(())
-    }
 
-    pub fn update_execute(&mut self, config_payload: UpdateConfig) {
-        if let Some(min_validators) = config_payload.min_validators {
-            self.min_validators = min_validators;
+        let min_validators = unwrap!(update.min_validators);
+        let max_validators = unwrap!(update.max_validators);
+        if usize::from(min_validators.get()) > total_validators {
+            return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
         }
-        if let Some(max_validators) = config_payload.max_validators {
-            self.max_validators = max_validators;
+        if max_validators < min_validators {
+            return Err(UpdateConfigError::MaxValidatorsCannotBeLowerThanMin);
         }
-        if let Some(min_validator_stake) = config_payload.min_validator_stake {
-            self.min_validator_stake = min_validator_stake;
+
+        let min_total_stake = unwrap!(update.min_total_stake);
+        let min_quorum_stake = unwrap!(update.min_quorum_stake);
+        if min_total_stake.get() > head_stake {
+            return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
         }
-        if let Some(min_total_stake) = config_payload.min_total_stake {
-            self.min_total_stake = min_total_stake;
+        if min_quorum_stake.get() > head_stake {
+            return Err(UpdateConfigError::MinQuorumStakeHigherThanTotalStake);
         }
-        if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
-            self.min_quorum_stake = min_quorum_stake;
+        if min_total_stake < min_quorum_stake {
+            return Err(
+                UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
+            );
         }
-        if let Some(min_block_length) = config_payload.min_block_length {
-            self.min_block_length = min_block_length;
-        }
-        if let Some(max_block_age_ns) = config_payload.max_block_age_ns {
-            self.max_block_age_ns = max_block_age_ns;
-        }
-        if let Some(min_epoch_length) = config_payload.min_epoch_length {
-            self.min_epoch_length = min_epoch_length;
-        }
+
+        self.min_validators = min_validators;
+        self.max_validators = max_validators;
+        self.min_validator_stake = unwrap!(update.min_validator_stake);
+        self.min_total_stake = min_total_stake;
+        self.min_quorum_stake = min_quorum_stake;
+        self.min_block_length = unwrap!(update.min_block_length);
+        self.max_block_age_ns = unwrap!(update.max_block_age_ns);
+        self.min_epoch_length = unwrap!(update.min_epoch_length);
+        Ok(())
     }
 }

@@ -175,7 +175,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     ) -> Result<(), UpdateConfigError> {
         self.config.update(
             self.candidates.current_head_stake(),
-            self.validators().len() as u16,
+            self.validators().len(),
             config_payload.clone(),
         )?;
         if let Some(max_validators) = config_payload.max_validators {
