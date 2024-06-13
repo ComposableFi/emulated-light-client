@@ -109,7 +109,6 @@ pub fn run_validator(config: Config) {
                 host_height.into(),
                 NonZeroU64::new(host_timestamp).unwrap(),
                 trie_data.hash(),
-                true,
             );
             if result.is_ok() {
                 // Trying to generate a new block
