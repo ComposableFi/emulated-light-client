@@ -307,7 +307,6 @@ impl ChainInner {
             host_height,
             host_timestamp,
             trie.hash().clone(),
-            false,
         );
         match res {
             Ok(_) => {
