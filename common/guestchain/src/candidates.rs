@@ -27,7 +27,7 @@ pub struct Candidates<PK> {
     changed: bool,
 
     /// Sum of the top `max_validators` stakes.
-    pub head_stake: u128,
+    head_stake: u128,
 }
 
 /// A candidate to become a validator.
@@ -90,6 +90,10 @@ impl<PK: crate::PubKey> Candidates<PK> {
         let this = Self { max_validators, candidates, changed, head_stake };
         this.debug_verify_state();
         this
+    }
+
+    pub fn current_head_stake(&self) -> u128 {
+        self.head_stake
     }
 
     /// Sums stake of the first `count` candidates.

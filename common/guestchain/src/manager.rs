@@ -174,7 +174,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         config_payload: UpdateConfig,
     ) -> Result<(), UpdateConfigError> {
         self.config.update(
-            self.candidates.head_stake,
+            self.candidates.current_head_stake(),
             self.validators().len() as u16,
             config_payload.clone(),
         )?;
