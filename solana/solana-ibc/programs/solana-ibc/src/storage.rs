@@ -561,8 +561,6 @@ macro_rules! from_ctx {
 
 pub(crate) use from_ctx;
 
-
-
 /// A wrapper type for a Borsh-serialised object.
 ///
 /// It is kept as a slice of bytes and only deserialised on demand.  This way
