@@ -1,6 +1,6 @@
 [package]
 name = "validator"
-version = "0.0.5"
+version = "0.0.6"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -32,3 +32,4 @@ lib.workspace = true
 restaking.workspace = true
 solana-signature-verifier = { workspace = true, features = ["library"] }
 solana-ibc.workspace = true
+solana-trie.workspace = true

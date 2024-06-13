@@ -236,6 +236,25 @@ impl ChainData {
         Ok((0, u64::from(current_height)))
     }
 
+    pub fn check_generate_block(
+        &self,
+        host_height: guestchain::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: &CryptoHash,
+        force: bool,
+    ) -> Result {
+        let inner = self.get()?;
+        inner
+            .manager
+            .validate_generate_next(
+                host_height,
+                host_timestamp,
+                state_root,
+                force,
+            )
+            .map_err(into_error)
+    }
+
     pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.genesis().clone())
@@ -363,15 +382,21 @@ fn get_host_head() -> Result<(guestchain::HostHeight, NonZeroU64)> {
 }
 
 impl From<ChainNotInitialised> for Error {
-    fn from(_: ChainNotInitialised) -> Self { Error::ChainNotInitialised }
+    fn from(_: ChainNotInitialised) -> Self {
+        Error::ChainNotInitialised
+    }
 }
 
 impl From<ChainNotInitialised> for anchor_lang::error::AnchorError {
-    fn from(err: ChainNotInitialised) -> Self { Error::from(err).into() }
+    fn from(err: ChainNotInitialised) -> Self {
+        Error::from(err).into()
+    }
 }
 
 impl From<ChainNotInitialised> for anchor_lang::error::Error {
-    fn from(err: ChainNotInitialised) -> Self { Error::from(err).into() }
+    fn from(err: ChainNotInitialised) -> Self {
+        Error::from(err).into()
+    }
 }
 
 impl From<ChainNotInitialised> for ibc::ClientError {

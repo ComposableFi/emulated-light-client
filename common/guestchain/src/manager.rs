@@ -119,8 +119,12 @@ pub enum AddSignatureEffect {
 }
 
 impl AddSignatureEffect {
-    pub fn got_new_signature(self) -> bool { self != Self::Duplicate }
-    pub fn got_quorum(self) -> bool { self == Self::GotQuorum }
+    pub fn got_new_signature(self) -> bool {
+        self != Self::Duplicate
+    }
+    pub fn got_quorum(self) -> bool {
+        self == Self::GotQuorum
+    }
 }
 
 impl<PK: crate::PubKey> ChainManager<PK> {
@@ -184,27 +188,13 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         state_root: CryptoHash,
         force: bool,
     ) -> Result<bool, GenerateError> {
-        if self.pending_block.is_some() {
-            return Err(GenerateError::HasPendingBlock);
-        }
-        if !host_height.check_delta_from(
-            self.header.host_height,
-            self.config.min_block_length,
-        ) {
-            return Err(GenerateError::BlockTooYoung);
-        }
-
+        self.validate_generate_next(
+            host_height,
+            host_timestamp,
+            &state_root,
+            force,
+        )?;
         let next_epoch = self.maybe_generate_next_epoch(host_height);
-        let age =
-            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none() &&
-            !force &&
-            state_root == self.header.state_root &&
-            age < self.config.max_block_age_ns
-        {
-            return Err(GenerateError::UnchangedState);
-        }
-
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(
             host_height,
@@ -233,6 +223,36 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         Ok(epoch_ends)
     }
 
+    pub fn validate_generate_next(
+        &self,
+        host_height: crate::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: &CryptoHash,
+        force: bool,
+    ) -> Result<(), GenerateError> {
+        if self.pending_block.is_some() {
+            return Err(GenerateError::HasPendingBlock);
+        }
+        if !host_height.check_delta_from(
+            self.header.host_height,
+            self.config.min_block_length,
+        ) {
+            return Err(GenerateError::BlockTooYoung);
+        }
+
+        let next_epoch = self.validate_generate_next_epoch(host_height);
+        let age =
+            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
+        if next_epoch
+            && !force
+            && state_root == &self.header.state_root
+            && age < self.config.max_block_age_ns
+        {
+            return Err(GenerateError::UnchangedState);
+        };
+        Ok(())
+    }
+
     /// Generates a new epoch with the top validators from the candidates set if
     /// necessary.
     ///
@@ -250,11 +270,9 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         &mut self,
         host_height: crate::HostHeight,
     ) -> Option<crate::Epoch<PK>> {
-        if !host_height
-            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
-        {
+        if !self.validate_generate_next_epoch(host_height) {
             return None;
-        }
+        };
         crate::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
             let quorum = NonZeroU128::new(total.get() / 2 + 1).unwrap();
             // min_quorum_stake may be greater than total_stake so we’re not
@@ -262,6 +280,18 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             // total_stake.
             quorum.max(self.config.min_quorum_stake).min(total)
         })
+    }
+
+    fn validate_generate_next_epoch(
+        &self,
+        host_height: crate::HostHeight,
+    ) -> bool {
+        if !host_height
+            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
+        {
+            return false;
+        }
+        true
     }
 
     /// Adds a signature to pending block.
@@ -329,9 +359,13 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.candidates.candidates.as_slice()
     }
 
-    pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }
+    pub fn epoch_height(&self) -> crate::HostHeight {
+        self.epoch_height
+    }
 
-    pub fn genesis(&self) -> &CryptoHash { &self.genesis }
+    pub fn genesis(&self) -> &CryptoHash {
+        &self.genesis
+    }
 }
 
 #[test]
