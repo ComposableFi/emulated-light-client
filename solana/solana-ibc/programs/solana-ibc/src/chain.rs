@@ -2,6 +2,7 @@ use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
 use borsh::maybestd::io;
+use guestchain::config::UpdateConfig;
 use guestchain::manager::PendingBlock;
 pub use guestchain::Config;
 use lib::hash::CryptoHash;
@@ -282,6 +283,20 @@ impl ChainData {
         Ok((0, u64::from(current_height)))
     }
 
+    pub fn check_generate_block(
+        &self,
+        host_height: guestchain::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: &CryptoHash,
+    ) -> Result {
+        let inner = self.get()?;
+        inner
+            .manager
+            .validate_generate_next(host_height, host_timestamp, state_root)
+            .map(|_| ())
+            .map_err(into_error)
+    }
+
     pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
         let inner = self.get()?;
         Ok(inner.manager.genesis().clone())
@@ -289,6 +304,10 @@ impl ChainData {
 
     pub fn sig_verify_program_id(&self) -> Result<Pubkey, Error> {
         Ok(*self.get()?.sig_verify_program_id)
+    }
+
+    pub fn update_chain_config(&mut self, config: UpdateConfig) -> Result {
+        self.get_mut()?.manager.update_config(config).map_err(into_error)
     }
 
     /// Returns a shared reference the inner chain data if it has been
@@ -353,7 +372,6 @@ impl ChainInner {
             host_height,
             host_timestamp,
             trie.hash().clone(),
-            false,
         );
         match res {
             Ok(_) => {
