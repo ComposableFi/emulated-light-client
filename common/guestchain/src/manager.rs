@@ -184,13 +184,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         state_root: CryptoHash,
         force: bool,
     ) -> Result<bool, GenerateError> {
-        self.validate_generate_next(
+        let next_epoch = self.validate_generate_next(
             host_height,
             host_timestamp,
             &state_root,
             force,
         )?;
-        let next_epoch = self.maybe_generate_next_epoch(host_height);
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(
             host_height,
@@ -225,7 +224,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         host_timestamp: NonZeroU64,
         state_root: &CryptoHash,
         force: bool,
-    ) -> Result<(), GenerateError> {
+    ) -> Result<Option<crate::Epoch<PK>>, GenerateError> {
         if self.pending_block.is_some() {
             return Err(GenerateError::HasPendingBlock);
         }
@@ -246,7 +245,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         {
             return Err(GenerateError::UnchangedState);
         };
-        Ok(())
+        Ok(next_epoch)
     }
 
     /// Generates a new epoch with the top validators from the candidates set if
