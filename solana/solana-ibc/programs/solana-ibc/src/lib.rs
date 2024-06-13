@@ -104,7 +104,6 @@ pub mod solana_ibc {
         ctx: Context<Initialise>,
         config: chain::Config,
         genesis_epoch: chain::Epoch,
-        staking_program_id: Pubkey,
         sig_verify_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(
@@ -115,7 +114,6 @@ pub mod solana_ibc {
             &mut provable,
             config,
             genesis_epoch,
-            staking_program_id,
             sig_verify_program_id,
         )
     }
@@ -176,10 +174,6 @@ pub mod solana_ibc {
     /// This also means that reducing stake takes effect only after the epoch
     /// changes.
     ///
-    /// TODO(mina86): At the moment we’re operating on pretend tokens and each
-    /// validator can set whatever stake they want.  This is purely for testing
-    /// and not intended for production use.
-    ///
     /// Can only be called through CPI from our staking program whose
     /// id is stored in chain account.
     pub fn set_stake(
@@ -187,14 +181,14 @@ pub mod solana_ibc {
         validator: Pubkey,
         amount: u128,
     ) -> Result<()> {
-        let chain = &mut ctx.accounts.chain;
         let caller_program_id =
             solana_program::sysvar::instructions::get_instruction_relative(
                 0,
                 &ctx.accounts.instruction,
             )?
             .program_id;
-        chain.check_staking_program(&caller_program_id)?;
+        check_staking_program(&caller_program_id)?;
+        let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
             &ctx.accounts.sender,
@@ -217,10 +211,10 @@ pub mod solana_ibc {
         Ok(())
     }
 
-    /// Sets up new fee collector proposal which wont be changed until the new fee collector
-    /// calls `accept_fee_collector_change`. If the method is called for the first time, the fee
-    /// collector would just be set without needing for any approval.
-    ///
+    /// Sets up new fee collector proposal which wont be changed until the new
+    /// fee collector calls `accept_fee_collector_change`. If the method is
+    /// called for the first time, the fee collector would just be set without
+    /// needing for any approval.
     pub fn setup_fee_collector<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, SetupFeeCollector<'info>>,
         new_fee_collector: Pubkey,
@@ -818,4 +812,30 @@ impl ibc::Router for storage::IbcStorage<'_, '_> {
             _ => None,
         }
     }
+}
+
+/// Checks whether given `program_id` matches expected staking program id.
+///
+/// Various CPI calls which affect stake and rewards can only be made from that
+/// program.  This method checks whether program id given as argument matches
+/// a staking program we expect.  If it doesn’t, returns `InvalidCPICall`.
+fn check_staking_program(program_id: &Pubkey) -> Result<()> {
+    // solana_program::pubkey! doesn’t work so we’re using hex instead.  See
+    // https://github.com/coral-xyz/anchor/pull/3021 for more context.
+    // TODO(mina86): Use pubkey macro once we upgrade to anchor lang with it.
+    const ID: Pubkey = Pubkey::new_from_array(hex_literal::hex!(
+        "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
+    ));
+    match program_id == &ID {
+        false => Err(error::Error::InvalidCPICall.into()),
+        true => Ok(()),
+    }
+}
+
+#[test]
+fn test_staking_program() {
+    const GOOD: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+    const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
+    check_staking_program(&GOOD.parse().unwrap()).unwrap();
+    check_staking_program(&BAD.parse().unwrap()).unwrap_err();
 }
