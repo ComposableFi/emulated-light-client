@@ -185,24 +185,16 @@ impl ChainData {
         #[derive(derive_more::From)]
         enum InnerError {
             Update(guestchain::manager::UpdateCandidateError),
-            ArithmeticOverflow,
-            CandidateNotFound,
-            InsufficientStake,
+            Error(Error),
+            Program(ProgramError),
         }
 
         impl From<InnerError> for anchor_lang::error::Error {
             fn from(err: InnerError) -> Self {
                 match err {
                     InnerError::Update(err) => Error::from(err).into(),
-                    InnerError::ArithmeticOverflow => {
-                        ProgramError::ArithmeticOverflow.into()
-                    }
-                    InnerError::CandidateNotFound => {
-                        Error::CandidateNotFound.into()
-                    }
-                    InnerError::InsufficientStake => {
-                        Error::InsufficientStake.into()
-                    }
+                    InnerError::Error(err) => err.into(),
+                    InnerError::Program(err) => err.into(),
                 }
             }
         }
@@ -215,11 +207,11 @@ impl ChainData {
                     .checked_add_signed(amount)
                     .ok_or_else(|| {
                         if amount > 0 {
-                            InnerError::ArithmeticOverflow
+                            ProgramError::ArithmeticOverflow.into()
                         } else if candidate.is_none() {
-                            InnerError::CandidateNotFound
+                            InnerError::Error(Error::CandidateNotFound)
                         } else {
-                            InnerError::InsufficientStake
+                            InnerError::Error(Error::InsufficientStake)
                         }
                     })
             })?;
