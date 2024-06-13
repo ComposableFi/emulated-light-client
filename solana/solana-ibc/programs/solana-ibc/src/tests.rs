@@ -30,8 +30,6 @@ use crate::{
 };
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
-pub const STAKING_PROGRAM_ID: &str =
-    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
 pub const TOKEN_NAME: &str = "RETARDIO";
 pub const TOKEN_SYMBOL: &str = "RTRD";
@@ -174,7 +172,6 @@ fn anchor_test_deliver() -> Result<()> {
                 max_block_age_ns: 3600 * 1_000_000_000,
                 min_epoch_length: 200_000.into(),
             },
-            staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
             sig_verify_program_id,
             genesis_epoch: chain::Epoch::new(
                 vec![chain::Validator::new(
