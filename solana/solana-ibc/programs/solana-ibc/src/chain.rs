@@ -241,17 +241,11 @@ impl ChainData {
         host_height: guestchain::HostHeight,
         host_timestamp: NonZeroU64,
         state_root: &CryptoHash,
-        force: bool,
     ) -> Result {
         let inner = self.get()?;
         inner
             .manager
-            .validate_generate_next(
-                host_height,
-                host_timestamp,
-                state_root,
-                force,
-            )
+            .validate_generate_next(host_height, host_timestamp, state_root)
             .map_err(into_error)
     }
 
@@ -326,7 +320,6 @@ impl ChainInner {
             host_height,
             host_timestamp,
             trie.hash().clone(),
-            false,
         );
         match res {
             Ok(_) => {
