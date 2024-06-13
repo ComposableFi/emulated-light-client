@@ -236,10 +236,10 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             return Err(GenerateError::BlockTooYoung);
         }
 
-        let next_epoch = self.validate_generate_next_epoch(host_height);
+        let next_epoch = self.maybe_generate_next_epoch(host_height);
         let age =
             host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch &&
+        if next_epoch.is_none() &&
             !force &&
             state_root == &self.header.state_root &&
             age < self.config.max_block_age_ns
@@ -263,12 +263,14 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// Those conditions are assumed to hold by construction of
     /// `self.candidates`.
     fn maybe_generate_next_epoch(
-        &mut self,
+        &self,
         host_height: crate::HostHeight,
     ) -> Option<crate::Epoch<PK>> {
-        if !self.validate_generate_next_epoch(host_height) {
+        if !host_height
+            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
+        {
             return None;
-        };
+        }
         crate::Epoch::new_with(self.candidates.maybe_get_head()?, |total| {
             let quorum = NonZeroU128::new(total.get() / 2 + 1).unwrap();
             // min_quorum_stake may be greater than total_stake so we’re not
@@ -276,18 +278,6 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             // total_stake.
             quorum.max(self.config.min_quorum_stake).min(total)
         })
-    }
-
-    fn validate_generate_next_epoch(
-        &self,
-        host_height: crate::HostHeight,
-    ) -> bool {
-        if !host_height
-            .check_delta_from(self.epoch_height, self.config.min_epoch_length)
-        {
-            return false;
-        }
-        true
     }
 
     /// Adds a signature to pending block.
