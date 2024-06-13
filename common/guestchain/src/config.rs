@@ -148,6 +148,13 @@ impl Config {
             if min_validators > NonZeroU16::new(total_validators).unwrap() {
                 return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
             }
+            if let Some(max_validators) = config_payload.max_validators {
+                if max_validators < min_validators {
+                    return Err(
+                        UpdateConfigError::MaxValidatorsCannotBeLowerThanMin,
+                    );
+                }
+            };
             self.min_validators = min_validators;
         }
         if let Some(max_validators) = config_payload.max_validators {
@@ -169,6 +176,13 @@ impl Config {
                 return Err(
                     UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
                 );
+            }
+            if let Some(min_quorum_stake) = config_payload.min_quorum_stake {
+                if min_total_stake < min_quorum_stake {
+                    return Err(
+                    UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
+                );
+                }
             }
             self.min_total_stake = min_total_stake;
         }
