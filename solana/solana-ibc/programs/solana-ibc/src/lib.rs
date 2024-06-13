@@ -855,7 +855,6 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
     }
 }
 
-
 #[test]
 fn test_staking_program() {
     const GOOD: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
