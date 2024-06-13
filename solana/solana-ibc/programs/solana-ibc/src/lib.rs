@@ -91,8 +91,6 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
-    use std::str::FromStr;
-
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
@@ -183,13 +181,7 @@ pub mod solana_ibc {
         validator: Pubkey,
         amount: u128,
     ) -> Result<()> {
-        let caller_program_id =
-            solana_program::sysvar::instructions::get_instruction_relative(
-                0,
-                &ctx.accounts.instruction,
-            )?
-            .program_id;
-        check_staking_program(&caller_program_id)?;
+        check_staking_caller(&ctx.accounts.instruction)?;
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
@@ -203,16 +195,7 @@ pub mod solana_ibc {
         ctx: Context<SetStake>,
         stake_changes: Vec<(sigverify::ed25519::PubKey, i128)>,
     ) -> Result<()> {
-        let restaking_program_id = Pubkey::from_str("").unwrap();
-        let caller_program_id =
-            solana_program::sysvar::instructions::get_instruction_relative(
-                0,
-                &ctx.accounts.instruction,
-            )?
-            .program_id;
-        if caller_program_id == restaking_program_id {
-            return Err(error!(error::Error::InvalidCPICall));
-        };
+        check_staking_caller(&ctx.accounts.instruction)?;
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
@@ -839,6 +822,21 @@ impl ibc::Router for storage::IbcStorage<'_, '_> {
     }
 }
 
+/// Checks whether current instruction is a CPI whose caller is a staking
+/// program.
+///
+/// `ix_sysvar` is the account of the instruction sysvar which is used to get
+/// the program id of the current instruction.  If the id is not of a staking
+/// program, returns `InvalidCPICall` error.
+fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
+    let caller_program_id =
+        solana_program::sysvar::instructions::get_instruction_relative(
+            0, &ix_sysvar,
+        )?
+        .program_id;
+    check_staking_program(&caller_program_id)
+}
+
 /// Checks whether given `program_id` matches expected staking program id.
 ///
 /// Various CPI calls which affect stake and rewards can only be made from that
@@ -856,6 +854,7 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
         true => Ok(()),
     }
 }
+
 
 #[test]
 fn test_staking_program() {
