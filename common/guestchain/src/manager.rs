@@ -562,7 +562,7 @@ fn test_generate() {
         max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
         min_validator_stake: None,
         min_total_stake: None,
-        min_quorum_stake: Some(NonZeroU128::new(total_stake + 2).unwrap()),
+        min_quorum_stake: NonZeroU128::new(total_stake + 2),
         min_block_length: None,
         max_block_age_ns: None,
         min_epoch_length: None,
