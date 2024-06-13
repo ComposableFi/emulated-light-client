@@ -246,6 +246,7 @@ impl ChainData {
         inner
             .manager
             .validate_generate_next(host_height, host_timestamp, state_root)
+            .map(|_| ())
             .map_err(into_error)
     }
 
