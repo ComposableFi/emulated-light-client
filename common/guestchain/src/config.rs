@@ -145,7 +145,7 @@ impl Config {
         config_payload: UpdateConfig,
     ) -> Result<(), UpdateConfigError> {
         if let Some(min_validators) = config_payload.min_validators {
-            if min_validators > NonZeroU16::new(total_validators).unwrap() {
+            if usize::from(min_validators.get()) > total_validators as usize {
                 return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
             }
             if let Some(max_validators) = config_payload.max_validators {
