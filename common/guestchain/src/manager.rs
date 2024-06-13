@@ -528,9 +528,7 @@ fn test_generate() {
     .unwrap();
 
     let update_chain_config = UpdateConfig {
-        min_validators: Some(
-            NonZeroU16::new((mgr.validators().len() + 1) as u16).unwrap(),
-        ),
+        min_validators: NonZeroU16::new((mgr.validators().len() + 1) as u16),
         max_validators: None,
         min_validator_stake: None,
         min_total_stake: None,
