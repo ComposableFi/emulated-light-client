@@ -92,6 +92,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
         this
     }
 
+    /// Returns stake held by first `max_validators` candidates.
     pub fn current_head_stake(&self) -> u128 { self.head_stake }
 
     /// Sums stake of the first `count` candidates.
@@ -104,18 +105,14 @@ impl<PK: crate::PubKey> Candidates<PK> {
 
     /// Updates max validators count.
     pub fn update_max_validators(&mut self, max_validators: NonZeroU16) {
-        let total = NonZeroU16::new(self.candidates.len() as u16).unwrap();
-        let old_count = total.min(self.max_validators);
-        let new_count = total.min(max_validators);
+        let total = self.candidates.len();
+        let old_count = total.min(usize::from(self.max_validators.get()));
+        let new_count = total.min(usize::from(max_validators.get()));
         self.max_validators = max_validators;
         if old_count != new_count {
             self.changed = true;
-            self.head_stake = self
-                .candidates
-                .iter()
-                .take(u16::from(max_validators) as usize)
-                .map(|c| c.stake.get())
-                .sum();
+            self.head_stake =
+                Self::sum_head_stake(max_validators, &self.candidates);
         }
     }
 
