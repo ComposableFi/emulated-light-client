@@ -831,7 +831,7 @@ impl ibc::Router for storage::IbcStorage<'_, '_> {
 fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
     let caller_program_id =
         solana_program::sysvar::instructions::get_instruction_relative(
-            0, &ix_sysvar,
+            0, ix_sysvar,
         )?
         .program_id;
     check_staking_program(&caller_program_id)
