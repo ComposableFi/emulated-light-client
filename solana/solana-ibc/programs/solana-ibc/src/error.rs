@@ -1,3 +1,4 @@
+use guestchain::config::UpdateConfigError;
 use guestchain::manager;
 
 use crate::ibc;
@@ -92,6 +93,36 @@ pub enum Error {
     /// smart contract is built without `mocks` feature) which requires the
     /// sender to be a known authorised relayer.
     InvalidSigner,
+
+    /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
+    MinValidatorsHigherThanExisting,
+
+    /// Maximum validators should always be equal or higher than minimum validators
+    MaxValidatorsCannotBeLowerThanMin,
+
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
+    MinTotalStakeHigherThanExisting,
+
+    /// Minimum total stake is lower than minimum quorum stake
+    ///
+    /// If minimum total stake is lower than minimum quorum stake, then
+    /// the total stake can be less than quorum and block would never be
+    /// finalized since the total stake is less than quroum stake.
+    MinTotalStakeHigherThanMinQuorumStake,
+
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
+    MinQuorumStakeHigherThanTotalStake,
 }
 
 impl Error {
@@ -142,6 +173,28 @@ impl From<manager::AddSignatureError> for Error {
             manager::AddSignatureError::NoPendingBlock => Self::UnknownBlock,
             manager::AddSignatureError::BadSignature => Self::BadSignature,
             manager::AddSignatureError::BadValidator => Self::BadValidator,
+        }
+    }
+}
+
+impl From<UpdateConfigError> for Error {
+    fn from(err: UpdateConfigError) -> Self {
+        match err {
+            UpdateConfigError::MinValidatorsHigherThanExisting => {
+                Self::MinValidatorsHigherThanExisting
+            }
+            UpdateConfigError::MinTotalStakeHigherThanExisting => {
+                Self::MinTotalStakeHigherThanExisting
+            }
+            UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
+                Self::MinQuorumStakeHigherThanTotalStake
+            }
+            UpdateConfigError::MaxValidatorsCannotBeLowerThanMin => {
+                Self::MaxValidatorsCannotBeLowerThanMin
+            }
+            UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake => {
+                Self::MinTotalStakeHigherThanMinQuorumStake
+            }
         }
     }
 }

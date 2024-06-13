@@ -11,6 +11,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
+use crate::config::{UpdateConfig, UpdateConfigError};
 use crate::{BlockHeight, Validator};
 
 const MAX_CONSENSUS_STATES: usize = 20;
@@ -166,6 +167,21 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// Returns the pending block
     pub fn pending_block(&self) -> Option<&PendingBlock<PK>> {
         self.pending_block.as_ref()
+    }
+
+    pub fn update_config(
+        &mut self,
+        config_payload: UpdateConfig,
+    ) -> Result<(), UpdateConfigError> {
+        self.config.update(
+            self.candidates.current_head_stake(),
+            self.validators().len(),
+            config_payload.clone(),
+        )?;
+        if let Some(max_validators) = config_payload.max_validators {
+            self.candidates.update_max_validators(max_validators);
+        }
+        Ok(())
     }
 
     /// Generates a new block and sets it as pending.
@@ -347,9 +363,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
 #[test]
 fn test_generate() {
+    use core::num::NonZeroU16;
+
     use crate::validators::MockPubKey;
 
     let epoch = crate::Epoch::test(&[(1, 2), (2, 2), (3, 2)]);
+    let total_stake = 6;
     assert_eq!(4, epoch.quorum_stake().get());
 
     let ali = epoch.validators()[0].clone();
@@ -374,7 +393,7 @@ fn test_generate() {
         max_block_age_ns: 1000,
         min_epoch_length: 8.into(),
     };
-    let mut mgr = ChainManager::new(config, genesis).unwrap();
+    let mut mgr = ChainManager::new(config.clone(), genesis).unwrap();
 
     let one = NonZeroU64::new(1).unwrap();
     let two = NonZeroU64::new(2).unwrap();
@@ -515,4 +534,49 @@ fn test_generate() {
         CryptoHash::test(2),
     )
     .unwrap();
+
+    let update_chain_config = UpdateConfig {
+        min_validators: NonZeroU16::new((mgr.validators().len() + 1) as u16),
+        max_validators: None,
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinValidatorsHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateConfig {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: Some(NonZeroU128::new(total_stake + 2).unwrap()),
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinTotalStakeHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateConfig {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: NonZeroU128::new(total_stake + 2),
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinQuorumStakeHigherThanTotalStake),
+        mgr.update_config(update_chain_config)
+    );
 }
