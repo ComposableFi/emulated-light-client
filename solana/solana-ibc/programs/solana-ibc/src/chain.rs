@@ -174,6 +174,52 @@ impl ChainData {
             .map_err(Into::into)
     }
 
+    /// Updates multiple validators’ stake.
+    ///
+    /// Fails when trying to remove stake from a non-existent validator,
+    /// removing more stake than a validator holds or if as a result configured
+    /// block minimums won’t be held.
+    pub fn update_stake(
+        &mut self,
+        stake_changes: Vec<(PubKey, i128)>,
+    ) -> Result<()> {
+        #[derive(derive_more::From)]
+        enum InnerError {
+            Update(guestchain::manager::UpdateCandidateError),
+            Error(Error),
+            Program(ProgramError),
+        }
+
+        impl From<InnerError> for anchor_lang::error::Error {
+            fn from(err: InnerError) -> Self {
+                match err {
+                    InnerError::Update(err) => Error::from(err).into(),
+                    InnerError::Error(err) => err.into(),
+                    InnerError::Program(err) => err.into(),
+                }
+            }
+        }
+
+        let inner = self.get_mut()?;
+        for (pubkey, amount) in stake_changes {
+            inner.manager.update_candidate(pubkey, |candidate| {
+                candidate
+                    .map_or(0, |c| c.stake.get())
+                    .checked_add_signed(amount)
+                    .ok_or_else(|| {
+                        if amount > 0 {
+                            ProgramError::ArithmeticOverflow.into()
+                        } else if candidate.is_none() {
+                            InnerError::Error(Error::CandidateNotFound)
+                        } else {
+                            InnerError::Error(Error::InsufficientStake)
+                        }
+                    })
+            })?;
+        }
+        Ok(())
+    }
+
     /// Returns the validator data with stake and rewards
     pub fn validator(
         &self,

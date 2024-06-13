@@ -182,20 +182,28 @@ pub mod solana_ibc {
         validator: Pubkey,
         amount: u128,
     ) -> Result<()> {
-        let caller_program_id =
-            solana_program::sysvar::instructions::get_instruction_relative(
-                0,
-                &ctx.accounts.instruction,
-            )?
-            .program_id;
-        check_staking_program(&caller_program_id)?;
+        check_staking_caller(&ctx.accounts.instruction)?;
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
             &ctx.accounts.sender,
         )?;
         chain.maybe_generate_block(&provable)?;
-        chain.set_stake((validator).into(), amount)
+        chain.set_stake(validator.into(), amount)
+    }
+
+    pub fn update_stake(
+        ctx: Context<SetStake>,
+        stake_changes: Vec<(sigverify::ed25519::PubKey, i128)>,
+    ) -> Result<()> {
+        check_staking_caller(&ctx.accounts.instruction)?;
+        let chain = &mut ctx.accounts.chain;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
+        chain.maybe_generate_block(&provable)?;
+        chain.update_stake(stake_changes)
     }
 
     pub fn set_fee_amount<'a, 'info>(
@@ -835,6 +843,21 @@ impl ibc::Router for storage::IbcStorage<'_, '_> {
             _ => None,
         }
     }
+}
+
+/// Checks whether current instruction is a CPI whose caller is a staking
+/// program.
+///
+/// `ix_sysvar` is the account of the instruction sysvar which is used to get
+/// the program id of the current instruction.  If the id is not of a staking
+/// program, returns `InvalidCPICall` error.
+fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
+    let caller_program_id =
+        solana_program::sysvar::instructions::get_instruction_relative(
+            0, ix_sysvar,
+        )?
+        .program_id;
+    check_staking_program(&caller_program_id)
 }
 
 /// Checks whether given `program_id` matches expected staking program id.

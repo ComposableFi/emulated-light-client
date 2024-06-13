@@ -94,6 +94,12 @@ pub enum Error {
     /// sender to be a known authorised relayer.
     InvalidSigner,
 
+    /// Candidate not found in the list of candidates.
+    CandidateNotFound,
+
+    /// Validator has less stake than the amount attempted to remove.
+    InsufficientStake,
+
     /// Minimum validators are more than existing
     ///
     /// If minimum validators are higher than existing, then the
