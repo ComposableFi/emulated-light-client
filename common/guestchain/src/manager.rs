@@ -321,19 +321,20 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     /// Updates validator candidate’s stake.
     ///
-    /// If `stake` is zero, removes the candidate if it exists on the list.
-    /// Otherwise, updates stake of an existing candidate or adds a new one.
-    ///
-    /// Note that removing a candidate or reducing existing candidate’s stake
-    /// may fail if that would result in quorum or total stake among the top
-    /// `self.config.max_validators` to drop below limits configured in
-    /// `self.config`.
-    pub fn update_candidate(
+    /// The `new_stake_fn` callback takes existing candidate or `None` (if
+    /// candidate with given `pubkey` doesn’t exist) as the argument and returns
+    /// the new stake for that candidate (or for a new candidate).  If the new
+    /// stake is zero, the candidate is removed.
+    pub fn update_candidate<F, E>(
         &mut self,
         pubkey: PK,
-        stake: u128,
-    ) -> Result<(), UpdateCandidateError> {
-        self.candidates.update(&self.config, pubkey, stake)
+        new_stake_fn: F,
+    ) -> Result<(), E>
+    where
+        F: FnOnce(Option<&Candidate<PK>>) -> Result<u128, E>,
+        E: From<UpdateCandidateError>,
+    {
+        self.candidates.update(&self.config, pubkey, new_stake_fn)
     }
 
     pub fn validators(&self) -> &[Validator<PK>] {
@@ -467,14 +468,20 @@ fn test_generate() {
         Err(GenerateError::UnchangedState),
         mgr.generate_next(15.into(), four, CryptoHash::test(2), false)
     );
-    mgr.update_candidate(*eve.pubkey(), 1).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(1)
+    })
+    .unwrap();
     mgr.generate_next(15.into(), four, CryptoHash::test(2), false).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     // Epoch has minimum length.  Even if the head of candidates changes but not
     // enough host blockchain passed, the epoch won’t be changed.
-    mgr.update_candidate(*eve.pubkey(), 2).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(2)
+    })
+    .unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
         mgr.generate_next(20.into(), five, CryptoHash::test(2), false)
@@ -485,12 +492,18 @@ fn test_generate() {
 
     //Adding candidates past the head (i.e. in a way which wouldn’t affect the
     // epoch) doesn’t change the state.
-    mgr.update_candidate(MockPubKey(4), 1).unwrap();
+    mgr.update_candidate(MockPubKey(4), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(1)
+    })
+    .unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
         mgr.generate_next(40.into(), five, CryptoHash::test(2), false)
     );
-    mgr.update_candidate(*eve.pubkey(), 0).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(0)
+    })
+    .unwrap();
     mgr.generate_next(40.into(), six, CryptoHash::test(2), false).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));

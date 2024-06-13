@@ -1,6 +1,7 @@
 use core::num::NonZeroU64;
 
 use anchor_lang::prelude::*;
+use borsh::maybestd::io;
 use guestchain::config::UpdateConfig;
 use guestchain::manager::PendingBlock;
 pub use guestchain::Config;
@@ -69,7 +70,6 @@ impl ChainData {
         trie: &mut storage::TrieAccount,
         config: Config,
         genesis_epoch: Epoch,
-        staking_program_id: Pubkey,
         sig_verify_program_id: Pubkey,
     ) -> Result {
         let (host_height, host_timestamp) = get_host_head()?;
@@ -90,7 +90,7 @@ impl ChainData {
         let inner = ChainInner {
             last_check_height: host_height,
             manager,
-            staking_program_id: Box::new(staking_program_id),
+            _unused: UnusedPubkey,
             sig_verify_program_id: Box::new(sig_verify_program_id),
         };
         let inner = self.inner.insert(Box::new(inner));
@@ -170,8 +170,8 @@ impl ChainData {
     pub fn set_stake(&mut self, pubkey: PubKey, amount: u128) -> Result<()> {
         self.get_mut()?
             .manager
-            .update_candidate(pubkey, amount)
-            .map_err(into_error)
+            .update_candidate(pubkey, |_| Result::<u128, Error>::Ok(amount))
+            .map_err(Into::into)
     }
 
     /// Returns the validator data with stake and rewards
@@ -242,22 +242,6 @@ impl ChainData {
         Ok(inner.manager.genesis().clone())
     }
 
-    /// Checks whether given `program_id` matches expected staking program id.
-    ///
-    /// The staking program id is stored within the chain account.  Various
-    /// CPI calls which affect stake and rewards can only be made from that
-    /// program.  This method checks whether program id given as argument
-    /// matches the one we expect.  If it doesn’t, returns `InvalidCPICall`.
-    pub fn check_staking_program(
-        &self,
-        program_id: &Pubkey,
-    ) -> Result<(), Error> {
-        match program_id == &*self.get()?.staking_program_id {
-            false => Err(Error::InvalidCPICall),
-            true => Ok(()),
-        }
-    }
-
     pub fn sig_verify_program_id(&self) -> Result<Pubkey, Error> {
         Ok(*self.get()?.sig_verify_program_id)
     }
@@ -289,8 +273,7 @@ struct ChainInner {
     /// The guest blockchain manager handling generation of new guest blocks.
     manager: Manager,
 
-    /// Staking Contract program ID. The program which would make CPI calls to set the stake
-    staking_program_id: Box<Pubkey>,
+    _unused: UnusedPubkey,
 
     /// Signature verification program ID. The program which responsible for chunking and storing signatures in the account
     sig_verify_program_id: Box<Pubkey>,
@@ -344,6 +327,21 @@ impl ChainInner {
             Err(err) if force => Err(into_error(err)),
             Err(_) => Ok(()),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct UnusedPubkey;
+
+impl borsh::BorshSerialize for UnusedPubkey {
+    fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
+        Pubkey::default().serialize(writer)
+    }
+}
+
+impl borsh::BorshDeserialize for UnusedPubkey {
+    fn deserialize_reader<R: io::Read>(reader: &mut R) -> io::Result<Self> {
+        Pubkey::deserialize_reader(reader).map(|_| Self)
     }
 }
 
