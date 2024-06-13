@@ -126,7 +126,7 @@ pub fn submit_call(
         tx = program
             .request()
             .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-                300_000,
+                150_000,
             ))
             .instruction(ComputeBudgetInstruction::set_compute_unit_price(
                 *priority_fees,

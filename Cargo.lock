@@ -6672,7 +6672,7 @@ checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
 
 [[package]]
 name = "validator"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "anchor-client",
  "anchor-lang",
@@ -6696,6 +6696,7 @@ dependencies = [
  "serde_json",
  "solana-ibc",
  "solana-signature-verifier",
+ "solana-trie",
  "toml 0.8.8",
 ]
 

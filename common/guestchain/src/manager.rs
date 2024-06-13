@@ -183,26 +183,11 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         host_timestamp: NonZeroU64,
         state_root: CryptoHash,
     ) -> Result<bool, GenerateError> {
-        if self.pending_block.is_some() {
-            return Err(GenerateError::HasPendingBlock);
-        }
-        if !host_height.check_delta_from(
-            self.header.host_height,
-            self.config.min_block_length,
-        ) {
-            return Err(GenerateError::BlockTooYoung);
-        }
-
-        let next_epoch = self.maybe_generate_next_epoch(host_height);
-        let age =
-            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none() &&
-            state_root == self.header.state_root &&
-            age < self.config.max_block_age_ns
-        {
-            return Err(GenerateError::UnchangedState);
-        }
-
+        let next_epoch = self.validate_generate_next(
+            host_height,
+            host_timestamp,
+            &state_root,
+        )?;
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(
             host_height,
@@ -231,6 +216,34 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         Ok(epoch_ends)
     }
 
+    pub fn validate_generate_next(
+        &self,
+        host_height: crate::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: &CryptoHash,
+    ) -> Result<Option<crate::Epoch<PK>>, GenerateError> {
+        if self.pending_block.is_some() {
+            return Err(GenerateError::HasPendingBlock);
+        }
+        if !host_height.check_delta_from(
+            self.header.host_height,
+            self.config.min_block_length,
+        ) {
+            return Err(GenerateError::BlockTooYoung);
+        }
+
+        let next_epoch = self.maybe_generate_next_epoch(host_height);
+        let age =
+            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
+        if next_epoch.is_none() &&
+            state_root == &self.header.state_root &&
+            age < self.config.max_block_age_ns
+        {
+            return Err(GenerateError::UnchangedState);
+        };
+        Ok(next_epoch)
+    }
+
     /// Generates a new epoch with the top validators from the candidates set if
     /// necessary.
     ///
@@ -245,7 +258,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// Those conditions are assumed to hold by construction of
     /// `self.candidates`.
     fn maybe_generate_next_epoch(
-        &mut self,
+        &self,
         host_height: crate::HostHeight,
     ) -> Option<crate::Epoch<PK>> {
         if !host_height
