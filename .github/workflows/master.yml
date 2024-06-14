@@ -10,7 +10,7 @@ on:
 
 env:
   SOLANA_VERSION: v1.17.7
-  ANCHOR_VERSION: 0.29.0
+  ANCHOR_VERSION: 0.30.0
 
 jobs:
   misc:
