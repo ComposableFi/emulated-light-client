@@ -28,8 +28,8 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
-anchor-spl = "0.29.0"
+anchor-lang = { version = "0.30.1", features = ["init-if-needed"] }
+anchor-spl = "0.30.1"
 ascii = "1.1.0"
 bs58 = { version = "0.5.0", features = ["alloc"] }
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
@@ -75,9 +75,9 @@ serde = "=1.0.203"
 serde_json = "1"
 serde_bytes = "0.11.14"
 sha2 = { version = "0.10.7", default-features = false }
-solana-client = "1.17.30"
-solana-program = "1.17.30"
-solana-sdk = "1.17.30"
+solana-client = "1.18.16"
+solana-program = "1.18.16"
+solana-sdk = "1.18.16"
 spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
@@ -104,7 +104,7 @@ trie-ids = { path = "common/trie-ids" }
 wasm = { path = "common/wasm" }
 
 # dev-dependencies
-anchor-client = "0.29.0"
+anchor-client = "0.30.1"
 anyhow = "1.0.32"
 
 [patch.crates-io]
@@ -128,4 +128,4 @@ tendermint-light-client-verifier = { git = "https://github.com/mina86/tendermint
 tendermint-proto                 = { git = "https://github.com/mina86/tendermint-rs", rev = "9f157c06f9053940bd182f4b3e8e958e5731d0c7" }
 
 # Adds support for custom-entrypoint feature
-anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint" }
+anchor-syn = { git = "https://github.com/mina86/anchor", branch = "custom-entrypoint-30" }
