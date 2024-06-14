@@ -880,7 +880,7 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
     // solana_program::pubkey! doesn’t work so we’re using hex instead.  See
     // https://github.com/coral-xyz/anchor/pull/3021 for more context.
     // TODO(mina86): Use pubkey macro once we upgrade to anchor lang with it.
-    let expected_program_ids = vec![
+    let expected_program_ids = [
         Pubkey::new_from_array(hex_literal::hex!(
             "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
         )),
