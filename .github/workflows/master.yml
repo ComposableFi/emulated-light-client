@@ -9,7 +9,7 @@ on:
       - master
 
 env:
-  SOLANA_VERSION: v1.17.7
+  SOLANA_VERSION: v1.18.16
   ANCHOR_VERSION: 0.30.0
 
 jobs:
