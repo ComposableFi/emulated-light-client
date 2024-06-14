@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+use alloc::boxed::Box;
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
@@ -175,8 +177,8 @@ pub mod solana_ibc {
     /// This also means that reducing stake takes effect only after the epoch
     /// changes.
     ///
-    /// Can only be called through CPI from our staking program whose
-    /// id is stored in chain account.
+    /// Can only be called through CPI from our staking program which is mentioned
+    /// in the method below.
     pub fn set_stake(
         ctx: Context<SetStake>,
         validator: Pubkey,
@@ -192,6 +194,15 @@ pub mod solana_ibc {
         chain.set_stake(validator.into(), amount)
     }
 
+    /// Changes stake of multiple guest chain validators
+    ///
+    /// Sender’s stake will be set to the given amount.  Note that if sender is
+    /// a validator in current epoch, their stake in current epoch won’t change.
+    /// This also means that reducing stake takes effect only after the epoch
+    /// changes.
+    ///
+    /// Can only be called through CPI from another staking program whose
+    /// id is mentioned below.
     pub fn update_stake(
         ctx: Context<SetStake>,
         stake_changes: Vec<(sigverify::ed25519::PubKey, i128)>,
@@ -869,10 +880,15 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
     // solana_program::pubkey! doesn’t work so we’re using hex instead.  See
     // https://github.com/coral-xyz/anchor/pull/3021 for more context.
     // TODO(mina86): Use pubkey macro once we upgrade to anchor lang with it.
-    const ID: Pubkey = Pubkey::new_from_array(hex_literal::hex!(
-        "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
-    ));
-    match program_id == &ID {
+    let expected_program_ids = [
+        Pubkey::new_from_array(hex_literal::hex!(
+            "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
+        )),
+        Pubkey::new_from_array(hex_literal::hex!(
+            "a1d0177376e0e90b580181247c1a63b73e473b47bc5b06f70a6a4844e0b05015"
+        )),
+    ];
+    match expected_program_ids.contains(program_id) {
         false => Err(error::Error::InvalidCPICall.into()),
         true => Ok(()),
     }
@@ -880,8 +896,10 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
 
 #[test]
 fn test_staking_program() {
-    const GOOD: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+    const GOOD_ONE: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+    const GOOD_TWO: &str = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg";
     const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
-    check_staking_program(&GOOD.parse().unwrap()).unwrap();
+    check_staking_program(&GOOD_ONE.parse().unwrap()).unwrap();
+    check_staking_program(&GOOD_TWO.parse().unwrap()).unwrap();
     check_staking_program(&BAD.parse().unwrap()).unwrap_err();
 }
