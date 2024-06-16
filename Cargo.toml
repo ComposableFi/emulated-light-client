@@ -9,6 +9,7 @@ members = [
     "common/*",
     "solana/allocator",
     "solana/restaking/programs/*",
+    "solana/restaking-v2/programs/*",
     "solana/signature-verifier",
     "solana/solana-ibc/programs/*",
     "solana/trie",
