@@ -200,14 +200,15 @@ fn restaking_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        (staker_receipt_token_acc_balance_after.ui_amount.unwrap()
-            * 10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into())) as u64,
+        (staker_receipt_token_acc_balance_after.ui_amount.unwrap() *
+            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into())) as u64,
         STAKE_AMOUNT
     );
     assert_eq!(
-        ((staker_token_acc_balance_before.ui_amount.unwrap()
-            - staker_token_acc_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into())).round() as u64,
+        ((staker_token_acc_balance_before.ui_amount.unwrap() -
+            staker_token_acc_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
+        .round() as u64,
         STAKE_AMOUNT
     );
 
@@ -258,15 +259,17 @@ fn restaking_test_deliver() -> Result<()> {
         .unwrap();
 
     assert_eq!(
-        ((staker_receipt_token_acc_balance_before.ui_amount.unwrap()
-            - staker_receipt_token_acc_balance_after.ui_amount.unwrap())
-            * 10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into())).round() as u64,
+        ((staker_receipt_token_acc_balance_before.ui_amount.unwrap() -
+            staker_receipt_token_acc_balance_after.ui_amount.unwrap()) *
+            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
+        .round() as u64,
         STAKE_AMOUNT
     );
     assert_eq!(
-        ((staker_token_acc_balance_after.ui_amount.unwrap()
-            - staker_token_acc_balance_before.ui_amount.unwrap())
-            * 10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into())).round() as u64,
+        ((staker_token_acc_balance_after.ui_amount.unwrap() -
+            staker_token_acc_balance_before.ui_amount.unwrap()) *
+            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
+        .round() as u64,
         STAKE_AMOUNT
     );
 

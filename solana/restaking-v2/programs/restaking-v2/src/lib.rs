@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
-use anchor_spl::{token::{Mint, Token, TokenAccount}, associated_token::AssociatedToken};
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{Mint, Token, TokenAccount};
 use solana_ibc::program::SolanaIbc;
 
 declare_id!("BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg");
@@ -73,7 +74,10 @@ pub mod restaking_v2 {
             authority: ctx.accounts.staker.to_account_info(),
         };
 
-        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), transfer_ix);
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            transfer_ix,
+        );
 
         anchor_spl::token::transfer(cpi_ctx, amount)?;
 
@@ -138,7 +142,8 @@ pub mod restaking_v2 {
         let seeds = core::slice::from_ref(&seeds);
 
         // Check if balance is enough
-        let staker_receipt_token_account = &ctx.accounts.staker_receipt_token_account;
+        let staker_receipt_token_account =
+            &ctx.accounts.staker_receipt_token_account;
 
         if staker_receipt_token_account.amount < amount {
             return Err(error!(ErrorCodes::NotEnoughReceiptTokensToWithdraw));
@@ -164,12 +169,16 @@ pub mod restaking_v2 {
             authority: ctx.accounts.staker.to_account_info(),
         };
 
-        let cpi_ctx = CpiContext::new(ctx.accounts.token_program.to_account_info(), burn_ix);
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.token_program.to_account_info(),
+            burn_ix,
+        );
 
         anchor_spl::token::burn(cpi_ctx, amount)?;
 
         // Call guest chain program to update the stake equally
-        let stake_per_validator = (amount / common_state.validators.len() as u64) as i128;
+        let stake_per_validator =
+            (amount / common_state.validators.len() as u64) as i128;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
             sender: ctx.accounts.staker.to_account_info(),
@@ -250,9 +259,9 @@ pub mod restaking_v2 {
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.common_state;
 
-        let contains_mint = new_token_mints
-            .iter()
-            .any(|token_mint| staking_params.whitelisted_tokens.contains(token_mint));
+        let contains_mint = new_token_mints.iter().any(|token_mint| {
+            staking_params.whitelisted_tokens.contains(token_mint)
+        });
 
         if contains_mint {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
