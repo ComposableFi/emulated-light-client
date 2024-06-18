@@ -28,6 +28,8 @@ pub const METADATA: &[u8] = b"metadata";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
+pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
+
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
@@ -714,8 +716,8 @@ pub struct Deliver<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
-    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut)]
+    escrow_account: Option<UncheckedAccount<'info>>,
     #[account(init_if_needed, payer = sender,
         associated_token::mint = token_mint,
         associated_token::authority = receiver)]
