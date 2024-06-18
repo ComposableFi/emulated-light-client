@@ -169,6 +169,7 @@ fn restaking_test_deliver() -> Result<()> {
         .request()
         .accounts(crate::accounts::Deposit {
             common_state,
+            fee_payer: authority.pubkey(),
             system_program: solana_program::system_program::ID,
             staker: authority.pubkey(),
             token_mint: token_mint_key,

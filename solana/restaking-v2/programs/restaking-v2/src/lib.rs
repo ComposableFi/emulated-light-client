@@ -304,8 +304,10 @@ pub struct Initialize<'info> {
 
 #[derive(Accounts)]
 pub struct Deposit<'info> {
-    #[account(mut)]
     pub staker: Signer<'info>,
+
+    #[account(mut)]
+    pub fee_payer: Signer<'info>,
 
     #[account(mut, seeds = [COMMON_SEED], bump)]
     pub common_state: Account<'info, CommonState>,
@@ -314,12 +316,12 @@ pub struct Deposit<'info> {
     #[account(mut, token::authority = staker, token::mint = token_mint)]
     pub staker_token_account: Account<'info, TokenAccount>,
 
-    #[account(init_if_needed, payer = staker, seeds = [ESCROW_SEED, &token_mint.key().to_bytes()], bump, token::mint = token_mint, token::authority = common_state)]
+    #[account(init_if_needed, payer = fee_payer, seeds = [ESCROW_SEED, &token_mint.key().to_bytes()], bump, token::mint = token_mint, token::authority = common_state)]
     pub escrow_token_account: Account<'info, TokenAccount>,
 
-    #[account(init_if_needed, payer = staker, seeds = [RECEIPT_SEED, &token_mint.key().to_bytes()], bump, mint::authority = common_state, mint::decimals = RECEIPT_TOKEN_DECIMALS)]
+    #[account(init_if_needed, payer = fee_payer, seeds = [RECEIPT_SEED, &token_mint.key().to_bytes()], bump, mint::authority = common_state, mint::decimals = RECEIPT_TOKEN_DECIMALS)]
     pub receipt_token_mint: Account<'info, Mint>,
-    #[account(init_if_needed, payer = staker, associated_token::authority = staker, associated_token::mint = receipt_token_mint)]
+    #[account(init_if_needed, payer = fee_payer, associated_token::authority = staker, associated_token::mint = receipt_token_mint)]
     pub staker_receipt_token_account: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
