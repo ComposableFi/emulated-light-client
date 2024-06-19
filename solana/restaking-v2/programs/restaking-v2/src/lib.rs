@@ -285,7 +285,7 @@ pub mod restaking_v2 {
 
         staking_params
             .whitelisted_tokens
-            .append(&mut new_token_mints.as_slice().to_vec());
+            .extend_from_slice(new_token_mints.as_slice());
 
         Ok(())
     }
@@ -308,9 +308,7 @@ pub mod restaking_v2 {
             return Err(error!(ErrorCodes::ValidatorAlreadyAdded));
         }
 
-        staking_params
-            .validators
-            .append(&mut new_validators.as_slice().to_vec());
+        staking_params.validators.extend_from_slice(new_validators.as_slice());
 
         Ok(())
     }
