@@ -1,0 +1,19 @@
+[package]
+name = "solana-witnessed-trie-cli"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+edition = "2021"
+version.workspace = true
+
+[dependencies]
+arrayvec.workspace = true
+base64.workspace = true
+bytemuck.workspace = true
+derive_more.workspace = true
+hex.workspace = true
+solana-cli-config.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true
+
+lib.workspace = true
+solana-witnessed-trie.workspace = true
