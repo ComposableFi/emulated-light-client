@@ -238,17 +238,33 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 relayer,
             );
 
+        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
+            acknowledgement.as_bytes(),
+        );
+        let success = if let Ok(status) = status {
+            status.is_successful()
+        } else {
+            let description =
+                ibc::TokenTransferError::AckDeserialization.to_string();
+            return (
+                ibc::ModuleExtras::empty(),
+                Err(ibc::PacketError::AppModule { description }),
+            );
+        };
+
         // refund fee if there was an error on the counterparty chain
-        if result.1.is_err() {
+        if !success {
             let store = self.borrow();
             let accounts = &store.accounts;
+            let private = &store.private;
             let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
-                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+                private.fee_in_lamports;
             **receiver.try_borrow_mut_lamports().unwrap() +=
-                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+                private.fee_in_lamports;
         }
+
         (
             result.0,
             result.1.map_err(|e| ibc::PacketError::AppModule {
@@ -269,12 +285,13 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if result.1.is_ok() {
             let store = self.borrow();
             let accounts = &store.accounts;
+            let private = &store.private;
             let receiver = accounts.receiver.clone().unwrap();
             let fee_collector = accounts.fee_collector.clone().unwrap();
             **fee_collector.try_borrow_mut_lamports().unwrap() -=
-                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+                private.fee_in_lamports;
             **receiver.try_borrow_mut_lamports().unwrap() +=
-                crate::REFUND_FEE_AMOUNT_IN_LAMPORTS;
+                private.fee_in_lamports;
         }
         (
             result.0,

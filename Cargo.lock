@@ -6887,6 +6887,7 @@ dependencies = [
  "serde_json",
  "solana-ibc",
  "solana-signature-verifier",
+ "solana-trie",
  "tokio",
  "toml 0.8.8",
 ]

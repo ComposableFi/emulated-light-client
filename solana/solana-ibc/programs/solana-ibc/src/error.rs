@@ -1,3 +1,4 @@
+use guestchain::config::UpdateConfigError;
 use guestchain::manager;
 
 use crate::ibc;
@@ -72,7 +73,8 @@ pub enum Error {
     /// When an asset is added which already exists
     AssetAlreadyExists,
 
-    /// Effective deciamls can either be less than equal to the original decimals but not more.
+    /// Effective deciamls can either be less than equal to the original
+    /// decimals but not more.
     InvalidDecimals,
 
     /// When port id, channel id or hased denom passed as arguments
@@ -84,6 +86,49 @@ pub enum Error {
 
     /// If both timeout timestamp and timeout height are zero
     InvalidTimeout,
+
+    /// If an instruction is called by an address without proper permissions.
+    ///
+    /// At the moment the permissions are checked in `deliver` method (if the
+    /// smart contract is built without `mocks` feature) which requires the
+    /// sender to be a known authorised relayer.
+    InvalidSigner,
+
+    /// Candidate not found in the list of candidates.
+    CandidateNotFound,
+
+    /// Validator has less stake than the amount attempted to remove.
+    InsufficientStake,
+
+    /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
+    MinValidatorsHigherThanExisting,
+
+    /// Maximum validators should always be equal or higher than minimum validators
+    MaxValidatorsCannotBeLowerThanMin,
+
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
+    MinTotalStakeHigherThanExisting,
+
+    /// Minimum total stake is lower than minimum quorum stake
+    ///
+    /// If minimum total stake is lower than minimum quorum stake, then
+    /// the total stake can be less than quorum and block would never be
+    /// finalized since the total stake is less than quroum stake.
+    MinTotalStakeHigherThanMinQuorumStake,
+
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
+    MinQuorumStakeHigherThanTotalStake,
 }
 
 impl Error {
@@ -134,6 +179,28 @@ impl From<manager::AddSignatureError> for Error {
             manager::AddSignatureError::NoPendingBlock => Self::UnknownBlock,
             manager::AddSignatureError::BadSignature => Self::BadSignature,
             manager::AddSignatureError::BadValidator => Self::BadValidator,
+        }
+    }
+}
+
+impl From<UpdateConfigError> for Error {
+    fn from(err: UpdateConfigError) -> Self {
+        match err {
+            UpdateConfigError::MinValidatorsHigherThanExisting => {
+                Self::MinValidatorsHigherThanExisting
+            }
+            UpdateConfigError::MinTotalStakeHigherThanExisting => {
+                Self::MinTotalStakeHigherThanExisting
+            }
+            UpdateConfigError::MinQuorumStakeHigherThanTotalStake => {
+                Self::MinQuorumStakeHigherThanTotalStake
+            }
+            UpdateConfigError::MaxValidatorsCannotBeLowerThanMin => {
+                Self::MaxValidatorsCannotBeLowerThanMin
+            }
+            UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake => {
+                Self::MinTotalStakeHigherThanMinQuorumStake
+            }
         }
     }
 }

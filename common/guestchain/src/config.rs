@@ -91,3 +91,96 @@ pub struct Config {
     /// epoch.
     pub min_epoch_length: crate::height::HostDelta,
 }
+
+#[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+pub struct UpdateConfig {
+    pub min_validators: Option<NonZeroU16>,
+    pub max_validators: Option<NonZeroU16>,
+    pub min_validator_stake: Option<NonZeroU128>,
+    pub min_total_stake: Option<NonZeroU128>,
+    pub min_quorum_stake: Option<NonZeroU128>,
+    pub min_block_length: Option<crate::height::HostDelta>,
+    pub max_block_age_ns: Option<u64>,
+    pub min_epoch_length: Option<crate::height::HostDelta>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpdateConfigError {
+    /// Minimum validators are more than existing
+    ///
+    /// If minimum validators are higher than existing, then the
+    /// none of the existing validators can leave unless the validators are more
+    /// than the minimum.
+    MinValidatorsHigherThanExisting,
+
+    /// Maximum validators should always be equal or higher than minimum validators
+    MaxValidatorsCannotBeLowerThanMin,
+
+    /// Minimum Total Stake is higher than existing
+    ///
+    /// If minimum total stake is higher than existing, then none of them
+    /// can withdraw their unless the total stake is more than the minimum.
+    MinTotalStakeHigherThanExisting,
+
+    /// Minimum total stake is lower than minimum quorum stake
+    ///
+    /// If minimum total stake is lower than minimum quorum stake, then
+    /// the total stake can be less than quorum and block would never be
+    /// finalized since the total stake is less than quroum stake.
+    MinTotalStakeHigherThanMinQuorumStake,
+
+    /// Minimum Quorum Stake is higher than existing total stake
+    ///
+    /// If minimum quorum stake is higher than existing total stake, then
+    /// blocks would never get finalized until more stake is added and quorum
+    /// stake is less than head stake.
+    MinQuorumStakeHigherThanTotalStake,
+}
+
+impl Config {
+    pub fn update(
+        &mut self,
+        head_stake: u128,
+        total_validators: usize,
+        update: UpdateConfig,
+    ) -> Result<(), UpdateConfigError> {
+        macro_rules! unwrap {
+            ($update:ident. $field:ident) => {
+                $update.$field.unwrap_or(self.$field)
+            };
+        }
+
+        let min_validators = unwrap!(update.min_validators);
+        let max_validators = unwrap!(update.max_validators);
+        if usize::from(min_validators.get()) > total_validators {
+            return Err(UpdateConfigError::MinValidatorsHigherThanExisting);
+        }
+        if max_validators < min_validators {
+            return Err(UpdateConfigError::MaxValidatorsCannotBeLowerThanMin);
+        }
+
+        let min_total_stake = unwrap!(update.min_total_stake);
+        let min_quorum_stake = unwrap!(update.min_quorum_stake);
+        if min_total_stake.get() > head_stake {
+            return Err(UpdateConfigError::MinTotalStakeHigherThanExisting);
+        }
+        if min_quorum_stake.get() > head_stake {
+            return Err(UpdateConfigError::MinQuorumStakeHigherThanTotalStake);
+        }
+        if min_total_stake < min_quorum_stake {
+            return Err(
+                UpdateConfigError::MinTotalStakeHigherThanMinQuorumStake,
+            );
+        }
+
+        self.min_validators = min_validators;
+        self.max_validators = max_validators;
+        self.min_validator_stake = unwrap!(update.min_validator_stake);
+        self.min_total_stake = min_total_stake;
+        self.min_quorum_stake = min_quorum_stake;
+        self.min_block_length = unwrap!(update.min_block_length);
+        self.max_block_age_ns = unwrap!(update.max_block_age_ns);
+        self.min_epoch_length = unwrap!(update.min_epoch_length);
+        Ok(())
+    }
+}

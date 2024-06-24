@@ -1,3 +1,4 @@
+use std::num::NonZeroU64;
 use std::rc::Rc;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -14,7 +15,8 @@ use solana_ibc::chain::ChainData;
 use crate::command::Config;
 use crate::utils;
 
-pub const JITO_TIPPING_ADDRESS: &str = "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5";
+pub const JITO_TIPPING_ADDRESS: &str =
+    "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5";
 pub const BLOCK_ENGINE_URL: &str = "https://mainnet.block-engine.jito.wtf";
 
 pub fn run_validator(config: Config) {
@@ -56,7 +58,9 @@ pub fn run_validator(config: Config) {
                     .get(&validator.pubkey().into())
                     .is_some()
                 {
-                    log::info!("Waiting for others to sign the current block...");
+                    log::info!(
+                        "Waiting for others to sign the current block..."
+                    );
                     continue;
                 }
                 log::info!(
@@ -94,28 +98,51 @@ pub fn run_validator(config: Config) {
                     }
                 }
             } else {
-                log::info!("You have already signed the pending block");
+                log::info!("Waiting for others to sign the block...");
             }
         } else {
-            log::info!("No pending blocks");
-            // Trying to generate a new block
-            let tx = utils::submit_generate_block_call(
-                &program,
-                &validator,
-                chain,
-                trie,
-                max_tries,
-                &config.priority_fees,
-                submit_with_jito,
-                jito_tip,
+            let rpc_client = program.rpc();
+            // Check if you can generate a new block
+            let host_height = rpc_client.get_slot().unwrap();
+            let host_timestamp =
+                rpc_client.get_block_time(host_height).unwrap() as u64;
+            let trie_account = rpc_client
+                .get_account_with_commitment(
+                    &trie,
+                    CommitmentConfig::processed(),
+                )
+                .unwrap()
+                .value
+                .unwrap();
+            let trie_data =
+                solana_trie::TrieAccount::new(trie_account.data).unwrap();
+            let result = chain_account.check_generate_block(
+                host_height.into(),
+                NonZeroU64::new(host_timestamp).unwrap(),
+                trie_data.hash(),
             );
-            match tx {
-                Ok(tx) => {
-                    log::info!("New block created -> Transaction: {}", tx);
+            if result.is_ok() {
+                // Trying to generate a new block
+                let tx = utils::submit_generate_block_call(
+                    &program,
+                    &validator,
+                    chain,
+                    trie,
+                    max_tries,
+                    &config.priority_fees,
+                    submit_with_jito,
+                    jito_tip,
+                );
+                match tx {
+                    Ok(tx) => {
+                        log::info!("New block created -> Transaction: {}", tx);
+                    }
+                    Err(err) => {
+                        log::error!("Failed to send the transaction {err}")
+                    }
                 }
-                Err(err) => {
-                    log::error!("Failed to send the transaction {err}")
-                }
+            } else {
+                log::info!("Waiting for the next block to be generated...")
             }
         }
     }

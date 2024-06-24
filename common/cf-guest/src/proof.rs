@@ -112,7 +112,7 @@ pub enum VerifyError {
     /// Invalid commitment prefix (expected empty).
     BadPrefix,
 
-    /// Invalid commitment root (expected 32 bytes).
+    /// Invalid commitment root format (expected 32 bytes).
     BadRoot,
 
     /// Invalid path.
@@ -120,6 +120,9 @@ pub enum VerifyError {
 
     /// Failed deserialising the proof.
     ProofDecodingFailure(String),
+
+    /// Block Header included in the proof doesn’t match commitment root.
+    BadBlock,
 
     /// Invalid sequence value.
     ///
@@ -165,7 +168,10 @@ impl From<borsh::maybestd::io::Error> for VerifyError {
 ///    `google.protobuf.UInt64Value` protobuf and hash is calculated as
 ///    concatenation of the three sequence numbers as described in [`generate`].
 ///
-/// 3. Otherwise, the value is simply hashed.
+/// 3. If `path` is `Commitment`, `Receipt` or `Ack`, the `value` must be
+///    32-byte value which is directly the hash stored in the trie.
+///
+/// 4. Otherwise, the value is simply hashed.
 pub fn verify(
     prefix: &[u8],
     mut proof_bytes: &[u8],
@@ -190,7 +196,7 @@ pub fn verify(
         let (header, proof): (BlockHeader, sealable_trie::proof::Proof) =
             borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
         if root != &header.calc_hash() {
-            return Err(VerifyError::VerificationFailed);
+            return Err(VerifyError::BadBlock);
         }
         (header.state_root, proof)
     };
@@ -252,6 +258,7 @@ pub fn verify(
 fn test_proofs() {
     use core::str::FromStr;
 
+    use borsh::BorshDeserialize;
     use ibc_core_host::types::identifiers;
     use sealable_trie::nodes::RawNode;
 
@@ -266,7 +273,24 @@ fn test_proofs() {
             self.header.state_root = self.trie.hash().clone();
         }
 
-        fn root(&self) -> &[u8] { self.trie.hash().as_slice() }
+        fn root(&self) -> &CryptoHash { self.trie.hash() }
+    }
+
+    /// Takes a proof and substitutes the block header encoded in it.
+    fn substitute_state_root(
+        proof: &IbcProof,
+        state_root: &CryptoHash,
+    ) -> IbcProof {
+        let mut bytes = proof.proof.as_slice();
+        let mut hdr = BlockHeader::deserialize_reader(&mut bytes).unwrap();
+        hdr.state_root = state_root.clone();
+        let mut buf = borsh::to_vec(&hdr).unwrap();
+        buf.extend_from_slice(bytes);
+        IbcProof {
+            proof: buf,
+            root: hdr.calc_hash(),
+            value: proof.value.clone(),
+        }
     }
 
     #[track_caller]
@@ -289,7 +313,8 @@ fn test_proofs() {
             trie,
         };
 
-        // First try non-membership proof.
+        // ========== Non-membership proof ==========
+
         let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
         assert!(proof.value.is_none());
         verify(&[], &proof.proof, proof.root.as_slice(), path.clone(), None)
@@ -299,12 +324,30 @@ fn test_proofs() {
         let key = trie_ids::PathInfo::try_from(path.clone()).unwrap().key;
         trie.set(&key, stored_hash.clone());
 
+        let new_proof = substitute_state_root(&proof, trie.root());
+        assert_eq!(
+            Err(VerifyError::BadBlock),
+            verify(
+                &[],
+                &new_proof.proof,
+                proof.root.as_slice(),
+                path.clone(),
+                None
+            )
+        );
         assert_eq!(
             Err(VerifyError::VerificationFailed),
-            verify(&[], &proof.proof, trie.root(), path.clone(), None)
+            verify(
+                &[],
+                &new_proof.proof,
+                new_proof.root.as_slice(),
+                path.clone(),
+                None
+            )
         );
 
-        // Generate membership proof.
+        // ========== Membership proof ==========
+
         let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
         assert_eq!(Some(stored_hash), proof.value.as_ref());
         verify(
@@ -358,11 +401,23 @@ fn test_proofs() {
         );
 
         assert_eq!(
-            Err(VerifyError::VerificationFailed),
+            Err(VerifyError::BadBlock),
             verify(
                 &[],
                 &proof.proof,
                 &CryptoHash::test(11).as_slice(),
+                path.clone(),
+                Some(value),
+            )
+        );
+
+        let new_proof = substitute_state_root(&proof, &CryptoHash::test(22));
+        assert_eq!(
+            Err(VerifyError::VerificationFailed),
+            verify(
+                &[],
+                &new_proof.proof,
+                new_proof.root.as_slice(),
                 path.clone(),
                 Some(value),
             )

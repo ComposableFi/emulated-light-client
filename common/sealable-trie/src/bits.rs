@@ -1003,4 +1003,32 @@ mod test_pop {
             check_owned_invariant(bits, Owned::pop_back)
         });
     }
+
+    #[test]
+    fn test_pop_back_slice() {
+        let bytes = [
+            7, 182, 182, 167, 177, 247, 171, 255, 255, 255, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 8,
+        ];
+        let mut key = Slice::from_bytes(&bytes[..]).unwrap();
+
+        let _0 = Some(false);
+        let _1 = Some(true);
+        assert_eq!(_0, key.pop_back());
+        assert_eq!(_0, key.pop_back());
+        assert_eq!(_0, key.pop_back());
+        assert_eq!(_1, key.pop_back());
+        assert_eq!(_0, key.pop_back());
+        assert_eq!(Slice::new(&bytes[..], U3::_0, 171).unwrap(), key);
+        assert_eq!(
+            Slice::new(&bytes[1..22], U3::_0, 163),
+            key.pop_back_slice(163)
+        );
+        assert_eq!(Slice::new(&bytes[..], U3::_0, 8).unwrap(), key);
+        assert_eq!(_1, key.pop_back());
+        assert_eq!(_1, key.pop_back());
+        assert_eq!(_1, key.pop_back());
+        assert_eq!(Slice::new(&[0u8], U3::_0, 5), key.pop_back_slice(5));
+        assert!(key.is_empty());
+    }
 }

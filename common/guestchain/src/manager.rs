@@ -1,3 +1,4 @@
+use alloc::boxed::Box;
 #[cfg(not(feature = "std"))]
 use alloc::collections::BTreeSet as Set;
 use alloc::collections::VecDeque;
@@ -10,6 +11,7 @@ use lib::hash::CryptoHash;
 
 use crate::candidates::Candidate;
 pub use crate::candidates::UpdateCandidateError;
+use crate::config::{UpdateConfig, UpdateConfigError};
 use crate::{BlockHeight, Validator};
 
 const MAX_CONSENSUS_STATES: usize = 20;
@@ -36,7 +38,10 @@ pub struct ChainManager<PK> {
     epoch_height: crate::HostHeight,
 
     /// Set of validator candidates to consider for the next epoch.
-    candidates: crate::Candidates<PK>,
+    // TODO(mina86): This is Boxed to help solana-ibc with stack usage.  It’s
+    // not entirely clear how this affects the stack but without boxing this we
+    // end up with failing contract.  Ideally this field would not be boxed.
+    candidates: Box<crate::Candidates<PK>>,
 
     /// previous Consensus states
     pub consensus_states: VecDeque<LocalConsensusState>,
@@ -139,7 +144,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             next_epoch,
             pending_block: None,
             epoch_height: header.host_height,
-            candidates,
+            candidates: Box::new(candidates),
             header,
             consensus_states: VecDeque::with_capacity(MAX_CONSENSUS_STATES),
         })
@@ -164,6 +169,21 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.pending_block.as_ref()
     }
 
+    pub fn update_config(
+        &mut self,
+        config_payload: UpdateConfig,
+    ) -> Result<(), UpdateConfigError> {
+        self.config.update(
+            self.candidates.current_head_stake(),
+            self.validators().len(),
+            config_payload.clone(),
+        )?;
+        if let Some(max_validators) = config_payload.max_validators {
+            self.candidates.update_max_validators(max_validators);
+        }
+        Ok(())
+    }
+
     /// Generates a new block and sets it as pending.
     ///
     /// Returns an error if there’s already a pending block (previous pending
@@ -178,29 +198,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         host_height: crate::HostHeight,
         host_timestamp: NonZeroU64,
         state_root: CryptoHash,
-        force: bool,
     ) -> Result<bool, GenerateError> {
-        if self.pending_block.is_some() {
-            return Err(GenerateError::HasPendingBlock);
-        }
-        if !host_height.check_delta_from(
-            self.header.host_height,
-            self.config.min_block_length,
-        ) {
-            return Err(GenerateError::BlockTooYoung);
-        }
-
-        let next_epoch = self.maybe_generate_next_epoch(host_height);
-        let age =
-            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none() &&
-            !force &&
-            state_root == self.header.state_root &&
-            age < self.config.max_block_age_ns
-        {
-            return Err(GenerateError::UnchangedState);
-        }
-
+        let next_epoch = self.validate_generate_next(
+            host_height,
+            host_timestamp,
+            &state_root,
+        )?;
         let epoch_ends = self.header.next_epoch_commitment.is_some();
         let next_block = self.header.generate_next(
             host_height,
@@ -229,6 +232,34 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         Ok(epoch_ends)
     }
 
+    pub fn validate_generate_next(
+        &self,
+        host_height: crate::HostHeight,
+        host_timestamp: NonZeroU64,
+        state_root: &CryptoHash,
+    ) -> Result<Option<crate::Epoch<PK>>, GenerateError> {
+        if self.pending_block.is_some() {
+            return Err(GenerateError::HasPendingBlock);
+        }
+        if !host_height.check_delta_from(
+            self.header.host_height,
+            self.config.min_block_length,
+        ) {
+            return Err(GenerateError::BlockTooYoung);
+        }
+
+        let next_epoch = self.maybe_generate_next_epoch(host_height);
+        let age =
+            host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
+        if next_epoch.is_none() &&
+            state_root == &self.header.state_root &&
+            age < self.config.max_block_age_ns
+        {
+            return Err(GenerateError::UnchangedState);
+        };
+        Ok(next_epoch)
+    }
+
     /// Generates a new epoch with the top validators from the candidates set if
     /// necessary.
     ///
@@ -243,7 +274,7 @@ impl<PK: crate::PubKey> ChainManager<PK> {
     /// Those conditions are assumed to hold by construction of
     /// `self.candidates`.
     fn maybe_generate_next_epoch(
-        &mut self,
+        &self,
         host_height: crate::HostHeight,
     ) -> Option<crate::Epoch<PK>> {
         if !host_height
@@ -301,19 +332,20 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
     /// Updates validator candidate’s stake.
     ///
-    /// If `stake` is zero, removes the candidate if it exists on the list.
-    /// Otherwise, updates stake of an existing candidate or adds a new one.
-    ///
-    /// Note that removing a candidate or reducing existing candidate’s stake
-    /// may fail if that would result in quorum or total stake among the top
-    /// `self.config.max_validators` to drop below limits configured in
-    /// `self.config`.
-    pub fn update_candidate(
+    /// The `new_stake_fn` callback takes existing candidate or `None` (if
+    /// candidate with given `pubkey` doesn’t exist) as the argument and returns
+    /// the new stake for that candidate (or for a new candidate).  If the new
+    /// stake is zero, the candidate is removed.
+    pub fn update_candidate<F, E>(
         &mut self,
         pubkey: PK,
-        stake: u128,
-    ) -> Result<(), UpdateCandidateError> {
-        self.candidates.update(&self.config, pubkey, stake)
+        new_stake_fn: F,
+    ) -> Result<(), E>
+    where
+        F: FnOnce(Option<&Candidate<PK>>) -> Result<u128, E>,
+        E: From<UpdateCandidateError>,
+    {
+        self.candidates.update(&self.config, pubkey, new_stake_fn)
     }
 
     pub fn validators(&self) -> &[Validator<PK>] {
@@ -331,9 +363,12 @@ impl<PK: crate::PubKey> ChainManager<PK> {
 
 #[test]
 fn test_generate() {
+    use core::num::NonZeroU16;
+
     use crate::validators::MockPubKey;
 
     let epoch = crate::Epoch::test(&[(1, 2), (2, 2), (3, 2)]);
+    let total_stake = 6;
     assert_eq!(4, epoch.quorum_stake().get());
 
     let ali = epoch.validators()[0].clone();
@@ -358,7 +393,7 @@ fn test_generate() {
         max_block_age_ns: 1000,
         min_epoch_length: 8.into(),
     };
-    let mut mgr = ChainManager::new(config, genesis).unwrap();
+    let mut mgr = ChainManager::new(config.clone(), genesis).unwrap();
 
     let one = NonZeroU64::new(1).unwrap();
     let two = NonZeroU64::new(2).unwrap();
@@ -370,22 +405,20 @@ fn test_generate() {
     // min_block_length not reached
     assert_eq!(
         Err(GenerateError::BlockTooYoung),
-        mgr.generate_next(4.into(), two, CryptoHash::default(), false)
+        mgr.generate_next(4.into(), two, CryptoHash::default())
     );
     // No change to the state so no need for a new block.
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(5.into(), two, CryptoHash::default(), false)
+        mgr.generate_next(5.into(), two, CryptoHash::default())
     );
     // Inner error.
     assert_eq!(
         Err(GenerateError::Inner(
             crate::block::GenerateError::BadHostTimestamp
         )),
-        mgr.generate_next(5.into(), one, CryptoHash::test(1), false)
+        mgr.generate_next(5.into(), one, CryptoHash::test(1))
     );
-    // Force create even if state hasn’t changed.
-    mgr.generate_next(5.into(), two, CryptoHash::default(), true).unwrap();
 
     fn sign_head(
         mgr: &mut ChainManager<MockPubKey>,
@@ -397,21 +430,22 @@ fn test_generate() {
         mgr.add_signature(validator.pubkey().clone(), &signature, &())
     }
 
+    mgr.generate_next(5.into(), two, CryptoHash::test(1)).unwrap();
     // The head hasn’t been fully signed yet.
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2))
     );
 
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2))
     );
     assert_eq!(Ok(AddSignatureEffect::Duplicate), sign_head(&mut mgr, &ali));
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2))
     );
 
     // Signatures are verified
@@ -429,11 +463,11 @@ fn test_generate() {
 
     assert_eq!(
         Err(GenerateError::HasPendingBlock),
-        mgr.generate_next(10.into(), three, CryptoHash::test(2), false)
+        mgr.generate_next(10.into(), three, CryptoHash::test(2))
     );
 
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
-    mgr.generate_next(10.into(), three, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(10.into(), three, CryptoHash::test(2)).unwrap();
 
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
@@ -442,33 +476,45 @@ fn test_generate() {
     // trigger new block.
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(15.into(), four, CryptoHash::test(2), false)
+        mgr.generate_next(15.into(), four, CryptoHash::test(2))
     );
-    mgr.update_candidate(*eve.pubkey(), 1).unwrap();
-    mgr.generate_next(15.into(), four, CryptoHash::test(2), false).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(1)
+    })
+    .unwrap();
+    mgr.generate_next(15.into(), four, CryptoHash::test(2)).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     // Epoch has minimum length.  Even if the head of candidates changes but not
     // enough host blockchain passed, the epoch won’t be changed.
-    mgr.update_candidate(*eve.pubkey(), 2).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(2)
+    })
+    .unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(20.into(), five, CryptoHash::test(2), false)
+        mgr.generate_next(20.into(), five, CryptoHash::test(2))
     );
-    mgr.generate_next(30.into(), five, CryptoHash::test(2), false).unwrap();
+    mgr.generate_next(30.into(), five, CryptoHash::test(2)).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
     //Adding candidates past the head (i.e. in a way which wouldn’t affect the
     // epoch) doesn’t change the state.
-    mgr.update_candidate(MockPubKey(4), 1).unwrap();
+    mgr.update_candidate(MockPubKey(4), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(1)
+    })
+    .unwrap();
     assert_eq!(
         Err(GenerateError::UnchangedState),
-        mgr.generate_next(40.into(), five, CryptoHash::test(2), false)
+        mgr.generate_next(40.into(), five, CryptoHash::test(2))
     );
-    mgr.update_candidate(*eve.pubkey(), 0).unwrap();
-    mgr.generate_next(40.into(), six, CryptoHash::test(2), false).unwrap();
+    mgr.update_candidate(*eve.pubkey(), |_| {
+        Result::<u128, UpdateCandidateError>::Ok(0)
+    })
+    .unwrap();
+    mgr.generate_next(40.into(), six, CryptoHash::test(2)).unwrap();
     assert_eq!(Ok(AddSignatureEffect::NoQuorumYet), sign_head(&mut mgr, &ali));
     assert_eq!(Ok(AddSignatureEffect::GotQuorum), sign_head(&mut mgr, &bob));
 
@@ -480,14 +526,57 @@ fn test_generate() {
             50.into(),
             NonZeroU64::new(7).unwrap(),
             CryptoHash::test(2),
-            false
         )
     );
     mgr.generate_next(
         50.into(),
         NonZeroU64::new(1007).unwrap(),
         CryptoHash::test(2),
-        false,
     )
     .unwrap();
+
+    let update_chain_config = UpdateConfig {
+        min_validators: NonZeroU16::new((mgr.validators().len() + 1) as u16),
+        max_validators: None,
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinValidatorsHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateConfig {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: Some(NonZeroU128::new(total_stake + 2).unwrap()),
+        min_quorum_stake: None,
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinTotalStakeHigherThanExisting),
+        mgr.update_config(update_chain_config)
+    );
+
+    let update_chain_config = UpdateConfig {
+        min_validators: None,
+        max_validators: NonZeroU16::new(u16::from(config.max_validators) - 1),
+        min_validator_stake: None,
+        min_total_stake: None,
+        min_quorum_stake: NonZeroU128::new(total_stake + 2),
+        min_block_length: None,
+        max_block_age_ns: None,
+        min_epoch_length: None,
+    };
+    assert_eq!(
+        Err(UpdateConfigError::MinQuorumStakeHigherThanTotalStake),
+        mgr.update_config(update_chain_config)
+    );
 }

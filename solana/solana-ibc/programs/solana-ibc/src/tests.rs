@@ -15,12 +15,12 @@ use anchor_client::solana_sdk::signature::{
 };
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
-use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
-use spl_token::instruction::initialize_mint2;
+use spl_associated_token_account::instruction::create_associated_token_account;
+use spl_token::solana_program::system_instruction;
 use spl_token::solana_program::sysvar::SysvarId;
 
 use crate::ibc::ClientStateCommon;
@@ -30,16 +30,13 @@ use crate::{
 };
 
 const IBC_TRIE_PREFIX: &[u8] = b"ibc/";
-pub const STAKING_PROGRAM_ID: &str =
-    "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
 pub const WRITE_ACCOUNT_SEED: &[u8] = b"write";
 pub const TOKEN_NAME: &str = "RETARDIO";
 pub const TOKEN_SYMBOL: &str = "RTRD";
 pub const TOKEN_URI: &str = "https://github.com";
-// const BASE_DENOM: &str = "PICA";
+pub const FEE: u64 = 10_000_000;
 
-const TRANSFER_AMOUNT: u64 = 1_000_000_000_000_000;
-const MINT_AMOUNT: u64 = 1_000_000_000_000_000_000;
+const TRANSFER_AMOUNT: u64 = 1_000_000_000;
 
 const ORIGINAL_DECIMALS: u8 = 9;
 const EFFECTIVE_DECIMALS: u8 = 6;
@@ -118,11 +115,9 @@ fn anchor_test_deliver() -> Result<()> {
     let fee_collector_pda =
         Pubkey::find_program_address(&[crate::FEE_SEED], &crate::ID).0;
 
-    let mint_keypair = Keypair::new();
-    let native_token_mint_key = mint_keypair.pubkey();
-    let base_denom = native_token_mint_key.to_string();
+    let wrapped_sol_mint = Pubkey::from_str(crate::WSOL_ADDRESS).unwrap();
+    let base_denom = wrapped_sol_mint.to_string();
     let hashed_denom = CryptoHash::digest(base_denom.as_bytes());
-
 
     let port_id = ibc::PortId::transfer();
     let channel_id_on_a = ibc::ChannelId::new(0);
@@ -144,8 +139,6 @@ fn anchor_test_deliver() -> Result<()> {
 
     let receiver = Rc::new(Keypair::new());
 
-    let sender_token_address =
-        get_associated_token_address(&authority.pubkey(), &token_mint_key);
     let receiver_token_address =
         get_associated_token_address(&receiver.pubkey(), &token_mint_key);
 
@@ -176,7 +169,6 @@ fn anchor_test_deliver() -> Result<()> {
                 max_block_age_ns: 3600 * 1_000_000_000,
                 min_epoch_length: 200_000.into(),
             },
-            staking_program_id: Pubkey::from_str(STAKING_PROGRAM_ID).unwrap(),
             sig_verify_program_id,
             genesis_epoch: chain::Epoch::new(
                 vec![chain::Validator::new(
@@ -392,6 +384,26 @@ fn anchor_test_deliver() -> Result<()> {
         })?;
     println!("  Signature: {sig}");
 
+    /*
+        Set up the fees
+    */
+
+    println!("\nSetting up Fees");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000u32,
+        ))
+        .accounts(accounts::SetFeeAmount { fee_collector, storage })
+        .args(instruction::SetFeeAmount { new_amount: FEE })
+        .payer(fee_collector_keypair.clone())
+        .signer(&*fee_collector_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
 
@@ -399,6 +411,7 @@ fn anchor_test_deliver() -> Result<()> {
      * Setup deliver escrow.
      */
 
+    println!("\nCreating Token mint");
     let token_metadata_pda = Pubkey::find_program_address(
         &[
             "metadata".as_bytes(),
@@ -450,53 +463,38 @@ fn anchor_test_deliver() -> Result<()> {
      */
     println!("\nCreating a token mint");
 
-    let create_account_ix = create_account(
-        &authority.pubkey(),
-        &native_token_mint_key,
-        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
-        82,
-        &anchor_spl::token::ID,
-    );
+    let wrapped_sol_token_account =
+        get_associated_token_address(&authority.pubkey(), &wrapped_sol_mint);
 
-    let create_mint_ix = initialize_mint2(
-        &anchor_spl::token::ID,
-        &native_token_mint_key,
-        &authority.pubkey(),
-        Some(&authority.pubkey()),
-        6,
-    )
-    .expect("invalid mint instruction");
-
-    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&authority.pubkey(), &authority.pubkey(), &native_token_mint_key, &anchor_spl::token::ID);
-    let associated_token_addr = get_associated_token_address(
-        &authority.pubkey(),
-        &native_token_mint_key,
-    );
-    let mint_ix = spl_token::instruction::mint_to(
-        &anchor_spl::token::ID,
-        &native_token_mint_key,
-        &associated_token_addr,
-        &authority.pubkey(),
-        &[&authority.pubkey()],
-        MINT_AMOUNT,
-    )
-    .unwrap();
-
-    let tx = program
+    let sig = program
         .request()
-        .instruction(create_account_ix)
-        .instruction(create_mint_ix)
-        .instruction(create_token_acc_ix)
-        .instruction(mint_ix)
+        .instruction(create_associated_token_account(
+            &authority.pubkey(),
+            &authority.pubkey(),
+            &wrapped_sol_mint,
+            &anchor_spl::token::ID,
+        ))
+        .instruction(system_instruction::transfer(
+            &authority.pubkey(),
+            &wrapped_sol_token_account,
+            1_500_000_000,
+        ))
+        .instruction(
+            spl_token::instruction::sync_native(
+                &anchor_spl::token::ID,
+                &wrapped_sol_token_account,
+            )
+            .unwrap(),
+        )
         .payer(authority.clone())
         .signer(&*authority)
-        .signer(&mint_keypair)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
-        })?;
+        })
+        .unwrap();
 
-    println!("  Signature: {}", tx);
+    println!("  Signature: {}", sig);
 
     /*
      * Sending transfer on source chain
@@ -513,7 +511,7 @@ fn anchor_test_deliver() -> Result<()> {
     );
 
     let account_balance_before = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
+        .get_token_account_balance(&wrapped_sol_token_account)
         .unwrap();
 
     let sig = program
@@ -529,10 +527,10 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
-            token_mint: Some(native_token_mint_key),
+            token_mint: Some(wrapped_sol_mint),
             escrow_account: Some(escrow_account_key),
             fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(associated_token_addr),
+            receiver_token_account: Some(wrapped_sol_token_account),
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
@@ -548,7 +546,7 @@ fn anchor_test_deliver() -> Result<()> {
     println!("  Signature: {sig}");
 
     let account_balance_after = sol_rpc_client
-        .get_token_account_balance(&associated_token_addr)
+        .get_token_account_balance(&wrapped_sol_token_account)
         .unwrap();
 
     let min_balance_for_rent_exemption =
@@ -559,15 +557,12 @@ fn anchor_test_deliver() -> Result<()> {
     assert_eq!(
         ((account_balance_before.ui_amount.unwrap() -
             account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
+            1_000_000_000f64)
+            .round() as u64,
         TRANSFER_AMOUNT
     );
 
-    assert_eq!(
-        fee_account_balance_after - min_balance_for_rent_exemption,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - min_balance_for_rent_exemption, FEE);
 
     /*
      * On Destination chain
@@ -721,25 +716,14 @@ fn anchor_test_deliver() -> Result<()> {
             (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
-    assert_eq!(
-        fee_account_balance_after - fee_account_balance_before,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);
 
-    assert_eq!(
-        fee_account_balance_after - fee_account_balance_before,
-        crate::FEE_AMOUNT_IN_LAMPORTS
-    );
+    assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);
 
     /*
      * On Source chain
      */
     println!("\nRecving on source chain");
-
-    let receiver_native_token_address = get_associated_token_address(
-        &receiver.pubkey(),
-        &native_token_mint_key,
-    );
 
     let packet = construct_packet_from_denom(
         &base_denom,
@@ -767,11 +751,12 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::MsgEnvelope::Packet,
     );
 
+    let receiver_wrapped_sol_acc =
+        get_associated_token_address(&receiver.pubkey(), &wrapped_sol_mint);
     let escrow_account_balance_before =
-        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_before = sol_rpc_client
-        .get_token_account_balance(&receiver_native_token_address)
-        .map_or(0f64, |balance| balance.ui_amount.unwrap());
+        sol_rpc_client.get_balance(&mint_authority_key).unwrap();
+    let receiver_balance_before =
+        sol_rpc_client.get_balance(&receiver.pubkey()).unwrap();
 
     let sig = program
         .request()
@@ -786,10 +771,10 @@ fn anchor_test_deliver() -> Result<()> {
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
-            token_mint: Some(native_token_mint_key),
+            token_mint: Some(wrapped_sol_mint),
             escrow_account: Some(escrow_account_key),
             fee_collector: Some(fee_collector_pda),
-            receiver_token_account: Some(receiver_native_token_address),
+            receiver_token_account: Some(receiver_wrapped_sol_acc),
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
@@ -803,64 +788,17 @@ fn anchor_test_deliver() -> Result<()> {
     println!("  Signature: {sig}");
 
     let escrow_account_balance_after =
-        sol_rpc_client.get_token_account_balance(&escrow_account_key).unwrap();
-    let receiver_account_balance_after = sol_rpc_client
-        .get_token_account_balance(&receiver_native_token_address)
-        .unwrap();
+        sol_rpc_client.get_balance(&mint_authority_key).unwrap();
+    let receiver_balance_after =
+        sol_rpc_client.get_balance(&receiver.pubkey()).unwrap();
     assert_eq!(
-        ((escrow_account_balance_before.ui_amount.unwrap() -
-            escrow_account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
+        receiver_balance_after - receiver_balance_before,
         TRANSFER_AMOUNT
     );
     assert_eq!(
-        ((receiver_account_balance_after.ui_amount.unwrap() -
-            receiver_account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
-        .round() as u64,
+        escrow_account_balance_before - escrow_account_balance_after,
         TRANSFER_AMOUNT
     );
-
-    /*
-     * Send Packets
-     */
-    println!("\nSend packet");
-    let packet = construct_packet_from_denom(
-        &base_denom,
-        port_id.clone(),
-        true,
-        channel_id_on_a.clone(),
-        channel_id_on_b.clone(),
-        1,
-        sender_token_address,
-        receiver_token_address,
-        String::from("Just a packet"),
-    );
-
-    let sig = program
-        .request()
-        .accounts(accounts::SendPacket {
-            sender: authority.pubkey(),
-            storage,
-            trie,
-            chain,
-            system_program: system_program::ID,
-        })
-        .args(instruction::SendPacket {
-            port_id: port_id.clone(),
-            channel_id: channel_id_on_a.clone(),
-            data: packet.data,
-            timeout_height: packet.timeout_height_on_b,
-            timeout_timestamp: packet.timeout_timestamp_on_b,
-        })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
 
     /*
      * Collect all fees from the fee collector

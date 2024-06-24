@@ -5,18 +5,17 @@
 
 extern crate alloc;
 
-use ::ibc::core::client::types::error::ClientError;
+use alloc::boxed::Box;
+
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
+use guestchain::config::UpdateConfig;
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
-use trie_ids::PortChannelPK;
-
-use crate::ibc::{ClientStateValidation, SendPacketValidationContext};
 
 pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
@@ -29,14 +28,17 @@ pub const METADATA: &[u8] = b"metadata";
 
 pub const FEE_SEED: &[u8] = b"fee";
 
-pub const FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
-pub const REFUND_FEE_AMOUNT_IN_LAMPORTS: u64 =
-    solana_program::native_token::LAMPORTS_PER_SOL / 100;
+pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
+
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("9fd7GDygnAmHhXDVWgzsfR6kSRvwkxVnsY8SaSpSH4SX");
+declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
+
+#[cfg(not(feature = "mocks"))]
+mod relayer {
+    anchor_lang::declare_id!("Ao2wBFe6VzG5B1kQKkNw4grnPRQZNpP4wwQW86vXGxpY");
+}
 
 mod allocator;
 pub mod chain;
@@ -107,7 +109,6 @@ pub mod solana_ibc {
         ctx: Context<Initialise>,
         config: chain::Config,
         genesis_epoch: chain::Epoch,
-        staking_program_id: Pubkey,
         sig_verify_program_id: Pubkey,
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(
@@ -118,7 +119,6 @@ pub mod solana_ibc {
             &mut provable,
             config,
             genesis_epoch,
-            staking_program_id,
             sig_verify_program_id,
         )
     }
@@ -179,37 +179,64 @@ pub mod solana_ibc {
     /// This also means that reducing stake takes effect only after the epoch
     /// changes.
     ///
-    /// TODO(mina86): At the moment we’re operating on pretend tokens and each
-    /// validator can set whatever stake they want.  This is purely for testing
-    /// and not intended for production use.
-    ///
-    /// Can only be called through CPI from our staking program whose
-    /// id is stored in chain account.
+    /// Can only be called through CPI from our staking program which is mentioned
+    /// in the method below.
     pub fn set_stake(
         ctx: Context<SetStake>,
         validator: Pubkey,
         amount: u128,
     ) -> Result<()> {
+        check_staking_caller(&ctx.accounts.instruction)?;
         let chain = &mut ctx.accounts.chain;
-        let caller_program_id =
-            solana_program::sysvar::instructions::get_instruction_relative(
-                0,
-                &ctx.accounts.instruction,
-            )?
-            .program_id;
-        chain.check_staking_program(&caller_program_id)?;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
             &ctx.accounts.sender,
         )?;
         chain.maybe_generate_block(&provable)?;
-        chain.set_stake((validator).into(), amount)
+        chain.set_stake(validator.into(), amount)
     }
 
-    /// Sets up new fee collector proposal which wont be changed until the new fee collector
-    /// calls `accept_fee_collector_change`. If the method is called for the first time, the fee
-    /// collector would just be set without needing for any approval.
+    /// Changes stake of multiple guest chain validators
     ///
+    /// Sender’s stake will be set to the given amount.  Note that if sender is
+    /// a validator in current epoch, their stake in current epoch won’t change.
+    /// This also means that reducing stake takes effect only after the epoch
+    /// changes.
+    ///
+    /// Can only be called through CPI from another staking program whose
+    /// id is mentioned below.
+    pub fn update_stake(
+        ctx: Context<SetStake>,
+        stake_changes: Vec<(sigverify::ed25519::PubKey, i128)>,
+    ) -> Result<()> {
+        check_staking_caller(&ctx.accounts.instruction)?;
+        let chain = &mut ctx.accounts.chain;
+        let provable = storage::get_provable_from(
+            &ctx.accounts.trie,
+            &ctx.accounts.sender,
+        )?;
+        chain.maybe_generate_block(&provable)?;
+        chain.update_stake(stake_changes)
+    }
+
+    pub fn set_fee_amount<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SetFeeAmount<'info>>,
+        new_amount: u64,
+    ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        let previous_fees = private_storage.fee_in_lamports;
+        private_storage.fee_in_lamports = new_amount;
+
+        msg!("Fee updated to {} from {}", new_amount, previous_fees);
+
+        Ok(())
+    }
+
+    /// Sets up new fee collector proposal which wont be changed until the new
+    /// fee collector calls `accept_fee_collector_change`. If the method is
+    /// called for the first time, the fee collector would just be set without
+    /// needing for any approval.
     pub fn setup_fee_collector<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, SetupFeeCollector<'info>>,
         new_fee_collector: Pubkey,
@@ -344,6 +371,12 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !relayer::check_id(ctx.accounts.sender.key) {
+            msg!("Only {} can call this method", relayer::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+
         let sig_verify_program_id =
             ctx.accounts.chain.sig_verify_program_id()?;
 
@@ -392,98 +425,6 @@ pub mod solana_ibc {
         )
     }
 
-    /// Should be called after setting up client, connection and channels.
-    pub fn send_packet<'a, 'info>(
-        ctx: Context<'a, 'a, 'a, 'info, SendPacket<'info>>,
-        port_id: ibc::PortId,
-        channel_id: ibc::ChannelId,
-        data: Vec<u8>,
-        timeout_height: ibc::TimeoutHeight,
-        timeout_timestamp: ibc::Timestamp,
-    ) -> Result<()> {
-        let mut store = storage::from_ctx!(ctx);
-
-        // Check if atleast one of the timeouts is non zero.
-        if !timeout_height.is_set() && !timeout_timestamp.is_set() {
-            return Err(error::Error::InvalidTimeout.into());
-        }
-
-        let sequence = store
-            .get_next_sequence_send(&ibc::path::SeqSendPath::new(
-                &port_id,
-                &channel_id,
-            ))
-            .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))?;
-
-        let port_channel_pk = PortChannelPK::try_from(&port_id, &channel_id)
-            .map_err(|e| error::Error::ContextError(e.into()))?;
-
-        let channel_end = store
-            .borrow()
-            .private
-            .port_channel
-            .get(&port_channel_pk)
-            .ok_or(error::Error::Internal("Port channel not found"))?
-            .channel_end()
-            .map_err(|e| error::Error::ContextError(e.into()))?
-            .ok_or(error::Error::Internal("Channel end doesnt exist"))?;
-
-        channel_end
-            .verify_not_closed()
-            .map_err(|e| error::Error::ContextError(e.into()))?;
-
-        let conn_id_on_a = &channel_end.connection_hops()[0];
-
-        let conn_end_on_a = store
-            .connection_end(conn_id_on_a)
-            .map_err(error::Error::ContextError)?;
-
-        let client_id_on_a = conn_end_on_a.client_id();
-
-        let client_state_of_b_on_a = store
-            .client_state(client_id_on_a)
-            .map_err(error::Error::ContextError)?;
-
-        let status = client_state_of_b_on_a
-            .status(store.get_client_validation_context(), client_id_on_a)
-            .map_err(|e| error::Error::ContextError(e.into()))?;
-        if !status.is_active() {
-            return Err(error::Error::ContextError(
-                ClientError::ClientNotActive { status }.into(),
-            )
-            .into());
-        }
-
-        let packet = ibc::Packet {
-            seq_on_a: sequence,
-            port_id_on_a: port_id,
-            chan_id_on_a: channel_id,
-            port_id_on_b: channel_end.remote.port_id,
-            chan_id_on_b: channel_end.remote.channel_id.ok_or(
-                error::Error::Internal("Counterparty channel id doesnt exist"),
-            )?,
-            data,
-            timeout_height_on_b: timeout_height,
-            timeout_timestamp_on_b: timeout_timestamp,
-        };
-
-        if cfg!(test) || cfg!(feature = "mocks") {
-            ::ibc::core::channel::handler::send_packet_validate(
-                &store, &packet,
-            )
-            .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))?;
-        }
-
-        // Since we do all the checks present in validate above, there is no
-        // need to call validate again.  Hence validate is only called during
-        // tests.
-        ::ibc::core::channel::handler::send_packet_execute(&mut store, packet)
-            .map_err(error::Error::ContextError)
-            .map_err(|err| error!((&err)))
-    }
-
     /// The hashed_full_denom are passed
     /// so that they can be used to create ESCROW account if it
     /// doesnt exists.
@@ -500,6 +441,8 @@ pub mod solana_ibc {
         if full_denom != hashed_full_denom {
             return Err(error!(error::Error::InvalidSendTransferParams));
         }
+
+        let fee_amount = ctx.accounts.storage.fee_in_lamports;
 
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut token_ctx = store.clone();
@@ -524,7 +467,7 @@ pub mod solana_ibc {
             &solana_program::system_instruction::transfer(
                 &sender.key(),
                 &fee_collector.key(),
-                FEE_AMOUNT_IN_LAMPORTS,
+                fee_amount,
             ),
             &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
@@ -561,6 +504,14 @@ pub mod solana_ibc {
             &[payer.clone(), account.clone()],
         )?;
         Ok(account.realloc(new_length, false)?)
+    }
+
+    pub fn update_chain_config(
+        ctx: Context<UpdateChainConfig>,
+        config_payload: UpdateConfig,
+    ) -> Result<()> {
+        let chain = &mut ctx.accounts.chain;
+        chain.update_chain_config(config_payload)
     }
 }
 
@@ -664,6 +615,16 @@ pub struct ChainWithVerifier<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetFeeAmount<'info> {
+    #[account(mut)]
+    fee_collector: Signer<'info>,
+
+    /// The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, has_one = fee_collector)]
+    storage: Account<'info, storage::PrivateStorage>,
+}
+
+#[derive(Accounts)]
 pub struct SetupFeeCollector<'info> {
     #[account(mut)]
     fee_collector: Signer<'info>,
@@ -755,8 +716,8 @@ pub struct Deliver<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    #[account(mut, token::mint = token_mint, token::authority = mint_authority)]
-    escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut)]
+    escrow_account: Option<UncheckedAccount<'info>>,
     #[account(init_if_needed, payer = sender,
         associated_token::mint = token_mint,
         associated_token::authority = receiver)]
@@ -779,30 +740,6 @@ pub struct MockDeliver<'info> {
     /// The account holding private IBC storage.
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Box<Account<'info, storage::PrivateStorage>>,
-
-    /// The account holding provable IBC storage, i.e. the trie.
-    ///
-    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
-    /// function.
-    #[account(mut, seeds = [TRIE_SEED], bump)]
-    trie: UncheckedAccount<'info>,
-
-    /// The guest blockchain data.
-    #[account(mut, seeds = [CHAIN_SEED], bump)]
-    chain: Account<'info, chain::ChainData>,
-
-    system_program: Program<'info, System>,
-}
-
-/// Has the same structure as `Deliver` though we expect for accounts to be already initialized here.
-#[derive(Accounts)]
-pub struct SendPacket<'info> {
-    #[account(mut)]
-    sender: Signer<'info>,
-
-    /// The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
-    storage: Account<'info, storage::PrivateStorage>,
 
     /// The account holding provable IBC storage, i.e. the trie.
     ///
@@ -862,6 +799,20 @@ pub struct SendTransfer<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateChainConfig<'info> {
+    #[account(mut)]
+    pub fee_collector: Signer<'info>,
+
+    // The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, has_one = fee_collector)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+}
+
+#[derive(Accounts)]
 #[instruction(new_length: usize)]
 pub struct ReallocAccounts<'info> {
     #[account(mut)]
@@ -905,4 +856,52 @@ impl ibc::Router for storage::IbcStorage<'_, '_> {
             _ => None,
         }
     }
+}
+
+/// Checks whether current instruction is a CPI whose caller is a staking
+/// program.
+///
+/// `ix_sysvar` is the account of the instruction sysvar which is used to get
+/// the program id of the current instruction.  If the id is not of a staking
+/// program, returns `InvalidCPICall` error.
+fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
+    let caller_program_id =
+        solana_program::sysvar::instructions::get_instruction_relative(
+            0, ix_sysvar,
+        )?
+        .program_id;
+    check_staking_program(&caller_program_id)
+}
+
+/// Checks whether given `program_id` matches expected staking program id.
+///
+/// Various CPI calls which affect stake and rewards can only be made from that
+/// program.  This method checks whether program id given as argument matches
+/// a staking program we expect.  If it doesn’t, returns `InvalidCPICall`.
+fn check_staking_program(program_id: &Pubkey) -> Result<()> {
+    // solana_program::pubkey! doesn’t work so we’re using hex instead.  See
+    // https://github.com/coral-xyz/anchor/pull/3021 for more context.
+    // TODO(mina86): Use pubkey macro once we upgrade to anchor lang with it.
+    let expected_program_ids = [
+        Pubkey::new_from_array(hex_literal::hex!(
+            "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
+        )),
+        Pubkey::new_from_array(hex_literal::hex!(
+            "a1d0177376e0e90b580181247c1a63b73e473b47bc5b06f70a6a4844e0b05015"
+        )),
+    ];
+    match expected_program_ids.contains(program_id) {
+        false => Err(error::Error::InvalidCPICall.into()),
+        true => Ok(()),
+    }
+}
+
+#[test]
+fn test_staking_program() {
+    const GOOD_ONE: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
+    const GOOD_TWO: &str = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg";
+    const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
+    check_staking_program(&GOOD_ONE.parse().unwrap()).unwrap();
+    check_staking_program(&GOOD_TWO.parse().unwrap()).unwrap();
+    check_staking_program(&BAD.parse().unwrap()).unwrap_err();
 }
