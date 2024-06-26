@@ -284,8 +284,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len()) +
-            MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len())
+            + MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -321,10 +321,13 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(hashed_full_denom, storage::Asset {
-                original_decimals,
-                effective_decimals_on_sol: effective_decimals,
-            });
+            private_storage.assets.insert(
+                hashed_full_denom,
+                storage::Asset {
+                    original_decimals,
+                    effective_decimals_on_sol: effective_decimals,
+                },
+            );
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -451,8 +454,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -543,7 +546,10 @@ pub mod solana_ibc {
 
         let mut store = storage::from_ctx!(ctx);
 
-        let connection_end = store.connection_end(&connection_id).unwrap();
+        let connection_end = store
+            .connection_end(&connection_id)
+            .map_err(error::Error::ContextError)
+            .map_err(move |err| error!((&err)))?;
 
         let updated_connection = ibc::ConnectionEnd::new(
             connection_end.state,
@@ -552,7 +558,10 @@ pub mod solana_ibc {
             connection_end.versions().to_vec(),
             Duration::from_nanos(delay_period_in_ns),
         )
-        .unwrap();
+        .map_err(|err| {
+            error::Error::ContextError(ibc::ContextError::ConnectionError(err))
+        })
+        .map_err(move |err| error!((&err)))?;
 
         store
             .store_connection(
