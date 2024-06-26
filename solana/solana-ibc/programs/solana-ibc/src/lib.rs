@@ -536,35 +536,7 @@ pub mod solana_ibc {
             return Err(error!(error::Error::InvalidConnectionId));
         }
 
-        let provable = crate::storage::get_provable_from(
-            &ctx.accounts.trie,
-            &ctx.accounts.fee_collector,
-        )?;
-        let chain = &mut ctx.accounts.chain;
-
-        // Before anything else, try generating a new guest block.  However, if
-        // that fails it’s not an error condition.  We do this at the beginning
-        // of any request.
-        chain.maybe_generate_block(&provable)?;
-
-        let accounts = crate::TransferAccounts {
-            sender: None,
-            receiver: None,
-            token_account: None,
-            token_mint: None,
-            escrow_account: None,
-            mint_authority: None,
-            token_program: None,
-            fee_collector: None,
-        };
-
-        let mut store =
-            crate::storage::IbcStorage::new(crate::storage::IbcStorageInner {
-                private: storage,
-                provable,
-                chain,
-                accounts,
-            });
+        let mut store = crate::storage::from_ctx!(ctx);
 
         let connection_id = ConnectionId::new(connection_id);
         let connection_end = store.connection_end(&connection_id).unwrap();
@@ -903,10 +875,10 @@ pub struct ReallocAccounts<'info> {
 #[derive(Accounts)]
 pub struct UpdateConnectionDelay<'info> {
     #[account(mut)]
-    pub fee_collector: Signer<'info>,
+    pub sender: Signer<'info>,
 
     // The account holding private IBC storage.
-    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, has_one = fee_collector)]
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, constraint = storage.fee_collector == *sender.key)]
     storage: Account<'info, storage::PrivateStorage>,
 
     /// The guest blockchain data.
