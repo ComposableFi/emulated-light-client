@@ -129,6 +129,9 @@ pub enum Error {
     /// blocks would never get finalized until more stake is added and quorum
     /// stake is less than head stake.
     MinQuorumStakeHigherThanTotalStake,
+
+    /// When a connection id which is not yet created is updated
+    InvalidConnectionId,
 }
 
 impl Error {
