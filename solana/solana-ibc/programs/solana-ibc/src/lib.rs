@@ -565,7 +565,7 @@ pub mod solana_ibc {
 
         store
             .store_connection(
-                &::ibc::core::host::types::path::ConnectionPath(connection_id),
+                &ibc::path::ConnectionPath(connection_id),
                 updated_connection,
             )
             .map_err(error::Error::ContextError)
