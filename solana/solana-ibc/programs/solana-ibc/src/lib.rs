@@ -96,12 +96,15 @@ solana_program::custom_panic_default!();
 
 #[anchor_lang::program]
 pub mod solana_ibc {
+    use std::time::Duration;
+
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
 
     use super::*;
+    use crate::ibc::{ExecutionContext, ValidationContext};
 
     /// Initialises the guest blockchain with given configuration and genesis
     /// epoch.
@@ -513,6 +516,60 @@ pub mod solana_ibc {
         let chain = &mut ctx.accounts.chain;
         chain.update_chain_config(config_payload)
     }
+
+    /// Method which updates the connection delay of a particular connection
+    ///
+    /// Fails if the connection doesnt exist.
+    /// Can only be called by fee collector.
+    pub fn update_connection_delay_period(
+        ctx: Context<UpdateConnectionDelay>,
+        connection_id_idx: u16,
+        delay_period_in_ns: u64,
+    ) -> Result<()> {
+        let storage = &mut ctx.accounts.storage;
+
+        let connection_id = ibc::ConnectionId::new(connection_id_idx.into());
+
+        // Panic if connection_id doenst exist
+        if storage.connections.len() >= usize::from(connection_id_idx) {
+            return Err(error!(error::Error::ContextError(
+                ibc::ContextError::ConnectionError(
+                    ibc::ConnectionError::ConnectionNotFound {
+                        connection_id: connection_id.clone()
+                    }
+                )
+            )));
+        }
+
+        let mut store = storage::from_ctx!(ctx);
+
+        let connection_end = store
+            .connection_end(&connection_id)
+            .map_err(error::Error::ContextError)
+            .map_err(move |err| error!((&err)))?;
+
+        let updated_connection = ibc::ConnectionEnd::new(
+            connection_end.state,
+            connection_end.client_id().clone(),
+            connection_end.counterparty().clone(),
+            connection_end.versions().to_vec(),
+            Duration::from_nanos(delay_period_in_ns),
+        )
+        .map_err(|err| {
+            error::Error::ContextError(ibc::ContextError::ConnectionError(err))
+        })
+        .map_err(move |err| error!((&err)))?;
+
+        store
+            .store_connection(
+                &ibc::path::ConnectionPath(connection_id),
+                updated_connection,
+            )
+            .map_err(error::Error::ContextError)
+            .map_err(move |err| error!((&err)))?;
+
+        Ok(())
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -823,6 +880,27 @@ pub struct ReallocAccounts<'info> {
     account: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateConnectionDelay<'info> {
+    #[account(mut)]
+    pub sender: Signer<'info>,
+
+    // The account holding private IBC storage.
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump, constraint = storage.fee_collector == *sender.key)]
+    storage: Account<'info, storage::PrivateStorage>,
+
+    /// The guest blockchain data.
+    #[account(mut, seeds = [CHAIN_SEED], bump)]
+    chain: Account<'info, chain::ChainData>,
+
+    /// The account holding provable IBC storage, i.e. the trie.
+    ///
+    /// CHECK: Account’s owner is checked by [`storage::get_provable_from`]
+    /// function.
+    #[account(mut, seeds = [TRIE_SEED], bump)]
+    trie: UncheckedAccount<'info>,
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {
