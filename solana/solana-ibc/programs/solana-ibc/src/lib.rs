@@ -526,19 +526,26 @@ pub mod solana_ibc {
     /// Can only be called by fee collector.
     pub fn update_connection_delay_period(
         ctx: Context<UpdateConnectionDelay>,
-        connection_id: u64,
+        connection_id_idx: u64,
         delay_period_in_ns: u64,
     ) -> Result<()> {
         let storage = &mut ctx.accounts.storage;
 
+        let connection_id = ConnectionId::new(connection_id_idx);
+
         // Panic if connection_id doenst exist
-        if storage.connections.len() >= connection_id as usize {
-            return Err(error!(error::Error::InvalidConnectionId));
+        if storage.connections.len() >= connection_id_idx as usize {
+            return Err(error!(error::Error::ContextError(
+                crate::ibc::ContextError::ConnectionError(
+                    crate::ibc::ConnectionError::ConnectionNotFound {
+                        connection_id: connection_id.clone()
+                    }
+                )
+            )));
         }
 
         let mut store = crate::storage::from_ctx!(ctx);
 
-        let connection_id = ConnectionId::new(connection_id);
         let connection_end = store.connection_end(&connection_id).unwrap();
 
         let updated_connection = ConnectionEnd::new(
