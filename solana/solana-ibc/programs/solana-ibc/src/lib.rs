@@ -533,15 +533,15 @@ pub mod solana_ibc {
         // Panic if connection_id doenst exist
         if storage.connections.len() >= connection_id_idx as usize {
             return Err(error!(error::Error::ContextError(
-                crate::ibc::ContextError::ConnectionError(
-                    crate::ibc::ConnectionError::ConnectionNotFound {
+                ibc::ContextError::ConnectionError(
+                    ibc::ConnectionError::ConnectionNotFound {
                         connection_id: connection_id.clone()
                     }
                 )
             )));
         }
 
-        let mut store = crate::storage::from_ctx!(ctx);
+        let mut store = storage::from_ctx!(ctx);
 
         let connection_end = store.connection_end(&connection_id).unwrap();
 
