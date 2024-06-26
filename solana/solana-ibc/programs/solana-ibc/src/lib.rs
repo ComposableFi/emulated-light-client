@@ -526,15 +526,15 @@ pub mod solana_ibc {
     /// Can only be called by fee collector.
     pub fn update_connection_delay_period(
         ctx: Context<UpdateConnectionDelay>,
-        connection_id_idx: u64,
+        connection_id_idx: u16,
         delay_period_in_ns: u64,
     ) -> Result<()> {
         let storage = &mut ctx.accounts.storage;
 
-        let connection_id = ibc::ConnectionId::new(connection_id_idx);
+        let connection_id = ibc::ConnectionId::new(connection_id_idx.into());
 
         // Panic if connection_id doenst exist
-        if storage.connections.len() >= connection_id_idx as usize {
+        if storage.connections.len() >= usize::from(connection_id_idx) {
             return Err(error!(error::Error::ContextError(
                 ibc::ContextError::ConnectionError(
                     ibc::ConnectionError::ConnectionNotFound {
