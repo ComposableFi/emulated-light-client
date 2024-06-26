@@ -14,6 +14,7 @@ use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use guestchain::config::UpdateConfig;
+use ibc::{ExecutionContext, ValidationContext};
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
 
@@ -98,10 +99,6 @@ solana_program::custom_panic_default!();
 pub mod solana_ibc {
     use std::time::Duration;
 
-    use ::ibc::core::channel::context::SendPacketValidationContext;
-    use ::ibc::core::connection::types::ConnectionEnd;
-    use ::ibc::core::host::types::identifiers::ConnectionId;
-    use ::ibc::core::host::ExecutionContext;
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
@@ -531,7 +528,7 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let storage = &mut ctx.accounts.storage;
 
-        let connection_id = ConnectionId::new(connection_id_idx);
+        let connection_id = ibc::ConnectionId::new(connection_id_idx);
 
         // Panic if connection_id doenst exist
         if storage.connections.len() >= connection_id_idx as usize {
@@ -548,7 +545,7 @@ pub mod solana_ibc {
 
         let connection_end = store.connection_end(&connection_id).unwrap();
 
-        let updated_connection = ConnectionEnd::new(
+        let updated_connection = ibc::ConnectionEnd::new(
             connection_end.state,
             connection_end.client_id().clone(),
             connection_end.counterparty().clone(),
