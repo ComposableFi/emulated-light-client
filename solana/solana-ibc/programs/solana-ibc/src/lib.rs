@@ -14,7 +14,6 @@ use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
 use guestchain::config::UpdateConfig;
-
 use lib::hash::CryptoHash;
 use storage::{PrivateStorage, TransferAccounts};
 
@@ -103,9 +102,9 @@ pub mod solana_ibc {
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
-    use crate::ibc::{ExecutionContext, ValidationContext};
 
     use super::*;
+    use crate::ibc::{ExecutionContext, ValidationContext};
 
     /// Initialises the guest blockchain with given configuration and genesis
     /// epoch.
@@ -285,8 +284,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len())
-            + MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len()) +
+            MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -322,13 +321,10 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(
-                hashed_full_denom,
-                storage::Asset {
-                    original_decimals,
-                    effective_decimals_on_sol: effective_decimals,
-                },
-            );
+            private_storage.assets.insert(hashed_full_denom, storage::Asset {
+                original_decimals,
+                effective_decimals_on_sol: effective_decimals,
+            });
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -455,8 +451,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set()
-            && !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
