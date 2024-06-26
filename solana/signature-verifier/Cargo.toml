@@ -2,7 +2,7 @@
 name = "solana-signature-verifier"
 authors = ["Michal Nazarewicz <mina86@mina86.com>"]
 edition = "2021"
-version = "0.0.0"
+version.workspace = true
 
 [lib]
 name = "sigverify"

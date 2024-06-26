@@ -2,7 +2,7 @@
 name = "solana-trie"
 authors = ["Michal Nazarewicz <mina86@mina86.com>"]
 edition = "2021"
-version = "0.0.0"
+version.workspace = true
 
 [dependencies]
 bytemuck = { workspace = true, features = ["min_const_generics", "must_cast"] }

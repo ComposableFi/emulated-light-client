@@ -4243,7 +4243,7 @@ dependencies = [
 
 [[package]]
 name = "restaking"
-version = "0.0.0"
+version = "0.0.3"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -5406,7 +5406,7 @@ checksum = "468aa43b7edb1f9b7b7b686d5c3aeb6630dc1708e86e31343499dd5c4d775183"
 
 [[package]]
 name = "solana-signature-verifier"
-version = "0.0.0"
+version = "0.0.3"
 dependencies = [
  "base64 0.21.7",
  "borsh 0.10.3",
@@ -5521,7 +5521,7 @@ dependencies = [
 
 [[package]]
 name = "solana-trie"
-version = "0.0.0"
+version = "0.0.3"
 dependencies = [
  "bytemuck",
  "lib",
