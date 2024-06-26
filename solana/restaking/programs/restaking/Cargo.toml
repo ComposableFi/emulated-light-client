@@ -1,8 +1,8 @@
 [package]
 name = "restaking"
-version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
+version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
