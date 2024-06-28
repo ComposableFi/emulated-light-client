@@ -15,9 +15,12 @@ import {
   guestChainProgramID,
   restakingProgramID,
 } from "./helper";
+import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
+import { solPriceFeedId, usdcPriceFeedId } from "./constants";
 
 export const depositInstruction = async (
   program: anchor.Program<Restaking>,
+  pythSolanaReceiver: PythSolanaReceiver,
   stakeTokenMint: anchor.web3.PublicKey,
   staker: anchor.web3.PublicKey,
   stakeAmount: number,
@@ -43,6 +46,16 @@ export const depositInstruction = async (
   const stakerTokenAccount = await spl.getAssociatedTokenAddress(
     stakeTokenMint,
     staker
+  );
+
+  const solPriceFeedAccount = pythSolanaReceiver.getPriceFeedAccountAddress(
+    0,
+    solPriceFeedId
+  );
+
+  const usdtPriceFeedAccount = pythSolanaReceiver.getPriceFeedAccountAddress(
+    0,
+    usdcPriceFeedId
   );
 
   const ix = await program.methods
@@ -73,6 +86,8 @@ export const depositInstruction = async (
       metadataProgram: new anchor.web3.PublicKey(
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
       ),
+      tokenPriceUpdate: usdtPriceFeedAccount,
+      solPriceUpdate: solPriceFeedAccount
     })
     .remainingAccounts([
       { pubkey: guestChainPDA, isSigner: false, isWritable: true },
@@ -139,6 +154,7 @@ export const claimRewardsInstruction = async (
 
 export const withdrawInstruction = async (
   program: anchor.Program<Restaking>,
+  pythSolanaReceiver: PythSolanaReceiver,
   withdrawer: anchor.web3.PublicKey,
   receiptTokenMint: anchor.web3.PublicKey
 ) => {
@@ -157,6 +173,16 @@ export const withdrawInstruction = async (
   const withdrawerStakedTokenAccount = await spl.getAssociatedTokenAddress(
     stakedTokenMint,
     withdrawer
+  );
+
+  const solPriceFeedAccount = pythSolanaReceiver.getPriceFeedAccountAddress(
+    0,
+    solPriceFeedId
+  );
+
+  const usdtPriceFeedAccount = pythSolanaReceiver.getPriceFeedAccountAddress(
+    0,
+    usdcPriceFeedId
   );
 
   const tx = await program.methods
@@ -187,6 +213,8 @@ export const withdrawInstruction = async (
         mpl.MPL_TOKEN_METADATA_PROGRAM_ID
       ),
       instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+      tokenPriceUpdate: usdtPriceFeedAccount,
+      solPriceUpdate: solPriceFeedAccount
     })
     .transaction();
 
@@ -315,7 +343,7 @@ export const setServiceInstruction = async (
   validator: anchor.web3.PublicKey,
   receiptTokenMint: anchor.web3.PublicKey,
   /// Token which is staked
-  stakeTokenMint: anchor.web3.PublicKey,
+  stakeTokenMint: anchor.web3.PublicKey
 ) => {
   const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
   const { stakingParamsPDA } = getStakingParamsPDA();

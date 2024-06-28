@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import * as spl from "@solana/spl-token";
 import * as mpl from "@metaplex-foundation/mpl-token-metadata";
-import { Program } from "@coral-xyz/anchor";
+import { Program, Wallet } from "@coral-xyz/anchor";
 import { IDL } from "../../../target/types/restaking";
 import assert from "assert";
 import bs58 from "bs58";
@@ -13,7 +13,11 @@ import {
   getStakingParamsPDA,
   getVaultParamsPDA,
 } from "./helper";
-import { restakingProgramId } from "./constants";
+import {
+  restakingProgramId,
+  solPriceFeedId,
+  usdcPriceFeedId,
+} from "./constants";
 import {
   cancelWithdrawalRequestInstruction,
   claimRewardsInstruction,
@@ -22,6 +26,7 @@ import {
   withdrawInstruction,
   withdrawalRequestInstruction,
 } from "./instructions";
+import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
 async function expectException(callback: any, message: string) {
   try {
@@ -39,6 +44,11 @@ describe("restaking", () => {
   anchor.setProvider(provider);
 
   const program = new Program(IDL, restakingProgramId, provider);
+
+  const pythSolanaReceiver = new PythSolanaReceiver({
+    connection: provider.connection,
+    wallet: provider.wallet as Wallet,
+  });
 
   let depositor: anchor.web3.Keypair; // Just another Keypair
   let admin: anchor.web3.Keypair; // This is the authority which is responsible for setting up the staking parameters
@@ -94,7 +104,7 @@ describe("restaking", () => {
         admin,
         admin.publicKey,
         null,
-        9
+        6
       );
 
       rewardsTokenMint = await spl.createMint(
@@ -204,11 +214,16 @@ describe("restaking", () => {
 
   it("Is Initialized", async () => {
     const whitelistedTokens = [wSolMint];
+    const tokenOracleAddresses = [usdcPriceFeedId];
     const { stakingParamsPDA } = getStakingParamsPDA();
     const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
     try {
       const tx = await program.methods
-        .initialize(whitelistedTokens, new anchor.BN(stakingCap))
+        .initialize(
+          whitelistedTokens,
+          tokenOracleAddresses,
+          new anchor.BN(stakingCap)
+        )
         .accounts({
           admin: admin.publicKey,
           stakingParams: stakingParamsPDA,
@@ -239,6 +254,7 @@ describe("restaking", () => {
 
     const tx = await depositInstruction(
       program,
+      pythSolanaReceiver,
       wSolMint,
       depositor.publicKey,
       depositAmount,
@@ -383,7 +399,10 @@ describe("restaking", () => {
           provider.connection,
           receiptTokenAccount
         );
-        console.log("this is depositor account balance", _depositorReceiptTokenBalanceAfter);
+        console.log(
+          "this is depositor account balance",
+          _depositorReceiptTokenBalanceAfter
+        );
       }, "Receipt NFT token account is not closed");
     } catch (error) {
       console.log(error);
@@ -475,7 +494,12 @@ describe("restaking", () => {
         provider.connection,
         depositorWSolTokenAccount
       );
-      tx = await withdrawInstruction(program, depositor.publicKey, tokenMint);
+      tx = await withdrawInstruction(
+        program,
+        pythSolanaReceiver,
+        depositor.publicKey,
+        tokenMint
+      );
 
       try {
         tx.feePayer = depositor.publicKey;

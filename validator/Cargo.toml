@@ -22,6 +22,7 @@ directories.workspace = true
 env_logger.workspace = true
 log.workspace = true
 reqwest = { workspace = true, features = ["blocking", "json"] }
+pyth-solana-receiver-sdk.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_bytes.workspace = true
