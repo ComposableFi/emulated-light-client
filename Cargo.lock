@@ -4253,6 +4253,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "restaking_v2"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "solana-ibc",
+ "solana-program",
+ "solana-signature-verifier",
+ "spl-associated-token-account",
+ "spl-token",
+]
+
+[[package]]
 name = "ring"
 version = "0.16.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"

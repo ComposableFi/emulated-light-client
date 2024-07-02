@@ -1,0 +1,31 @@
+[package]
+name = "restaking_v2"
+version = "0.1.0"
+description = "Created with Anchor"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "restaking_v2"
+
+[features]
+# added so that we can compile this along with `solana-ibc` with mocks features. Currently unused.
+mocks = []
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang = { workspace = true, features = ["init-if-needed"] }
+anchor-spl = { workspace = true, features = ["metadata"] }
+solana-ibc = { workspace = true, features = ["cpi"] }
+solana-program.workspace = true
+solana-signature-verifier.workspace = true
+
+[dev-dependencies]
+anchor-client.workspace = true
+anyhow.workspace = true
+spl-associated-token-account.workspace = true
+spl-token.workspace = true
