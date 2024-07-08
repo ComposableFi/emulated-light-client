@@ -14,5 +14,10 @@ These are changes which were introduced in the new version.
 - If one of the validator gets slashed, the amount is slashed equally among the validators.
 - A fungible receipt token is issued instead of a non fungible one.
 - There is no unbonding period since all the validators get slashed equally.
+- Allow deposits of tokens other than LSTs with the use of oracles.
 
 This program can only be called by the bridge contract. If people just want to restake directly and dont want to bridge, they can do it via restaking-v1 program.
+
+## Oracles
+
+For tokens others than LSTs which have a different value than SOL, we need to use oracle to get their current price and then update the stake. But since the stake is recorded in lamports in the guest chain, everytime the price changes we would need to update the stake. To do this, we store the delegations of the particular token locally and get the price on every interval set during initialization. Every time the price is updated, we calculate the difference and update the price on the guest chain. This would make sure that the stake on guest chain is always up to date. Whenever new deposits are made, it would use the stored price rather than from the oracle. But if the price is stale then the deposit would be rejected. This is a better way of updating the stake using oracle where we need to update it once for all the deposits for a particular token during an interval.

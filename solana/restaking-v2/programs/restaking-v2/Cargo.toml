@@ -23,6 +23,7 @@ anchor-spl = { workspace = true, features = ["metadata"] }
 solana-ibc = { workspace = true, features = ["cpi"] }
 solana-program.workspace = true
 solana-signature-verifier.workspace = true
+pyth-solana-receiver-sdk.workspace = true
 
 [dev-dependencies]
 anchor-client.workspace = true

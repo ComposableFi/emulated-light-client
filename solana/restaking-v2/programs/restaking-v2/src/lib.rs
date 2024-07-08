@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token::{Mint, Token, TokenAccount};
+use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use solana_ibc::program::SolanaIbc;
 
 declare_id!("BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg");
@@ -10,6 +11,10 @@ pub const ESCROW_SEED: &[u8] = b"escrow";
 pub const RECEIPT_SEED: &[u8] = b"receipt";
 
 pub const RECEIPT_TOKEN_DECIMALS: u8 = 9;
+pub const SOL_DECIMALS: u8 = 9;
+
+pub const SOL_PRICE_FEED_ID: &str =
+    "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
 
 #[cfg(test)]
 mod tests;
@@ -17,12 +22,13 @@ mod tests;
 #[program]
 pub mod restaking_v2 {
     use anchor_spl::token::{Burn, MintTo, Transfer};
+    use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 
     use super::*;
 
     pub fn initialize(
         ctx: Context<Initialize>,
-        whitelisted_tokens: Vec<Pubkey>,
+        whitelisted_tokens: Vec<NewTokenPayload>,
         initial_validators: Vec<Pubkey>,
         guest_chain_program_id: Pubkey,
     ) -> Result<()> {
@@ -31,7 +37,10 @@ pub mod restaking_v2 {
         let common_state = &mut ctx.accounts.common_state;
 
         common_state.admin = ctx.accounts.admin.key();
-        common_state.whitelisted_tokens = whitelisted_tokens;
+        common_state.whitelisted_tokens = whitelisted_tokens
+            .iter()
+            .map(|token_mint| token_mint.into())
+            .collect::<Vec<StakeToken>>();
         common_state.validators = initial_validators;
         common_state.guest_chain_program_id = guest_chain_program_id;
 
@@ -50,14 +59,11 @@ pub mod restaking_v2 {
 
         let stake_token_mint = &ctx.accounts.token_mint.key();
 
-        if common_state
+        let whitelisted_token = common_state
             .whitelisted_tokens
             .iter()
-            .find(|&x| x == stake_token_mint)
-            .is_none()
-        {
-            return Err(error!(ErrorCodes::InvalidTokenMint));
-        }
+            .find(|&x| &x.address == stake_token_mint)
+            .ok_or(ErrorCodes::InvalidTokenMint)?;
 
         if ctx.accounts.staker_token_account.amount < amount {
             return Err(error!(ErrorCodes::NotEnoughTokensToStake));
@@ -98,6 +104,29 @@ pub mod restaking_v2 {
         // Call guest chain program to update the stake equally
 
         let validators_len = common_state.validators.len() as u64;
+
+        let amount = if let Some(_) = &whitelisted_token.oracle_address {
+            // Check if the price is stale
+            let current_time = Clock::get()?.unix_timestamp as u64;
+
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
+            {
+                return Err(error!(ErrorCodes::PriceTooStale));
+            }
+
+            // let token_decimals = ctx.accounts.token_mint.decimals;
+
+            // let amount_in_sol_decimals = (1_u64
+            //     * 10u64.pow(SOL_DECIMALS as u32))
+            //     / 10u64.pow(token_decimals as u32);
+
+            whitelisted_token.latest_price * (amount as u64)
+
+            // update the validator with the stake he deposited
+        } else {
+            amount
+        };
 
         let stake_per_validator = amount / validators_len;
         let stake_remainder = amount % validators_len;
@@ -145,6 +174,14 @@ pub mod restaking_v2 {
     pub fn withdraw(ctx: Context<Withdraw>, amount: u64) -> Result<()> {
         let common_state = &mut ctx.accounts.common_state;
 
+        let stake_token_mint = &ctx.accounts.token_mint.key();
+
+        let whitelisted_token = common_state
+            .whitelisted_tokens
+            .iter()
+            .find(|&x| &x.address == stake_token_mint)
+            .ok_or(ErrorCodes::InvalidTokenMint)?;
+
         let bump = ctx.bumps.common_state;
         let seeds = [COMMON_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
@@ -184,6 +221,20 @@ pub mod restaking_v2 {
         );
 
         anchor_spl::token::burn(cpi_ctx, amount)?;
+
+        let amount = if let Some(_) = &whitelisted_token.oracle_address {
+            // Check if the price is stale
+            let current_time = Clock::get()?.unix_timestamp as u64;
+
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
+            {
+                return Err(error!(ErrorCodes::PriceTooStale));
+            }
+            whitelisted_token.latest_price * (amount as u64)
+        } else {
+            amount
+        };
 
         // Call guest chain program to update the stake equally
         let validators_len = common_state.validators.len() as u64;
@@ -271,17 +322,28 @@ pub mod restaking_v2 {
     /// whitelisted token list.
     pub fn update_token_whitelist(
         ctx: Context<UpdateStakingParams>,
-        new_token_mints: Vec<Pubkey>,
+        new_token_mints: Vec<NewTokenPayload>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.common_state;
 
         let contains_mint = new_token_mints.iter().any(|token_mint| {
-            staking_params.whitelisted_tokens.contains(token_mint)
+            staking_params
+                .whitelisted_tokens
+                .iter()
+                .find(|whitelisted_token_mint| {
+                    whitelisted_token_mint.address == token_mint.address
+                })
+                .is_some()
         });
 
         if contains_mint {
             return Err(error!(ErrorCodes::TokenAlreadyWhitelisted));
         }
+
+        let new_token_mints = new_token_mints
+            .iter()
+            .map(|token_mint| token_mint.into())
+            .collect::<Vec<StakeToken>>();
 
         staking_params
             .whitelisted_tokens
@@ -309,6 +371,124 @@ pub mod restaking_v2 {
         }
 
         staking_params.validators.extend_from_slice(new_validators.as_slice());
+
+        Ok(())
+    }
+
+    pub fn update_token_price(ctx: Context<UpdateTokenPrice>) -> Result<()> {
+        let common_state = &mut ctx.accounts.common_state;
+
+        let token_price_feed = &ctx.accounts.token_price_feed;
+        let sol_price_feed = &ctx.accounts.sol_price_feed;
+
+        let token_mint = ctx.accounts.token_mint.key();
+
+        let validators = common_state.validators.clone();
+
+        let staked_token = common_state
+            .whitelisted_tokens
+            .iter_mut()
+            .find(|whitelisted_token| whitelisted_token.address == token_mint);
+
+        if let Some(staked_token) = staked_token {
+            if let Some(token_feed_id) = staked_token.oracle_address.as_ref() {
+                let (token_price, sol_price) = if cfg!(feature = "mocks") {
+                    let feed_id: [u8; 32] =
+                        get_feed_id_from_hex(token_feed_id)?;
+                    let sol_price = sol_price_feed.get_price_unchecked(
+                        &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
+                    )?;
+                    let token_price =
+                        token_price_feed.get_price_unchecked(&feed_id)?;
+                    (token_price, sol_price)
+                } else {
+                    let maximum_age_in_sec: u64 = 30;
+                    let feed_id: [u8; 32] =
+                        get_feed_id_from_hex(token_feed_id)?;
+                    let sol_price = sol_price_feed.get_price_no_older_than(
+                        &Clock::get()?,
+                        maximum_age_in_sec,
+                        &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
+                    )?;
+                    let token_price = token_price_feed
+                        .get_price_no_older_than(
+                            &Clock::get()?,
+                            maximum_age_in_sec,
+                            &feed_id,
+                        )?;
+                    (token_price, sol_price)
+                };
+
+                let token_decimals = ctx.accounts.token_mint.decimals;
+
+                let amount_in_sol_decimals = (1_u64 *
+                    10u64.pow(SOL_DECIMALS as u32)) /
+                    10u64.pow(token_decimals as u32);
+
+                let final_amount_in_sol =
+                    ((token_price.price * (amount_in_sol_decimals as i64)) /
+                        sol_price.price) as u64;
+
+                msg!(
+                    "The price of solana is ({} ± {}) * 10^{} and final price \
+                     {}\n
+                     The price of solana is ({} ± {}) * 10^{} and amount in \
+                     sol decimals {}",
+                    sol_price.price,
+                    sol_price.conf,
+                    sol_price.exponent,
+                    final_amount_in_sol,
+                    token_price.price,
+                    token_price.conf,
+                    token_price.exponent,
+                    amount_in_sol_decimals
+                );
+
+                let previous_price = staked_token.latest_price;
+
+                let set_stake_arg = staked_token
+                    .delegations
+                    .iter()
+                    .map(|&(validator_idx, amount)| {
+                        let amount = amount as i128;
+                        let validator = validators[validator_idx as usize];
+                        let change_in_stake = (previous_price as i128 -
+                            final_amount_in_sol as i128) *
+                            amount;
+                        (
+                            sigverify::ed25519::PubKey::from(validator.clone()),
+                            change_in_stake as i128,
+                        )
+                    })
+                    .collect();
+
+                let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
+                    sender: ctx.accounts.signer.to_account_info(),
+                    chain: ctx.accounts.chain.to_account_info(),
+                    trie: ctx.accounts.trie.to_account_info(),
+                    system_program: ctx
+                        .accounts
+                        .system_program
+                        .to_account_info(),
+                    instruction: ctx.accounts.instruction.to_account_info(),
+                };
+
+                let cpi_ctx = CpiContext::new(
+                    ctx.accounts.guest_chain_program.to_account_info(),
+                    set_stake_ix,
+                );
+
+                solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
+
+                staked_token.latest_price = final_amount_in_sol;
+                staked_token.last_updated_in_sec =
+                    Clock::get()?.unix_timestamp as u64;
+            } else {
+                return Err(error!(ErrorCodes::OracleAddressNotFound));
+            }
+        } else {
+            return Err(error!(ErrorCodes::InvalidTokenMint));
+        }
 
         Ok(())
     }
@@ -416,6 +596,40 @@ pub struct Withdraw<'info> {
 }
 
 #[derive(Accounts)]
+pub struct UpdateTokenPrice<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>,
+
+    #[account(mut, seeds = [COMMON_SEED], bump)]
+    pub common_state: Account<'info, CommonState>,
+
+    pub token_mint: Account<'info, Mint>,
+
+    pub token_price_feed: Account<'info, PriceUpdateV2>,
+    pub sol_price_feed: Account<'info, PriceUpdateV2>,
+
+    pub system_program: Program<'info, System>,
+
+    #[account(mut, seeds = [solana_ibc::CHAIN_SEED], bump, seeds::program = guest_chain_program)]
+    /// CHECK:
+    pub chain: UncheckedAccount<'info>,
+
+    #[account(mut, seeds = [solana_ibc::TRIE_SEED], bump, seeds::program = guest_chain_program)]
+    /// CHECK:
+    pub trie: UncheckedAccount<'info>,
+
+    pub guest_chain_program: Program<'info, SolanaIbc>,
+
+    /// The Instructions sysvar.
+    ///
+    /// CHECK: The account is passed on during CPI and destination contract
+    /// performs the validation so this is safe even if we don’t check the
+    /// address.  Nonetheless, the account is checked at each use.
+    #[account(address = anchor_lang::solana_program::sysvar::instructions::ID)]
+    pub instruction: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
 pub struct UpdateStakingParams<'info> {
     #[account(mut)]
     pub admin: Signer<'info>,
@@ -433,10 +647,56 @@ pub struct UpdateAdmin<'info> {
     pub common_state: Account<'info, CommonState>,
 }
 
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
+pub struct NewTokenPayload {
+    pub address: Pubkey,
+    pub oracle_address: Option<String>,
+    pub max_update_time_in_sec: u64,
+    pub update_frequency_in_sec: u64,
+}
+
+/// Struct which stores the token address and price information. The price
+/// is updated based on the frequency. It also stores the amount which has been
+/// delegated to the validators which is then recalculated with the new price and
+/// updated.
+///
+/// If the price of the token increased by 10%, then the delegations
+/// would be increased by 10% and then `update_stake` method would be called.
+#[derive(AnchorDeserialize, AnchorSerialize, Debug, Clone)]
+pub struct StakeToken {
+    pub address: Pubkey, // 32
+    pub oracle_address: Option<String>,
+    /// Latest price of token wrt to SOL fetched from the oracle.
+    pub latest_price: u64, // 8
+    /// Time at which the price was updated. Used to check if the price is stale.
+    pub last_updated_in_sec: u64, // 8
+    /// If the price is not updated after the `max_update_time` below,
+    /// the above price should be considered invalid.
+    pub max_update_time_in_sec: u64, // 8
+    /// The frequency at which the price should be updated.
+    pub update_frequency_in_sec: u64, // 8
+    /// mapping of the validator index with their stake in the above token
+    pub delegations: Vec<(u8, u128)>, // n * (1 + 16)
+}
+
+impl From<&NewTokenPayload> for StakeToken {
+    fn from(payload: &NewTokenPayload) -> Self {
+        StakeToken {
+            address: payload.address,
+            oracle_address: payload.oracle_address.clone(),
+            latest_price: 0,
+            last_updated_in_sec: 0,
+            max_update_time_in_sec: payload.max_update_time_in_sec,
+            update_frequency_in_sec: payload.update_frequency_in_sec,
+            delegations: vec![],
+        }
+    }
+}
+
 #[account]
 pub struct CommonState {
     pub admin: Pubkey,
-    pub whitelisted_tokens: Vec<Pubkey>,
+    pub whitelisted_tokens: Vec<StakeToken>,
     pub validators: Vec<Pubkey>,
     pub guest_chain_program_id: Pubkey,
     pub new_admin_proposal: Option<Pubkey>,
@@ -448,7 +708,7 @@ pub enum ErrorCodes {
     NoProposedAdmin,
     #[msg("Signer is not the proposed admin")]
     ConstraintSigner,
-    #[msg("Only whitelisted tokens can be minted")]
+    #[msg("Only whitelisted tokens can be deposited")]
     InvalidTokenMint,
     #[msg("Not enough receipt token to withdraw")]
     NotEnoughReceiptTokensToWithdraw,
@@ -458,4 +718,10 @@ pub enum ErrorCodes {
     TokenAlreadyWhitelisted,
     #[msg("Validator is already added")]
     ValidatorAlreadyAdded,
+    #[msg(
+        "Oracle address not found. Maybe its price doesnt need to be updated?"
+    )]
+    OracleAddressNotFound,
+    #[msg("The oracle price has not been updated yet")]
+    PriceTooStale,
 }

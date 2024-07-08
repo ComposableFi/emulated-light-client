@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -11,10 +12,20 @@ use anchor_client::{Client, Cluster};
 use anchor_lang::solana_program::system_instruction::create_account;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
+use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use spl_token::instruction::initialize_mint2;
+
+use crate::{NewTokenPayload, SOL_PRICE_FEED_ID};
+
+const PYTH_PROGRAM_ID: &str = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
+
+const STAKE_TOKEN_MINT_DECIMALS: u8 = 6;
 
 const MINT_AMOUNT: u64 = 1000000000000;
 const STAKE_AMOUNT: u64 = 100000;
+
+const TOKEN_FEED_ID: &str =
+    "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -71,7 +82,7 @@ fn restaking_test_deliver() -> Result<()> {
         &token_mint_key,
         &authority.pubkey(),
         Some(&authority.pubkey()),
-        9,
+        STAKE_TOKEN_MINT_DECIMALS,
     )
     .expect("invalid mint instruction");
 
@@ -109,6 +120,13 @@ fn restaking_test_deliver() -> Result<()> {
      */
     println!("\nInitializing the program");
 
+    let new_token_mint = NewTokenPayload {
+        address: token_mint_key,
+        oracle_address: Some(TOKEN_FEED_ID.to_string()),
+        max_update_time_in_sec: 0,
+        update_frequency_in_sec: 0,
+    };
+
     let tx = program
         .request()
         .accounts(crate::accounts::Initialize {
@@ -117,7 +135,7 @@ fn restaking_test_deliver() -> Result<()> {
             system_program: solana_program::system_program::ID,
         })
         .args(crate::instruction::Initialize {
-            whitelisted_tokens: vec![token_mint_key],
+            whitelisted_tokens: vec![new_token_mint],
             initial_validators: vec![authority.pubkey()],
             guest_chain_program_id: solana_ibc::ID,
         })
@@ -155,6 +173,51 @@ fn restaking_test_deliver() -> Result<()> {
         &solana_ibc::ID,
     )
     .0;
+
+    /*
+        Update the token price
+    */
+    println!("\nUpdating the token price");
+
+    let token_feed_id = get_feed_id_from_hex(TOKEN_FEED_ID).unwrap();
+    let sol_feed_id = get_feed_id_from_hex(SOL_PRICE_FEED_ID).unwrap();
+    let shard_buffer = 0_u16.to_le_bytes();
+
+    let token_price_acc = Pubkey::find_program_address(
+        &[&shard_buffer, &token_feed_id],
+        &Pubkey::from_str(PYTH_PROGRAM_ID).unwrap(),
+    )
+    .0;
+
+    let sol_price_acc = Pubkey::find_program_address(
+        &[&shard_buffer, &sol_feed_id],
+        &Pubkey::from_str(PYTH_PROGRAM_ID).unwrap(),
+    )
+    .0;
+
+    let tx = program
+        .request()
+        .accounts(crate::accounts::UpdateTokenPrice {
+            signer: authority.pubkey(),
+            common_state,
+            token_mint: token_mint_key,
+            token_price_feed: token_price_acc,
+            sol_price_feed: sol_price_acc,
+            system_program: solana_program::system_program::ID,
+            chain,
+            trie,
+            guest_chain_program: solana_ibc::ID,
+            instruction: solana_program::sysvar::instructions::ID,
+        })
+        .args(crate::instruction::UpdateTokenPrice {})
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })?;
+
+    println!("  Signature: {}", tx);
 
     /*
      * Depositing to multiple validators
@@ -207,7 +270,7 @@ fn restaking_test_deliver() -> Result<()> {
     assert_eq!(
         ((staker_token_acc_balance_before.ui_amount.unwrap() -
             staker_token_acc_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
+            10_f64.powf(STAKE_TOKEN_MINT_DECIMALS.into()))
         .round() as u64,
         STAKE_AMOUNT
     );
@@ -268,7 +331,7 @@ fn restaking_test_deliver() -> Result<()> {
     assert_eq!(
         ((staker_token_acc_balance_after.ui_amount.unwrap() -
             staker_token_acc_balance_before.ui_amount.unwrap()) *
-            10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
+            10_f64.powf(STAKE_TOKEN_MINT_DECIMALS.into()))
         .round() as u64,
         STAKE_AMOUNT
     );

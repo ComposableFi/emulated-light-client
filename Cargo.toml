@@ -68,6 +68,7 @@ pretty_assertions = "1.4.0"
 primitive-types = "0.12.2"
 prost = { version = "0.12.3", default-features = false }
 prost-build = { version = "0.12.3", default-features = false }
+pyth-solana-receiver-sdk ="0.1.0"
 rand = { version = "0.8.5" }
 reqwest = "0.12.3"
 serde = "1"
