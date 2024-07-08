@@ -150,7 +150,7 @@ pub mod restaking_v2 {
             .enumerate()
             .map(|(index, validator)| {
                 (
-                    sigverify::ed25519::PubKey::from(validator.clone()),
+                    sigverify::ed25519::PubKey::from(*validator),
                     if index == 0 {
                         (stake_per_validator + stake_remainder) as i128
                     } else {
@@ -261,7 +261,7 @@ pub mod restaking_v2 {
             .enumerate()
             .map(|(index, validator)| {
                 (
-                    sigverify::ed25519::PubKey::from(validator.clone()),
+                    sigverify::ed25519::PubKey::from(*validator),
                     if index == 0 {
                         -(stake_per_validator + stake_remainder)
                     } else {
