@@ -109,8 +109,8 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
@@ -226,8 +226,8 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
@@ -327,12 +327,11 @@ pub mod restaking_v2 {
         let staking_params = &mut ctx.accounts.common_state;
 
         let contains_mint = new_token_mints.iter().any(|token_mint| {
-            staking_params
-                .whitelisted_tokens
-                .iter()
-                .any(|whitelisted_token_mint| {
+            staking_params.whitelisted_tokens.iter().any(
+                |whitelisted_token_mint| {
                     whitelisted_token_mint.address == token_mint.address
-                })
+                },
+            )
         });
 
         if contains_mint {
@@ -420,12 +419,12 @@ pub mod restaking_v2 {
 
                 let token_decimals = ctx.accounts.token_mint.decimals;
 
-                let amount_in_sol_decimals = 10u64.pow(SOL_DECIMALS as u32)
-                    / 10u64.pow(token_decimals as u32);
+                let amount_in_sol_decimals = 10u64.pow(SOL_DECIMALS as u32) /
+                    10u64.pow(token_decimals as u32);
 
                 let final_amount_in_sol =
-                    ((token_price.price * (amount_in_sol_decimals as i64))
-                        / sol_price.price) as u64;
+                    ((token_price.price * (amount_in_sol_decimals as i64)) /
+                        sol_price.price) as u64;
 
                 msg!(
                     "The price of solana is ({} ± {}) * 10^{} and final price \
@@ -450,9 +449,9 @@ pub mod restaking_v2 {
                     .map(|&(validator_idx, amount)| {
                         let amount = amount as i128;
                         let validator = validators[validator_idx as usize];
-                        let change_in_stake = (previous_price as i128
-                            - final_amount_in_sol as i128)
-                            * amount;
+                        let change_in_stake = (previous_price as i128 -
+                            final_amount_in_sol as i128) *
+                            amount;
                         (
                             sigverify::ed25519::PubKey::from(validator.clone()),
                             change_in_stake,
