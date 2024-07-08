@@ -222,7 +222,7 @@ pub mod restaking_v2 {
 
         anchor_spl::token::burn(cpi_ctx, amount)?;
 
-        let amount = if let Some(_) = &whitelisted_token.oracle_address {
+        let amount = if whitelisted_token.oracle_address.is_some() {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
@@ -453,7 +453,7 @@ pub mod restaking_v2 {
                             final_amount_in_sol as i128) *
                             amount;
                         (
-                            sigverify::ed25519::PubKey::from(validator.clone()),
+                            sigverify::ed25519::PubKey::from(validator),
                             change_in_stake,
                         )
                     })
