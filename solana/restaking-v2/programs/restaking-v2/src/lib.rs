@@ -386,104 +386,91 @@ pub mod restaking_v2 {
             .iter_mut()
             .find(|whitelisted_token| whitelisted_token.address == token_mint);
 
-        if let Some(staked_token) = staked_token {
-            if let Some(token_feed_id) = staked_token.oracle_address.as_ref() {
-                let (token_price, sol_price) = if cfg!(feature = "mocks") {
-                    let feed_id: [u8; 32] =
-                        get_feed_id_from_hex(token_feed_id)?;
-                    let sol_price = sol_price_feed.get_price_unchecked(
-                        &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
-                    )?;
-                    let token_price =
-                        token_price_feed.get_price_unchecked(&feed_id)?;
-                    (token_price, sol_price)
-                } else {
-                    let maximum_age_in_sec: u64 = 30;
-                    let feed_id: [u8; 32] =
-                        get_feed_id_from_hex(token_feed_id)?;
-                    let sol_price = sol_price_feed.get_price_no_older_than(
-                        &Clock::get()?,
-                        maximum_age_in_sec,
-                        &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
-                    )?;
-                    let token_price = token_price_feed
-                        .get_price_no_older_than(
-                            &Clock::get()?,
-                            maximum_age_in_sec,
-                            &feed_id,
-                        )?;
-                    (token_price, sol_price)
-                };
+        let staked_token =
+            staked_token.ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
 
-                let token_decimals = ctx.accounts.token_mint.decimals;
-
-                let amount_in_sol_decimals = 10u64.pow(SOL_DECIMALS as u32) /
-                    10u64.pow(token_decimals as u32);
-
-                let final_amount_in_sol =
-                    ((token_price.price * (amount_in_sol_decimals as i64)) /
-                        sol_price.price) as u64;
-
-                msg!(
-                    "The price of solana is ({} ± {}) * 10^{} and final price \
-                     {}\n
-                     The price of solana is ({} ± {}) * 10^{} and amount in \
-                     sol decimals {}",
-                    sol_price.price,
-                    sol_price.conf,
-                    sol_price.exponent,
-                    final_amount_in_sol,
-                    token_price.price,
-                    token_price.conf,
-                    token_price.exponent,
-                    amount_in_sol_decimals
-                );
-
-                let previous_price = staked_token.latest_price;
-
-                let set_stake_arg = staked_token
-                    .delegations
-                    .iter()
-                    .map(|&(validator_idx, amount)| {
-                        let amount = amount as i128;
-                        let validator = validators[validator_idx as usize];
-                        let change_in_stake = (previous_price as i128 -
-                            final_amount_in_sol as i128) *
-                            amount;
-                        (
-                            sigverify::ed25519::PubKey::from(validator),
-                            change_in_stake,
-                        )
-                    })
-                    .collect();
-
-                let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
-                    sender: ctx.accounts.signer.to_account_info(),
-                    chain: ctx.accounts.chain.to_account_info(),
-                    trie: ctx.accounts.trie.to_account_info(),
-                    system_program: ctx
-                        .accounts
-                        .system_program
-                        .to_account_info(),
-                    instruction: ctx.accounts.instruction.to_account_info(),
-                };
-
-                let cpi_ctx = CpiContext::new(
-                    ctx.accounts.guest_chain_program.to_account_info(),
-                    set_stake_ix,
-                );
-
-                solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
-
-                staked_token.latest_price = final_amount_in_sol;
-                staked_token.last_updated_in_sec =
-                    Clock::get()?.unix_timestamp as u64;
-            } else {
-                return Err(error!(ErrorCodes::OracleAddressNotFound));
-            }
+        let token_feed_id = staked_token
+            .oracle_address
+            .as_ref()
+            .ok_or_else(|| error!(ErrorCodes::OracleAddressNotFound))?;
+        let (token_price, sol_price) = if cfg!(feature = "mocks") {
+            let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
+            let sol_price = sol_price_feed.get_price_unchecked(
+                &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
+            )?;
+            let token_price = token_price_feed.get_price_unchecked(&feed_id)?;
+            (token_price, sol_price)
         } else {
-            return Err(error!(ErrorCodes::InvalidTokenMint));
-        }
+            let maximum_age_in_sec: u64 = 30;
+            let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
+            let sol_price = sol_price_feed.get_price_no_older_than(
+                &Clock::get()?,
+                maximum_age_in_sec,
+                &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
+            )?;
+            let token_price = token_price_feed.get_price_no_older_than(
+                &Clock::get()?,
+                maximum_age_in_sec,
+                &feed_id,
+            )?;
+            (token_price, sol_price)
+        };
+
+        let token_decimals = ctx.accounts.token_mint.decimals;
+
+        let amount_in_sol_decimals =
+            10u64.pow(SOL_DECIMALS as u32) / 10u64.pow(token_decimals as u32);
+
+        let final_amount_in_sol = ((token_price.price *
+            (amount_in_sol_decimals as i64)) /
+            sol_price.price) as u64;
+
+        msg!(
+            "The price of solana is ({} ± {}) * 10^{} and final price {}\n
+                     The price of solana is ({} ± {}) * 10^{} and amount in \
+             sol decimals {}",
+            sol_price.price,
+            sol_price.conf,
+            sol_price.exponent,
+            final_amount_in_sol,
+            token_price.price,
+            token_price.conf,
+            token_price.exponent,
+            amount_in_sol_decimals
+        );
+
+        let previous_price = staked_token.latest_price;
+
+        let set_stake_arg = staked_token
+            .delegations
+            .iter()
+            .map(|&(validator_idx, amount)| {
+                let amount = amount as i128;
+                let validator = validators[validator_idx as usize];
+                let change_in_stake = (previous_price as i128 -
+                    final_amount_in_sol as i128) *
+                    amount;
+                (sigverify::ed25519::PubKey::from(validator), change_in_stake)
+            })
+            .collect();
+
+        let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
+            sender: ctx.accounts.signer.to_account_info(),
+            chain: ctx.accounts.chain.to_account_info(),
+            trie: ctx.accounts.trie.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            instruction: ctx.accounts.instruction.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new(
+            ctx.accounts.guest_chain_program.to_account_info(),
+            set_stake_ix,
+        );
+
+        solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
+
+        staked_token.latest_price = final_amount_in_sol;
+        staked_token.last_updated_in_sec = Clock::get()?.unix_timestamp as u64;
 
         Ok(())
     }
