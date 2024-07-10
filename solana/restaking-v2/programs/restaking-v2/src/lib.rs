@@ -107,8 +107,8 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
@@ -218,8 +218,8 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
@@ -412,9 +412,9 @@ pub mod restaking_v2 {
 
         let token_decimals = ctx.accounts.token_mint.decimals;
 
-        let final_amount_in_sol = (token_price.price
-            * 10i64.pow(SOL_DECIMALS as u32)
-            / (sol_price.price * 10i64.pow(token_decimals as u32)))
+        let final_amount_in_sol = (token_price.price *
+            10i64.pow(SOL_DECIMALS as u32) /
+            (sol_price.price * 10i64.pow(token_decimals as u32)))
             as u64;
 
         msg!(
@@ -437,9 +437,9 @@ pub mod restaking_v2 {
             .map(|&(validator_idx, amount)| {
                 let amount = amount as i128;
                 let validator = validators[validator_idx as usize];
-                let change_in_stake = (previous_price as i128
-                    - final_amount_in_sol as i128)
-                    * amount;
+                let change_in_stake = (previous_price as i128 -
+                    final_amount_in_sol as i128) *
+                    amount;
                 (sigverify::ed25519::PubKey::from(validator), change_in_stake)
             })
             .collect();
