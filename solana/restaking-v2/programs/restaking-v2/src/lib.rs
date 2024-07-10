@@ -37,10 +37,8 @@ pub mod restaking_v2 {
         let common_state = &mut ctx.accounts.common_state;
 
         common_state.admin = ctx.accounts.admin.key();
-        common_state.whitelisted_tokens = whitelisted_tokens
-            .into_iter()
-            .map(StakeToken::from)
-            .collect();
+        common_state.whitelisted_tokens =
+            whitelisted_tokens.into_iter().map(StakeToken::from).collect();
         common_state.validators = initial_validators;
         common_state.guest_chain_program_id = guest_chain_program_id;
 
@@ -62,7 +60,7 @@ pub mod restaking_v2 {
         let whitelisted_token = common_state
             .whitelisted_tokens
             .iter()
-            .find(|&x| &x.address == stake_token_mint)
+            .find(|x| &x.address == stake_token_mint)
             .ok_or(ErrorCodes::InvalidTokenMint)?;
 
         if ctx.accounts.staker_token_account.amount < amount {
@@ -179,7 +177,7 @@ pub mod restaking_v2 {
         let whitelisted_token = common_state
             .whitelisted_tokens
             .iter()
-            .find(|&x| &x.address == stake_token_mint)
+            .find(|x| &x.address == stake_token_mint)
             .ok_or(ErrorCodes::InvalidTokenMint)?;
 
         let bump = ctx.bumps.common_state;
