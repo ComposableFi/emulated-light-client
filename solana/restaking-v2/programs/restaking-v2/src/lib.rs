@@ -38,9 +38,9 @@ pub mod restaking_v2 {
 
         common_state.admin = ctx.accounts.admin.key();
         common_state.whitelisted_tokens = whitelisted_tokens
-            .iter()
-            .map(|token_mint| token_mint.into())
-            .collect::<Vec<StakeToken>>();
+            .into_iter()
+            .map(StakeToken::from)
+            .collect();
         common_state.validators = initial_validators;
         common_state.guest_chain_program_id = guest_chain_program_id;
 
@@ -339,8 +339,8 @@ pub mod restaking_v2 {
         }
 
         let new_token_mints = new_token_mints
-            .iter()
-            .map(|token_mint| token_mint.into())
+            .into_iter()
+            .map(StakeToken::from)
             .collect::<Vec<StakeToken>>();
 
         staking_params
@@ -676,8 +676,8 @@ pub struct StakeToken {
     pub delegations: Vec<(u8, u128)>, // n * (1 + 16)
 }
 
-impl From<&NewTokenPayload> for StakeToken {
-    fn from(payload: &NewTokenPayload) -> Self {
+impl From<NewTokenPayload> for StakeToken {
+    fn from(payload: NewTokenPayload) -> Self {
         StakeToken {
             address: payload.address,
             oracle_address: payload.oracle_address.clone(),
