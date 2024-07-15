@@ -123,8 +123,8 @@ fn restaking_test_deliver() -> Result<()> {
     let new_token_mint = NewTokenPayload {
         address: token_mint_key,
         oracle_address: Some(TOKEN_FEED_ID.to_string()),
-        max_update_time_in_sec: 0,
-        update_frequency_in_sec: 0,
+        max_update_time_in_sec: 60,
+        update_frequency_in_sec: 60,
     };
 
     let tx = program
