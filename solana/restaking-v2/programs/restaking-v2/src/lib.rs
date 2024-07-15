@@ -412,9 +412,15 @@ pub mod restaking_v2 {
 
         let token_decimals = ctx.accounts.token_mint.decimals;
 
-        let final_amount_in_sol = (token_price.price *
-            10i64.pow(SOL_DECIMALS as u32) /
-            (sol_price.price * 10i64.pow(token_decimals as u32)))
+        // since the exponents are predominanlty negative, we switch the exponents and convert
+        // them to absolute value.
+        let final_amount_in_sol = (token_price.price as i128 *
+            10_i128.pow(sol_price.exponent.abs().try_into().unwrap()) *
+            10i128.pow(SOL_DECIMALS as u32) /
+            (sol_price.price as i128 *
+                10_i128
+                    .pow(token_price.exponent.abs().try_into().unwrap()) *
+                10i128.pow(token_decimals as u32)))
             as u64;
 
         msg!(
