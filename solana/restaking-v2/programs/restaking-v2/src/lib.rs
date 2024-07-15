@@ -61,7 +61,7 @@ pub mod restaking_v2 {
             .whitelisted_tokens
             .iter()
             .find(|x| &x.address == stake_token_mint)
-            .ok_or(ErrorCodes::InvalidTokenMint)?;
+            .ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
 
         if ctx.accounts.staker_token_account.amount < amount {
             return Err(error!(ErrorCodes::NotEnoughTokensToStake));
@@ -172,7 +172,7 @@ pub mod restaking_v2 {
             .whitelisted_tokens
             .iter()
             .find(|x| &x.address == stake_token_mint)
-            .ok_or(ErrorCodes::InvalidTokenMint)?;
+            .ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
 
         let bump = ctx.bumps.common_state;
         let seeds = [COMMON_SEED, core::slice::from_ref(&bump)];
@@ -292,7 +292,7 @@ pub mod restaking_v2 {
         let common_state = &mut ctx.accounts.common_state;
         let new_admin = common_state
             .new_admin_proposal
-            .ok_or(ErrorCodes::NoProposedAdmin)?;
+            .ok_or_else(|| error!(ErrorCodes::NoProposedAdmin))?;
         if new_admin != ctx.accounts.new_admin.key() {
             return Err(error!(ErrorCode::ConstraintSigner));
         }
