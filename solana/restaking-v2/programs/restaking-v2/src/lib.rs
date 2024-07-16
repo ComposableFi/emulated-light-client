@@ -113,7 +113,8 @@ pub mod restaking_v2 {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
 
-            (whitelisted_token.latest_price * amount) / 10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount) /
+                10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -221,7 +222,8 @@ pub mod restaking_v2 {
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
-            (whitelisted_token.latest_price * amount) / 10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount) /
+                10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -420,8 +422,9 @@ pub mod restaking_v2 {
                 10_i128.pow(token_price.exponent.abs().try_into().unwrap()) *
                 10i128.pow(token_decimals as u32)) as f64)
             as f64;
-        
-        let multipled_price = final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);
+
+        let multipled_price =
+            final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);
         let final_amount_in_sol = multipled_price.round() as u64;
 
         msg!(
@@ -648,7 +651,7 @@ pub struct StakeToken {
     pub address: Pubkey, // 32
     pub oracle_address: Option<String>,
     /// Latest price of token wrt to lamports fetched from the oracle.
-    /// 
+    ///
     /// The value is always `latest_price * 10^9` so whenever we need the original price,
     /// we need to divide by 10^9
     pub latest_price: u64, // 8
