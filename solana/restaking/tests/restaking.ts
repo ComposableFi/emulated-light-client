@@ -22,7 +22,6 @@ import {
   withdrawInstruction,
   withdrawalRequestInstruction,
 } from "./instructions";
-import { PythSolanaReceiver } from "@pythnetwork/pyth-solana-receiver";
 
 async function expectException(callback: any, message: string) {
   try {
@@ -61,528 +60,501 @@ describe("restaking", () => {
 
   console.log(provider.connection.rpcEndpoint);
 
-  const solTokenId = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
-  const priceFeedId = Buffer.from(solTokenId, "hex");
+  if (provider.connection.rpcEndpoint.endsWith("8899")) {
+    depositor = anchor.web3.Keypair.generate();
+    admin = anchor.web3.Keypair.generate();
 
-  const shardBuffer = Buffer.alloc(2);
-  shardBuffer.writeUint16LE(0, 0);
+    it("Funds all users", async () => {
+      await provider.connection.confirmTransaction(
+        await provider.connection.requestAirdrop(
+          depositor.publicKey,
+          10000000000
+        ),
+        "confirmed"
+      );
+      await provider.connection.confirmTransaction(
+        await provider.connection.requestAirdrop(admin.publicKey, 10000000000),
+        "confirmed"
+      );
 
-  console.log("Price Feed ID: ", priceFeedId);
-  console.log("Shard Buffer: ", shardBuffer.toString("hex"));
+      const depositorUserBalance = await provider.connection.getBalance(
+        depositor.publicKey
+      );
+      const adminUserBalance = await provider.connection.getBalance(
+        admin.publicKey
+      );
 
-  const pythProgramId = new anchor.web3.PublicKey("pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT");
+      assert.strictEqual(10000000000, depositorUserBalance);
+      assert.strictEqual(10000000000, adminUserBalance);
+    });
 
-  const [priceFeedPDA, priceFeedBump] = anchor.web3.PublicKey.findProgramAddressSync(
-    [shardBuffer, priceFeedId],
-    pythProgramId 
-  );
+    it("create project and stable mint and mint some tokens to stakeholders", async () => {
+      wSolMint = await spl.createMint(
+        provider.connection,
+        admin,
+        admin.publicKey,
+        null,
+        9
+      );
 
-  console.log("Price Feed PDA: ", priceFeedPDA.toBase58());
+      rewardsTokenMint = await spl.createMint(
+        provider.connection,
+        admin,
+        admin.publicKey,
+        null,
+        6
+      );
 
-  const pythSolanaReceiver = new PythSolanaReceiver({
-    connection: provider.connection,
-    wallet: provider.wallet as anchor.Wallet,
+      depositorWSolTokenAccount = await spl.createAccount(
+        provider.connection,
+        depositor,
+        wSolMint,
+        depositor.publicKey
+      );
+
+      await spl.mintTo(
+        provider.connection,
+        depositor,
+        wSolMint,
+        depositorWSolTokenAccount,
+        admin.publicKey,
+        initialMintAmount,
+        [admin]
+      );
+
+      let depositorWSolTokenAccountUpdated = await spl.getAccount(
+        provider.connection,
+        depositorWSolTokenAccount
+      );
+
+      assert.equal(initialMintAmount, depositorWSolTokenAccountUpdated.amount);
+    });
+  } else {
+    // These are the private keys of accounts which i have created and have deposited some SOL in it.
+    // Since we cannot airdrop much SOL on devnet (fails most of the time), i have previously airdropped some SOL so that these accounts
+    // can be used for testing on devnet.
+    // We can have them in another file and import them. But these are only for testing and has 0 balance on mainnet.
+    const depositorPrivate =
+      "472ZS33Lftn7wdM31QauCkmpgFKFvgBRg6Z6NGtA6JgeRi1NfeZFRNvNi3b3sh5jvrQWrgiTimr8giVs9oq4UM5g";
+    const adminPrivate =
+      "2HKjYz8yfQxxhRS5f17FRCx9kDp7ATF5R4esLnKA4VaUsMA5zquP5XkQmvv9J5ZUD6wAjD4iBPYXDzQDNZmQ1eki";
+
+    depositor = anchor.web3.Keypair.fromSecretKey(
+      new Uint8Array(bs58.decode(depositorPrivate))
+    );
+    admin = anchor.web3.Keypair.fromSecretKey(
+      new Uint8Array(bs58.decode(adminPrivate))
+    );
+
+    wSolMint = new anchor.web3.PublicKey(
+      "CAb5AhUMS4EbKp1rEoNJqXGy94Abha4Tg4FrHz7zZDZ3"
+    );
+
+    it("Get the associated token account and mint tokens", async () => {
+      try {
+        await provider.connection.confirmTransaction(
+          await provider.connection.requestAirdrop(
+            depositor.publicKey,
+            100000000
+          ),
+          "confirmed"
+        );
+      } catch (error) {
+        console.log("Airdrop failed");
+      }
+
+      const TempdepositorWSolTokenAccount =
+        await spl.getOrCreateAssociatedTokenAccount(
+          provider.connection,
+          depositor,
+          wSolMint,
+          depositor.publicKey,
+          false
+        );
+
+      depositorWSolTokenAccount = TempdepositorWSolTokenAccount.address;
+
+      const _depositorWSolTokenAccountBefore = await spl.getAccount(
+        provider.connection,
+        depositorWSolTokenAccount
+      );
+
+      await spl.mintTo(
+        provider.connection,
+        depositor,
+        wSolMint,
+        depositorWSolTokenAccount,
+        admin.publicKey,
+        initialMintAmount,
+        [admin]
+      );
+
+      const _depositorWSolTokenAccountAfter = await spl.getAccount(
+        provider.connection,
+        depositorWSolTokenAccount
+      );
+
+      assert.equal(
+        initialMintAmount,
+        _depositorWSolTokenAccountAfter.amount -
+          _depositorWSolTokenAccountBefore.amount
+      );
+    });
+  }
+
+  it("Is Initialized", async () => {
+    const whitelistedTokens = [wSolMint];
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
+    try {
+      const tx = await program.methods
+        .initialize(whitelistedTokens, new anchor.BN(stakingCap))
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          rewardsTokenMint,
+          tokenProgram: spl.TOKEN_PROGRAM_ID,
+          rewardsTokenAccount: rewardsTokenAccountPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Initializing: ", tx);
+    } catch (error) {
+      console.log(error);
+      // throw error;
+    }
   });
 
-  const priceFeed = pythSolanaReceiver.getPriceFeedAccountAddress(0, solTokenId);
+  it("Deposit tokens before chain is initialized", async () => {
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
 
-  console.log("Correct Price Feed PDA: ", priceFeed.toBase58());
+    const depositorBalanceBefore = await spl.getAccount(
+      provider.connection,
+      depositorWSolTokenAccount
+    );
 
-  // if (provider.connection.rpcEndpoint.endsWith("8899")) {
-  //   depositor = anchor.web3.Keypair.generate();
-  //   admin = anchor.web3.Keypair.generate();
+    const tx = await depositInstruction(
+      program,
+      wSolMint,
+      depositor.publicKey,
+      depositAmount,
+      tokenMintKeypair
+    );
 
-  //   it("Funds all users", async () => {
-  //     await provider.connection.confirmTransaction(
-  //       await provider.connection.requestAirdrop(
-  //         depositor.publicKey,
-  //         10000000000
-  //       ),
-  //       "confirmed"
-  //     );
-  //     await provider.connection.confirmTransaction(
-  //       await provider.connection.requestAirdrop(admin.publicKey, 10000000000),
-  //       "confirmed"
-  //     );
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor, tokenMintKeypair]
+      );
 
-  //     const depositorUserBalance = await provider.connection.getBalance(
-  //       depositor.publicKey
-  //     );
-  //     const adminUserBalance = await provider.connection.getBalance(
-  //       admin.publicKey
-  //     );
+      console.log("  Signature for Depositing: ", sig);
 
-  //     assert.strictEqual(10000000000, depositorUserBalance);
-  //     assert.strictEqual(10000000000, adminUserBalance);
-  //   });
+      const depositorBalanceAfter = await spl.getAccount(
+        provider.connection,
+        depositorWSolTokenAccount
+      );
+      const depositorReceiptTokenBalanceAfter = await spl.getAccount(
+        provider.connection,
+        receiptTokenAccount
+      );
 
-  //   it("create project and stable mint and mint some tokens to stakeholders", async () => {
-  //     wSolMint = await spl.createMint(
-  //       provider.connection,
-  //       admin,
-  //       admin.publicKey,
-  //       null,
-  //       9
-  //     );
+      assert.equal(
+        depositorBalanceBefore.amount - depositorBalanceAfter.amount,
+        depositAmount
+      );
+      assert.equal(depositorReceiptTokenBalanceAfter.amount, 1);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //     rewardsTokenMint = await spl.createMint(
-  //       provider.connection,
-  //       admin,
-  //       admin.publicKey,
-  //       null,
-  //       6
-  //     );
+  it("Update guest chain initialization with its program ID", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateGuestChainInitialization(guestChainProgramID)
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Guest chain Initialization: ", tx);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //     depositorWSolTokenAccount = await spl.createAccount(
-  //       provider.connection,
-  //       depositor,
-  //       wSolMint,
-  //       depositor.publicKey
-  //     );
+  it("Set service after guest chain is initialized", async () => {
+    const tx = await setServiceInstruction(
+      program,
+      depositor.publicKey,
+      depositor.publicKey,
+      tokenMintKeypair.publicKey,
+      wSolMint
+    );
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
+      console.log("  Signature for Updating Guest chain Initialization: ", sig);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //     await spl.mintTo(
-  //       provider.connection,
-  //       depositor,
-  //       wSolMint,
-  //       depositorWSolTokenAccount,
-  //       admin.publicKey,
-  //       initialMintAmount,
-  //       [admin]
-  //     );
+  it("Claim rewards", async () => {
+    const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
+      rewardsTokenMint,
+      depositor.publicKey
+    );
 
-  //     let depositorWSolTokenAccountUpdated = await spl.getAccount(
-  //       provider.connection,
-  //       depositorWSolTokenAccount
-  //     );
+    const tx = await claimRewardsInstruction(
+      program,
+      depositor.publicKey,
+      tokenMintKeypair.publicKey
+    );
 
-  //     assert.equal(initialMintAmount, depositorWSolTokenAccountUpdated.amount);
-  //   });
-  // } else {
-  //   // These are the private keys of accounts which i have created and have deposited some SOL in it.
-  //   // Since we cannot airdrop much SOL on devnet (fails most of the time), i have previously airdropped some SOL so that these accounts
-  //   // can be used for testing on devnet.
-  //   // We can have them in another file and import them. But these are only for testing and has 0 balance on mainnet.
-  //   const depositorPrivate =
-  //     "472ZS33Lftn7wdM31QauCkmpgFKFvgBRg6Z6NGtA6JgeRi1NfeZFRNvNi3b3sh5jvrQWrgiTimr8giVs9oq4UM5g";
-  //   const adminPrivate =
-  //     "2HKjYz8yfQxxhRS5f17FRCx9kDp7ATF5R4esLnKA4VaUsMA5zquP5XkQmvv9J5ZUD6wAjD4iBPYXDzQDNZmQ1eki";
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
 
-  //   depositor = anchor.web3.Keypair.fromSecretKey(
-  //     new Uint8Array(bs58.decode(depositorPrivate))
-  //   );
-  //   admin = anchor.web3.Keypair.fromSecretKey(
-  //     new Uint8Array(bs58.decode(adminPrivate))
-  //   );
+      console.log("  Signature for Claiming rewards: ", sig);
 
-  //   wSolMint = new anchor.web3.PublicKey(
-  //     "CAb5AhUMS4EbKp1rEoNJqXGy94Abha4Tg4FrHz7zZDZ3"
-  //   );
+      const depositorBalanceAfter = await spl.getAccount(
+        provider.connection,
+        depositorRewardsTokenAccount
+      );
 
-  //   it("Get the associated token account and mint tokens", async () => {
-  //     try {
-  //       await provider.connection.confirmTransaction(
-  //         await provider.connection.requestAirdrop(
-  //           depositor.publicKey,
-  //           100000000
-  //         ),
-  //         "confirmed"
-  //       );
-  //     } catch (error) {
-  //       console.log("Airdrop failed");
-  //     }
+      assert.equal(depositorBalanceAfter.amount, 0); // Rewards is 0 for now.
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //     const TempdepositorWSolTokenAccount =
-  //       await spl.getOrCreateAssociatedTokenAccount(
-  //         provider.connection,
-  //         depositor,
-  //         wSolMint,
-  //         depositor.publicKey,
-  //         false
-  //       );
+  it("Withdrawal request", async () => {
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
 
-  //     depositorWSolTokenAccount = TempdepositorWSolTokenAccount.address;
+    const depositorReceiptTokenBalanceBefore = await spl.getAccount(
+      provider.connection,
+      receiptTokenAccount
+    );
 
-  //     const _depositorWSolTokenAccountBefore = await spl.getAccount(
-  //       provider.connection,
-  //       depositorWSolTokenAccount
-  //     );
+    const tx = await withdrawalRequestInstruction(
+      program,
+      depositor.publicKey,
+      tokenMint
+    );
 
-  //     await spl.mintTo(
-  //       provider.connection,
-  //       depositor,
-  //       wSolMint,
-  //       depositorWSolTokenAccount,
-  //       admin.publicKey,
-  //       initialMintAmount,
-  //       [admin]
-  //     );
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
 
-  //     const _depositorWSolTokenAccountAfter = await spl.getAccount(
-  //       provider.connection,
-  //       depositorWSolTokenAccount
-  //     );
+      console.log("  Signature for Withdrawal request: ", sig);
 
-  //     assert.equal(
-  //       initialMintAmount,
-  //       _depositorWSolTokenAccountAfter.amount -
-  //         _depositorWSolTokenAccountBefore.amount
-  //     );
-  //   });
-  // }
+      // Since receipt NFT token account is closed, getting spl account
+      // should fail
+      await expectException(async () => {
+        const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
+          provider.connection,
+          receiptTokenAccount
+        );
+        console.log("this is depositor account balance", _depositorReceiptTokenBalanceAfter);
+      }, "Receipt NFT token account is not closed");
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  // it("Is Initialized", async () => {
-  //   const whitelistedTokens = [wSolMint];
-  //   const { stakingParamsPDA } = getStakingParamsPDA();
-  //   const { rewardsTokenAccountPDA } = getRewardsTokenAccountPDA();
-  //   try {
-  //     const tx = await program.methods
-  //       .initialize(whitelistedTokens, new anchor.BN(stakingCap))
-  //       .accounts({
-  //         admin: admin.publicKey,
-  //         stakingParams: stakingParamsPDA,
-  //         systemProgram: anchor.web3.SystemProgram.programId,
-  //         rewardsTokenMint,
-  //         tokenProgram: spl.TOKEN_PROGRAM_ID,
-  //         rewardsTokenAccount: rewardsTokenAccountPDA,
-  //       })
-  //       .signers([admin])
-  //       .rpc();
-  //     console.log("  Signature for Initializing: ", tx);
-  //   } catch (error) {
-  //     console.log(error);
-  //     // throw error;
-  //   }
-  // });
+  it("Cancel withdraw request", async () => {
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
 
-  // it("Deposit tokens before chain is initialized", async () => {
-  //   const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-  //     tokenMint,
-  //     depositor.publicKey
-  //   );
+    // Since receipt NFT token account is closed, getting spl account
+    // should fail
+    await expectException(async () => {
+      const _depositorReceiptTokenBalanceBefore = await spl.getAccount(
+        provider.connection,
+        receiptTokenAccount
+      );
+    }, "Receipt NFT token account is not closed");
+    const tx = await cancelWithdrawalRequestInstruction(
+      program,
+      depositor.publicKey,
+      tokenMint
+    );
 
-  //   const depositorBalanceBefore = await spl.getAccount(
-  //     provider.connection,
-  //     depositorWSolTokenAccount
-  //   );
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
 
-  //   const tx = await depositInstruction(
-  //     program,
-  //     wSolMint,
-  //     depositor.publicKey,
-  //     depositAmount,
-  //     tokenMintKeypair
-  //   );
+      console.log("  Signature for Cancelling Withdrawal: ", sig);
 
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor, tokenMintKeypair]
-  //     );
+      const depositorReceiptTokenBalance = await spl.getAccount(
+        provider.connection,
+        receiptTokenAccount
+      );
 
-  //     console.log("  Signature for Depositing: ", sig);
+      assert.equal(depositorReceiptTokenBalance.amount, 1);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //     const depositorBalanceAfter = await spl.getAccount(
-  //       provider.connection,
-  //       depositorWSolTokenAccount
-  //     );
-  //     const depositorReceiptTokenBalanceAfter = await spl.getAccount(
-  //       provider.connection,
-  //       receiptTokenAccount
-  //     );
+  it("Request withdrawal and Withdraw tokens", async () => {
+    const receiptTokenAccount = await spl.getAssociatedTokenAddress(
+      tokenMint,
+      depositor.publicKey
+    );
 
-  //     assert.equal(
-  //       depositorBalanceBefore.amount - depositorBalanceAfter.amount,
-  //       depositAmount
-  //     );
-  //     assert.equal(depositorReceiptTokenBalanceAfter.amount, 1);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
+    const depositorReceiptTokenBalanceBefore = await spl.getAccount(
+      provider.connection,
+      receiptTokenAccount
+    );
 
-  // it("Update guest chain initialization with its program ID", async () => {
-  //   const { stakingParamsPDA } = getStakingParamsPDA();
-  //   try {
-  //     const tx = await program.methods
-  //       .updateGuestChainInitialization(guestChainProgramID)
-  //       .accounts({
-  //         admin: admin.publicKey,
-  //         stakingParams: stakingParamsPDA,
-  //       })
-  //       .signers([admin])
-  //       .rpc();
-  //     console.log("  Signature for Updating Guest chain Initialization: ", tx);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
+    let tx = await withdrawalRequestInstruction(
+      program,
+      depositor.publicKey,
+      tokenMint
+    );
 
-  // it("Set service after guest chain is initialized", async () => {
-  //   const tx = await setServiceInstruction(
-  //     program,
-  //     depositor.publicKey,
-  //     depositor.publicKey,
-  //     tokenMintKeypair.publicKey,
-  //     wSolMint
-  //   );
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor]
-  //     );
-  //     console.log("  Signature for Updating Guest chain Initialization: ", sig);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
+    try {
+      tx.feePayer = depositor.publicKey;
+      const sig = await anchor.web3.sendAndConfirmTransaction(
+        provider.connection,
+        tx,
+        [depositor]
+      );
 
-  // it("Claim rewards", async () => {
-  //   const depositorRewardsTokenAccount = await spl.getAssociatedTokenAddress(
-  //     rewardsTokenMint,
-  //     depositor.publicKey
-  //   );
+      console.log("  Signature for Withdrawal request: ", sig);
 
-  //   const tx = await claimRewardsInstruction(
-  //     program,
-  //     depositor.publicKey,
-  //     tokenMintKeypair.publicKey
-  //   );
+      // Since receipt NFT token account is closed, getting spl account
+      // should fail
+      await expectException(async () => {
+        const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
+          provider.connection,
+          receiptTokenAccount
+        );
+      }, "Receipt NFT token account is not closed");
+      // Once withdraw request is complete, we can withdraw
+      // sleeping for unbonding period to end
+      await sleep(2000);
+      const depositorBalanceBefore = await spl.getAccount(
+        provider.connection,
+        depositorWSolTokenAccount
+      );
+      tx = await withdrawInstruction(program, depositor.publicKey, tokenMint);
 
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor]
-  //     );
+      try {
+        tx.feePayer = depositor.publicKey;
+        const sig = await anchor.web3.sendAndConfirmTransaction(
+          provider.connection,
+          tx,
+          [depositor]
+        );
 
-  //     console.log("  Signature for Claiming rewards: ", sig);
+        console.log("  Signature for Withdrawing: ", sig);
 
-  //     const depositorBalanceAfter = await spl.getAccount(
-  //       provider.connection,
-  //       depositorRewardsTokenAccount
-  //     );
+        const depositorBalanceAfter = await spl.getAccount(
+          provider.connection,
+          depositorWSolTokenAccount
+        );
 
-  //     assert.equal(depositorBalanceAfter.amount, 0); // Rewards is 0 for now.
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
+        assert.equal(
+          depositorBalanceAfter.amount - depositorBalanceBefore.amount,
+          depositAmount
+        );
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  // it("Withdrawal request", async () => {
-  //   const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-  //     tokenMint,
-  //     depositor.publicKey
-  //   );
+  it("Update admin", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      let tx = await program.methods
+        .changeAdminProposal(depositor.publicKey)
+        .accounts({
+          admin: admin.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([admin])
+        .rpc();
+      console.log("  Signature for Updating Admin Proposal: ", tx);
+      tx = await program.methods
+        .acceptAdminChange()
+        .accounts({
+          newAdmin: depositor.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Accepting Admin Proposal: ", tx);
+      const stakingParameters = await getStakingParameters(program);
+      assert.equal(
+        stakingParameters.admin.toBase58(),
+        depositor.publicKey.toBase58()
+      );
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 
-  //   const depositorReceiptTokenBalanceBefore = await spl.getAccount(
-  //     provider.connection,
-  //     receiptTokenAccount
-  //   );
-
-  //   const tx = await withdrawalRequestInstruction(
-  //     program,
-  //     depositor.publicKey,
-  //     tokenMint
-  //   );
-
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor]
-  //     );
-
-  //     console.log("  Signature for Withdrawal request: ", sig);
-
-  //     // Since receipt NFT token account is closed, getting spl account
-  //     // should fail
-  //     await expectException(async () => {
-  //       const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
-  //         provider.connection,
-  //         receiptTokenAccount
-  //       );
-  //       console.log("this is depositor account balance", _depositorReceiptTokenBalanceAfter);
-  //     }, "Receipt NFT token account is not closed");
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
-
-  // it("Cancel withdraw request", async () => {
-  //   const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-  //     tokenMint,
-  //     depositor.publicKey
-  //   );
-
-  //   // Since receipt NFT token account is closed, getting spl account
-  //   // should fail
-  //   await expectException(async () => {
-  //     const _depositorReceiptTokenBalanceBefore = await spl.getAccount(
-  //       provider.connection,
-  //       receiptTokenAccount
-  //     );
-  //   }, "Receipt NFT token account is not closed");
-  //   const tx = await cancelWithdrawalRequestInstruction(
-  //     program,
-  //     depositor.publicKey,
-  //     tokenMint
-  //   );
-
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor]
-  //     );
-
-  //     console.log("  Signature for Cancelling Withdrawal: ", sig);
-
-  //     const depositorReceiptTokenBalance = await spl.getAccount(
-  //       provider.connection,
-  //       receiptTokenAccount
-  //     );
-
-  //     assert.equal(depositorReceiptTokenBalance.amount, 1);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
-
-  // it("Request withdrawal and Withdraw tokens", async () => {
-  //   const receiptTokenAccount = await spl.getAssociatedTokenAddress(
-  //     tokenMint,
-  //     depositor.publicKey
-  //   );
-
-  //   const depositorReceiptTokenBalanceBefore = await spl.getAccount(
-  //     provider.connection,
-  //     receiptTokenAccount
-  //   );
-
-  //   let tx = await withdrawalRequestInstruction(
-  //     program,
-  //     depositor.publicKey,
-  //     tokenMint
-  //   );
-
-  //   try {
-  //     tx.feePayer = depositor.publicKey;
-  //     const sig = await anchor.web3.sendAndConfirmTransaction(
-  //       provider.connection,
-  //       tx,
-  //       [depositor]
-  //     );
-
-  //     console.log("  Signature for Withdrawal request: ", sig);
-
-  //     // Since receipt NFT token account is closed, getting spl account
-  //     // should fail
-  //     await expectException(async () => {
-  //       const _depositorReceiptTokenBalanceAfter = await spl.getAccount(
-  //         provider.connection,
-  //         receiptTokenAccount
-  //       );
-  //     }, "Receipt NFT token account is not closed");
-  //     // Once withdraw request is complete, we can withdraw
-  //     // sleeping for unbonding period to end
-  //     await sleep(2000);
-  //     const depositorBalanceBefore = await spl.getAccount(
-  //       provider.connection,
-  //       depositorWSolTokenAccount
-  //     );
-  //     tx = await withdrawInstruction(program, depositor.publicKey, tokenMint);
-
-  //     try {
-  //       tx.feePayer = depositor.publicKey;
-  //       const sig = await anchor.web3.sendAndConfirmTransaction(
-  //         provider.connection,
-  //         tx,
-  //         [depositor]
-  //       );
-
-  //       console.log("  Signature for Withdrawing: ", sig);
-
-  //       const depositorBalanceAfter = await spl.getAccount(
-  //         provider.connection,
-  //         depositorWSolTokenAccount
-  //       );
-
-  //       assert.equal(
-  //         depositorBalanceAfter.amount - depositorBalanceBefore.amount,
-  //         depositAmount
-  //       );
-  //     } catch (error) {
-  //       console.log(error);
-  //       throw error;
-  //     }
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
-
-  // it("Update admin", async () => {
-  //   const { stakingParamsPDA } = getStakingParamsPDA();
-  //   try {
-  //     let tx = await program.methods
-  //       .changeAdminProposal(depositor.publicKey)
-  //       .accounts({
-  //         admin: admin.publicKey,
-  //         stakingParams: stakingParamsPDA,
-  //       })
-  //       .signers([admin])
-  //       .rpc();
-  //     console.log("  Signature for Updating Admin Proposal: ", tx);
-  //     tx = await program.methods
-  //       .acceptAdminChange()
-  //       .accounts({
-  //         newAdmin: depositor.publicKey,
-  //         stakingParams: stakingParamsPDA,
-  //       })
-  //       .signers([depositor])
-  //       .rpc();
-  //     console.log("  Signature for Accepting Admin Proposal: ", tx);
-  //     const stakingParameters = await getStakingParameters(program);
-  //     assert.equal(
-  //       stakingParameters.admin.toBase58(),
-  //       depositor.publicKey.toBase58()
-  //     );
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
-
-  // it("Update staking cap after updating admin", async () => {
-  //   const { stakingParamsPDA } = getStakingParamsPDA();
-  //   try {
-  //     const tx = await program.methods
-  //       .updateStakingCap(new anchor.BN(newStakingCap))
-  //       .accounts({
-  //         admin: depositor.publicKey,
-  //         stakingParams: stakingParamsPDA,
-  //       })
-  //       .signers([depositor])
-  //       .rpc();
-  //     console.log("  Signature for Updating staking cap: ", tx);
-  //     const stakingParameters = await getStakingParameters(program);
-  //     assert.equal(stakingParameters.stakingCap.toNumber(), newStakingCap);
-  //   } catch (error) {
-  //     console.log(error);
-  //     throw error;
-  //   }
-  // });
+  it("Update staking cap after updating admin", async () => {
+    const { stakingParamsPDA } = getStakingParamsPDA();
+    try {
+      const tx = await program.methods
+        .updateStakingCap(new anchor.BN(newStakingCap))
+        .accounts({
+          admin: depositor.publicKey,
+          stakingParams: stakingParamsPDA,
+        })
+        .signers([depositor])
+        .rpc();
+      console.log("  Signature for Updating staking cap: ", tx);
+      const stakingParameters = await getStakingParameters(program);
+      assert.equal(stakingParameters.stakingCap.toNumber(), newStakingCap);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
+  });
 });
