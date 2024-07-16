@@ -7,6 +7,8 @@ use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, CloseAccount, MintTo, Transfer};
 use lib::hash::CryptoHash;
 use primitive_types::U256;
+use spl_token::solana_program::rent::Rent;
+use spl_token::solana_program::sysvar::Sysvar;
 
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -504,7 +506,9 @@ impl IbcStorage<'_, '_> {
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
-        let escrow_account_rent = escrow_account.lamports();
+        let rent = Rent::get().unwrap();
+        let escrow_account_rent =
+            rent.minimum_balance(escrow_account.data_len());
 
         let (sender, receiver, authority) = match op {
             EscrowOp::Escrow => {
