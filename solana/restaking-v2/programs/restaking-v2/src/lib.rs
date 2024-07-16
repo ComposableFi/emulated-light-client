@@ -414,14 +414,13 @@ pub mod restaking_v2 {
 
         // since the exponents are predominanlty negative, we switch the exponents and convert
         // them to absolute value.
-        let final_amount_in_sol = ((token_price.price as i128 *
+        let final_amount_in_sol = (token_price.price as i128 *
             10_i128.pow(sol_price.exponent.abs().try_into().unwrap()) *
             10i128.pow(SOL_DECIMALS as u32))
             as f64 /
             (sol_price.price as i128 *
                 10_i128.pow(token_price.exponent.abs().try_into().unwrap()) *
-                10i128.pow(token_decimals as u32)) as f64)
-            as f64;
+                10i128.pow(token_decimals as u32)) as f64;
 
         let multipled_price =
             final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);
@@ -429,13 +428,12 @@ pub mod restaking_v2 {
 
         msg!(
             "The price of solana is ({} ± {}) * 10^{} and final price in dec \
-             {} and int {} \n
+             {} \n
                      The price of solana is ({} ± {}) * 10^{}",
             sol_price.price,
             sol_price.conf,
             sol_price.exponent,
             final_amount_in_sol,
-            final_amount_in_sol as u64,
             token_price.price,
             token_price.conf,
             token_price.exponent,
@@ -471,7 +469,7 @@ pub mod restaking_v2 {
 
         solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
-        staked_token.latest_price = final_amount_in_sol as u64;
+        staked_token.latest_price = final_amount_in_sol;
         staked_token.last_updated_in_sec = Clock::get()?.unix_timestamp as u64;
 
         Ok(())
