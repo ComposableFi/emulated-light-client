@@ -604,7 +604,6 @@ pub struct Initialise<'info> {
 
 #[derive(Accounts)]
 pub struct Chain<'info> {
-    #[account(mut)]
     sender: Signer<'info>,
 
     /// The guest blockchain data.
@@ -624,7 +623,6 @@ pub struct Chain<'info> {
 
 #[derive(Accounts)]
 pub struct SetStake<'info> {
-    #[account(mut)]
     sender: Signer<'info>,
 
     /// The guest blockchain data.
@@ -649,7 +647,6 @@ pub struct SetStake<'info> {
 
 #[derive(Accounts)]
 pub struct ChainWithVerifier<'info> {
-    #[account(mut)]
     sender: Signer<'info>,
 
     /// The guest blockchain data.
@@ -673,7 +670,6 @@ pub struct ChainWithVerifier<'info> {
 
 #[derive(Accounts)]
 pub struct SetFeeAmount<'info> {
-    #[account(mut)]
     fee_collector: Signer<'info>,
 
     /// The account holding private IBC storage.
@@ -683,7 +679,6 @@ pub struct SetFeeAmount<'info> {
 
 #[derive(Accounts)]
 pub struct SetupFeeCollector<'info> {
-    #[account(mut)]
     fee_collector: Signer<'info>,
 
     /// The account holding private IBC storage.
@@ -693,7 +688,6 @@ pub struct SetupFeeCollector<'info> {
 
 #[derive(Accounts)]
 pub struct CollectFees<'info> {
-    #[account(mut)]
     fee_collector: Signer<'info>,
 
     /// The account holding private IBC storage.
@@ -857,7 +851,6 @@ pub struct SendTransfer<'info> {
 
 #[derive(Accounts)]
 pub struct UpdateChainConfig<'info> {
-    #[account(mut)]
     pub fee_collector: Signer<'info>,
 
     // The account holding private IBC storage.
@@ -872,7 +865,6 @@ pub struct UpdateChainConfig<'info> {
 #[derive(Accounts)]
 #[instruction(new_length: usize)]
 pub struct ReallocAccounts<'info> {
-    #[account(mut)]
     payer: Signer<'info>,
 
     #[account(mut)]
@@ -884,7 +876,6 @@ pub struct ReallocAccounts<'info> {
 
 #[derive(Accounts)]
 pub struct UpdateConnectionDelay<'info> {
-    #[account(mut)]
     pub sender: Signer<'info>,
 
     // The account holding private IBC storage.
