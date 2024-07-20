@@ -1,6 +1,6 @@
-use anchor_spl::token;
 use anchor_lang::prelude::*;
-use anchor_spl::token::{Token, TokenAccount, Transfer as SplTransfer, Mint};
+use anchor_spl::token;
+use anchor_spl::token::{Mint, Token, TokenAccount, Transfer as SplTransfer};
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use ibc::apps::transfer::types::packet::PacketData;
 use ibc::apps::transfer::types::{PrefixedCoin, PrefixedDenom};
@@ -10,13 +10,14 @@ use ibc::core::host::types::identifiers::{ChannelId, PortId};
 use ibc::core::primitives::Timestamp;
 use ibc::primitives::Signer as IbcSigner;
 use lib::hash::CryptoHash;
-use solana_ibc::cpi::send_transfer;
-use solana_ibc::program::SolanaIbc;
-use std::str::FromStr;
 use solana_ibc::chain;
 use solana_ibc::cpi::accounts::SendTransfer;
+use solana_ibc::cpi::send_transfer;
+use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
+use std::str::FromStr;
 
+mod tests;
 
 declare_id!("A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4");
 
@@ -107,7 +108,8 @@ pub mod bridge_escrow {
             chan_id_on_a: ChannelId::from_str("channel-1").unwrap(),
             packet_data: PacketData {
                 token: PrefixedCoin {
-                    denom: PrefixedDenom::from_str("address_of_token_minted").unwrap(), // token only owned by this PDA
+                    denom: PrefixedDenom::from_str("address_of_token_minted")
+                        .unwrap(), // token only owned by this PDA
                     amount: 1.into(),
                 },
                 sender: IbcSigner::from(
@@ -117,7 +119,10 @@ pub mod bridge_escrow {
                 memo: memo.into(),
             },
             timeout_height_on_b: At(Height::new(2018502000, 29340670).unwrap()),
-            timeout_timestamp_on_b: Timestamp::from_nanoseconds(1000000000000000000).unwrap(),
+            timeout_timestamp_on_b: Timestamp::from_nanoseconds(
+                1000000000000000000,
+            )
+            .unwrap(),
         };
 
         send_transfer(transfer_ctx, hashed_full_denom, msg)?;
