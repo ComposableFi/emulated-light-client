@@ -1,0 +1,63 @@
+[package]
+name = "bridge-escrow"
+description = "Created with Anchor"
+edition = "2021"
+version.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "bridge_escrow"
+
+[features]
+# added so that we can compile this along with `solana-ibc` with mocks features. Currently unused.
+mocks = []
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+
+[dependencies]
+anchor-lang.workspace = true
+anchor-spl = { workspace = true, features = ["metadata"] }
+base64.workspace = true
+bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
+derive_more.workspace = true
+hex-literal.workspace = true
+ibc-client-tendermint-types.workspace = true
+ibc-proto.workspace = true
+ibc-testkit = { workspace = true, optional = true }
+ibc.workspace = true
+linear-map.workspace = true
+primitive-types.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+spl-associated-token-account.workspace = true
+spl-token.workspace = true
+strum.workspace = true
+tendermint-light-client-verifier.workspace = true
+tendermint.workspace = true
+uint.workspace = true
+
+guestchain.workspace = true
+cf-guest.workspace = true
+lib = { workspace = true, features = ["solana-program"] }
+memory.workspace = true
+solana-allocator = { workspace = true, optional = true }
+solana-signature-verifier = { workspace = true, features = ["guest", "library"] }
+solana-trie.workspace = true
+stdx.workspace = true
+trie-ids = { workspace = true, features = ["borsh"] }
+wasm = { workspace = true }
+itertools = "0.10.5"
+solana-ibc = { workspace = true, features = ["cpi"] }
+
+[dev-dependencies]
+anchor-client.workspace = true
+anyhow.workspace = true
+ibc-testkit.workspace = true
+insta.workspace = true
+
+lib = { workspace = true, features = ["test_utils"] }
+solana-write-account = { workspace = true, features = ["library"] }
