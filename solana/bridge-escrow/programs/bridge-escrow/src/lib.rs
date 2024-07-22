@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer as SplTransfer};
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
@@ -17,9 +18,10 @@ use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
 use std::str::FromStr;
 
+#[cfg(test)]
 mod tests;
 
-declare_id!("A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4");
+declare_id!("8t5dMbZuGsUtcX7JZpCN8kfPnt8e6VSc3XGepVTMUig4");
 
 #[program]
 pub mod bridge_escrow {
@@ -32,7 +34,7 @@ pub mod bridge_escrow {
     ) -> Result<()> {
         let destination_account = &ctx.accounts.destination_token_account;
         let source_account = &ctx.accounts.source_token_account;
-        let token_program = &ctx.accounts.spl_token_program;
+        let token_program = &ctx.accounts.token_program;
         let authority = &ctx.accounts.authority;
 
         // Transfer tokens from solver to user
@@ -54,6 +56,8 @@ pub mod bridge_escrow {
         // Invoke SPL token transfer
         token::transfer(CpiContext::new(cpi_program, cpi_accounts), amount)?;
 
+        let token_mint = ctx.accounts.token_mint.clone().unwrap();
+
         // Cross-chain transfer + memo
         let transfer_ctx = CpiContext::new(
             ctx.accounts.ibc_program.to_account_info().clone(),
@@ -73,11 +77,9 @@ pub mod bridge_escrow {
                     .token_mint
                     .as_ref()
                     .map(|tm| tm.to_account_info()),
-                escrow_account: ctx
-                    .accounts
-                    .escrow_account
-                    .as_ref()
-                    .map(|ea| ea.to_account_info()),
+                escrow_account: Some(
+                    ctx.accounts.escrow_account.to_account_info().clone(),
+                ),
                 receiver_token_account: ctx
                     .accounts
                     .receiver_token_account
@@ -89,7 +91,7 @@ pub mod bridge_escrow {
                     .as_ref()
                     .map(|fc| fc.to_account_info()),
                 token_program: Some(
-                    ctx.accounts.spl_token_program.to_account_info().clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
                 ),
                 system_program: ctx
                     .accounts
@@ -105,11 +107,13 @@ pub mod bridge_escrow {
         // MsgTransfer
         let msg = MsgTransfer {
             port_id_on_a: PortId::from_str("transfer").unwrap(),
-            chan_id_on_a: ChannelId::from_str("channel-1").unwrap(),
+            chan_id_on_a: ChannelId::from_str("channel-0").unwrap(),
             packet_data: PacketData {
                 token: PrefixedCoin {
-                    denom: PrefixedDenom::from_str("address_of_token_minted")
-                        .unwrap(), // token only owned by this PDA
+                    denom: PrefixedDenom::from_str(
+                        &token_mint.key().to_string(),
+                    )
+                    .unwrap(), // token only owned by this PDA
                     amount: 1.into(),
                 },
                 sender: IbcSigner::from(
@@ -134,27 +138,39 @@ pub mod bridge_escrow {
 // Accounts for transferring SPL tokens
 #[derive(Accounts)]
 pub struct SplTokenTransfer<'info> {
+    #[account(mut)]
     pub authority: Signer<'info>,
     // SPL Token Transfer Accounts
     #[account(mut)]
     pub source_token_account: Account<'info, TokenAccount>,
+    // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
     #[account(mut)]
     pub destination_token_account: Account<'info, TokenAccount>,
-    pub spl_token_program: Program<'info, Token>,
     // Cross-chain Transfer Accounts
     pub ibc_program: Program<'info, SolanaIbc>, // Use IbcProgram here
+    #[account(mut)]
     pub receiver: Option<AccountInfo<'info>>,
+    #[account(mut)]
     pub storage: Account<'info, PrivateStorage>,
     /// CHECK:
+    #[account(mut)]
     pub trie: UncheckedAccount<'info>,
+    #[account(mut)]
     pub chain: Box<Account<'info, chain::ChainData>>,
     /// CHECK:
+    #[account(mut)]
     pub mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
     pub token_mint: Option<Box<Account<'info, Mint>>>,
-    pub escrow_account: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub escrow_account: UncheckedAccount<'info>,
+    #[account(mut)]
     pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
     /// CHECK:
+    #[account(mut)]
     pub fee_collector: Option<UncheckedAccount<'info>>,
     pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
