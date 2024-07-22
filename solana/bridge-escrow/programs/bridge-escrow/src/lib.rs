@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token;
@@ -16,7 +18,6 @@ use solana_ibc::cpi::accounts::SendTransfer;
 use solana_ibc::cpi::send_transfer;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
-use std::str::FromStr;
 
 #[cfg(test)]
 mod tests;
@@ -101,7 +102,11 @@ pub mod bridge_escrow {
             },
         );
 
-        let memo = "{\"forward\":{\"receiver\":\"0x4c22af5da4a849a8f39be00eb1b44676ac5c9060\",\"port\":\"transfer\",\"channel\":\"channel-52\",\"timeout\":600000000000000,\"next\":{\"memo\":\"my-custom-msg\"}}}".to_string();
+        let memo = "{\"forward\":{\"receiver\":\"\
+                    0x4c22af5da4a849a8f39be00eb1b44676ac5c9060\",\"port\":\"\
+                    transfer\",\"channel\":\"channel-52\",\"timeout\":\
+                    600000000000000,\"next\":{\"memo\":\"my-custom-msg\"}}}"
+            .to_string();
         let memo = memo.replace("my-custom-msg", &my_custom_memo);
 
         // MsgTransfer
