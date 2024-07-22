@@ -22,7 +22,6 @@ use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_associated_token_account::instruction::create_associated_token_account;
 use spl_token::solana_program::system_instruction;
 use spl_token::solana_program::sysvar::SysvarId;
-use anchor_lang::prelude::*;
 
 use crate::ibc::ClientStateCommon;
 use crate::{
@@ -41,22 +40,6 @@ const TRANSFER_AMOUNT: u64 = 1_000_000_000;
 
 const ORIGINAL_DECIMALS: u8 = 9;
 const EFFECTIVE_DECIMALS: u8 = 6;
-
-const PROGRAM_ID: &str = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4";
-const IBC_PROGRAM_ID: &str = "ANv7ZAPciV56CtB6vV7HHGUFzwfRPrt4eiY29VvEvkFJ";
-const TOKEN_PROGRAM_ID: &str = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-
-const MINT_AUTHORITY_SEED: &[u8] = b"mint_authority";
-const MINT_SEED: &[u8] = b"mint";
-const STORAGE_SEED: &[u8] = b"private";
-const TRIE_SEED: &[u8] = b"trie";
-const CHAIN_SEED: &[u8] = b"chain";
-const FEE_SEED: &[u8] = b"fee";
-
-#[derive(AnchorSerialize, AnchorDeserialize)]
-pub struct SplTokenTransferArgs {
-    pub amount: u64,
-}
 
 fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     let balance_before = client.get_balance(&account).unwrap();
@@ -1005,101 +988,3 @@ fn construct_transfer_packet_from_denom(
         timeout_timestamp_on_b: ibc::Timestamp::none(),
     }
 }
-
-// fn test_anchor_program() -> Result<()> {
-//     // Setup the client and wallet
-//     let rpc_url = "https://api.devnet.solana.com";
-//     let payer = Rc::new(read_keypair_file("path/to/your/keypair.json").unwrap());
-//     let client = Client::new_with_options(
-//         Cluster::Mainnet,
-//         payer.clone(),
-//         CommitmentConfig::processed(),
-//     );
-
-//     let program = client.program(Pubkey::from_str(PROGRAM_ID).unwrap()).unwrap();
-//     let authority = Rc::new(read_keypair_file("../../keypair.json").unwrap());
-//     let lamports = 2_000_000_000;
-
-//     // Derive the necessary accounts
-//     let program_id = program.id();
-//     let program_rpc = program.rpc();
-//     let (storage, _bump_storage) = Pubkey::find_program_address(&[STORAGE_SEED], &program_id);
-//     let (trie, _bump_trie) = Pubkey::find_program_address(&[TRIE_SEED], &program_id);
-//     let (chain, _bump_chain) = Pubkey::find_program_address(&[CHAIN_SEED], &program_id);
-//     let (mint_authority, _bump_mint_authority) = Pubkey::find_program_address(&[MINT_AUTHORITY_SEED], &program_id);
-//     let (token_mint, _bump_token_mint) = Pubkey::find_program_address(&[MINT_SEED], &program_id);
-//     let (escrow_account, _bump_escrow_account) = Pubkey::find_program_address(&[b"escrow"], &program_id);
-//     let receiver = Rc::new(Keypair::new());
-//     let receiver_token_account = get_associated_token_address(&receiver.pubkey(), &token_mint);
-//     let (fee_collector, _bump_fee_collector) = Pubkey::find_program_address(&[FEE_SEED], &program_id);
-
-//     let spl_token_program = Pubkey::from_str(TOKEN_PROGRAM_ID).unwrap();
-//     let ibc_program = Pubkey::from_str(IBC_PROGRAM_ID).unwrap();
-//     let system_program = anchor_lang::system_program::ID;
-//     let source_token_account = Pubkey::from_str("SOURCE_TOKEN_ACCOUNT_PUBKEY").unwrap();
-//     let destination_token_account = Pubkey::from_str("DESTINATION_TOKEN_ACCOUNT_PUBKEY").unwrap();
-
-//     // Airdrop lamports to necessary accounts
-//     airdrop(&program_rpc, authority.pubkey(), lamports);
-//     airdrop(&program_rpc, fee_collector, lamports);
-//     airdrop(&program_rpc, receiver.pubkey(), lamports);
-
-//     // Amount to transfer
-//     let amount = 1000000; // Example amount
-
-//     // Create AccountInfo structures
-//     let authority_account_info = AccountInfo {
-//         key: &authority.pubkey(),
-//         is_signer: true,
-//         is_writable: true,
-//         lamports: Rc::new(RefCell::new(&mut 0)),
-//         data: Rc::new(RefCell::new(&mut vec![])),
-//         owner: &Pubkey::default(),
-//         executable: false,
-//         rent_epoch: 0,
-//     };
-
-//     let receiver_account_info = AccountInfo {
-//         key: &receiver.pubkey(),
-//         is_signer: true,
-//         is_writable: true,
-//         lamports: Rc::new(RefCell::new(&mut 0)),
-//         data: Rc::new(RefCell::new(&mut vec![])),
-//         owner: &Pubkey::default(),
-//         executable: false,
-//         rent_epoch: 0,
-//     };
-
-//     // Build and send the transaction to call send_funds_to_user
-//     println!("\nSending funds to user");
-//     let sig = program
-//         .request()
-//         .accounts(SplTokenTransfer {
-//             authority: authority_account_info,
-//             source_token_account: Account::from_key(&source_token_account),
-//             destination_token_account: Account::from_key(&destination_token_account),
-//             spl_token_program: Program::from_key(&spl_token_program),
-//             ibc_program: Program::from_key(&ibc_program),
-//             receiver: Some(receiver_account_info),
-//             storage: Account::from_key(&storage),
-//             trie: UncheckedAccount::from_key(&trie),
-//             chain: Box::new(Account::from_key(&chain)),
-//             mint_authority: Some(UncheckedAccount::from_key(&mint_authority)),
-//             token_mint: Some(Box::new(Account::from_key(&token_mint))),
-//             escrow_account: Some(Box::new(Account::from_key(&escrow_account))),
-//             receiver_token_account: Some(Box::new(Account::from_key(&receiver_token_account))),
-//             fee_collector: Some(UncheckedAccount::from_key(&fee_collector)),
-//             system_program: Program::from_key(&system_program),
-//             token_program: Program::from_key(&spl_token_program),
-//         });
-//         // .args(SplTokenTransferArgs { amount })
-//         // .payer(authority.clone())
-//         // .signer(&*authority)
-//         // .send_with_spinner_and_config(RpcSendTransactionConfig {
-//         //     skip_preflight: true,
-//         //     ..RpcSendTransactionConfig::default()
-//         // })?;
-//     println!("  Signature: {sig}");
-
-//     Ok(())
-// }
