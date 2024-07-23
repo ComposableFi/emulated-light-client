@@ -124,7 +124,6 @@ fn restaking_test_deliver() -> Result<()> {
         address: token_mint_key,
         oracle_address: Some(TOKEN_FEED_ID.to_string()),
         max_update_time_in_sec: 60,
-        update_frequency_in_sec: 60,
     };
 
     let tx = program

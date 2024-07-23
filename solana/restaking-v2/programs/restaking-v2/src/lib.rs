@@ -726,7 +726,6 @@ pub struct NewTokenPayload {
     pub address: Pubkey,
     pub oracle_address: Option<String>,
     pub max_update_time_in_sec: u64,
-    pub update_frequency_in_sec: u64,
 }
 
 /// Struct which stores the token address and price information. The price
@@ -750,8 +749,6 @@ pub struct StakeToken {
     /// If the price is not updated after the `max_update_time` below,
     /// the above price should be considered invalid.
     pub max_update_time_in_sec: u64, // 8
-    /// The frequency at which the price should be updated.
-    pub update_frequency_in_sec: u64, // 8
     /// mapping of the validator index with their stake in the above token
     pub delegations: Vec<u128>, // n * 16
 }
@@ -764,7 +761,6 @@ impl From<NewTokenPayload> for StakeToken {
             latest_price: 0,
             last_updated_in_sec: 0,
             max_update_time_in_sec: payload.max_update_time_in_sec,
-            update_frequency_in_sec: payload.update_frequency_in_sec,
             delegations: vec![],
         }
     }
