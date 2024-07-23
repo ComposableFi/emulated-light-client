@@ -458,7 +458,7 @@ pub mod restaking_v2 {
             random_value =
                 if random_value == 0 { random_value + 1 } else { random_value };
             msg!("Random value {}", random_value);
-            sol_price.price = sol_price.price * random_value;
+            sol_price.price *= random_value;
             (token_price, sol_price)
         } else {
             let maximum_age_in_sec: u64 = 30;
