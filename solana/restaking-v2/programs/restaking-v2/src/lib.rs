@@ -144,7 +144,6 @@ pub mod restaking_v2 {
         };
 
         let stake_per_validator = amount / validators_len;
-        let stake_remainder = amount % validators_len;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
             sender: ctx.accounts.staker.to_account_info(),
@@ -162,15 +161,10 @@ pub mod restaking_v2 {
         let set_stake_arg = common_state
             .validators
             .iter()
-            .enumerate()
-            .map(|(index, validator)| {
+            .map(|validator| {
                 (
                     sigverify::ed25519::PubKey::from(*validator),
-                    if index == 0 {
-                        (stake_per_validator + stake_remainder) as i128
-                    } else {
-                        stake_per_validator as i128
-                    },
+                    stake_per_validator as i128,
                 )
             })
             .collect::<Vec<_>>();
@@ -278,7 +272,6 @@ pub mod restaking_v2 {
         // Call guest chain program to update the stake equally
         let validators_len = common_state.validators.len() as u64;
         let stake_per_validator = (amount / validators_len) as i128;
-        let stake_remainder = (amount % validators_len) as i128;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
             sender: ctx.accounts.staker.to_account_info(),
@@ -296,15 +289,10 @@ pub mod restaking_v2 {
         let set_stake_arg = common_state
             .validators
             .iter()
-            .enumerate()
-            .map(|(index, validator)| {
+            .map(|validator| {
                 (
                     sigverify::ed25519::PubKey::from(*validator),
-                    if index == 0 {
-                        -(stake_per_validator + stake_remainder)
-                    } else {
-                        -stake_per_validator
-                    },
+                    -stake_per_validator,
                 )
             })
             .collect::<Vec<_>>();
