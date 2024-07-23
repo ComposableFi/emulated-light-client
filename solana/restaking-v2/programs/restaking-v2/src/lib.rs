@@ -125,6 +125,8 @@ pub mod restaking_v2 {
 
         let validators_len = common_state.validators.len() as u64;
 
+        let original_amount = amount;
+
         let amount = if whitelisted_token.oracle_address.is_some() {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
@@ -178,16 +180,18 @@ pub mod restaking_v2 {
             .delegations
             .len();
 
-        set_stake_arg.iter().enumerate().for_each(|(index, validator)| {
+        set_stake_arg.iter().enumerate().for_each(|(index, _validator)| {
             if delegations_len <= index {
                 common_state.whitelisted_tokens[whitelisted_token_idx]
                     .delegations
-                    .push(validator.1 as u128)
+                    .push(original_amount as u128)
             } else {
                 common_state.whitelisted_tokens[whitelisted_token_idx]
-                    .delegations[index] += validator.1 as u128
+                    .delegations[index] += original_amount as u128
             }
         });
+
+        msg!("Depositing {}", amount);
 
         solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
@@ -254,6 +258,8 @@ pub mod restaking_v2 {
 
         anchor_spl::token::burn(cpi_ctx, amount)?;
 
+        let original_amount = amount;
+
         let amount = if whitelisted_token.oracle_address.is_some() {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
@@ -304,10 +310,12 @@ pub mod restaking_v2 {
             })
             .collect::<Vec<_>>();
 
-        set_stake_arg.iter().enumerate().for_each(|(index, validator)| {
+        set_stake_arg.iter().enumerate().for_each(|(index, _validator)| {
             common_state.whitelisted_tokens[whitelisted_token_idx]
-                .delegations[index] -= validator.1.abs() as u128;
+                .delegations[index] -= original_amount as u128;
         });
+
+        msg!("Withdrawing {}", amount);
 
         solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
@@ -452,10 +460,18 @@ pub mod restaking_v2 {
             .ok_or_else(|| error!(ErrorCodes::OracleAddressNotFound))?;
         let (token_price, sol_price) = if cfg!(feature = "mocks") {
             let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
-            let sol_price = sol_price_feed.get_price_unchecked(
+            let mut sol_price = sol_price_feed.get_price_unchecked(
                 &get_feed_id_from_hex(SOL_PRICE_FEED_ID)?,
             )?;
             let token_price = token_price_feed.get_price_unchecked(&feed_id)?;
+
+            // Using a random value since the price doesnt change when running locally since
+            // the accounts are cloned during genesis and remain unchanged.
+            let mut random_value = Clock::get()?.unix_timestamp % 10;
+            random_value =
+                if random_value == 0 { random_value + 1 } else { random_value };
+            msg!("Random value {}", random_value);
+            sol_price.price = sol_price.price * random_value;
             (token_price, sol_price)
         } else {
             let maximum_age_in_sec: u64 = 30;
@@ -504,6 +520,8 @@ pub mod restaking_v2 {
 
         let previous_price = staked_token.latest_price;
 
+        msg!("This is staked token {:?}", staked_token);
+
         let set_stake_arg = staked_token
             .delegations
             .iter()
@@ -511,9 +529,16 @@ pub mod restaking_v2 {
             .map(|(validator_idx, amount)| {
                 let amount = *amount as i128;
                 let validator = validators[validator_idx];
-                let change_in_stake = (previous_price as i128 -
-                    final_amount_in_sol as i128) *
-                    amount;
+                let diff = final_amount_in_sol as i128 - previous_price as i128;
+                msg!(
+                    "final amount in sol {} and previous price {} and diff {}",
+                    final_amount_in_sol,
+                    previous_price,
+                    diff
+                );
+                let change_in_stake =
+                    (diff * amount) / 10_i128.pow(SOL_DECIMALS as u32);
+                msg!("This is change in stake {}", change_in_stake);
                 (sigverify::ed25519::PubKey::from(validator), change_in_stake)
             })
             .collect();

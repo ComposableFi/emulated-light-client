@@ -22,7 +22,7 @@ const PYTH_PROGRAM_ID: &str = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
 const STAKE_TOKEN_MINT_DECIMALS: u8 = 6;
 
 const MINT_AMOUNT: u64 = 1000000000000;
-const STAKE_AMOUNT: u64 = 100000;
+const STAKE_AMOUNT: u64 = 100_000;
 
 const TOKEN_FEED_ID: &str =
     "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
@@ -278,6 +278,51 @@ fn restaking_test_deliver() -> Result<()> {
         .round() as u64,
         STAKE_AMOUNT
     );
+
+    println!("  Signature: {}", tx);
+
+    /*
+        Update the token price
+    */
+    println!("\nUpdating the token price");
+
+    let token_feed_id = get_feed_id_from_hex(TOKEN_FEED_ID).unwrap();
+    let sol_feed_id = get_feed_id_from_hex(SOL_PRICE_FEED_ID).unwrap();
+    let shard_buffer = 0_u16.to_le_bytes();
+
+    let token_price_acc = Pubkey::find_program_address(
+        &[&shard_buffer, &token_feed_id],
+        &Pubkey::from_str(PYTH_PROGRAM_ID).unwrap(),
+    )
+    .0;
+
+    let sol_price_acc = Pubkey::find_program_address(
+        &[&shard_buffer, &sol_feed_id],
+        &Pubkey::from_str(PYTH_PROGRAM_ID).unwrap(),
+    )
+    .0;
+
+    let tx = program
+        .request()
+        .accounts(crate::accounts::UpdateTokenPrice {
+            signer: authority.pubkey(),
+            common_state,
+            token_mint: token_mint_key,
+            token_price_feed: token_price_acc,
+            sol_price_feed: sol_price_acc,
+            system_program: solana_program::system_program::ID,
+            chain,
+            trie,
+            guest_chain_program: solana_ibc::ID,
+            instruction: solana_program::sysvar::instructions::ID,
+        })
+        .args(crate::instruction::UpdateTokenPrice {})
+        .payer(authority.clone())
+        .signer(&*authority)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })?;
 
     println!("  Signature: {}", tx);
 
