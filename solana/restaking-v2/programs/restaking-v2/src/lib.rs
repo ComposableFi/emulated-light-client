@@ -277,8 +277,7 @@ pub mod restaking_v2 {
 
         // Call guest chain program to update the stake equally
         let validators_len = common_state.validators.len() as u64;
-        let stake_per_validator =
-            (amount / common_state.validators.len() as u64) as i128;
+        let stake_per_validator = (amount / validators_len) as i128;
         let stake_remainder = (amount % validators_len) as i128;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
@@ -491,15 +490,19 @@ pub mod restaking_v2 {
 
         let token_decimals = ctx.accounts.token_mint.decimals;
 
-        // since the exponents are predominanlty negative, we switch the exponents and convert
-        // them to absolute value.
-        let final_amount_in_sol = (token_price.price as i128 *
-            10_i128.pow(sol_price.exponent.abs().try_into().unwrap()) *
-            10i128.pow(SOL_DECIMALS as u32))
-            as f64 /
-            (sol_price.price as i128 *
-                10_i128.pow(token_price.exponent.abs().try_into().unwrap()) *
-                10i128.pow(token_decimals as u32)) as f64;
+        // There would be a slight loss in precision due to the conversion from f64 to u64
+        // but only when the price is very large. And since it has exponents, the price being
+        // extremely large would be quite rare.
+        let final_amount_in_sol =
+            token_price.price as f64 / sol_price.price as f64;
+
+        let final_amount_in_sol = final_amount_in_sol *
+            10_f64.powi(
+                (i32::from(SOL_DECIMALS) + token_price.exponent) -
+                    (i32::from(token_decimals) + sol_price.exponent),
+            );
+
+        msg!("Final amount in sol {}", final_amount_in_sol);
 
         let multipled_price =
             final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);

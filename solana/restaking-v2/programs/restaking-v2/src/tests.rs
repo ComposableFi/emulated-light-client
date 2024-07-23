@@ -355,7 +355,7 @@ fn restaking_test_deliver() -> Result<()> {
             guest_chain_program: solana_ibc::ID,
             instruction: solana_program::sysvar::instructions::ID,
         })
-        .args(crate::instruction::Withdraw { amount: STAKE_AMOUNT })
+        .args(crate::instruction::Withdraw { amount: STAKE_AMOUNT / 2 })
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -375,14 +375,14 @@ fn restaking_test_deliver() -> Result<()> {
             staker_receipt_token_acc_balance_after.ui_amount.unwrap()) *
             10_f64.powf(crate::RECEIPT_TOKEN_DECIMALS.into()))
         .round() as u64,
-        STAKE_AMOUNT
+        STAKE_AMOUNT / 2
     );
     assert_eq!(
         ((staker_token_acc_balance_after.ui_amount.unwrap() -
             staker_token_acc_balance_before.ui_amount.unwrap()) *
             10_f64.powf(STAKE_TOKEN_MINT_DECIMALS.into()))
         .round() as u64,
-        STAKE_AMOUNT
+        STAKE_AMOUNT / 2
     );
 
     println!("  Signature: {}", tx);
