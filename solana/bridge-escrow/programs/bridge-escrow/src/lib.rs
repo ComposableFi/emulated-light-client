@@ -57,40 +57,30 @@ pub mod bridge_escrow {
         // Invoke SPL token transfer
         token::transfer(CpiContext::new(cpi_program, cpi_accounts), amount)?;
 
-        let token_mint = ctx.accounts.token_mint.clone().unwrap();
+        let token_mint = ctx.accounts.token_mint.to_account_info();
 
         // Cross-chain transfer + memo
         let transfer_ctx = CpiContext::new(
             ctx.accounts.ibc_program.to_account_info().clone(),
             SendTransfer {
                 sender: authority.to_account_info().clone(),
-                receiver: ctx.accounts.receiver.clone(),
+                receiver: Some(ctx.accounts.receiver.to_account_info()),
                 storage: ctx.accounts.storage.to_account_info().clone(),
                 trie: ctx.accounts.trie.to_account_info().clone(),
                 chain: ctx.accounts.chain.to_account_info().clone(),
-                mint_authority: ctx
-                    .accounts
-                    .mint_authority
-                    .as_ref()
-                    .map(|ma| ma.to_account_info()),
-                token_mint: ctx
-                    .accounts
-                    .token_mint
-                    .as_ref()
-                    .map(|tm| tm.to_account_info()),
-                escrow_account: Some(
-                    ctx.accounts.escrow_account.to_account_info().clone(),
+                mint_authority: Some(
+                    ctx.accounts.mint_authority.to_account_info(),
                 ),
-                receiver_token_account: ctx
-                    .accounts
-                    .receiver_token_account
-                    .as_ref()
-                    .map(|rta| rta.to_account_info()),
-                fee_collector: ctx
-                    .accounts
-                    .fee_collector
-                    .as_ref()
-                    .map(|fc| fc.to_account_info()),
+                token_mint: Some(ctx.accounts.token_mint.to_account_info()),
+                escrow_account: Some(
+                    ctx.accounts.escrow_account.to_account_info(),
+                ),
+                receiver_token_account: Some(
+                    ctx.accounts.receiver_token_account.to_account_info(),
+                ),
+                fee_collector: Some(
+                    ctx.accounts.fee_collector.to_account_info(),
+                ),
                 token_program: Some(
                     ctx.accounts.token_program.to_account_info().clone(),
                 ),
@@ -154,7 +144,8 @@ pub struct SplTokenTransfer<'info> {
     // Cross-chain Transfer Accounts
     pub ibc_program: Program<'info, SolanaIbc>, // Use IbcProgram here
     #[account(mut)]
-    pub receiver: Option<AccountInfo<'info>>,
+    /// CHECK:
+    pub receiver: AccountInfo<'info>,
     #[account(mut)]
     pub storage: Account<'info, PrivateStorage>,
     /// CHECK:
@@ -164,17 +155,17 @@ pub struct SplTokenTransfer<'info> {
     pub chain: Box<Account<'info, chain::ChainData>>,
     /// CHECK:
     #[account(mut)]
-    pub mint_authority: Option<UncheckedAccount<'info>>,
+    pub mint_authority: UncheckedAccount<'info>,
     #[account(mut)]
-    pub token_mint: Option<Box<Account<'info, Mint>>>,
+    pub token_mint: Box<Account<'info, Mint>>,
     /// CHECK:
     #[account(mut)]
     pub escrow_account: UncheckedAccount<'info>,
     #[account(mut)]
-    pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    pub receiver_token_account: Box<Account<'info, TokenAccount>>,
     /// CHECK:
     #[account(mut)]
-    pub fee_collector: Option<UncheckedAccount<'info>>,
+    pub fee_collector: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
