@@ -21,6 +21,8 @@ mod tests;
 
 #[program]
 pub mod restaking_v2 {
+    use std::collections::BTreeSet;
+
     use anchor_spl::token::{Burn, MintTo, Transfer};
     use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 
@@ -35,6 +37,23 @@ pub mod restaking_v2 {
         msg!("Initializng Restaking program");
 
         let common_state = &mut ctx.accounts.common_state;
+
+        let mut address_set = BTreeSet::new();
+        let is_token_list_unique = whitelisted_tokens
+            .iter()
+            .all(|token_payload| address_set.insert(token_payload.address));
+
+        if !is_token_list_unique {
+            return Err(error!(ErrorCodes::TokenListContainDuplicates));
+        }
+
+        address_set = BTreeSet::new();
+        let is_validator_list_unique = initial_validators
+            .iter()
+            .all(|validator| address_set.insert(*validator));
+        if !is_validator_list_unique {
+            return Err(error!(ErrorCodes::ValidatorListContainDuplicates));
+        }
 
         common_state.admin = ctx.accounts.admin.key();
         common_state.whitelisted_tokens =
@@ -110,14 +129,14 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
 
-            (whitelisted_token.latest_price * amount)
-                / 10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount) /
+                10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -239,13 +258,13 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec)
-                > whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
-            (whitelisted_token.latest_price * amount)
-                / 10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount) /
+                10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -345,6 +364,15 @@ pub mod restaking_v2 {
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.common_state;
 
+        let mut token_address_set = BTreeSet::new();
+        let is_token_list_unique = new_token_mints
+            .iter()
+            .all(|token_mint| token_address_set.insert(token_mint.address));
+
+        if !is_token_list_unique {
+            return Err(error!(ErrorCodes::TokenListContainDuplicates));
+        }
+
         let contains_mint = new_token_mints.iter().any(|token_mint| {
             staking_params.whitelisted_tokens.iter().any(
                 |whitelisted_token_mint| {
@@ -378,6 +406,14 @@ pub mod restaking_v2 {
         new_validators: Vec<Pubkey>,
     ) -> Result<()> {
         let staking_params = &mut ctx.accounts.common_state;
+
+        let mut address_set = BTreeSet::new();
+        let is_validator_list_unique = new_validators
+            .iter()
+            .all(|validator| address_set.insert(*validator));
+        if !is_validator_list_unique {
+            return Err(error!(ErrorCodes::ValidatorListContainDuplicates));
+        }
 
         let contains_validator = new_validators
             .iter()
@@ -441,13 +477,13 @@ pub mod restaking_v2 {
 
         // since the exponents are predominanlty negative, we switch the exponents and convert
         // them to absolute value.
-        let final_amount_in_sol = (token_price.price as i128
-            * 10_i128.pow(sol_price.exponent.abs().try_into().unwrap())
-            * 10i128.pow(SOL_DECIMALS as u32))
-            as f64
-            / (sol_price.price as i128
-                * 10_i128.pow(token_price.exponent.abs().try_into().unwrap())
-                * 10i128.pow(token_decimals as u32)) as f64;
+        let final_amount_in_sol = (token_price.price as i128 *
+            10_i128.pow(sol_price.exponent.abs().try_into().unwrap()) *
+            10i128.pow(SOL_DECIMALS as u32))
+            as f64 /
+            (sol_price.price as i128 *
+                10_i128.pow(token_price.exponent.abs().try_into().unwrap()) *
+                10i128.pow(token_decimals as u32)) as f64;
 
         let multipled_price =
             final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);
@@ -475,9 +511,9 @@ pub mod restaking_v2 {
             .map(|(validator_idx, amount)| {
                 let amount = *amount as i128;
                 let validator = validators[validator_idx];
-                let change_in_stake = (previous_price as i128
-                    - final_amount_in_sol as i128)
-                    * amount;
+                let change_in_stake = (previous_price as i128 -
+                    final_amount_in_sol as i128) *
+                    amount;
                 (sigverify::ed25519::PubKey::from(validator), change_in_stake)
             })
             .collect();
@@ -738,4 +774,8 @@ pub enum ErrorCodes {
     OracleAddressNotFound,
     #[msg("The oracle price has not been updated yet")]
     PriceTooStale,
+    #[msg("The token list in the instruction argument contain duplicates")]
+    TokenListContainDuplicates,
+    #[msg("The validator list in the instruction argument contain duplicates")]
+    ValidatorListContainDuplicates,
 }

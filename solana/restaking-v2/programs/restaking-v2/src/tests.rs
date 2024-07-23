@@ -254,7 +254,7 @@ fn restaking_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..Default::default()
         })?;
-    
+
     let common_state_data: CommonState = program.account(common_state).unwrap();
 
     println!("\n{:?}\n", common_state_data);
