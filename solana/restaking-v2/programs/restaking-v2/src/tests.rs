@@ -15,7 +15,7 @@ use anyhow::Result;
 use pyth_solana_receiver_sdk::price_update::get_feed_id_from_hex;
 use spl_token::instruction::initialize_mint2;
 
-use crate::{NewTokenPayload, SOL_PRICE_FEED_ID};
+use crate::{CommonState, NewTokenPayload, SOL_PRICE_FEED_ID};
 
 const PYTH_PROGRAM_ID: &str = "pythWSnswVUd12oZpeFP8e9CVaEqJg25g1Vtc2biRsT";
 
@@ -254,6 +254,10 @@ fn restaking_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..Default::default()
         })?;
+    
+    let common_state_data: CommonState = program.account(common_state).unwrap();
+
+    println!("\n{:?}\n", common_state_data);
 
     let staker_token_acc_balance_after = sol_rpc_client
         .get_token_account_balance(&associated_token_addr)

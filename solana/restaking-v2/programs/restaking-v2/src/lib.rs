@@ -57,11 +57,14 @@ pub mod restaking_v2 {
 
         let stake_token_mint = &ctx.accounts.token_mint.key();
 
-        let whitelisted_token = common_state
+        let whitelisted_token_idx = common_state
             .whitelisted_tokens
             .iter()
-            .find(|x| &x.address == stake_token_mint)
+            .position(|x| &x.address == stake_token_mint)
             .ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
+
+        let whitelisted_token =
+            &common_state.whitelisted_tokens[whitelisted_token_idx];
 
         if ctx.accounts.staker_token_account.amount < amount {
             return Err(error!(ErrorCodes::NotEnoughTokensToStake));
@@ -107,14 +110,14 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec) >
-                whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec)
+                > whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
 
-            (whitelisted_token.latest_price * amount) /
-                10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount)
+                / 10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -151,6 +154,22 @@ pub mod restaking_v2 {
             })
             .collect::<Vec<_>>();
 
+        let delegations_len = common_state.whitelisted_tokens
+            [whitelisted_token_idx]
+            .delegations
+            .len();
+
+        set_stake_arg.iter().enumerate().for_each(|(index, validator)| {
+            if delegations_len <= index {
+                common_state.whitelisted_tokens[whitelisted_token_idx]
+                    .delegations
+                    .push(validator.1 as u128)
+            } else {
+                common_state.whitelisted_tokens[whitelisted_token_idx]
+                    .delegations[index] += validator.1 as u128
+            }
+        });
+
         solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
         Ok(())
@@ -167,11 +186,14 @@ pub mod restaking_v2 {
 
         let stake_token_mint = &ctx.accounts.token_mint.key();
 
-        let whitelisted_token = common_state
+        let whitelisted_token_idx = common_state
             .whitelisted_tokens
             .iter()
-            .find(|x| &x.address == stake_token_mint)
+            .position(|x| &x.address == stake_token_mint)
             .ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
+
+        let whitelisted_token =
+            &common_state.whitelisted_tokens[whitelisted_token_idx];
 
         let bump = ctx.bumps.common_state;
         let seeds = [COMMON_SEED, core::slice::from_ref(&bump)];
@@ -217,13 +239,13 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec) >
-                whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec)
+                > whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
-            (whitelisted_token.latest_price * amount) /
-                10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount)
+                / 10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -262,6 +284,11 @@ pub mod restaking_v2 {
                 )
             })
             .collect::<Vec<_>>();
+
+        set_stake_arg.iter().enumerate().for_each(|(index, validator)| {
+            common_state.whitelisted_tokens[whitelisted_token_idx]
+                .delegations[index] -= validator.1.abs() as u128;
+        });
 
         solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
@@ -414,13 +441,13 @@ pub mod restaking_v2 {
 
         // since the exponents are predominanlty negative, we switch the exponents and convert
         // them to absolute value.
-        let final_amount_in_sol = (token_price.price as i128 *
-            10_i128.pow(sol_price.exponent.abs().try_into().unwrap()) *
-            10i128.pow(SOL_DECIMALS as u32))
-            as f64 /
-            (sol_price.price as i128 *
-                10_i128.pow(token_price.exponent.abs().try_into().unwrap()) *
-                10i128.pow(token_decimals as u32)) as f64;
+        let final_amount_in_sol = (token_price.price as i128
+            * 10_i128.pow(sol_price.exponent.abs().try_into().unwrap())
+            * 10i128.pow(SOL_DECIMALS as u32))
+            as f64
+            / (sol_price.price as i128
+                * 10_i128.pow(token_price.exponent.abs().try_into().unwrap())
+                * 10i128.pow(token_decimals as u32)) as f64;
 
         let multipled_price =
             final_amount_in_sol * 10f64.powi(SOL_DECIMALS as i32);
@@ -444,12 +471,13 @@ pub mod restaking_v2 {
         let set_stake_arg = staked_token
             .delegations
             .iter()
-            .map(|&(validator_idx, amount)| {
-                let amount = amount as i128;
-                let validator = validators[validator_idx as usize];
-                let change_in_stake = (previous_price as i128 -
-                    final_amount_in_sol as i128) *
-                    amount;
+            .enumerate()
+            .map(|(validator_idx, amount)| {
+                let amount = *amount as i128;
+                let validator = validators[validator_idx];
+                let change_in_stake = (previous_price as i128
+                    - final_amount_in_sol as i128)
+                    * amount;
                 (sigverify::ed25519::PubKey::from(validator), change_in_stake)
             })
             .collect();
@@ -661,7 +689,7 @@ pub struct StakeToken {
     /// The frequency at which the price should be updated.
     pub update_frequency_in_sec: u64, // 8
     /// mapping of the validator index with their stake in the above token
-    pub delegations: Vec<(u8, u128)>, // n * (1 + 16)
+    pub delegations: Vec<u128>, // n * 16
 }
 
 impl From<NewTokenPayload> for StakeToken {
@@ -679,6 +707,7 @@ impl From<NewTokenPayload> for StakeToken {
 }
 
 #[account]
+#[derive(Debug)]
 pub struct CommonState {
     pub admin: Pubkey,
     pub whitelisted_tokens: Vec<StakeToken>,
