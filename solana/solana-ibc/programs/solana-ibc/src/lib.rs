@@ -458,16 +458,16 @@ pub mod solana_ibc {
 
         let fee_collector =
             ctx.accounts.fee_collector.as_ref().unwrap().to_account_info();
-        let sender = ctx.accounts.sender.to_account_info();
+        let fee_payer = ctx.accounts.fee_payer.to_account_info();
         let system_program = ctx.accounts.system_program.to_account_info();
 
         solana_program::program::invoke(
             &solana_program::system_instruction::transfer(
-                &sender.key(),
+                &fee_payer.key(),
                 &fee_collector.key(),
                 fee_amount,
             ),
-            &[sender.clone(), fee_collector.clone(), system_program.clone()],
+            &[fee_payer.clone(), fee_collector.clone(), system_program.clone()],
         )?;
 
         ibc::apps::transfer::handler::send_transfer(
@@ -757,6 +757,9 @@ pub struct MockDeliver<'info> {
 #[instruction(hashed_full_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
+    fee_payer: Signer<'info>,
+
+    #[account(mut)]
     sender: Signer<'info>,
 
     #[account(mut)]
@@ -781,14 +784,14 @@ pub struct SendTransfer<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    #[account(init_if_needed, payer = sender, seeds = [
+    #[account(init_if_needed, payer = fee_payer, seeds = [
         ESCROW, hashed_full_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, associated_token::mint = token_mint, associated_token::authority = sender)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
-    #[account(init_if_needed, payer = sender, seeds = [FEE_SEED], bump, space = 0)]
+    #[account(init_if_needed, payer = fee_payer, seeds = [FEE_SEED], bump, space = 0)]
     /// CHECK:
     fee_collector: Option<UncheckedAccount<'info>>,
 
@@ -887,6 +890,9 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
         Pubkey::new_from_array(hex_literal::hex!(
             "a1d0177376e0e90b580181247c1a63b73e473b47bc5b06f70a6a4844e0b05015"
         )),
+        Pubkey::new_from_array(hex_literal::hex!(
+            "d52008b8539f6fcf99629e0bc4c7b240123b3dd1e6f195c200f95758204934e4"
+        )),
     ];
     match expected_program_ids.contains(program_id) {
         false => Err(error::Error::InvalidCPICall.into()),
@@ -898,8 +904,10 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
 fn test_staking_program() {
     const GOOD_ONE: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
     const GOOD_TWO: &str = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg";
+    const GOOD_THREE: &str = "FLxAuGfjKZFFBjxYSTYcgJ1W5LJSUU1NrAViRNAskRfq";
     const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
     check_staking_program(&GOOD_ONE.parse().unwrap()).unwrap();
     check_staking_program(&GOOD_TWO.parse().unwrap()).unwrap();
+    check_staking_program(&GOOD_THREE.parse().unwrap()).unwrap();
     check_staking_program(&BAD.parse().unwrap()).unwrap_err();
 }

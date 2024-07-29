@@ -146,7 +146,7 @@ pub mod restaking_v2 {
         let stake_per_validator = amount / validators_len;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
-            sender: ctx.accounts.staker.to_account_info(),
+            sender: ctx.accounts.fee_payer.to_account_info(),
             chain: ctx.accounts.chain.to_account_info(),
             trie: ctx.accounts.trie.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
