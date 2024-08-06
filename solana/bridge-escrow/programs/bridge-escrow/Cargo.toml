@@ -18,6 +18,7 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
+anyhow.workspace = true
 anchor-lang.workspace = true
 anchor-spl = { workspace = true, features = ["metadata"] }
 base64.workspace = true
