@@ -117,7 +117,7 @@ a rollup, this means that nodes executing L2 transactions cannot
 prevent users from submitting their requests.
 
 In Mantis this is going to be achieved by allowing users to submit L2
-transactions on L1.  This way, rollup will inherit censorship
+transactions on L1.  This way, the rollup will inherit censorship
 resistance of L1.
 
 For this to work, L1 needs a way to force L2 to execute a transaction.
@@ -137,20 +137,20 @@ dies and stops operating.
 
 In Mantis, we are going to implement it by having L1 maintain balances
 of accounts on L2.  Thanks to transaction proofs and state proofs this
-will be possible without L1 contract having to reply the whole history
-of the rollup.
+will be possible without the L1 contract having to reply the whole
+history of the rollup.
 
-Together with aforementioned mechanism of the light client rejecting
-client updates, this will allow light client on L1 to give assets to
-the user without wait for confirmation from L2 that the assets were
-burnt there.
+Together with the aforementioned mechanism of the light client
+rejecting client updates, this will allow the light client on L1 to
+give assets to the user without waiting for confirmation from L2 that
+the assets were burnt there.
 
 Of course this will need careful consideration to prevent double
-spending (once on L1 and once on L2).  This will solved by introducing
-a long delay during which L1 can confirm that L2 is indeed not
-operational.  Normally high latency would be a bad user experience,
-but in this case it is not an issue since forced withdrawals are not
-executed as part of normal rollup usage.
+spending (once on L1 and once on L2).  This will be solved by
+introducing a long delay during which L1 can confirm that L2 is indeed
+not operational.  Normally high latency would be a bad user
+experience, but in this case it is not an issue since forced
+withdrawals are not executed as part of normal rollup usage.
 
 Implementation of this mechanism is a **phase four** of Mantis
 rollup.
@@ -160,5 +160,5 @@ rollup.
 
 The Mantis rollup leverages the power of IBC and SVM to achieve fast
 and secure transactions.  This novel approach has the potential to
-revolutionise Solana rollups landscape, paving the way for a more
+revolutionise the Solana rollups landscape, paving the way for a more
 efficient and user-friendly settlement framework.
