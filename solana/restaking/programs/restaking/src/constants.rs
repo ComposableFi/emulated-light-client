@@ -9,6 +9,9 @@ pub const TOKEN_NAME: &str = "Composable Restaking Position";
 pub const TOKEN_SYMBOL: &str = "CRP";
 pub const TOKEN_URI: &str =
     "https://arweave.net/QbxPlvN1nHFG0AVXfGNdlXUk-LEkrQxFffI3fOUDciA";
+pub const SOL_PRICE_FEED_ID: &str =
+    "0xef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+pub const SOL_DECIMALS: u8 = 9;
 
 /// Period of time funds are held until they can be withdrawn.
 ///

@@ -88,6 +88,41 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
             &receipt_token_key,
         );
     log::info!("This is priority fee {:?}", config.priority_fees);
+
+    let staking_parameters: restaking::StakingParams =
+        program.account(staking_params).unwrap();
+
+    let whitelisted_token_index = staking_parameters
+        .whitelisted_tokens
+        .iter()
+        .position(|&whitelisted_token_mint| {
+            whitelisted_token_mint == token_mint
+        })
+        .expect("Token is not whitelisted");
+
+    let sol_price_feed_id = restaking::constants::SOL_PRICE_FEED_ID.to_string();
+
+    let token_feed_id = staking_parameters
+        .token_oracle_addresses
+        .get(whitelisted_token_index)
+        .unwrap_or(&sol_price_feed_id);
+
+    let (token_price_update_acc, _bump) = Pubkey::find_program_address(
+        &[
+            0u8.to_le_bytes().as_ref(), // SHARD ID
+            token_feed_id.as_bytes(),
+        ],
+        &pyth_solana_receiver_sdk::ID,
+    );
+
+    let (sol_price_update_acc, _bump) = Pubkey::find_program_address(
+        &[
+            0u8.to_le_bytes().as_ref(), // SHARD ID
+            sol_price_feed_id.as_bytes(),
+        ],
+        &pyth_solana_receiver_sdk::ID,
+    );
+
     for tries in 1..6 {
         let tx = program
             .request()
@@ -115,6 +150,8 @@ pub fn stake(config: Config, amount: u64, token_mint: Pubkey) {
                     anchor_lang::solana_program::sysvar::instructions::ID,
                 master_edition_account,
                 nft_metadata,
+                token_price_update: token_price_update_acc,
+                sol_price_update: sol_price_update_acc,
             })
             .accounts(vec![
                 AccountMeta {
