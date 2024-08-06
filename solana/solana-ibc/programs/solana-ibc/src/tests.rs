@@ -520,6 +520,7 @@ fn anchor_test_deliver() -> Result<()> {
             1_000_000u32,
         ))
         .accounts(accounts::SendTransfer {
+            fee_payer: authority.pubkey(),
             sender: authority.pubkey(),
             receiver: Some(receiver.pubkey()),
             storage,
@@ -675,6 +676,7 @@ fn anchor_test_deliver() -> Result<()> {
             1_000_000u32,
         ))
         .accounts(accounts::SendTransfer {
+            fee_payer: authority.pubkey(),
             sender: receiver.pubkey(),
             receiver: Some(authority.pubkey()),
             storage,
