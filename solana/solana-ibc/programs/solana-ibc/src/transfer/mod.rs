@@ -3,6 +3,8 @@ use std::str;
 
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
+use spl_token::solana_program::instruction::Instruction;
+use spl_token::solana_program::program::invoke;
 
 use crate::ibc;
 use crate::ibc::apps::transfer::types::packet::PacketData;
@@ -142,12 +144,67 @@ impl ibc::Module for IbcStorage<'_, '_> {
             .into_bytes(),
             ..packet.clone()
         };
-        let (extras, ack) = ibc::apps::transfer::module::on_recv_packet_execute(
-            self,
-            &maybe_ft_packet,
-        );
-        let ack_status = str::from_utf8(ack.as_bytes())
+        let (extras, mut ack) =
+            ibc::apps::transfer::module::on_recv_packet_execute(
+                self,
+                &maybe_ft_packet,
+            );
+        let cloned_ack = ack.clone();
+        let ack_status = str::from_utf8(cloned_ack.as_bytes())
             .expect("Invalid acknowledgement string");
+        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
+            ack.as_bytes(),
+        );
+        let success = if let Ok(status) = status {
+            status.is_successful()
+        } else {
+            ack = ibc::AcknowledgementStatus::error(
+                ibc::TokenTransferError::AckDeserialization.into(),
+            )
+            .into();
+            false
+        };
+        if success {
+            // Perform hooks
+            let store = self.borrow();
+            let data = match serde_json::from_slice::<PacketData>(
+                &maybe_ft_packet.data,
+            ) {
+                Ok(data) => data,
+                Err(_) => {
+                    ack = ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::PacketDataDeserialization
+                            .into(),
+                    )
+                    .into();
+                    return (extras, ack.into());
+                }
+            };
+            let memo = data.memo;
+            let instruction = serde_json::from_slice::<Instruction>(
+                &memo.as_ref().as_bytes(),
+            );
+            match instruction {
+                Ok(ix) => {
+                    match invoke(&ix, &store.accounts.remaining_accounts) {
+                        Ok(_) => (),
+                        Err(err) => {
+                            ack = ibc::AcknowledgementStatus::error(
+                                ibc::TokenTransferError::Other(err.to_string())
+                                    .into(),
+                            )
+                            .into();
+                        }
+                    }
+                }
+                Err(err) => {
+                    ack = ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::Other(err.to_string()).into(),
+                    )
+                    .into()
+                }
+            };
+        }
         msg!("ibc::Packet acknowledgement: {}", ack_status);
         (extras, ack)
     }

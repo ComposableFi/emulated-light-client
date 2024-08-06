@@ -433,8 +433,8 @@ pub mod solana_ibc {
     /// doesnt exists.
     ///
     /// Would panic if it doesnt match the one that is in the packet
-    pub fn send_transfer(
-        ctx: Context<SendTransfer>,
+    pub fn send_transfer<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, SendTransfer<'info>>,
         hashed_full_denom: CryptoHash,
         msg: ibc::MsgTransfer,
     ) -> Result<()> {
