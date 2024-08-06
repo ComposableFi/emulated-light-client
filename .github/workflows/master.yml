@@ -9,6 +9,10 @@ on:
       - master
 
 env:
+  # Rust 1.80 breaks `time` dependency.  We have updated *our* dependency but
+  # Anchor CLI 0.29 uses old `time` which doesn’t compile with new Rust.
+  # Because of that, we limit the stable Rust version to 1.79.
+  RUST_STABLE_VERSION: 1.79
   SOLANA_VERSION: v1.17.7
   ANCHOR_VERSION: 0.29.0
 
@@ -80,7 +84,7 @@ jobs:
         id: install-rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_STABLE_VERSION }}
           components: rustfmt
 
       - name: Install Protoc
@@ -140,7 +144,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_STABLE_VERSION }}
           components: rustfmt
 
       - name: Install Protoc
