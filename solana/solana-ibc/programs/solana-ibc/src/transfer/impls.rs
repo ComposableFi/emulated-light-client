@@ -4,9 +4,11 @@ use std::str::FromStr;
 use ::ibc::apps::transfer::types::PrefixedDenom;
 use anchor_lang::prelude::{CpiContext, Pubkey};
 use anchor_lang::solana_program::msg;
-use anchor_spl::token::{Burn, MintTo, Transfer};
+use anchor_spl::token::{Burn, CloseAccount, MintTo, Transfer};
 use lib::hash::CryptoHash;
 use primitive_types::U256;
+use spl_token::solana_program::rent::Rent;
+use spl_token::solana_program::sysvar::Sysvar;
 
 use crate::ibc::apps::transfer::context::{
     TokenTransferExecutionContext, TokenTransferValidationContext,
@@ -504,6 +506,10 @@ impl IbcStorage<'_, '_> {
             .as_ref()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
+        let rent = Rent::get().unwrap();
+        let escrow_account_rent =
+            rent.minimum_balance(escrow_account.data_len());
+
         let (sender, receiver, authority) = match op {
             EscrowOp::Escrow => {
                 let auth = accounts
@@ -525,6 +531,25 @@ impl IbcStorage<'_, '_> {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
+        // Close the wsol account so that the receiver gets the amount in native SOL
+        // instead of wrapped SOL which is unusable if the wallet doesnt have any
+        // SOL to pay for the fees.
+        if matches!(op, EscrowOp::Unescrow) &&
+            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+        {
+            let receiver = accounts
+                .receiver
+                .as_ref()
+                .ok_or(TokenTransferError::ParseAccountFailure)?;
+            let mint_authority = accounts
+                .mint_authority
+                .as_ref()
+                .ok_or(TokenTransferError::ParseAccountFailure)?;
+            **mint_authority.try_borrow_mut_lamports().unwrap() -= amount;
+            **receiver.try_borrow_mut_lamports().unwrap() += amount;
+            return Ok(());
+        }
+
         // Below is the actual instruction that we are going to send to the Token program.
         let transfer_instruction = Transfer {
             from: sender.clone(),
@@ -536,8 +561,48 @@ impl IbcStorage<'_, '_> {
             transfer_instruction,
             seeds, //signer PDA
         );
-
         anchor_spl::token::transfer(cpi_ctx, amount).unwrap();
+
+        // Closing the wsol account after transferring the amount to the escrow
+        // so that the escrow account holds the wsol deposits in native SOL which
+        // can be transferred to the receiver instead of sending wrapped sol.
+        if matches!(op, EscrowOp::Escrow) &&
+            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+        {
+            let mint_authority = accounts
+                .mint_authority
+                .as_ref()
+                .ok_or(TokenTransferError::ParseAccountFailure)?;
+            let sender = accounts
+                .sender
+                .as_ref()
+                .ok_or(TokenTransferError::ParseAccountFailure)?;
+            let close_account_ix_accs = CloseAccount {
+                account: receiver.clone(),
+                destination: mint_authority.clone(),
+                authority: mint_authority.clone(),
+            };
+            let cpi_ctx = CpiContext::new_with_signer(
+                token_program.clone(),
+                close_account_ix_accs,
+                seeds,
+            );
+            msg!(
+                "Mint authority {} sender {} and rent {}",
+                mint_authority.key,
+                sender.key,
+                escrow_account_rent
+            );
+            anchor_spl::token::close_account(cpi_ctx).unwrap();
+            // Closing the account transfers all the lamports to the
+            // destination account including the initial rent paid
+            // for creation of the account by the sender. So we need
+            // to transfer the rent back to the sender.
+            **mint_authority.try_borrow_mut_lamports().unwrap() -=
+                escrow_account_rent;
+            **sender.try_borrow_mut_lamports().unwrap() += escrow_account_rent;
+        }
+
         Ok(())
     }
 }

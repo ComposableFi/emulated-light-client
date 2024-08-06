@@ -1,8 +1,8 @@
 [package]
 name = "solana-trie-example"
 authors = ["Michal Nazarewicz <mina86@mina86.com>"]
-version = "0.0.0"
 edition = "2021"
+version.workspace = true
 
 [lib]
 name = "trie"
