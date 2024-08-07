@@ -28,145 +28,93 @@ declare_id!("8t5dMbZuGsUtcX7JZpCN8kfPnt8e6VSc3XGepVTMUig4");
 pub mod bridge_escrow {
     use super::*;
 
-    pub fn send_funds_to_user(
-        ctx: Context<SplTokenTransfer>,
-        amount: u64,
-        hashed_full_denom: CryptoHash,
+    pub fn initialize(
+        ctx: Context<Initialize>,
     ) -> Result<()> {
-        let destination_account = &ctx.accounts.destination_token_account;
-        let source_account = &ctx.accounts.source_token_account;
-        let token_program = &ctx.accounts.token_program;
-        let authority = &ctx.accounts.authority;
+        // store the auctioner
+        let auctioner = &mut ctx.accounts.auctioner;
+        auctioner.authority = *ctx.accounts.authority.key;
+        Ok(())
+    }
 
-        // Transfer tokens from solver to user
-        let cpi_accounts = SplTransfer {
-            from: source_account.to_account_info().clone(),
-            to: destination_account.to_account_info().clone(),
-            authority: authority.to_account_info().clone(),
-        };
-        let cpi_program = token_program.to_account_info();
-
-        let my_custom_memo = format!(
-            "{},{},{},{}",
-            source_account.key(),
-            destination_account.key(),
-            authority.key(),
-            token_program.key()
+    pub fn store_intent(
+        ctx: Context<StoreIntent>,
+        intent_id: String,
+        user_in: Pubkey,
+        token_in: Pubkey,
+        amount_in: u64,
+        token_out: String,
+        amount_out: String,
+        winner_solver: Pubkey,
+    ) -> Result<()> {
+        // verify if caller is auctioner
+        let auctioner = &ctx.accounts.auctioner;
+        require!(
+            *ctx.accounts.authority.key == auctioner.authority,
+            ErrorCode::Unauthorized
         );
 
-        // Invoke SPL token transfer
-        token::transfer(CpiContext::new(cpi_program, cpi_accounts), amount)?;
-
-        let token_mint = ctx.accounts.token_mint.to_account_info();
-
-        // Cross-chain transfer + memo
-        let transfer_ctx = CpiContext::new(
-            ctx.accounts.ibc_program.to_account_info().clone(),
-            SendTransfer {
-                sender: authority.to_account_info().clone(),
-                receiver: Some(ctx.accounts.receiver.to_account_info()),
-                storage: ctx.accounts.storage.to_account_info().clone(),
-                trie: ctx.accounts.trie.to_account_info().clone(),
-                chain: ctx.accounts.chain.to_account_info().clone(),
-                mint_authority: Some(
-                    ctx.accounts.mint_authority.to_account_info(),
-                ),
-                token_mint: Some(ctx.accounts.token_mint.to_account_info()),
-                escrow_account: Some(
-                    ctx.accounts.escrow_account.to_account_info(),
-                ),
-                receiver_token_account: Some(
-                    ctx.accounts.receiver_token_account.to_account_info(),
-                ),
-                fee_collector: Some(
-                    ctx.accounts.fee_collector.to_account_info(),
-                ),
-                token_program: Some(
-                    ctx.accounts.token_program.to_account_info().clone(),
-                ),
-                system_program: ctx
-                    .accounts
-                    .system_program
-                    .to_account_info()
-                    .clone(),
-            },
-        );
-
-        let memo = "{\"forward\":{\"receiver\":\"\
-                    0x4c22af5da4a849a8f39be00eb1b44676ac5c9060\",\"port\":\"\
-                    transfer\",\"channel\":\"channel-52\",\"timeout\":\
-                    600000000000000,\"next\":{\"memo\":\"my-custom-msg\"}}}"
-            .to_string();
-        let memo = memo.replace("my-custom-msg", &my_custom_memo);
-
-        // MsgTransfer
-        let msg = MsgTransfer {
-            port_id_on_a: PortId::from_str("transfer").unwrap(),
-            chan_id_on_a: ChannelId::from_str("channel-0").unwrap(),
-            packet_data: PacketData {
-                token: PrefixedCoin {
-                    denom: PrefixedDenom::from_str(
-                        &token_mint.key().to_string(),
-                    )
-                    .unwrap(), // token only owned by this PDA
-                    amount: 1.into(),
-                },
-                sender: IbcSigner::from(
-                    ctx.accounts.authority.key().to_string(),
-                ),
-                receiver: String::from("pfm").into(),
-                memo: memo.into(),
-            },
-            timeout_height_on_b: At(Height::new(2018502000, 29340670).unwrap()),
-            timeout_timestamp_on_b: Timestamp::from_nanoseconds(
-                1000000000000000000,
-            )
-            .unwrap(),
-        };
-
-        send_transfer(transfer_ctx, hashed_full_denom, msg)?;
+        // save intent on a PDA derived from the auctioner account
+        let intent = &mut ctx.accounts.intent;
+        intent.intent_id = intent_id;
+        intent.user = *ctx.accounts.authority.key;
+        intent.user_in = user_in;
+        intent.token_in = token_in;
+        intent.amount_in = amount_in;
+        intent.token_out = token_out;
+        intent.amount_out = amount_out;
+        intent.winner_solver = winner_solver;
 
         Ok(())
     }
 }
 
-// Accounts for transferring SPL tokens
+// Define the Auctioner account
+#[account]
+pub struct Auctioner {
+    pub authority: Pubkey,
+}
+
+// Define the Intent account
+#[account]
+pub struct Intent {
+    pub intent_id: String,
+    pub user: Pubkey,
+    pub user_in: Pubkey,
+    pub token_in: Pubkey,
+    pub amount_in: u64,
+    pub token_out: String, // 20 bytes
+    pub amount_out: String, // 20 bytes
+    pub winner_solver: Pubkey,
+}
+
+// Define the context for initializing the program
 #[derive(Accounts)]
-pub struct SplTokenTransfer<'info> {
+#[instruction()]
+pub struct Initialize<'info> {
+    #[account(init, seeds = [b"auctioner"], bump, payer = authority, space = 8 + 32)]
+    pub auctioner: Account<'info, Auctioner>,
     #[account(mut)]
     pub authority: Signer<'info>,
-    // SPL Token Transfer Accounts
-    #[account(mut)]
-    pub source_token_account: Account<'info, TokenAccount>,
-    // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
-    #[account(mut)]
-    pub destination_token_account: Account<'info, TokenAccount>,
-    // Cross-chain Transfer Accounts
-    pub ibc_program: Program<'info, SolanaIbc>, // Use IbcProgram here
-    #[account(mut)]
-    /// CHECK:
-    pub receiver: AccountInfo<'info>,
-    #[account(mut)]
-    pub storage: Account<'info, PrivateStorage>,
-    /// CHECK:
-    #[account(mut)]
-    pub trie: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub chain: Box<Account<'info, chain::ChainData>>,
-    /// CHECK:
-    #[account(mut)]
-    pub mint_authority: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>,
-    /// CHECK:
-    #[account(mut)]
-    pub escrow_account: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub receiver_token_account: Box<Account<'info, TokenAccount>>,
-    /// CHECK:
-    #[account(mut)]
-    pub fee_collector: UncheckedAccount<'info>,
-    pub token_program: Program<'info, Token>,
-    pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+}
+
+// Define the context for storing intent
+#[derive(Accounts)]
+#[instruction(intent_id: String)]
+pub struct StoreIntent<'info> {
+    #[account(init_if_needed, seeds = [b"intent", auctioner.key().as_ref(), intent_id.as_bytes()], bump, payer = authority, space = 8 + 32 * 4 + 8 + 40 + 20 + 20)]
+    pub intent: Account<'info, Intent>,
+    #[account(seeds = [b"auctioner"], bump)]
+    pub auctioner: Account<'info, Auctioner>,
+    #[account(mut)]
+    pub authority: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+// Define custom errors
+#[error_code]
+pub enum ErrorCode {
+    #[msg("You are not authorized to perform this action.")]
+    Unauthorized,
 }
