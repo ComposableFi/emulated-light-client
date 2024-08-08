@@ -18,9 +18,10 @@ use solana_ibc::cpi::accounts::SendTransfer;
 use solana_ibc::cpi::send_transfer;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
+use anchor_lang::solana_program;
 
 const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
-const BRIDGE_CONTRACT_PUBKEY: &str = "your_bridge_contract_pubkey"; 
+// const BRIDGE_CONTRACT_PUBKEY: &str = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"; 
 
 #[cfg(test)]
 mod tests;
@@ -30,6 +31,25 @@ declare_id!("8t5dMbZuGsUtcX7JZpCN8kfPnt8e6VSc3XGepVTMUig4");
 #[program]
 pub mod bridge_escrow {
     use super::*;
+
+    pub fn escrow_funds(
+        ctx: Context<EscrowFunds>,
+        amount: u64,
+    ) -> Result<()> {
+        // Transfer SPL tokens from the user's account to the auctioner's account
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.user_token_account.to_account_info(),
+            to: ctx.accounts.auctioner_token_account.to_account_info(),
+            authority: ctx.accounts.user.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        
+        token::transfer(cpi_ctx, amount)?;
+
+        Ok(())
+    }
 
     pub fn initialize(
         ctx: Context<Initialize>,
@@ -71,36 +91,37 @@ pub mod bridge_escrow {
         Ok(())
     }
 
+    // ONLY bridge contract should call this function
+    /*
+        I assume this need to be done outside the Program to get the accounts
+
+        // Extract and validate the memo
+        let memo = msg.packet_data.memo.to_string();
+        let parts: Vec<&str> = memo.split(',').collect();
+        let (token_mint, amount, solver) = (parts[0], parts[1], parts[2]);
+
+        ctx.accounts.auctioner = get_token_account(token_mint, auctioner);
+        ctx.accounts.solver = get_token_account(token_mint, solver);
+     */
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
         msg: MsgTransfer,
     ) -> Result<()> {
-    // Ensure the message is from the bridge contract
-    let bridge_pubkey = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).map_err(|_| ErrorCode::InvalidBridgeContract)?;
-    require!(
-        ctx.accounts.bridge_contract.key == &bridge_pubkey,
-        ErrorCode::InvalidBridgeContract
-    );
-    
         // Extract and validate the memo
         let memo = msg.packet_data.memo.to_string();
         let parts: Vec<&str> = memo.split(',').collect();
-        let (from_token_account, to_token_account, amount_str) = (parts[0], parts[1], parts[2]);
-    
+
         require!(
             msg.packet_data.token.denom.base_denom.to_string() == DUMMY,
             ErrorCode::InvalidDenom
         );
+        let amount: u64 = parts[1].parse().map_err(|_| ErrorCode::InvalidAmount)?;
     
-        let from_to_pubkey = Pubkey::from_str(from_token_account).map_err(|_| ErrorCode::InvalidTokenAddress)?;
-        let to_token_pubkey = Pubkey::from_str(to_token_account).map_err(|_| ErrorCode::InvalidSolverAddress)?;
-        let amount: u64 = amount_str.parse().map_err(|_| ErrorCode::InvalidAmount)?;
-    
-        // Perform the token transfer
+        // Transfer tokens from Auctioner to Solver
         let cpi_accounts = SplTransfer {
-            from: ctx.accounts.token_account.to_account_info(),
-            to: ctx.accounts.receiver.to_account_info(),
-            authority: ctx.accounts.receiver.to_account_info(),
+            from: ctx.accounts.auctioner.to_account_info(),
+            to: ctx.accounts.solver.to_account_info(),
+            authority: ctx.accounts.auctioner.to_account_info(),
         };
     
         let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -111,6 +132,7 @@ pub mod bridge_escrow {
         Ok(())
     }
 
+    // this function is called by Solver
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         hashed_full_denom: CryptoHash,
@@ -129,16 +151,16 @@ pub mod bridge_escrow {
         // Transfer tokens from Solver to User
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.solver_token_in_account.to_account_info().clone(),
-            to: ctx.accounts.user_token_in_account.to_account_info().clone(),
+            to: ctx.accounts.auctioner_token_in_account.to_account_info().clone(),
             authority: authority.to_account_info().clone(),
         };
         let cpi_program = token_program.to_account_info();
         token::transfer(CpiContext::new(cpi_program, cpi_accounts), intent.amount_in)?;
 
         if single_domain {
-            // Transfer tokens from Solver to User
+            // Transfer tokens from Auctioner to Solver
             let cpi_accounts = SplTransfer {
-                from: ctx.accounts.user_token_out_account.to_account_info().clone(),
+                from: ctx.accounts.auctioner_token_out_account.to_account_info().clone(),
                 to: ctx.accounts.solver_token_out_account.to_account_info().clone(),
                 authority: authority.to_account_info().clone(),
             };
@@ -223,8 +245,11 @@ pub mod bridge_escrow {
             send_transfer(transfer_ctx, hashed_full_denom, msg)?;
         }
 
-        // delete intent
-
+        // Delete intent by closing the account
+        let intent_account_info = &mut ctx.accounts.intent.to_account_info();
+        **intent_account_info.try_borrow_mut_lamports()? = 0;
+        intent_account_info.data.borrow_mut().fill(0);
+        
         Ok(())
     }
     
@@ -251,7 +276,7 @@ pub struct Intent {
 
 impl Intent {
     pub const LEN: usize = 8  // discriminator
-        + 4 + 40  // intent_id: String (assuming a max length of 40 bytes)
+        + 4 + 8   // intent_id: String (assuming a max length of 8 bytes)
         + 32      // user: Pubkey
         + 32      // user_in: Pubkey
         + 32      // token_in: Pubkey
@@ -287,10 +312,14 @@ pub struct StoreIntent<'info> {
 
 #[derive(Accounts)]
 pub struct ReceiveTransferContext<'info> {
+    #[account(seeds = [b"auctioner"], bump)]
+    pub auctioner: Account<'info, Auctioner>,
     #[account(mut)]
-    pub receiver: Signer<'info>,
-    /// CHECK:
-    pub bridge_contract: AccountInfo<'info>,
+    pub solver: Signer<'info>,
+    #[account(address = solana_program::sysvar::instructions::ID)]
+    /// CHECK: Used for getting the caller program id to verify if the right
+    /// program is calling the method.
+    instruction: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     #[account(mut)]
     pub token_account: Account<'info, TokenAccount>,
@@ -305,12 +334,12 @@ pub struct SplTokenTransfer<'info> {
     pub intent: Account<'info, Intent>,
     #[account(seeds = [b"auctioner"], bump)]
     pub auctioner: Account<'info, Auctioner>,
-
     #[account(mut)]
     pub authority: Signer<'info>,
+
     // Solver -> User SPL Token Transfer Accounts
     #[account(mut)]
-    pub user_token_in_account: Account<'info, TokenAccount>,
+    pub auctioner_token_in_account: Account<'info, TokenAccount>,
     // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
     #[account(mut)]
     pub solver_token_in_account: Account<'info, TokenAccount>,
@@ -321,7 +350,7 @@ pub struct SplTokenTransfer<'info> {
     pub solver_token_out_account: Account<'info, TokenAccount>,
     // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
     #[account(mut)]
-    pub user_token_out_account: Account<'info, TokenAccount>,
+    pub auctioner_token_out_account: Account<'info, TokenAccount>,
 
 
     // Cross-chain Transfer Accounts
@@ -352,6 +381,17 @@ pub struct SplTokenTransfer<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct EscrowFunds<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut)]
+    pub user_token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub auctioner_token_account: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
 }
 
 
