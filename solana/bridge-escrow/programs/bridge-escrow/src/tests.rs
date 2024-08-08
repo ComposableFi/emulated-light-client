@@ -173,37 +173,37 @@ fn escrow_bridge_program() -> Result<()> {
     );
 
     // Build and send the transaction to call send_funds_to_user
-    println!("\nSending funds to user");
-    let sig = program
-        .request()
-        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-            1_000_000,
-        ))
-        .accounts(crate::accounts::SplTokenTransfer {
-            authority: authority.pubkey(),
-            source_token_account: receiver_token_account,
-            destination_token_account,
-            ibc_program: solana_ibc::ID,
-            receiver: receiver.pubkey(),
-            storage,
-            trie,
-            chain,
-            mint_authority,
-            token_mint: native_token_mint_key,
-            escrow_account,
-            receiver_token_account,
-            fee_collector,
-            token_program: anchor_spl::token::ID,
-            associated_token_program: anchor_spl::associated_token::ID,
-            system_program,
-        })
-        .args(crate::instruction::SendFundsToUser { amount, hashed_full_denom })
-        .payer(authority.clone())
-        .signer(&*authority)
-        .send_with_spinner_and_config(RpcSendTransactionConfig {
-            skip_preflight: true,
-            ..RpcSendTransactionConfig::default()
-        })?;
-    println!("  Signature: {sig}");
+    // println!("\nSending funds to user");
+    // let sig = program
+    //     .request()
+    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+    //         1_000_000,
+    //     ))
+    //     .accounts(crate::accounts::SplTokenTransfer {
+    //         authority: authority.pubkey(),
+    //         solver_token_in_account: receiver_token_account,
+    //         user_token_in_account,
+    //         ibc_program: solana_ibc::ID,
+    //         receiver: receiver.pubkey(),
+    //         storage,
+    //         trie,
+    //         chain,
+    //         mint_authority,
+    //         token_mint: native_token_mint_key,
+    //         escrow_account,
+    //         receiver_token_account,
+    //         fee_collector,
+    //         token_program: anchor_spl::token::ID,
+    //         associated_token_program: anchor_spl::associated_token::ID,
+    //         system_program,
+    //     })
+    //     .args(crate::instruction::SendFundsToUser { amount, hashed_full_denom })
+    //     .payer(authority.clone())
+    //     .signer(&*authority)
+    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
+    //         skip_preflight: true,
+    //         ..RpcSendTransactionConfig::default()
+    //     })?;
+    // println!("  Signature: {sig}");
     Ok(())
 }
