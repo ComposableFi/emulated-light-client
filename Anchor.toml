@@ -1,5 +1,7 @@
+[toolchain]
+
 [features]
-seeds = false
+resolution = true
 skip-lint = false
 
 [programs.devnet]
@@ -14,14 +16,11 @@ solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [workspace]
-members = [
-  "solana/restaking/programs/restaking",
-  "solana/solana-ibc/programs/solana-ibc"
-]
+members = ["solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
 
 [scripts]
 test = "./solana-test.sh"

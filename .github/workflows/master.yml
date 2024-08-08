@@ -13,8 +13,8 @@ env:
   # Anchor CLI 0.29 uses old `time` which doesn’t compile with new Rust.
   # Because of that, we limit the stable Rust version to 1.79.
   RUST_STABLE_VERSION: 1.79
-  SOLANA_VERSION: v1.17.7
-  ANCHOR_VERSION: 0.29.0
+  SOLANA_VERSION: v1.18.16
+  ANCHOR_VERSION: 0.30.1
 
 jobs:
   misc:
@@ -129,7 +129,7 @@ jobs:
         run: yarn global add ts-mocha typescript
 
       - name: Anchor Build (with mocks)
-        run: anchor build -- --features=mocks
+        run: anchor build --no-idl -- --features=mocks
 
       - name: Anchor Test
         run: anchor test --skip-build
