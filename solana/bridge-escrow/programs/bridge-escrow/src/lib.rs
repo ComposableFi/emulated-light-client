@@ -83,23 +83,21 @@ pub mod bridge_escrow {
     );
     
         // Extract and validate the memo
-        let parts: Vec<&str> = msg.packet_data.memo.to_string().split(',').collect();
-        if parts.len() != 3 {
-            return Err(ErrorCode::InvalidAmount);
-        }
-        let (token_str, solver_str, amount_str) = (parts[0], parts[1], parts[2]);
+        let memo = msg.packet_data.memo.to_string();
+        let parts: Vec<&str> = memo.split(',').collect();
+        let (from_token_account, to_token_account, amount_str) = (parts[0], parts[1], parts[2]);
     
         require!(
             msg.packet_data.token.denom.base_denom.to_string() == DUMMY,
             ErrorCode::InvalidDenom
         );
     
-        let token_pubkey = Pubkey::from_str(token_str).map_err(|_| ErrorCode::InvalidTokenAddress)?;
-        let solver_pubkey = Pubkey::from_str(solver_str).map_err(|_| ErrorCode::InvalidSolverAddress)?;
+        let from_to_pubkey = Pubkey::from_str(from_token_account).map_err(|_| ErrorCode::InvalidTokenAddress)?;
+        let to_token_pubkey = Pubkey::from_str(to_token_account).map_err(|_| ErrorCode::InvalidSolverAddress)?;
         let amount: u64 = amount_str.parse().map_err(|_| ErrorCode::InvalidAmount)?;
     
         // Perform the token transfer
-        let cpi_accounts = Transfer {
+        let cpi_accounts = SplTransfer {
             from: ctx.accounts.token_account.to_account_info(),
             to: ctx.accounts.receiver.to_account_info(),
             authority: ctx.accounts.receiver.to_account_info(),
@@ -291,6 +289,7 @@ pub struct StoreIntent<'info> {
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub receiver: Signer<'info>,
+    /// CHECK:
     pub bridge_contract: AccountInfo<'info>,
     pub token_program: Program<'info, Token>,
     #[account(mut)]
@@ -371,6 +370,8 @@ pub enum ErrorCode {
     InvalidAmount,
     #[msg("Token transfer failed.")]
     TransferFailed,
+    #[msg("Denom is not DUMMY token")]
+    InvalidDenom,
 }
 
 
