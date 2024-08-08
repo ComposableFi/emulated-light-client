@@ -20,6 +20,7 @@ use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use spl_associated_token_account::instruction::create_associated_token_account;
+use spl_token::solana_program::instruction::AccountMeta;
 use spl_token::solana_program::system_instruction;
 use spl_token::solana_program::sysvar::SysvarId;
 
@@ -555,9 +556,9 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            1_000_000_000f64)
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 1_000_000_000f64)
             .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -572,6 +573,10 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .map_or(0f64, |balance| balance.ui_amount.unwrap());
 
+    let transfer_ix =
+        system_instruction::transfer(&authority.pubkey(), &receiver.pubkey(), 1000);
+    let transfer_ix = serde_json::to_string(&transfer_ix).unwrap();
+
     let packet = construct_packet_from_denom(
         &base_denom,
         port_id.clone(),
@@ -581,7 +586,7 @@ fn anchor_test_deliver() -> Result<()> {
         2,
         authority.pubkey(),
         receiver.pubkey(),
-        String::from("Tx from destination chain"),
+        transfer_ix,
     );
     let proof_height_on_a = mock_client_state.header.height;
 
@@ -598,6 +603,33 @@ fn anchor_test_deliver() -> Result<()> {
         ibc::PacketMsg::Recv,
         ibc::MsgEnvelope::Packet,
     );
+    let mut instruction_data =
+        anchor_lang::InstructionData::data(&instruction::Deliver { message });
+    let instruction_len = instruction_data.len() as u32;
+    instruction_data.splice(..0, instruction_len.to_le_bytes());
+    let (mut chunks, chunk_account, _) = write::instruction::WriteIter::new(
+        &write_account_program_id,
+        authority.pubkey(),
+        WRITE_ACCOUNT_SEED,
+        instruction_data,
+    )
+    .unwrap();
+    // Note: We’re using small chunks size on purpose to test the behaviour of
+    // the write account program.
+    chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
+    for instruction in &mut chunks {
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&authority.pubkey()),
+            &[&*authority],
+            blockhash,
+        );
+        let sig = sol_rpc_client
+            .send_and_confirm_transaction_with_spinner(&transaction)
+            .unwrap();
+        println!("  Signature {sig}");
+    }
+    let (write_account, write_account_bump) = chunks.into_account();
 
     let sig = program
         .request()
@@ -619,7 +651,29 @@ fn anchor_test_deliver() -> Result<()> {
             associated_token_program: Some(anchor_spl::associated_token::ID),
             token_program: Some(anchor_spl::token::ID),
         })
-        .args(instruction::Deliver { message })
+        .accounts(vec![
+            AccountMeta {
+                pubkey: authority.pubkey(),
+                is_signer: true,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: receiver.pubkey(),
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: system_program::ID,
+                is_signer: false,
+                is_writable: true,
+            },
+            AccountMeta {
+                pubkey: chunk_account,
+                is_signer: false,
+                is_writable: true,
+            },
+        ])
+        .args(ix_data_account::Instruction)
         .payer(authority.clone())
         .signer(&*authority)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -632,11 +686,11 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before)
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT
+            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -708,12 +762,12 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT
+            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);

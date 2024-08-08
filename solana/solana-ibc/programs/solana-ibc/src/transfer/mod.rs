@@ -164,7 +164,9 @@ impl ibc::Module for IbcStorage<'_, '_> {
             .into();
             false
         };
+        msg!("This is success: {} and ack {:?}", success, ack);
         if success {
+            msg!("Inside hooks");
             // Perform hooks
             let store = self.borrow();
             let data = match serde_json::from_slice::<PacketData>(
@@ -181,6 +183,9 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 }
             };
             let memo = data.memo;
+            if memo.to_string() == "" {
+                return (extras, ack.into());
+            }
             let instruction = serde_json::from_slice::<Instruction>(
                 &memo.as_ref().as_bytes(),
             );
@@ -205,7 +210,15 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 }
             };
         }
-        msg!("ibc::Packet acknowledgement: {}", ack_status);
+        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
+            ack.as_bytes(),
+        )
+        .unwrap();
+        msg!(
+            "ibc::Packet acknowledgement: {} and ack {:?}",
+            ack_status,
+            status
+        );
         (extras, ack)
     }
 

@@ -6,13 +6,13 @@ skip-lint = false
 
 [programs.devnet]
 bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
-restaking = "9JkWjSfc5Yb5EdTwhxHDx6rh8usXYVFm9KFwqzskVE8t"
-solana_ibc = "3JvDhxt87SqKwNSuBPWWSRsfSxzkjzofDh1B6DioqfQ3"
+restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
 
 [programs.localnet]
 bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
-restaking = "9JkWjSfc5Yb5EdTwhxHDx6rh8usXYVFm9KFwqzskVE8t"
-solana_ibc = "3JvDhxt87SqKwNSuBPWWSRsfSxzkjzofDh1B6DioqfQ3"
+restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
 
 [registry]
 url = "https://api.apr.dev"

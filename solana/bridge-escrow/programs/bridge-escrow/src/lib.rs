@@ -22,7 +22,7 @@ use solana_ibc::storage::PrivateStorage;
 #[cfg(test)]
 mod tests;
 
-declare_id!("8t5dMbZuGsUtcX7JZpCN8kfPnt8e6VSc3XGepVTMUig4");
+declare_id!("43VAmkAMHhRMX124zHZiQDk9SwbXqhZaWDvGrfeo4eHv");
 
 #[program]
 pub mod bridge_escrow {
