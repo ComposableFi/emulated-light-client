@@ -1,6 +1,6 @@
 use lib::hash::CryptoHash;
 use solana_program::pubkey::{Pubkey, MAX_SEED_LEN};
-#[cfg(feature = "api2")]
+#[cfg(all(not(feature = "api"), feature = "api2"))]
 use solana_program_2 as solana_program;
 
 use crate::utils;
