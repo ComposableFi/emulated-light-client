@@ -10,5 +10,6 @@ cd ../..
 solana program deploy target/deploy/write.so
 solana program deploy target/deploy/sigverify.so
 cargo test  --lib -- --nocapture --include-ignored ::anchor
+cargo test --lib -- --nocapture --include-ignored ::escrow
 find solana/restaking/tests/ -name '*.ts' \
      -exec yarn run ts-mocha -p ./tsconfig.json -t 1000000 {} +
