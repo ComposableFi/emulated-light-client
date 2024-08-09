@@ -1,0 +1,40 @@
+[package]
+name = "solana-witnessed-trie"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+edition = "2021"
+version.workspace = true
+
+[lib]
+name = "wittrie"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+arrayvec.workspace = true
+bytemuck = { workspace = true, features = ["min_const_generics"] }
+derive_more.workspace = true
+hex = { workspace = true, optional = true }
+solana-program = { workspace = true, optional = true }
+solana-program-2 = { workspace = true, optional = true }
+strum = { features = ["derive"], workspace = true }
+
+lib.workspace = true
+memory = { workspace = true, optional = true }
+sealable-trie = { workspace = true, optional = true }
+solana-trie = { workspace = true, optional = true }
+stdx.workspace = true
+
+[dev-dependencies]
+blake3.workspace = true
+hex-literal.workspace = true
+
+[features]
+default = ["contract"]
+api = ["solana-program"]
+api2 = ["solana-program-2"]
+contract = [
+    "api",
+    "hex",
+    "memory",
+    "sealable-trie",
+    "solana-trie",
+]

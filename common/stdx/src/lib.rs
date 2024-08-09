@@ -31,6 +31,7 @@ pub fn split_array_mut<const L: usize, const R: usize, const N: usize>(
 
 /// Splits `&[T]` into `(&[T; L], &[T])`.  Returns `None` if input is too
 /// shorter.
+// TODO(mina86): Use [T]::split_at_checked once that stabilises.
 pub fn split_at<const L: usize, T>(xs: &[T]) -> Option<(&[T; L], &[T])> {
     if xs.len() < L {
         return None;
