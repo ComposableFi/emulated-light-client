@@ -6,13 +6,10 @@ use crate::proto;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConsensusState {
     pub data: Vec<u8>,
-    pub timestamp_ns: u64,
 }
 
 impl ConsensusState {
-    pub fn new(data: Vec<u8>, timestamp_ns: u64) -> Self {
-        Self { data, timestamp_ns }
-    }
+    pub fn new(data: Vec<u8>) -> Self { Self { data } }
 }
 
 impl ibc_core_client_context::consensus_state::ConsensusState
@@ -23,7 +20,7 @@ impl ibc_core_client_context::consensus_state::ConsensusState
     }
 
     fn timestamp(&self) -> ibc_primitives::Timestamp {
-        ibc_primitives::Timestamp::from_nanoseconds(self.timestamp_ns).unwrap()
+        ibc_primitives::Timestamp::none()
     }
 
     fn encode_vec(self) -> alloc::vec::Vec<u8> {
@@ -34,9 +31,7 @@ impl ibc_core_client_context::consensus_state::ConsensusState
 impl Protobuf<Any> for ConsensusState {}
 
 impl From<ConsensusState> for proto::ConsensusState {
-    fn from(state: ConsensusState) -> Self {
-        Self { data: state.data, timestamp_ns: state.timestamp_ns }
-    }
+    fn from(state: ConsensusState) -> Self { Self { data: state.data } }
 }
 
 impl From<&ConsensusState> for proto::ConsensusState {
@@ -46,17 +41,14 @@ impl From<&ConsensusState> for proto::ConsensusState {
 impl TryFrom<proto::ConsensusState> for ConsensusState {
     type Error = proto::BadMessage;
     fn try_from(msg: proto::ConsensusState) -> Result<Self, Self::Error> {
-        Ok(ConsensusState { data: msg.data, timestamp_ns: msg.timestamp_ns })
+        Ok(ConsensusState { data: msg.data })
     }
 }
 
 impl TryFrom<&proto::ConsensusState> for ConsensusState {
     type Error = proto::BadMessage;
     fn try_from(msg: &proto::ConsensusState) -> Result<Self, Self::Error> {
-        Ok(ConsensusState {
-            data: <Vec<u8> as Clone>::clone(&msg.data),
-            timestamp_ns: msg.timestamp_ns,
-        })
+        Ok(ConsensusState { data: <Vec<u8> as Clone>::clone(&msg.data) })
     }
 }
 

@@ -74,7 +74,6 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         };
         let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
             guest_consensus_state.encode_vec(),
-            state.1.into(),
         );
         Ok(AnyConsensusState::Wasm(wasm_consensus_state))
         // Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
