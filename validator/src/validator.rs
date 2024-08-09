@@ -105,9 +105,7 @@ pub fn run_validator(config: Config) {
                 .unwrap();
             let trie_data =
                 solana_trie::TrieAccount::new(trie_account.data).unwrap();
-            let timestamp_in_ns = u64::try_from(host_timestamp)
-                .ok()
-                .and_then(|timestamp| timestamp.checked_mul(1_000_000_000))
+            let timestamp_in_ns = host_timestamp.checked_mul(1_000_000_000)
                 .and_then(NonZeroU64::new)
                 .unwrap();
             let result = chain_account.check_generate_block(
