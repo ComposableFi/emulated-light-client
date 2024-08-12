@@ -49,7 +49,7 @@ pub mod bridge_escrow {
         // Transfer SPL tokens from the user's account to the auctioneer's account
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.user_token_account.to_account_info(),
-            to: ctx.accounts.auctioneer_token_account.to_account_info(),
+            to: ctx.accounts.escrow_token_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
 
@@ -72,6 +72,7 @@ pub mod bridge_escrow {
         amount_in: u64,
         token_out: String,
         amount_out: String,
+        timeout_in_sec: u64,
         winner_solver: Pubkey,
     ) -> Result<()> {
         // verify if caller is auctioneer
@@ -80,15 +81,17 @@ pub mod bridge_escrow {
             *ctx.accounts.authority.key == auctioneer.authority,
             ErrorCode::Unauthorized
         );
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;   
+        require!(timeout_in_sec > current_timestamp, ErrorCode::InvalidTimeout);
 
         // save intent on a PDA derived from the auctioneer account
         let intent = &mut ctx.accounts.intent;
         intent.intent_id = intent_id;
-        intent.user = *ctx.accounts.authority.key;
-        intent.user_in = user_in;
+        intent.user = user_in;
         intent.token_in = token_in;
         intent.amount_in = amount_in;
         intent.token_out = token_out;
+        intent.timeout_timestamp_in_sec = timeout_in_sec;
         intent.amount_out = amount_out;
         intent.winner_solver = winner_solver;
 
@@ -109,7 +112,7 @@ pub mod bridge_escrow {
     */
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
-        msg: MsgTransfer,
+        intent_id: String,
     ) -> Result<()> {
         // Extract and validate the memo
         let memo = msg.packet_data.memo.to_string();
@@ -279,6 +282,35 @@ pub mod bridge_escrow {
 
         Ok(())
     }
+
+    /// If the intent has not been solved, then the funds can withdrawn by the user
+    /// after the timeout period has passed.
+    pub fn on_timeout(ctx: Context<OnTimeout>, _intent_id: String) -> Result<()> {
+        let authority = &ctx.accounts.user.key(); 
+
+        let intent = &ctx.accounts.intent;
+        require!(authority ==  &intent.user, ErrorCode::Unauthorized);
+
+        let current_time = Clock::get()?.unix_timestamp as u64;
+        require!(current_time >= intent.timeout_timestamp_in_sec, ErrorCode::IntentNotTimedOut);
+
+        let bump = ctx.bumps.auctioneer_state;
+        let signer_seeds = &[AUCTIONEER_SEED, &[bump]];
+        let signer_seeds = signer_seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&signer_seeds);
+
+        // Unescrow the tokens
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.escrow_token_account.to_account_info(),
+            to: ctx.accounts.user_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
+        };
+
+        let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer_seeds);
+        anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
+
+        Ok(())
+    }
 }
 
 // Define the Auctioneer account
@@ -294,7 +326,6 @@ pub struct Intent {
     #[max_len(20)]
     pub intent_id: String,
     pub user: Pubkey,
-    pub user_in: Pubkey,
     pub token_in: Pubkey,
     pub amount_in: u64,
     #[max_len(20)]
@@ -302,6 +333,9 @@ pub struct Intent {
     #[max_len(20)]
     pub amount_out: String,
     pub winner_solver: Pubkey,
+    // Timestamp when the intent was created
+    pub creation_timestamp_in_sec: u64,
+    pub timeout_timestamp_in_sec: u64,
 }
 
 // Define the context for initializing the program
@@ -329,11 +363,16 @@ pub struct StoreIntent<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(intent_id: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub solver: Signer<'info>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
-    pub auctioneer: Account<'info, Auctioneer>,
+    pub auctioneer_state: Account<'info, Auctioneer>,
+    /// CHECK:
+    pub auctioneer: UncheckedAccount<'info>,
+    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    pub intent: Account<'info, Intent>,
     #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
@@ -409,9 +448,30 @@ pub struct EscrowFunds<'info> {
     pub auctioneer_state: Account<'info, Auctioneer>,
     pub token_mint: Account<'info, Mint>,
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
-    pub auctioneer_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Account<'info, TokenAccount>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(intent_id: String)]
+pub struct OnTimeout<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut, token::authority = user, token::mint = token_mint)]
+    pub user_token_account: Account<'info, TokenAccount>,
+    #[account(seeds = [AUCTIONEER_SEED], bump, constraint = auctioneer_state.authority == *auctioneer.key)]
+    pub auctioneer_state: Account<'info, Auctioneer>,
+    #[account(mut)]
+    /// CHECK:
+    pub auctioneer: UncheckedAccount<'info>,
+    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    pub intent: Account<'info, Intent>,
+    pub token_mint: Account<'info, Mint>,
+    #[account(mut, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
 }
 
@@ -433,4 +493,8 @@ pub enum ErrorCode {
     TransferFailed,
     #[msg("Denom is not DUMMY token")]
     InvalidDenom,
+    #[msg("Timeout is lesser than the current time")]
+    InvalidTimeout,
+    #[msg("Intent hasnt timed out yet")]
+    IntentNotTimedOut,
 }
