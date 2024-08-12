@@ -112,7 +112,7 @@ pub mod bridge_escrow {
     */
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
-        intent_id: String,
+        msg: MsgTransfer,
     ) -> Result<()> {
         // Extract and validate the memo
         let memo = msg.packet_data.memo.to_string();
