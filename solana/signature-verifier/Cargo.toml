@@ -14,7 +14,6 @@ guest = ["guestchain"]
 library = []
 
 [dependencies]
-bs58.workspace = true
 base64.workspace = true
 borsh = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["must_cast"] }
@@ -22,7 +21,7 @@ derive_more.workspace = true
 solana-program.workspace = true
 
 guestchain = { workspace = true, optional = true }
-lib.workspace = true
+lib = { workspace = true, features = ["bs58"] }
 stdx.workspace = true
 
 [dev-dependencies]
