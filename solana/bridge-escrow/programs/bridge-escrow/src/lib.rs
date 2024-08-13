@@ -153,6 +153,10 @@ pub mod bridge_escrow {
         let token_program = &ctx.accounts.token_program;
         let solver = &ctx.accounts.solver;
 
+        let amount_out = intent.amount_out.parse::<u64>().map_err(|_| {
+            ErrorCode::InvalidAmount
+        })?;
+
         // Transfer tokens from Solver to User
         let cpi_accounts = SplTransfer {
             from: ctx
@@ -166,7 +170,7 @@ pub mod bridge_escrow {
         let cpi_program = token_program.to_account_info();
         token::transfer(
             CpiContext::new(cpi_program, cpi_accounts),
-            intent.amount_in,
+            amount_out,
         )?;
 
         if single_domain {

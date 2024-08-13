@@ -217,6 +217,10 @@ fn escrow_bridge_program() -> Result<()> {
 
     // Escrow user funds
     println!("Escrow user funds");
+
+    let user_token_in_balance_before =
+        sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
+
     let sig = program
         .request()
         .accounts(crate::accounts::EscrowFunds {
@@ -238,6 +242,17 @@ fn escrow_bridge_program() -> Result<()> {
         })
         .unwrap();
     println!("  Signature: {}", sig);
+
+    let user_token_in_balance_after =
+        sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
+
+    // assert_eq!(
+    //     ((user_token_in_balance_after.ui_amount.unwrap()
+    //         - user_token_in_balance_before.ui_amount.unwrap())
+    //         * 1_000_000f64)
+    //         .round() as u64,
+    //     TRANSFER_AMOUNT
+    // );
 
     // Store the intent
     let intent_id = "123234".to_string();
@@ -285,6 +300,12 @@ fn escrow_bridge_program() -> Result<()> {
     let user_token_out_addr =
         get_associated_token_address(&user.pubkey(), &token_out);
 
+    let solver_token_in_balance_before = sol_rpc_client
+        .get_token_account_balance(&solver_token_in_addr)
+        .unwrap();
+    let user_token_out_balance_before =
+        sol_rpc_client.get_token_account_balance(&user_token_out_addr).unwrap();
+
     let sig = program
         .request()
         .accounts(crate::accounts::SplTokenTransfer {
@@ -326,6 +347,28 @@ fn escrow_bridge_program() -> Result<()> {
         })
         .unwrap();
     println!("  Signature: {}", sig);
+
+    let solver_token_in_balance_after = sol_rpc_client
+        .get_token_account_balance(&solver_token_in_addr)
+        .unwrap();
+    let user_token_out_balance_after =
+        sol_rpc_client.get_token_account_balance(&user_token_out_addr).unwrap();
+
+    assert_eq!(
+        ((solver_token_in_balance_after.ui_amount.unwrap()
+            - solver_token_in_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
+            .round() as u64,
+        TRANSFER_AMOUNT
+    );
+
+    assert_eq!(
+        ((user_token_out_balance_after.ui_amount.unwrap()
+            - user_token_out_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
+            .round() as u64,
+        amount_out
+    );
 
     // If above fails -> timeout
 
