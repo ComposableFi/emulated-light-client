@@ -29,7 +29,7 @@ const INTENT_SEED: &[u8] = b"intent";
 #[cfg(test)]
 mod tests;
 
-declare_id!("8t5dMbZuGsUtcX7JZpCN8kfPnt8e6VSc3XGepVTMUig4");
+declare_id!("43VAmkAMHhRMX124zHZiQDk9SwbXqhZaWDvGrfeo4eHv");
 
 #[program]
 pub mod bridge_escrow {
@@ -61,8 +61,6 @@ pub mod bridge_escrow {
         Ok(())
     }
 
-
-
     /// Called by the auctioneer whose address is stored in `auctioneer` state account.
     pub fn store_intent(
         ctx: Context<StoreIntent>,
@@ -81,8 +79,6 @@ pub mod bridge_escrow {
             *ctx.accounts.authority.key == auctioneer.authority,
             ErrorCode::Unauthorized
         );
-        let current_timestamp = Clock::get()?.unix_timestamp as u64;   
-        require!(timeout_in_sec > current_timestamp, ErrorCode::InvalidTimeout);
 
         // save intent on a PDA derived from the auctioneer account
         let intent = &mut ctx.accounts.intent;
@@ -143,32 +139,29 @@ pub mod bridge_escrow {
     // this function is called by Solver
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
-        hashed_full_denom: CryptoHash,
-        solver_out: String,
+        intent_id: String,
+        hashed_full_denom: Option<CryptoHash>,
+        solver_out: Option<String>,
         single_domain: bool,
     ) -> Result<()> {
         let intent = &ctx.accounts.intent;
         require!(
-            *ctx.accounts.authority.key == intent.winner_solver,
+            *ctx.accounts.solver.key == intent.winner_solver,
             ErrorCode::Unauthorized
         );
 
         let token_program = &ctx.accounts.token_program;
-        let authority = &ctx.accounts.authority;
+        let solver = &ctx.accounts.solver;
 
         // Transfer tokens from Solver to User
         let cpi_accounts = SplTransfer {
             from: ctx
                 .accounts
-                .solver_token_in_account
+                .solver_token_out_account
                 .to_account_info()
                 .clone(),
-            to: ctx
-                .accounts
-                .auctioneer_token_in_account
-                .to_account_info()
-                .clone(),
-            authority: authority.to_account_info().clone(),
+            to: ctx.accounts.user_token_out_account.to_account_info().clone(),
+            authority: solver.to_account_info().clone(),
         };
         let cpi_program = token_program.to_account_info();
         token::transfer(
@@ -178,26 +171,41 @@ pub mod bridge_escrow {
 
         if single_domain {
             // Transfer tokens from Auctioneer to Solver
+
+            let bump = ctx.bumps.auctioneer_state;
+            let seeds =
+                &[AUCTIONEER_SEED.as_ref(), core::slice::from_ref(&bump)];
+            let seeds = seeds.as_ref();
+            let signer_seeds = core::slice::from_ref(&seeds);
+
             let cpi_accounts = SplTransfer {
                 from: ctx
                     .accounts
-                    .auctioneer_token_out_account
-                    .to_account_info()
-                    .clone(),
-                to: ctx
-                    .accounts
-                    .solver_token_out_account
-                    .to_account_info()
-                    .clone(),
-                authority: authority.to_account_info().clone(),
+                    .auctioneer_token_in_account
+                    .to_account_info(),
+                to: ctx.accounts.solver_token_in_account.to_account_info(),
+                authority: ctx.accounts.auctioneer_state.to_account_info(),
             };
             let cpi_program = token_program.to_account_info();
             token::transfer(
-                CpiContext::new(cpi_program, cpi_accounts),
+                CpiContext::new_with_signer(
+                    cpi_program,
+                    cpi_accounts,
+                    signer_seeds,
+                ),
                 intent.amount_in,
             )?;
         } else {
-            let token_mint = ctx.accounts.token_mint.to_account_info();
+            let solver_out =
+                solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
+            let hashed_full_denom =
+                hashed_full_denom.ok_or(ErrorCode::InvalidTokenAddress)?;
+
+            let token_mint = ctx
+                .accounts
+                .token_mint
+                .as_ref()
+                .ok_or(ErrorCode::AccountsNotPresent)?;
 
             let my_custom_memo = format!(
                 "{},{},{}",
@@ -206,34 +214,68 @@ pub mod bridge_escrow {
 
             // Cross-chain transfer + memo
             let transfer_ctx = CpiContext::new(
-                ctx.accounts.ibc_program.to_account_info().clone(),
+                ctx.accounts
+                    .ibc_program
+                    .as_ref()
+                    .ok_or(ErrorCode::AccountsNotPresent)?
+                    .to_account_info(),
                 SendTransfer {
-                    sender: authority.to_account_info().clone(),
-                    receiver: Some(ctx.accounts.receiver.to_account_info()),
-                    storage: ctx.accounts.storage.to_account_info().clone(),
-                    trie: ctx.accounts.trie.to_account_info().clone(),
-                    chain: ctx.accounts.chain.to_account_info().clone(),
-                    mint_authority: Some(
-                        ctx.accounts.mint_authority.to_account_info(),
-                    ),
-                    token_mint: Some(ctx.accounts.token_mint.to_account_info()),
-                    escrow_account: Some(
-                        ctx.accounts.escrow_account.to_account_info(),
-                    ),
-                    receiver_token_account: Some(
-                        ctx.accounts.receiver_token_account.to_account_info(),
-                    ),
-                    fee_collector: Some(
-                        ctx.accounts.fee_collector.to_account_info(),
-                    ),
+                    sender: solver.to_account_info(),
+                    receiver: ctx
+                        .accounts
+                        .receiver
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
+                    storage: ctx
+                        .accounts
+                        .storage
+                        .as_ref()
+                        .ok_or(ErrorCode::AccountsNotPresent)?
+                        .to_account_info(),
+                    trie: ctx
+                        .accounts
+                        .trie
+                        .as_ref()
+                        .ok_or(ErrorCode::AccountsNotPresent)?
+                        .to_account_info(),
+                    chain: ctx
+                        .accounts
+                        .chain
+                        .as_ref()
+                        .ok_or(ErrorCode::AccountsNotPresent)?
+                        .to_account_info(),
+                    mint_authority: ctx
+                        .accounts
+                        .mint_authority
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
+                    token_mint: ctx
+                        .accounts
+                        .token_mint
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
+                    escrow_account: ctx
+                        .accounts
+                        .escrow_account
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
+                    receiver_token_account: ctx
+                        .accounts
+                        .receiver_token_account
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
+                    fee_collector: ctx
+                        .accounts
+                        .fee_collector
+                        .as_ref()
+                        .and_then(|acc| Some(acc.to_account_info())),
                     token_program: Some(
-                        ctx.accounts.token_program.to_account_info().clone(),
+                        ctx.accounts.token_program.to_account_info(),
                     ),
                     system_program: ctx
                         .accounts
                         .system_program
-                        .to_account_info()
-                        .clone(),
+                        .to_account_info(),
                 },
             );
 
@@ -258,7 +300,7 @@ pub mod bridge_escrow {
                         amount: 1.into(),
                     },
                     sender: IbcSigner::from(
-                        ctx.accounts.authority.key().to_string(),
+                        ctx.accounts.solver.key().to_string(),
                     ),
                     receiver: String::from("pfm").into(),
                     memo: memo.into(),
@@ -275,24 +317,30 @@ pub mod bridge_escrow {
             send_transfer(transfer_ctx, hashed_full_denom, msg)?;
         }
 
-        // Delete intent by closing the account
-        let intent_account_info = &mut ctx.accounts.intent.to_account_info();
-        **intent_account_info.try_borrow_mut_lamports()? = 0;
-        intent_account_info.data.borrow_mut().fill(0);
+        // // Delete intent by closing the account
+        // let intent_account_info = &mut ctx.accounts.intent.to_account_info();
+        // **intent_account_info.try_borrow_mut_lamports()? = 0;
+        // intent_account_info.data.borrow_mut().fill(0);
 
         Ok(())
     }
 
     /// If the intent has not been solved, then the funds can withdrawn by the user
     /// after the timeout period has passed.
-    pub fn on_timeout(ctx: Context<OnTimeout>, _intent_id: String) -> Result<()> {
-        let authority = &ctx.accounts.user.key(); 
+    pub fn on_timeout(
+        ctx: Context<OnTimeout>,
+        _intent_id: String,
+    ) -> Result<()> {
+        let authority = &ctx.accounts.user.key();
 
         let intent = &ctx.accounts.intent;
-        require!(authority ==  &intent.user, ErrorCode::Unauthorized);
+        require!(authority == &intent.user, ErrorCode::Unauthorized);
 
         let current_time = Clock::get()?.unix_timestamp as u64;
-        require!(current_time >= intent.timeout_timestamp_in_sec, ErrorCode::IntentNotTimedOut);
+        require!(
+            current_time >= intent.timeout_timestamp_in_sec,
+            ErrorCode::IntentNotTimedOut
+        );
 
         let bump = ctx.bumps.auctioneer_state;
         let signer_seeds = &[AUCTIONEER_SEED, &[bump]];
@@ -306,7 +354,11 @@ pub mod bridge_escrow {
             authority: ctx.accounts.auctioneer_state.to_account_info(),
         };
 
-        let cpi_ctx = CpiContext::new_with_signer(ctx.accounts.token_program.to_account_info(), cpi_accounts, signer_seeds);
+        let cpi_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            cpi_accounts,
+            signer_seeds,
+        );
         anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
 
         Ok(())
@@ -355,7 +407,7 @@ pub struct Initialize<'info> {
 pub struct StoreIntent<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    #[account(init, seeds = [INTENT_SEED, intent_id.as_bytes()], bump, payer = authority, space = Intent::INIT_SPACE)]
+    #[account(init, seeds = [INTENT_SEED, intent_id.as_bytes()], bump, payer = authority, space = 8 + Intent::INIT_SPACE)]
     pub intent: Account<'info, Intent>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer: Account<'info, Auctioneer>,
@@ -387,55 +439,63 @@ pub struct ReceiveTransferContext<'info> {
 #[instruction(intent_id: String)]
 pub struct SplTokenTransfer<'info> {
     // Intent reading
-    #[account(seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
     pub intent: Account<'info, Intent>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
-    pub auctioneer: Account<'info, Auctioneer>,
+    pub auctioneer_state: Account<'info, Auctioneer>,
     #[account(mut)]
-    pub authority: Signer<'info>,
+    pub solver: Signer<'info>,
 
-    // Solver -> User SPL Token Transfer Accounts
-    #[account(mut)]
+    #[account(mut, address = auctioneer_state.authority)]
+    /// CHECK:
+    pub auctioneer: UncheckedAccount<'info>,
+
+    pub token_in: Account<'info, Mint>,
+    pub token_out: Account<'info, Mint>,
+
+    // Program (Escrow) -> Solver SPL Token Transfer Accounts
+    #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
     pub auctioneer_token_in_account: Account<'info, TokenAccount>,
-    // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
-    #[account(mut)]
+    #[account(mut, token::authority = solver, token::mint = token_in)]
     pub solver_token_in_account: Account<'info, TokenAccount>,
 
-    // User -> Solver SPL Token Transfer Accounts
-    #[account(mut)]
+    // Solver -> User SPL Token Transfer Accounts
+    #[account(mut, token::authority = solver, token::mint = token_out)]
     pub solver_token_out_account: Account<'info, TokenAccount>,
-    // #[account(init_if_needed, payer = authority, associated_token::mint = token_mint, associated_token::authority = destination)]
-    #[account(mut)]
-    pub auctioneer_token_out_account: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = token_out)]
+    pub user_token_out_account: Account<'info, TokenAccount>,
 
-    // Cross-chain Transfer Accounts
-    pub ibc_program: Program<'info, SolanaIbc>, // Use IbcProgram here
-    #[account(mut)]
-    /// CHECK:
-    pub receiver: AccountInfo<'info>,
-    #[account(mut)]
-    pub storage: Account<'info, PrivateStorage>,
-    /// CHECK:
-    #[account(mut)]
-    pub trie: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub chain: Box<Account<'info, chain::ChainData>>,
-    /// CHECK:
-    #[account(mut)]
-    pub mint_authority: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub token_mint: Box<Account<'info, Mint>>,
-    /// CHECK:
-    #[account(mut)]
-    pub escrow_account: UncheckedAccount<'info>,
-    #[account(mut)]
-    pub receiver_token_account: Box<Account<'info, TokenAccount>>,
-    /// CHECK:
-    #[account(mut)]
-    pub fee_collector: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+
+    // The accounts below are only needed for cross chain intents
+
+    // Cross-chain Transfer Accounts
+    pub ibc_program: Option<Program<'info, SolanaIbc>>, // Use IbcProgram here
+    #[account(mut)]
+    /// CHECK:
+    pub receiver: Option<AccountInfo<'info>>,
+    #[account(mut)]
+    pub storage: Option<Account<'info, PrivateStorage>>,
+    /// CHECK:
+    #[account(mut)]
+    pub trie: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    pub chain: Option<Box<Account<'info, chain::ChainData>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub mint_authority: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    pub token_mint: Option<Box<Account<'info, Mint>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub escrow_account: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub fee_collector: Option<UncheckedAccount<'info>>,
 }
 
 #[derive(Accounts)]
@@ -475,7 +535,6 @@ pub struct OnTimeout<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 // Define custom errors
 #[error_code]
 pub enum ErrorCode {
@@ -497,4 +556,10 @@ pub enum ErrorCode {
     InvalidTimeout,
     #[msg("Intent hasnt timed out yet")]
     IntentNotTimedOut,
+    #[msg("Solana ibc accounts not present")]
+    AccountsNotPresent,
+    #[msg("Invalid solver out address")]
+    InvalidSolverOutAddress,
+    #[msg("Invalid hashed full denom")]
+    InvalidHashedFullDenom,
 }
