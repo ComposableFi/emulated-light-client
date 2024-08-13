@@ -11,6 +11,7 @@
 //! returns `Global` type with all the available global variables.  While the
 //! returned reference is static, the variables may use inner mutability.
 
+#[allow(unexpected_cfgs)]
 #[cfg(all(
     target_os = "solana",
     feature = "custom-heap",
@@ -69,6 +70,7 @@ mod imp {
     pub(crate) fn global() -> &'static Global { ALLOCATOR.global() }
 }
 
+#[allow(unexpected_cfgs)]
 #[cfg(any(
     not(target_os = "solana"),
     not(feature = "custom-heap"),

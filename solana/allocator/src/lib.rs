@@ -1,3 +1,4 @@
+#[allow(unexpected_cfgs)]
 #![cfg(any(test, target_os = "solana"))]
 #![allow(private_bounds)]
 

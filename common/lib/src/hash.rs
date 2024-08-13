@@ -176,6 +176,7 @@ impl<'a> TryFrom<&'a [u8]> for CryptoHash {
     }
 }
 
+#[allow(unexpected_cfgs)]
 #[cfg(not(all(feature = "solana-program", target_os = "solana")))]
 mod imp {
     use sha2::Digest;
@@ -200,6 +201,7 @@ mod imp {
     }
 }
 
+#[allow(unexpected_cfgs)]
 #[cfg(all(feature = "solana-program", target_os = "solana"))]
 mod imp {
     use alloc::vec::Vec;
