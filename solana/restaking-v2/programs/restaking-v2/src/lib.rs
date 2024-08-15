@@ -83,6 +83,10 @@ pub mod restaking_v2 {
         let whitelisted_token =
             &common_state.whitelisted_tokens[whitelisted_token_idx];
 
+        if whitelisted_token.paused {
+            return Err(error!(ErrorCodes::TokenDepositIsPaused));
+        }
+
         if ctx.accounts.staker_token_account.amount < amount {
             return Err(error!(ErrorCodes::NotEnoughTokensToStake));
         }
@@ -101,14 +105,14 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec) >
-                whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec)
+                > whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
 
-            (whitelisted_token.latest_price * amount) /
-                10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount)
+                / 10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -141,7 +145,7 @@ pub mod restaking_v2 {
         anchor_spl::token::mint_to(cpi_ctx, amount)?;
 
         // Call guest chain program to update the stake equally
-        
+
         let stake_per_validator = amount_in_sol / validators_len;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
@@ -257,13 +261,13 @@ pub mod restaking_v2 {
             // Check if the price is stale
             let current_time = Clock::get()?.unix_timestamp as u64;
 
-            if (current_time - whitelisted_token.last_updated_in_sec) >
-                whitelisted_token.max_update_time_in_sec
+            if (current_time - whitelisted_token.last_updated_in_sec)
+                > whitelisted_token.max_update_time_in_sec
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
-            (whitelisted_token.latest_price * amount) /
-                10u64.pow(SOL_DECIMALS as u32)
+            (whitelisted_token.latest_price * amount)
+                / 10u64.pow(SOL_DECIMALS as u32)
         } else {
             amount
         };
@@ -391,6 +395,27 @@ pub mod restaking_v2 {
         Ok(())
     }
 
+    /// Updates the token pause flag for specified token.
+    /// 
+    /// Requires the admin to call this method.
+    pub fn update_token_pause_flag(
+        ctx: Context<UpdateStakingParams>,
+        mint: Pubkey,
+        paused: bool,
+    ) -> Result<()> {
+        msg!("Updating token pause flag for {} to {}", mint, paused);
+        let staking_params = &mut ctx.accounts.common_state;
+        let whitelisted_token = staking_params
+            .whitelisted_tokens
+            .iter_mut()
+            .find(|x| x.address == mint)
+            .ok_or_else(|| error!(ErrorCodes::InvalidTokenMint))?;
+
+        whitelisted_token.paused = paused;
+
+        Ok(())
+    }
+
     /// Adds new validator who are part of social consensus
     ///
     /// This method checks if any of the new validators to be added are already part of
@@ -483,10 +508,10 @@ pub mod restaking_v2 {
         let final_amount_in_sol =
             token_price.price as f64 / sol_price.price as f64;
 
-        let final_amount_in_sol = final_amount_in_sol *
-            10_f64.powi(
-                (i32::from(SOL_DECIMALS) + token_price.exponent) -
-                    (i32::from(token_decimals) + sol_price.exponent),
+        let final_amount_in_sol = final_amount_in_sol
+            * 10_f64.powi(
+                (i32::from(SOL_DECIMALS) + token_price.exponent)
+                    - (i32::from(token_decimals) + sol_price.exponent),
             );
 
         msg!("Final amount in sol {}", final_amount_in_sol);
@@ -738,6 +763,8 @@ pub struct StakeToken {
     pub max_update_time_in_sec: u64, // 8
     /// mapping of the validator index with their stake in the above token
     pub delegations: Vec<u128>, // n * 16
+    /// If the token is paused, it cannot be deposited
+    pub paused: bool,
 }
 
 impl From<NewTokenPayload> for StakeToken {
@@ -749,6 +776,7 @@ impl From<NewTokenPayload> for StakeToken {
             last_updated_in_sec: 0,
             max_update_time_in_sec: payload.max_update_time_in_sec,
             delegations: vec![],
+            paused: false,
         }
     }
 }
@@ -788,4 +816,6 @@ pub enum ErrorCodes {
     TokenListContainDuplicates,
     #[msg("The validator list in the instruction argument contain duplicates")]
     ValidatorListContainDuplicates,
+    #[msg("Deposit for the token is paused")]
+    TokenDepositIsPaused,
 }
