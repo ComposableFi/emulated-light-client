@@ -17,7 +17,7 @@ fn test_consts_sanity() {
     macro_rules! assert_same_size {
         ($golden:ty, $our:ty) => {
             assert_eq!(size_of::<$golden>(), size_of::<$our>());
-        }
+        };
     }
     assert_same_size!(solana_program2::hash::Hash, Hash);
     assert_same_size!(solana_program2::blake3::Hash, Hash);

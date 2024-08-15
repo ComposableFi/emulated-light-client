@@ -6,3 +6,4 @@ extern crate std;
 
 pub mod proof;
 pub mod types;
+mod utils;

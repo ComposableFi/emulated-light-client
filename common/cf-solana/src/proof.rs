@@ -4,13 +4,11 @@ use lib::hash::CryptoHash;
 #[cfg(all(feature = "rayon", not(miri)))]
 use rayon::prelude::*;
 
-mod features;
 #[cfg(test)]
 mod tests;
 
-use features::{blake3, chunks, sort_unstable_by};
-
 use crate::types::{Hash, PubKey};
+use crate::utils::{blake3, chunks, sort_unstable_by};
 
 /// The fanout of a accounts delta Merkle tree.
 ///
@@ -319,7 +317,7 @@ pub fn hash_account(
 /// we reimplement it because that method takes ownership of hashes which is
 /// something we need to keep.
 fn compute_merkle_root(accounts: &mut [(PubKey, Hash)]) -> Hash {
-    let mut hashes: Vec<Hash> = chunks(accounts)
+    let mut hashes: Vec<Hash> = chunks(accounts, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for item in chunk {
@@ -382,7 +380,7 @@ fn generate_merkle_proof(
 }
 
 fn compute_hashes_at_next_level(hashes: &[Hash]) -> Vec<Hash> {
-    chunks(hashes)
+    chunks(hashes, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for hash in chunk {

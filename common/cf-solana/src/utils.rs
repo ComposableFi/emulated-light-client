@@ -1,21 +1,24 @@
-#[cfg(all(feature = "rayon", not(miri)))]
-use rayon::prelude::*;
-
-use super::*;
+use crate::types::Hash;
 
 
-/// Splits array into [`MERKLE_FANOUT`]-element chunks.
+/// Splits array into `count`-element chunks.
 ///
 /// Normally this uses Rayon’s `par_chunks` but that fails Miri tests.  To
 /// address that, this function uses plain `[T]::chunks` when building for Miri.
 #[cfg(all(feature = "rayon", not(miri)))]
-pub(super) fn chunks<T: Sync>(arr: &[T]) -> rayon::slice::Chunks<'_, T> {
-    arr.par_chunks(MERKLE_FANOUT)
+pub(super) fn chunks<T: Sync>(
+    arr: &[T],
+    count: usize,
+) -> rayon::slice::Chunks<'_, T> {
+    arr.par_chunks(count)
 }
 
 #[cfg(any(not(feature = "rayon"), miri))]
-pub(super) fn chunks<T: Sync>(arr: &[T]) -> impl Iterator<Item = &[T]> {
-    arr.chunks(MERKLE_FANOUT)
+pub(super) fn chunks<T: Sync>(
+    arr: &[T],
+    count: usize,
+) -> impl Iterator<Item = &[T]> {
+    arr.chunks(count)
 }
 
 /// Sorts elements of a slice using given comparator.
