@@ -1,7 +1,45 @@
 use bytemuck::TransparentWrapper;
 use lib::hash::CryptoHash;
 
-use super::*;
+/// Cryptographically secure hash.
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    bytemuck::TransparentWrapper,
+    derive_more::AsRef,
+    derive_more::AsMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+#[into(owned, ref, ref_mut)]
+#[repr(transparent)]
+pub struct Hash(pub [u8; 32]);
+
+/// Solana public key also used as account address.
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    bytemuck::TransparentWrapper,
+    derive_more::AsRef,
+    derive_more::AsMut,
+    derive_more::From,
+    derive_more::Into,
+)]
+#[into(owned, ref, ref_mut)]
+#[repr(transparent)]
+pub struct PubKey(pub [u8; 32]);
 
 
 impl From<CryptoHash> for Hash {

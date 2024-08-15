@@ -4,58 +4,18 @@ use lib::hash::CryptoHash;
 #[cfg(all(feature = "rayon", not(miri)))]
 use rayon::prelude::*;
 
-mod conv;
 mod features;
 #[cfg(test)]
 mod tests;
 
 use features::{blake3, chunks, sort_unstable_by};
 
+use crate::types::{Hash, PubKey};
+
 /// The fanout of a accounts delta Merkle tree.
 ///
 /// This is the same as `solana_accounts_db::accounts_hash::MERKLE_FANOUT`.
 const MERKLE_FANOUT: usize = 16;
-
-/// Cryptographically secure hash.
-#[derive(
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    bytemuck::TransparentWrapper,
-    derive_more::AsRef,
-    derive_more::AsMut,
-    derive_more::From,
-    derive_more::Into,
-)]
-#[into(owned, ref, ref_mut)]
-#[repr(transparent)]
-pub struct Hash(pub [u8; 32]);
-
-/// Solana public key also used as account address.
-#[derive(
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    bytemuck::TransparentWrapper,
-    derive_more::AsRef,
-    derive_more::AsMut,
-    derive_more::From,
-    derive_more::Into,
-)]
-#[into(owned, ref, ref_mut)]
-#[repr(transparent)]
-pub struct PubKey(pub [u8; 32]);
-
 
 /// Merkle proof path.
 ///

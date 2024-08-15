@@ -5,3 +5,4 @@ extern crate alloc;
 extern crate std;
 
 pub mod proof;
+pub mod types;

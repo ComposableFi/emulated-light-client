@@ -1,21 +1,27 @@
 use rand::Rng;
+use solana_program2::pubkey::Pubkey;
 
 use super::*;
 
-const ACCOUNTS_COUNT: usize = if cfg!(miri) { 50 } else { 1000 };
-
-/// Checks that constants we’ve defined are the same as ones used by Solana.
+/// Checks that constants and sizes we’ve defined are the same as ones used by
+/// Solana.
 #[test]
 fn test_consts_sanity() {
+    use core::mem::size_of;
+
     assert_eq!(
         solana_accounts_db2::accounts_hash::MERKLE_FANOUT,
         MERKLE_FANOUT
     );
-    assert_eq!(solana_program2::hash::HASH_BYTES, core::mem::size_of::<Hash>());
-    assert_eq!(
-        solana_program2::blake3::HASH_BYTES,
-        core::mem::size_of::<Hash>()
-    );
+
+    macro_rules! assert_same_size {
+        ($golden:ty, $our:ty) => {
+            assert_eq!(size_of::<$golden>(), size_of::<$our>());
+        }
+    }
+    assert_same_size!(solana_program2::hash::Hash, Hash);
+    assert_same_size!(solana_program2::blake3::Hash, Hash);
+    assert_same_size!(Pubkey, PubKey);
 }
 
 /// Returns a RNG for use in tests.
@@ -34,7 +40,8 @@ fn generate<T: From<[u8; 32]>>(rng: &mut impl rand::Rng) -> T {
 
 /// Generates random accounts.
 fn make_accounts(rng: &mut impl rand::Rng) -> Vec<(PubKey, Hash)> {
-    (0..ACCOUNTS_COUNT).map(|_| (generate(rng), Hash(generate(rng)))).collect()
+    let count = if cfg!(miri) { 50 } else { 1000 };
+    (0..count).map(|_| (generate(rng), Hash(generate(rng)))).collect()
 }
 
 /// Tests Merkle tree root calculation.
@@ -62,7 +69,7 @@ fn test_root() {
         let accounts = accounts
             .into_iter()
             .map(|(pubkey, hash)| {
-                let pubkey = solana_program2::pubkey::Pubkey::from(pubkey.0);
+                let pubkey = Pubkey::from(pubkey.0);
                 let hash = solana_program2::hash::Hash::from(hash.0);
                 (pubkey, AccountHash(hash))
             })
@@ -125,8 +132,6 @@ fn test_invalid_proof_verification() {
 
 #[cfg(not(miri))] // Miri fails on FFI in blake3 crate
 mod hash_account {
-    use solana_program2::pubkey::Pubkey;
-
     use super::*;
 
     pub const LAMPORTS: u64 = 420;
