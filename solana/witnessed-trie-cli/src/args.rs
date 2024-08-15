@@ -20,6 +20,8 @@ pub struct Opts {
 
     /// Key pair to use when sending Solana transactions.
     pub keypair: Keypair,
+    /// Priority fee.
+    pub priority: u64,
 
     /// Witnessed trie program id.
     pub program_id: Pubkey,
@@ -42,10 +44,11 @@ fn usage(argv0: &str, full: bool) {
     #[rustfmt::skip]
     eprintln!(concat!(
         "<switch> is one of:\n",
-        "    -r --rpc-url=<url>    RPC URL\n",
+        "    -u --rpc-url=<url>    RPC URL\n",
         "       --<cluster>        Use RPC for given <cluster> where <cluster> is one of:\n",
         "                          ‘localnet’, ‘devnet’, ‘testnet’, ‘mainnet-beta’\n",
         "    -k --keypair=<path>   Path to the keypair to use when sending transaction\n",
+        "    -P --priority=<fee>   Priority fee in micro lamports per Compute Unit\n",
         "    -p --program-id=<id>  Id of the wittrie program\n",
         "    -s --seed=<seed>      Seed of the root trie PDA; empty by default\n",
         "    -b --bump=<bump>      Bump of the root trie PDA; calculated by default\n",
@@ -76,6 +79,7 @@ pub fn parse(args: std::env::Args) -> Result<Opts, std::process::ExitCode> {
 fn parse_impl(prog: &mut Prog) -> Result<Opts, bool> {
     let mut rpc_url = None;
     let mut keypair = None;
+    let mut priority = 0;
     let mut program_id = DEFAULT_PROGRAM_ID;
     let mut root_seed: RootSeed = Default::default();
     let mut bump = None;
@@ -99,6 +103,12 @@ fn parse_impl(prog: &mut Prog) -> Result<Opts, bool> {
             })?
         {
             keypair = Some(pair);
+        } else if let Some(pri) =
+            prog.parse_flag(&arg, "-P", "--priority", |priority| {
+                u64::from_str(priority)
+            })?
+        {
+            priority = pri;
         } else if let Some(id) =
             prog.parse_flag(&arg, "-p", "--program-id", Pubkey::from_str)?
         {
@@ -149,6 +159,7 @@ fn parse_impl(prog: &mut Prog) -> Result<Opts, bool> {
         argv0: core::mem::take(&mut prog.argv0),
         rpc_url,
         keypair,
+        priority,
         program_id,
         root_account,
         witness_account,

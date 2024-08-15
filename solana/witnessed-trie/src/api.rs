@@ -219,6 +219,63 @@ impl From<crate::utils::DataTooShort> for ParseError {
     }
 }
 
+
+/// Encoding of the data in witness account.
+#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+#[repr(C)]
+pub struct WitnessedData {
+    /// The root of the sealable trie.
+    trie_root: [u8; 32],
+
+    /// Rest of the witness account encoding Solana block timestamp.
+    ///
+    /// The timestamp is encoded using only six bytes.  The seventh byte is
+    /// a single byte of a slot number and the last byte is always zero.
+    ///
+    /// Single byte of slot is included so that data of the account changes for
+    /// every slot even if two slots are created at the same second.
+    ///
+    /// The last byte is zero for potential future use.
+    rest: [u8; 8],
+}
+
+impl WitnessedData {
+    /// Formats new witness account data with timestamp and slot number taken
+    /// from Solana clock.
+    pub fn new(
+        trie_root: &CryptoHash,
+        clock: &solana_program::clock::Clock,
+    ) -> Self {
+        let mut rest = clock.unix_timestamp.to_le_bytes();
+        rest[6] = clock.slot as u8;
+        rest[7] = 0;
+        Self { trie_root: trie_root.into(), rest }
+    }
+
+    /// Returns root of the saleable trie and Solana block timestamp in seconds.
+    ///
+    /// Returns `Err` if the account data is malformed.  The error holds
+    /// reference to the full data of the account.  This happens if the last
+    /// byte of the data is non-zero.
+    pub fn decode(&self) -> Result<(&CryptoHash, u64), &[u8; 40]> {
+        if self.rest[7] != 0 {
+            return Err(bytemuck::cast_ref(self));
+        }
+        let timestamp = u64::from_le_bytes(self.rest) & 0xffff_ffff_ffff;
+        Ok(((&self.trie_root).into(), timestamp))
+    }
+}
+
+impl From<[u8; 40]> for WitnessedData {
+    fn from(bytes: [u8; 40]) -> Self { bytemuck::cast(bytes) }
+}
+
+impl From<WitnessedData> for [u8; 40] {
+    fn from(data: WitnessedData) -> Self { bytemuck::cast(data) }
+}
+
+
+
 /// Value returned from the contract in return data.
 ///
 /// It holds information about the witness account needed to compute its hash
@@ -231,24 +288,21 @@ impl From<crate::utils::DataTooShort> for ParseError {
 /// - Executable flag is always `false` for witness accounts.
 /// - Slot isn’t explicitly a field of the struct but it’s encoded in the
 ///   `data`.
-#[derive(Clone, Copy, bytemuck::Zeroable, bytemuck::Pod)]
+#[derive(
+    Clone, Copy, bytemuck::Zeroable, bytemuck::Pod, derive_more::Deref,
+)]
 #[repr(C)]
 pub struct ReturnData {
     pub lamports: [u8; 8],
     pub rent_epoch: [u8; 8],
-    pub data: [u8; 40],
+    #[deref]
+    pub data: WitnessedData,
 }
 
 impl ReturnData {
     pub const fn executable(&self) -> bool { false }
     pub fn lamports(&self) -> u64 { u64::from_le_bytes(self.lamports) }
     pub fn rent_epoch(&self) -> u64 { u64::from_le_bytes(self.rent_epoch) }
-    pub fn trie_hash(&self) -> &lib::hash::CryptoHash {
-        stdx::split_array_ref::<32, 8, 40>(&self.data).0.into()
-    }
-    pub fn slot(&self) -> u64 {
-        u64::from_le_bytes(*stdx::split_array_ref::<32, 8, 40>(&self.data).1)
-    }
 
     /// Calculates hash of the account as used in Solana accounts change Merkle
     /// tree.
@@ -314,7 +368,7 @@ fn test_hash_account() {
     let data = ReturnData {
         lamports: LAMPORTS.to_le_bytes(),
         rent_epoch: [255; 8],
-        data: DATA,
+        data: DATA.into(),
     };
     assert_eq!(WANT, data.hash_account(&KEY, &OWNER));
 }

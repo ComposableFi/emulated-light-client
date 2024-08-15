@@ -71,19 +71,17 @@ pub(crate) fn process_instruction(
     }
 
     // Update witness
-    let mut data = [0u8; 40];
-    let (hash, slot) = stdx::split_array_mut::<32, 8, 40>(&mut data);
-    *hash = trie.hash().into();
-    *slot = solana_program::clock::Clock::get()?.slot.to_le_bytes();
+    let clock = solana_program::clock::Clock::get()?;
+    let data = api::WitnessedData::new(trie.hash(), &clock);
 
     {
         let mut dst = witness.try_borrow_mut_data()?;
         let dst: &mut [u8] = &mut dst;
         let dst: &mut [u8; 40] = dst.try_into().unwrap();
-        *dst = data;
+        *dst = data.into();
     }
 
-    // Return enough information so that witness account can be hashed.  See
+    // Return enough information so that witness account can be hashed.
     let ret = api::ReturnData {
         lamports: witness.lamports().to_le_bytes(),
         rent_epoch: witness.rent_epoch.to_le_bytes(),

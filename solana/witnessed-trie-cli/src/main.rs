@@ -1,9 +1,10 @@
 extern crate alloc;
-extern crate std;
+extern crate core;
 
 use std::process::ExitCode;
 
 use base64::Engine;
+use chrono::{DateTime, Utc};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use solana_transaction_status::option_serializer::OptionSerializer;
@@ -59,8 +60,12 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
         ],
         data: opts.data.to_vec(),
     };
+    let instructions = [
+        solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(opts.priority),
+        instruction
+    ];
     let message = solana_sdk::message::Message::new_with_blockhash(
-        &[instruction],
+        &instructions[(opts.priority == 0) as usize..],
         Some(&opts.keypair.pubkey()),
         &blockhash,
     );
@@ -133,14 +138,16 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
     println!("  lamports: {}", data.lamports());
     println!("  executable: {}", data.executable());
     println!("  rent_epoch: {}", data.rent_epoch());
-    println!("  trie_hash: {}", hex::display(data.trie_hash()));
-    println!("  slot: {}", data.slot());
-    println!(
-        "  hash: {}",
-        hex::display(
-            &data.hash_account(&opts.witness_account, &opts.program_id,)
-        )
-    );
+    match data.decode() {
+        Ok((trie_hash, secs)) => {
+            let dt = DateTime::<Utc>::from_timestamp(secs as i64, 0).unwrap();
+            println!("  trie_hash: {}", hex::display(trie_hash));
+            println!("  timestamp: {} (@{})", dt, secs);
+        }
+        Err(data) => {
+            println!("  data: {} (failed to decode)", hex::display(data));
+        }
+    }
 
     Ok(ExitCode::SUCCESS)
 }

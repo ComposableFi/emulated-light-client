@@ -9,6 +9,7 @@ arrayvec.workspace = true
 base64.workspace = true
 bytemuck.workspace = true
 derive_more.workspace = true
+chrono.workspace = true
 hex.workspace = true
 solana-cli-config.workspace = true
 solana-client.workspace = true
