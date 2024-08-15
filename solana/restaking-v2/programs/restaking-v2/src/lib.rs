@@ -32,7 +32,6 @@ pub mod restaking_v2 {
         ctx: Context<Initialize>,
         whitelisted_tokens: Vec<NewTokenPayload>,
         initial_validators: Vec<Pubkey>,
-        guest_chain_program_id: Pubkey,
     ) -> Result<()> {
         msg!("Initializng Restaking program");
 
@@ -59,7 +58,6 @@ pub mod restaking_v2 {
         common_state.whitelisted_tokens =
             whitelisted_tokens.into_iter().map(StakeToken::from).collect();
         common_state.validators = initial_validators;
-        common_state.guest_chain_program_id = guest_chain_program_id;
 
         Ok(())
     }
@@ -760,7 +758,6 @@ pub struct CommonState {
     pub admin: Pubkey,
     pub whitelisted_tokens: Vec<StakeToken>,
     pub validators: Vec<Pubkey>,
-    pub guest_chain_program_id: Pubkey,
     pub new_admin_proposal: Option<Pubkey>,
 }
 

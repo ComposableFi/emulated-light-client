@@ -136,7 +136,6 @@ fn restaking_test_deliver() -> Result<()> {
         .args(crate::instruction::Initialize {
             whitelisted_tokens: vec![new_token_mint],
             initial_validators: vec![authority.pubkey()],
-            guest_chain_program_id: solana_ibc::ID,
         })
         .payer(authority.clone())
         .signer(&*authority)
