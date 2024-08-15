@@ -1,3 +1,6 @@
+#[cfg(all(feature = "rayon", not(miri)))]
+use rayon::prelude::*;
+
 use crate::types::Hash;
 
 
