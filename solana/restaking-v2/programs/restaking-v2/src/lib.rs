@@ -92,6 +92,27 @@ pub mod restaking_v2 {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
+        let validators_len = common_state.validators.len() as u64;
+
+        // Making sure that the amount is equally divisible between all validators
+        let amount = amount - (amount % validators_len);
+
+        let amount_in_sol = if whitelisted_token.oracle_address.is_some() {
+            // Check if the price is stale
+            let current_time = Clock::get()?.unix_timestamp as u64;
+
+            if (current_time - whitelisted_token.last_updated_in_sec) >
+                whitelisted_token.max_update_time_in_sec
+            {
+                return Err(error!(ErrorCodes::PriceTooStale));
+            }
+
+            (whitelisted_token.latest_price * amount) /
+                10u64.pow(SOL_DECIMALS as u32)
+        } else {
+            amount
+        };
+
         let transfer_ix = Transfer {
             from: ctx.accounts.staker_token_account.to_account_info(),
             to: ctx.accounts.escrow_token_account.to_account_info(),
@@ -120,28 +141,8 @@ pub mod restaking_v2 {
         anchor_spl::token::mint_to(cpi_ctx, amount)?;
 
         // Call guest chain program to update the stake equally
-
-        let validators_len = common_state.validators.len() as u64;
-
-        let original_amount = amount;
-
-        let amount = if whitelisted_token.oracle_address.is_some() {
-            // Check if the price is stale
-            let current_time = Clock::get()?.unix_timestamp as u64;
-
-            if (current_time - whitelisted_token.last_updated_in_sec) >
-                whitelisted_token.max_update_time_in_sec
-            {
-                return Err(error!(ErrorCodes::PriceTooStale));
-            }
-
-            (whitelisted_token.latest_price * amount) /
-                10u64.pow(SOL_DECIMALS as u32)
-        } else {
-            amount
-        };
-
-        let stake_per_validator = amount / validators_len;
+        
+        let stake_per_validator = amount_in_sol / validators_len;
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
             sender: ctx.accounts.fee_payer.to_account_info(),
@@ -176,10 +177,10 @@ pub mod restaking_v2 {
             if delegations_len <= index {
                 common_state.whitelisted_tokens[whitelisted_token_idx]
                     .delegations
-                    .push(original_amount as u128)
+                    .push(amount as u128)
             } else {
                 common_state.whitelisted_tokens[whitelisted_token_idx]
-                    .delegations[index] += original_amount as u128
+                    .delegations[index] += amount as u128
             }
         });
 
@@ -450,8 +451,8 @@ pub mod restaking_v2 {
             )?;
             let token_price = token_price_feed.get_price_unchecked(&feed_id)?;
 
-            // Using a random value since the price doesnt change when running locally since
-            // the accounts are cloned during genesis and remain unchanged.
+            // Using a random value since the price doesnt change when running locally.
+            // The accounts are cloned during genesis and remain unchanged.
             let mut random_value = Clock::get()?.unix_timestamp % 10;
             random_value =
                 if random_value == 0 { random_value + 1 } else { random_value };
