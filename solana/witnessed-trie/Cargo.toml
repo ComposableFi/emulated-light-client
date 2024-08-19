@@ -37,7 +37,7 @@ api = [
 ]
 api2 = [
     "cf-solana",
-    "cf-solana/solana-program2",
+    "cf-solana/solana-program-2",
     "solana-program-2"
 ]
 contract = [

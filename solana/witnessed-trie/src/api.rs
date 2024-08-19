@@ -322,11 +322,12 @@ impl ReturnData {
         cf_solana::proof::hash_account(
             self.lamports(),
             owner.into(),
-            false,
+            self.executable(),
             self.rent_epoch(),
             self.data.as_ref(),
             account_address.into(),
-        ).into()
+        )
+        .into()
     }
 }
 
