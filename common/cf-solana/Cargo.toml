@@ -31,3 +31,6 @@ solana-program = [
     "dep:solana-program",
     "lib/solana-program",
 ]
+solana-program-2 = [
+    "dep:solana-program-2",
+]

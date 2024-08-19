@@ -17,6 +17,11 @@ members = [
     "solana/write-account",
     "validator",
 ]
+exclude = [
+    # See solana/trie-geyser/Cargo.toml for description why this is
+    # not part of the workspace.
+    "solana/trie-geyser",
+]
 resolver = "2"
 
 [profile.release]
