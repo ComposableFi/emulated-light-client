@@ -65,7 +65,7 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
         instruction
     ][(opts.priority == 0) as usize..];
     let message = solana_sdk::message::Message::new_with_blockhash(
-        &instructions,
+        instructions,
         Some(&opts.keypair.pubkey()),
         &blockhash,
     );
