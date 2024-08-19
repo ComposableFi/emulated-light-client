@@ -3,4 +3,6 @@ mod stake;
 mod utils;
 mod validator;
 
-fn main() { command::process_command(); }
+fn main() {
+    command::process_command();
+}

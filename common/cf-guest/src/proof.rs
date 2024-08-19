@@ -23,17 +23,20 @@ pub struct IbcProof {
 
 impl IbcProof {
     /// Returns commitment prefix to use during verification.
-    pub fn prefix(&self) -> ibc::CommitmentPrefix { Default::default() }
+    pub fn prefix(&self) -> ibc::CommitmentPrefix {
+        Default::default()
+    }
 
     /// Returns commitment root.
-    pub fn root(&self) -> ibc::CommitmentRoot { self.root.to_vec().into() }
+    pub fn root(&self) -> ibc::CommitmentRoot {
+        self.root.to_vec().into()
+    }
 
     /// Consumes object and returns commitment proof.
     pub fn proof(self) -> ibc::CommitmentProofBytes {
         self.proof.try_into().unwrap()
     }
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
 pub enum GenerateError {
@@ -103,7 +106,6 @@ pub fn generate<A: sealable_trie::Allocator>(
 
     Ok(IbcProof { proof, root, value })
 }
-
 
 #[derive(
     Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
@@ -186,9 +188,9 @@ pub fn verify(
         <&CryptoHash>::try_from(root).map_err(|_| VerifyError::BadRoot)?;
     let is_packet_commitment = matches!(
         path,
-        ibc::path::Path::Commitment(_) |
-            ibc::path::Path::Receipt(_) |
-            ibc::path::Path::Ack(_)
+        ibc::path::Path::Commitment(_)
+            | ibc::path::Path::Receipt(_)
+            | ibc::path::Path::Ack(_)
     );
     let path = trie_ids::PathInfo::try_from(path)?;
 
@@ -253,7 +255,6 @@ pub fn verify(
     }
 }
 
-
 #[test]
 fn test_proofs() {
     use core::str::FromStr;
@@ -273,7 +274,9 @@ fn test_proofs() {
             self.header.state_root = self.trie.hash().clone();
         }
 
-        fn root(&self) -> &CryptoHash { self.trie.hash() }
+        fn root(&self) -> &CryptoHash {
+            self.trie.hash()
+        }
     }
 
     /// Takes a proof and substitutes the block header encoded in it.

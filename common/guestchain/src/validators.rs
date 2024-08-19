@@ -19,7 +19,9 @@ pub trait PubKey:
     type Signature: Signature;
 
     fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]>;
-    fn to_vec(&self) -> Vec<u8> { self.as_bytes().into_owned() }
+    fn to_vec(&self) -> Vec<u8> {
+        self.as_bytes().into_owned()
+    }
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -28,7 +30,9 @@ pub trait Signature:
     Clone + Eq + core::fmt::Debug + borsh::BorshSerialize + borsh::BorshDeserialize
 {
     fn as_bytes(&self) -> alloc::borrow::Cow<'_, [u8]>;
-    fn to_vec(&self) -> Vec<u8> { self.as_bytes().into_owned() }
+    fn to_vec(&self) -> Vec<u8> {
+        self.as_bytes().into_owned()
+    }
     fn from_bytes(bytes: &[u8]) -> Result<Self, BadFormat>;
 }
 
@@ -70,13 +74,19 @@ impl<PK> Validator<PK> {
         Self { version: crate::common::VersionZero, pubkey, stake }
     }
 
-    pub fn pubkey(&self) -> &PK { &self.pubkey }
+    pub fn pubkey(&self) -> &PK {
+        &self.pubkey
+    }
 
-    pub fn stake(&self) -> NonZeroU128 { self.stake }
+    pub fn stake(&self) -> NonZeroU128 {
+        self.stake
+    }
 }
 
 impl From<core::array::TryFromSliceError> for BadFormat {
-    fn from(_: core::array::TryFromSliceError) -> BadFormat { BadFormat }
+    fn from(_: core::array::TryFromSliceError) -> BadFormat {
+        BadFormat
+    }
 }
 
 #[cfg(any(test, feature = "test_utils"))]
@@ -99,7 +109,9 @@ pub(crate) mod test_utils {
     pub struct MockPubKey(pub u32);
 
     impl MockPubKey {
-        pub fn make_signer(&self) -> MockSigner { MockSigner(*self) }
+        pub fn make_signer(&self) -> MockSigner {
+            MockSigner(*self)
+        }
     }
 
     /// A mock implementation of a Signer.  Offers no security; intended for

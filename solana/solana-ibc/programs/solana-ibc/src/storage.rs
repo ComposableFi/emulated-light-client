@@ -217,7 +217,9 @@ pub struct ClientRef<'a> {
 
 impl<'a> core::ops::Deref for ClientRef<'a> {
     type Target = ClientStore;
-    fn deref(&self) -> &ClientStore { self.store }
+    fn deref(&self) -> &ClientStore {
+        self.store
+    }
 }
 
 /// An exclusive reference to a [`ClientStore`] together with its index.
@@ -228,13 +230,16 @@ pub struct ClientMut<'a> {
 
 impl<'a> core::ops::Deref for ClientMut<'a> {
     type Target = ClientStore;
-    fn deref(&self) -> &ClientStore { self.store }
+    fn deref(&self) -> &ClientStore {
+        self.store
+    }
 }
 
 impl<'a> core::ops::DerefMut for ClientMut<'a> {
-    fn deref_mut(&mut self) -> &mut ClientStore { self.store }
+    fn deref_mut(&mut self) -> &mut ClientStore {
+        self.store
+    }
 }
-
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// Information about a specific `(port, channel)`.
@@ -320,7 +325,6 @@ pub struct Asset {
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
 }
-
 
 impl PrivateStorage {
     /// Returns number of known clients; or counter for the next client.
@@ -576,15 +580,21 @@ pub(crate) use from_ctx;
 pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
-    pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
+    pub fn empty() -> Self {
+        Self(Vec::new(), core::marker::PhantomData)
+    }
 
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
     pub fn transmute<U>(self) -> Serialised<U> {
         Serialised(self.0, core::marker::PhantomData)
     }
 
-    pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {

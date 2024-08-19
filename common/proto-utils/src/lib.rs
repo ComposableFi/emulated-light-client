@@ -35,7 +35,6 @@ pub trait AnyConvert: Sized {
     fn try_from_any(type_url: &str, value: &[u8]) -> Result<Self, DecodeError>;
 }
 
-
 /// Error during decoding of a protocol message.
 #[derive(Clone, PartialEq, Eq, derive_more::From)]
 pub enum DecodeError {
@@ -64,7 +63,9 @@ pub enum DecodeError {
 pub struct BadMessage;
 
 impl From<BadMessage> for DecodeError {
-    fn from(_: BadMessage) -> Self { Self::BadMessage }
+    fn from(_: BadMessage) -> Self {
+        Self::BadMessage
+    }
 }
 
 impl core::fmt::Debug for DecodeError {
@@ -105,7 +106,6 @@ impl From<BadMessage> for ibc_core_client_context::types::error::ClientError {
         Self::ClientSpecific { description: "BadMessage".into() }
     }
 }
-
 
 /// Defines common associated symbols and conversions for a proto message type.
 #[macro_export]
@@ -230,7 +230,6 @@ macro_rules! define_message {
     };
 }
 
-
 /// Implements conversion between given type and Any message.
 ///
 /// Specified type must implement [`AnyConvert`].
@@ -280,7 +279,6 @@ macro_rules! impl_from_to_any {
         $crate::impl_from_to_any!($Msg $(where $T: $bound)?; $crate::Any);
     };
 }
-
 
 /// Defines a wrapper type for a raw protocol message type.
 // TODO(mina86): Add definition of tests.

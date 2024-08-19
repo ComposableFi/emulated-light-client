@@ -66,7 +66,6 @@ fn process_instruction<'a>(
     }
 }
 
-
 /// Handles the Write operation.
 fn handle_write(
     program_id: &Pubkey,
@@ -151,7 +150,6 @@ fn setup_write_account(
     }
 }
 
-
 /// Handles Free operation.
 fn handle_free(accounts: Accounts) -> Result {
     {
@@ -167,7 +165,6 @@ fn handle_free(accounts: Accounts) -> Result {
     accounts.write.assign(&solana_program::system_program::ID);
     accounts.write.realloc(0, false)
 }
-
 
 /// Accounts used when processing instruction.
 #[derive(Clone, Copy)]
@@ -237,7 +234,6 @@ impl<'a, 'info> Accounts<'a, 'info> {
         [self.payer.key.as_ref(), self.seed_and_bump]
     }
 }
-
 
 /// Reads given object from the start of the slice advancing it.
 ///

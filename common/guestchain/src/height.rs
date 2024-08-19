@@ -31,7 +31,9 @@ pub type BlockDelta = Delta<Block>;
 
 impl<T> Height<T> {
     /// Returns the next height, i.e. `self + 1`.
-    pub fn next(self) -> Self { Self(self.0.checked_add(1).unwrap(), self.1) }
+    pub fn next(self) -> Self {
+        Self(self.0.checked_add(1).unwrap(), self.1)
+    }
 
     /// Checks whether delta between two heights is at least `min`.
     ///
@@ -51,17 +53,23 @@ impl<T> Height<T> {
 macro_rules! impls {
     ($ty:ident) => {
         impl<T> Clone for $ty<T> {
-            fn clone(&self) -> Self { *self }
+            fn clone(&self) -> Self {
+                *self
+            }
         }
 
         impl<T> Copy for $ty<T> {}
 
         impl<T> From<u64> for $ty<T> {
-            fn from(value: u64) -> Self { Self(value, Default::default()) }
+            fn from(value: u64) -> Self {
+                Self(value, Default::default())
+            }
         }
 
         impl<T> From<$ty<T>> for u64 {
-            fn from(value: $ty<T>) -> u64 { value.0 }
+            fn from(value: $ty<T>) -> u64 {
+                value.0
+            }
         }
 
         impl<T> fmt::Debug for $ty<T> {
@@ -77,7 +85,9 @@ macro_rules! impls {
         }
 
         impl<T> PartialEq for $ty<T> {
-            fn eq(&self, rhs: &Self) -> bool { self.0 == rhs.0 }
+            fn eq(&self, rhs: &Self) -> bool {
+                self.0 == rhs.0
+            }
         }
 
         impl<T> Eq for $ty<T> {}
@@ -89,7 +99,9 @@ macro_rules! impls {
         }
 
         impl<T> Ord for $ty<T> {
-            fn cmp(&self, rhs: &Self) -> cmp::Ordering { self.0.cmp(&rhs.0) }
+            fn cmp(&self, rhs: &Self) -> cmp::Ordering {
+                self.0.cmp(&rhs.0)
+            }
         }
 
         impl<T> borsh::BorshSerialize for $ty<T> {

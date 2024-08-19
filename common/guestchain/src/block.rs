@@ -187,8 +187,8 @@ impl BlockHeader {
 
     /// Returns whether the block is a valid genesis block.
     pub fn is_genesis(&self) -> bool {
-        self.prev_block_hash == CryptoHash::DEFAULT &&
-            self.epoch_id == CryptoHash::DEFAULT
+        self.prev_block_hash == CryptoHash::DEFAULT
+            && self.epoch_id == CryptoHash::DEFAULT
     }
 
     /// Calculates hash of the block.
@@ -268,7 +268,9 @@ impl<PK: crate::PubKey> Block<PK> {
 }
 
 impl Default for Fingerprint {
-    fn default() -> Self { Self([0; 72]) }
+    fn default() -> Self {
+        Self([0; 72])
+    }
 }
 
 impl Fingerprint {
@@ -304,7 +306,9 @@ impl Fingerprint {
 
     /// Returns the fingerprint as bytes slice.
     #[inline]
-    pub fn as_slice(&self) -> &[u8] { &self.0[..] }
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
 
     /// Signs the fingerprint
     #[inline]

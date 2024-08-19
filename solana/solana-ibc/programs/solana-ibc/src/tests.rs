@@ -555,9 +555,9 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            1_000_000_000f64)
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 1_000_000_000f64)
             .round() as u64,
         TRANSFER_AMOUNT
     );
@@ -632,11 +632,11 @@ fn anchor_test_deliver() -> Result<()> {
         .get_token_account_balance(&receiver_token_address)
         .unwrap();
     assert_eq!(
-        ((account_balance_after.ui_amount.unwrap() - account_balance_before) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_after.ui_amount.unwrap() - account_balance_before)
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT
+            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     /*
@@ -708,12 +708,12 @@ fn anchor_test_deliver() -> Result<()> {
         sol_rpc_client.get_balance(&fee_collector_pda).unwrap();
 
     assert_eq!(
-        ((account_balance_before.ui_amount.unwrap() -
-            account_balance_after.ui_amount.unwrap()) *
-            10_f64.powf(mint_info.decimals.into()))
+        ((account_balance_before.ui_amount.unwrap()
+            - account_balance_after.ui_amount.unwrap())
+            * 10_f64.powf(mint_info.decimals.into()))
         .round() as u64,
-        TRANSFER_AMOUNT /
-            (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
+        TRANSFER_AMOUNT
+            / (10_u64.pow((ORIGINAL_DECIMALS - EFFECTIVE_DECIMALS).into()))
     );
 
     assert_eq!(fee_account_balance_after - fee_account_balance_before, FEE);

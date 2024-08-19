@@ -145,7 +145,6 @@ fn write_slice(dst: &mut [MaybeUninit<u8>], src: &[u8]) {
     dst.copy_from_slice(src)
 }
 
-
 /// Creates a new iterator over signatures in given Ed25519 native program
 /// instruction data.
 ///
@@ -220,15 +219,21 @@ pub enum Error {
 pub struct BadData;
 
 impl From<BadData> for Error {
-    fn from(_: BadData) -> Self { Self::BadData }
+    fn from(_: BadData) -> Self {
+        Self::BadData
+    }
 }
 
 impl From<BadData> for solana_program::program_error::ProgramError {
-    fn from(_: BadData) -> Self { Self::InvalidInstructionData }
+    fn from(_: BadData) -> Self {
+        Self::InvalidInstructionData
+    }
 }
 
 impl From<Error> for solana_program::program_error::ProgramError {
-    fn from(_: Error) -> Self { Self::InvalidInstructionData }
+    fn from(_: Error) -> Self {
+        Self::InvalidInstructionData
+    }
 }
 
 /// An item returned by th
@@ -248,9 +253,9 @@ fn decode_entry<'a>(data: &'a [u8], entry: &'a [u8; 14]) -> Item<'a> {
     let [sig_offset, sig_ix_idx, key_offset, key_ix_idx, msg_offset, msg_size, msg_ix_idx] =
         entry;
 
-    if sig_ix_idx != u16::MAX ||
-        key_ix_idx != u16::MAX ||
-        msg_ix_idx != u16::MAX
+    if sig_ix_idx != u16::MAX
+        || key_ix_idx != u16::MAX
+        || msg_ix_idx != u16::MAX
     {
         return Err(Error::UnsupportedFeature);
     }
@@ -293,12 +298,18 @@ impl<'a> core::iter::Iterator for Iter<'a> {
         Some(decode_entry(self.data, entry))
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) { self.entries.size_hint() }
-    fn count(self) -> usize { self.entries.count() }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.entries.size_hint()
+    }
+    fn count(self) -> usize {
+        self.entries.count()
+    }
 }
 
 impl<'a> core::iter::ExactSizeIterator for Iter<'a> {
-    fn len(&self) -> usize { self.entries.len() }
+    fn len(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 impl<'a> core::iter::DoubleEndedIterator for Iter<'a> {

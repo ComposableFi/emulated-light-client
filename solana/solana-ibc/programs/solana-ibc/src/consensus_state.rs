@@ -112,7 +112,6 @@ impl AnyConsensusState {
     }
 }
 
-
 impl From<ibc::tm::types::ConsensusState> for AnyConsensusState {
     fn from(state: ibc::tm::types::ConsensusState) -> Self {
         Self::Tendermint(state.into())

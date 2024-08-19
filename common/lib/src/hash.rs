@@ -39,7 +39,9 @@ impl CryptoHash {
     /// Returns a builder which can be used to construct cryptographic hash by
     /// digesting bytes.
     #[inline]
-    pub fn builder() -> Builder { Builder::default() }
+    pub fn builder() -> Builder {
+        Builder::default()
+    }
 
     /// Returns hash of given bytes.
     #[inline]
@@ -59,7 +61,9 @@ impl CryptoHash {
     /// `solana` crate feature must be enabled for this Solana-specific
     /// optimisation to be implemented.
     #[inline]
-    pub fn digestv(slices: &[&[u8]]) -> Self { Self(imp::digestv(slices)) }
+    pub fn digestv(slices: &[&[u8]]) -> Self {
+        Self(imp::digestv(slices))
+    }
 
     /// Decodes a base64 string representation of the hash.
     pub fn from_base64(base64: &str) -> Option<Self> {
@@ -92,15 +96,21 @@ impl CryptoHash {
 
     /// Returns a shared reference to the underlying bytes array.
     #[inline]
-    pub fn as_array(&self) -> &[u8; Self::LENGTH] { &self.0 }
+    pub fn as_array(&self) -> &[u8; Self::LENGTH] {
+        &self.0
+    }
 
     /// Returns a shared reference to the hash as slice of bytes.
     #[inline]
-    pub fn as_slice(&self) -> &[u8] { &self.0[..] }
+    pub fn as_slice(&self) -> &[u8] {
+        &self.0[..]
+    }
 
     /// Allocates vector with the contents of the hash.
     #[inline]
-    pub fn to_vec(&self) -> alloc::vec::Vec<u8> { self.as_slice().to_vec() }
+    pub fn to_vec(&self) -> alloc::vec::Vec<u8> {
+        self.as_slice().to_vec()
+    }
 }
 
 impl core::fmt::Display for CryptoHash {
@@ -132,7 +142,9 @@ impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for CryptoHash {
 
 impl From<&'_ CryptoHash> for [u8; CryptoHash::LENGTH] {
     #[inline]
-    fn from(hash: &'_ CryptoHash) -> Self { hash.0 }
+    fn from(hash: &'_ CryptoHash) -> Self {
+        hash.0
+    }
 }
 
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for &'a CryptoHash {
@@ -193,10 +205,14 @@ mod imp {
 
     impl State {
         #[inline]
-        pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
+        pub fn update(&mut self, bytes: &[u8]) {
+            self.0.update(bytes)
+        }
 
         #[inline]
-        pub fn done(self) -> [u8; 32] { self.0.finalize().into() }
+        pub fn done(self) -> [u8; 32] {
+            self.0.finalize().into()
+        }
     }
 }
 
@@ -224,7 +240,6 @@ mod imp {
     }
 }
 
-
 /// Builder for the cryptographic hash.
 ///
 /// The builder calculates the digest of bytes that it’s fed using the
@@ -239,11 +254,15 @@ pub struct Builder(imp::State);
 impl Builder {
     /// Process data, updating the internal state of the digest.
     #[inline]
-    pub fn update(&mut self, bytes: &[u8]) { self.0.update(bytes) }
+    pub fn update(&mut self, bytes: &[u8]) {
+        self.0.update(bytes)
+    }
 
     /// Finalises the digest and returns the cryptographic hash.
     #[inline]
-    pub fn build(self) -> CryptoHash { CryptoHash(self.0.done()) }
+    pub fn build(self) -> CryptoHash {
+        CryptoHash(self.0.done())
+    }
 }
 
 #[cfg(feature = "borsh")]
@@ -257,7 +276,9 @@ impl io::Write for Builder {
         Ok(self.update(buf))
     }
 
-    fn flush(&mut self) -> io::Result<()> { Ok(()) }
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 #[test]

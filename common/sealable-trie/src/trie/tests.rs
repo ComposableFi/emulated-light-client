@@ -162,11 +162,15 @@ fn test_seal_small() {
 /// Tests using `set_and_seal` to create a trie with all keys sealed.
 #[cfg(not(miri))]
 #[test]
-fn test_set_and_seal() { make_trie(false, true); }
+fn test_set_and_seal() {
+    make_trie(false, true);
+}
 
 /// Tests using `set_and_seal` to create a small trie with all keys sealed.
 #[test]
-fn test_set_and_seal_small() { make_trie(true, true); }
+fn test_set_and_seal_small() {
+    make_trie(true, true);
+}
 
 fn do_test_del((mut trie, keys): (TestTrie, &[u8]), want_mid_count: usize) {
     let (left, right) = keys.split_at(keys.len() / 2);
@@ -183,11 +187,15 @@ fn do_test_del((mut trie, keys): (TestTrie, &[u8]), want_mid_count: usize) {
 /// Tests deleting all keys of a trie.
 #[cfg(not(miri))]
 #[test]
-fn test_del() { do_test_del(make_trie(false, false), 8); }
+fn test_del() {
+    do_test_del(make_trie(false, false), 8);
+}
 
 /// Tests deleting all keys of a small trie.
 #[test]
-fn test_del_small() { do_test_del(make_trie(true, false), 5); }
+fn test_del_small() {
+    do_test_del(make_trie(true, false), 5);
+}
 
 /// Tests whether deleting a node in between two Extension nodes causes the two
 /// Extension nodes to be rebalanced.
@@ -306,9 +314,10 @@ impl<'a> KeyGen<'a> for RandKeys<'a> {
         Some(self.generate(known))
     }
 
-    fn count(&self) -> Option<usize> { Some(self.count) }
+    fn count(&self) -> Option<usize> {
+        Some(self.count)
+    }
 }
-
 
 #[test]
 fn stress_test() {
@@ -393,7 +402,9 @@ struct Key {
 }
 
 impl Key {
-    fn as_bytes(&self) -> &[u8] { &self.buf[..usize::from(self.len)] }
+    fn as_bytes(&self) -> &[u8] {
+        &self.buf[..usize::from(self.len)]
+    }
 }
 
 impl<'a> From<&'a [u8]> for Key {
@@ -410,20 +421,28 @@ impl<'a> From<&'a [u8]> for Key {
 }
 
 impl<'a> From<&'a str> for Key {
-    fn from(key: &'a str) -> Self { Self::from(key.as_bytes()) }
+    fn from(key: &'a str) -> Self {
+        Self::from(key.as_bytes())
+    }
 }
 
 impl core::ops::Deref for Key {
     type Target = [u8];
-    fn deref(&self) -> &[u8] { self.as_bytes() }
+    fn deref(&self) -> &[u8] {
+        self.as_bytes()
+    }
 }
 
 impl alloc::borrow::Borrow<[u8]> for Key {
-    fn borrow(&self) -> &[u8] { self.as_bytes() }
+    fn borrow(&self) -> &[u8] {
+        self.as_bytes()
+    }
 }
 
 impl core::cmp::PartialEq for Key {
-    fn eq(&self, other: &Self) -> bool { self.as_bytes() == other.as_bytes() }
+    fn eq(&self, other: &Self) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
 }
 
 impl core::cmp::PartialOrd for Key {
@@ -444,7 +463,6 @@ impl core::fmt::Debug for Key {
     }
 }
 
-
 trait KeyGen<'a> {
     fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]>;
     fn count(&self) -> Option<usize>;
@@ -454,22 +472,27 @@ impl<'a, 'b, T: KeyGen<'b>> KeyGen<'b> for &'a mut T {
     fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'b [u8]> {
         (**self).next(known)
     }
-    fn count(&self) -> Option<usize> { (**self).count() }
+    fn count(&self) -> Option<usize> {
+        (**self).count()
+    }
 }
 
 struct IterKeyGen<I>(I);
 
 impl<'a, I: Iterator<Item = &'a [u8]>> IterKeyGen<I> {
-    fn new(it: impl IntoIterator<IntoIter = I>) -> Self { Self(it.into_iter()) }
+    fn new(it: impl IntoIterator<IntoIter = I>) -> Self {
+        Self(it.into_iter())
+    }
 }
 
 impl<'a, I: Iterator<Item = &'a [u8]>> KeyGen<'a> for IterKeyGen<I> {
     fn next(&mut self, _known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]> {
         self.0.next()
     }
-    fn count(&self) -> Option<usize> { self.0.size_hint().1 }
+    fn count(&self) -> Option<usize> {
+        self.0.size_hint().1
+    }
 }
-
 
 struct TestTrie {
     trie: super::Trie<TestAllocator<super::Value>>,
@@ -486,7 +509,9 @@ impl TestTrie {
         }
     }
 
-    pub fn hash(&self) -> &CryptoHash { self.trie.hash() }
+    pub fn hash(&self) -> &CryptoHash {
+        self.trie.hash()
+    }
 
     pub fn is_empty(&self) -> bool {
         if self.trie.is_empty() {
@@ -497,7 +522,9 @@ impl TestTrie {
         }
     }
 
-    pub fn nodes_count(&self) -> usize { self.trie.alloc.count() }
+    pub fn nodes_count(&self) -> usize {
+        self.trie.alloc.count()
+    }
 
     pub fn set(&mut self, key: &[u8], verbose: bool) {
         self.try_set(key, verbose).unwrap();

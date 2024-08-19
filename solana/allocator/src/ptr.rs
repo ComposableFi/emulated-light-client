@@ -26,7 +26,6 @@ pub(super) fn range(start: *mut u8, size: usize) -> core::ops::Range<*mut u8> {
     start..start.wrapping_add(size)
 }
 
-
 /// Copies `size` bytes from `src` to `dst`.
 ///
 /// # Safety

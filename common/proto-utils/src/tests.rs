@@ -10,9 +10,13 @@ pub mod pb {
             const NAME: &'static str = "Message";
             const PACKAGE: &'static str = "foo";
 
-            fn full_name() -> ::alloc::string::String { "foo.Message".into() }
+            fn full_name() -> ::alloc::string::String {
+                "foo.Message".into()
+            }
 
-            fn type_url() -> ::alloc::string::String { "/foo.Message".into() }
+            fn type_url() -> ::alloc::string::String {
+                "/foo.Message".into()
+            }
         }
     }
 }

@@ -81,7 +81,6 @@ impl Header {
     }
 }
 
-
 #[test]
 fn test_header_encoding() {
     const ONE: CryptoHash = CryptoHash([1; 32]);

@@ -43,7 +43,9 @@ pub enum Neighbourhood<T> {
 }
 
 impl<T> Default for Neighbourhood<T> {
-    fn default() -> Self { Self::Neighbours(None, None) }
+    fn default() -> Self {
+        Self::Neighbours(None, None)
+    }
 }
 
 impl<T> Neighbourhood<T> {
@@ -237,7 +239,6 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 }
 
-
 impl From<proof::VerifyError> for ibc::ClientError {
     fn from(err: proof::VerifyError) -> Self {
         use ibc::CommitmentError::EncodingFailure;
@@ -396,7 +397,6 @@ where
     }
 }
 
-
 impl<PK: PubKey> ClientState<PK> {
     pub fn do_update_state(
         &self,
@@ -480,8 +480,8 @@ impl<PK: PubKey> ClientState<PK> {
             if header.genesis_hash != self.genesis_hash {
                 return Err("Unexpected genesis hash");
             }
-            if header.epoch_commitment != self.epoch_commitment &&
-                header.epoch_commitment != self.prev_epoch_commitment
+            if header.epoch_commitment != self.epoch_commitment
+                && header.epoch_commitment != self.prev_epoch_commitment
             {
                 return Err("Unexpected epoch");
             }
@@ -641,11 +641,9 @@ impl<PK: PubKey> ClientState<PK> {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -665,7 +663,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {
