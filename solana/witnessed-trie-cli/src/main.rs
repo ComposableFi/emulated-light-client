@@ -60,19 +60,20 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
         ],
         data: opts.data.to_vec(),
     };
-    let instructions = [
+    let instructions = &[
         solana_sdk::compute_budget::ComputeBudgetInstruction::set_compute_unit_price(opts.priority),
         instruction
-    ];
+    ][(opts.priority == 0) as usize..];
     let message = solana_sdk::message::Message::new_with_blockhash(
-        &instructions[(opts.priority == 0) as usize..],
+        &instructions,
         Some(&opts.keypair.pubkey()),
         &blockhash,
     );
     let mut tx = solana_sdk::transaction::Transaction::new_unsigned(message);
 
     // Simulate the transaction
-    println!("Simulate transaction...");
+    let program_id = opts.program_id.to_string();
+    println!("Simulate transaction to {program_id}...");
     let result = client.simulate_transaction(&tx)?.value;
     if let Some(err) = result.err {
         for log in result.logs.as_deref().unwrap_or(&[][..]) {
@@ -83,7 +84,7 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
     }
 
     // Send the transaction
-    println!("Sending transaction...");
+    println!("Sending transaction to {program_id}...");
     let blockhash = client.get_latest_blockhash()?;
     println!("Latest blockhash: {blockhash}");
     tx.sign(&[&opts.keypair], blockhash);
@@ -107,7 +108,6 @@ fn run(opts: &args::Opts) -> Result<ExitCode, Error> {
         _ => return Err("no return data from transaction".into()),
     };
 
-    let program_id = opts.program_id.to_string();
     if ret.program_id != program_id {
         eprintln!(
             "{}: return data from {} rather than {}",

@@ -8,7 +8,7 @@ type RootSeed = arrayvec::ArrayVec<u8, { MAX_SEED_LEN }>;
 
 /// Default program id to use if user doesn’t provide one.
 const DEFAULT_PROGRAM_ID: Pubkey =
-    solana_sdk::pubkey!("5QKjsHmVMQxccke2W58zuYoTCoySHauoisioYrbvVJxP");
+    solana_sdk::pubkey!("8Czzh5DFpFAN69Qow3gvpqS4APJyTFpqZR7cJhwphqPE");
 
 /// Parse command line options.
 pub struct Opts {
