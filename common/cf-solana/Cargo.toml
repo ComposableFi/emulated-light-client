@@ -1,0 +1,33 @@
+[package]
+name = "cf-solana"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+arrayvec.workspace = true
+blake3.workspace = true
+bs58.workspace = true
+bytemuck.workspace = true
+derive_more.workspace = true
+rayon = { workspace = true, optional = true }
+solana-program = { workspace = true, optional = true }
+
+lib = { workspace = true, features = ["bs58"] }
+
+solana-program2 = { package = "solana-program", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev", optional = true }
+
+[build-dependencies]
+
+[dev-dependencies]
+rand.workspace = true
+rand_chacha.workspace = true
+
+solana-accounts-db2 = { package = "solana-accounts-db", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-program2 = { package = "solana-program", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+
+[features]
+solana-program = [
+    "dep:solana-program",
+    "lib/solana-program",
+]

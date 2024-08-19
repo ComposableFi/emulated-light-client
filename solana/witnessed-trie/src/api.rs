@@ -274,6 +274,10 @@ impl From<WitnessedData> for [u8; 40] {
     fn from(data: WitnessedData) -> Self { bytemuck::cast(data) }
 }
 
+impl AsRef<[u8; 40]> for WitnessedData {
+    fn as_ref(&self) -> &[u8; 40] { bytemuck::cast_ref(self) }
+}
+
 
 
 /// Value returned from the contract in return data.
@@ -315,27 +319,14 @@ impl ReturnData {
         account_address: &Pubkey,
         owner: &Pubkey,
     ) -> [u8; 32] {
-        if self.lamports() == 0 {
-            return [0; 32];
-        }
-
-        #[derive(Copy, Clone, bytemuck::NoUninit)]
-        #[repr(C)]
-        struct HashData {
-            this: ReturnData,
-            executable: u8,
-            owner: [u8; 32],
-            pubkey: [u8; 32],
-        }
-
-        let data = HashData {
-            this: *self,
-            executable: 0,
-            owner: owner.to_bytes(),
-            pubkey: account_address.to_bytes(),
-        };
-
-        solana_program::blake3::hash(bytemuck::bytes_of(&data)).0
+        cf_solana::proof::hash_account(
+            self.lamports(),
+            owner.into(),
+            false,
+            self.rent_epoch(),
+            self.data.as_ref(),
+            account_address.into(),
+        ).into()
     }
 }
 

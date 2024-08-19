@@ -17,6 +17,7 @@ solana-program = { workspace = true, optional = true }
 solana-program-2 = { workspace = true, optional = true }
 strum = { features = ["derive"], workspace = true }
 
+cf-solana = { workspace = true, optional = true }
 lib.workspace = true
 memory = { workspace = true, optional = true }
 sealable-trie = { workspace = true, optional = true }
@@ -29,8 +30,16 @@ hex-literal.workspace = true
 
 [features]
 default = ["contract"]
-api = ["solana-program"]
-api2 = ["solana-program-2"]
+api = [
+    "cf-solana",
+    "cf-solana/solana-program",
+    "solana-program",
+]
+api2 = [
+    "cf-solana",
+    "cf-solana/solana-program2",
+    "solana-program-2"
+]
 contract = [
     "api",
     "hex",

@@ -138,16 +138,6 @@ fn base64_display(bytes: &[u8; 64], fmtr: &mut fmt::Formatter) -> fmt::Result {
 }
 
 /// Displays slice using base58 encoding.
-// TODO(mina86): Get rid of this once bs58 has this feature.  There’s currently
-// PR for that: https://github.com/Nullus157/bs58-rs/pull/97
 fn base58_display(bytes: &[u8; 32], fmtr: &mut fmt::Formatter) -> fmt::Result {
-    // The largest buffer we’re ever encoding is 32-byte long.  Base58
-    // increases size of the value by less than 40%.  45-byte buffer is
-    // therefore enough to fit 32-byte values.
-    let mut buf = [0u8; 45];
-    let len = bs58::encode(bytes).onto(&mut buf[..]).unwrap();
-    let output = &buf[..len];
-    // SAFETY: We know that alphabet can only include ASCII characters
-    // thus our result is an ASCII string.
-    fmtr.write_str(unsafe { std::str::from_utf8_unchecked(output) })
+    <&lib::hash::CryptoHash>::from(bytes).fmt_bs58(fmtr)
 }
