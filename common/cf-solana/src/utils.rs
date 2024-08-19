@@ -72,7 +72,7 @@ pub(super) mod blake3 {
             target_os = "solana-program",
             feature = "solana-program2"
         ))]
-        return Hash(solana_program2::blake3::hashv(slices).0);
+        return Hash(solana_program_2::blake3::hashv(slices).0);
         #[cfg(all(
             target_os = "solana-program",
             feature = "solana-program",

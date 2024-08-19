@@ -1,5 +1,5 @@
 use rand::Rng;
-use solana_program2::pubkey::Pubkey;
+use solana_program_2::pubkey::Pubkey;
 
 use super::*;
 
@@ -19,8 +19,8 @@ fn test_consts_sanity() {
             assert_eq!(size_of::<$golden>(), size_of::<$our>());
         };
     }
-    assert_same_size!(solana_program2::hash::Hash, Hash);
-    assert_same_size!(solana_program2::blake3::Hash, Hash);
+    assert_same_size!(solana_program_2::hash::Hash, Hash);
+    assert_same_size!(solana_program_2::blake3::Hash, Hash);
     assert_same_size!(Pubkey, PubKey);
 }
 
@@ -70,7 +70,7 @@ fn test_root() {
             .into_iter()
             .map(|(pubkey, hash)| {
                 let pubkey = Pubkey::from(pubkey.0);
-                let hash = solana_program2::hash::Hash::from(hash.0);
+                let hash = solana_program_2::hash::Hash::from(hash.0);
                 (pubkey, AccountHash(hash))
             })
             .collect();
@@ -139,7 +139,7 @@ mod hash_account {
     pub const EXECUTABLE: bool = false;
 
     // Depending on Cargo features we might not have solana_program crate (tests
-    // are build with solana_program2) and cannot use solana_program2::pubkey!
+    // are build with solana_program_2) and cannot use solana_program_2::pubkey!
     // macro.
     pub const PUBKEY: &str = "ENEWG4MWwJQUfJxDgqarJQ1bf2P4fADsCYsPCjvLRaa2";
     pub const OWNER: &str = "4FjVmuvPYnE1fqBtvjGh5JF7QDwUmyBZ5wv1uygHvTey";

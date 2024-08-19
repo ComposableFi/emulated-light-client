@@ -206,4 +206,4 @@ macro_rules! impl_sol_conversions {
 #[cfg(feature = "solana-program")]
 impl_sol_conversions!(solana_program);
 #[cfg(any(test, feature = "solana-program2"))]
-impl_sol_conversions!(solana_program2);
+impl_sol_conversions!(solana_program_2);
