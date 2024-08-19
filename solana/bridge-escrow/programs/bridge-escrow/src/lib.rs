@@ -29,7 +29,7 @@ const INTENT_SEED: &[u8] = b"intent";
 #[cfg(test)]
 mod tests;
 
-declare_id!("43VAmkAMHhRMX124zHZiQDk9SwbXqhZaWDvGrfeo4eHv");
+declare_id!("EcKk7ZzNPHBougPDZ2Rwu93xd48ba1X6cwW1j8DUChHP");
 
 #[program]
 pub mod bridge_escrow {
@@ -60,6 +60,33 @@ pub mod bridge_escrow {
 
         Ok(())
     }
+
+    /// Transfers funds from the auctioneer's escrow account to a specified recipient.
+    ///
+    /// The funds are stored in a token account owned by the auctioneer state PDA.
+    pub fn auctioneer_transfer(ctx: Context<AuctioneerTransfer>, amount: u64) -> Result<()> {
+        // Transfer SPL tokens from the auctioneer's escrow account to the recipient's account
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.escrow_token_account.to_account_info(),
+            to: ctx.accounts.recipient_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
+        };
+    
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+    
+        // Retrieve the bump seed using the `seeds` provided in the context
+        let auctioneer_seeds = &[
+            AUCTIONEER_SEED.as_ref(),
+            &[ctx.bumps.auctioneer_state]
+        ];
+        let signer_seeds = &[&auctioneer_seeds[..]];
+    
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+        token::transfer(cpi_ctx, amount)?;
+    
+        Ok(())
+    }  
 
     /// Called by the auctioneer whose address is stored in `auctioneer` state account.
     pub fn store_intent(
@@ -139,7 +166,6 @@ pub mod bridge_escrow {
     // this function is called by Solver
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
-        intent_id: String,
         hashed_full_denom: Option<CryptoHash>,
         solver_out: Option<String>,
         single_domain: bool,
@@ -567,3 +593,15 @@ pub enum ErrorCode {
     #[msg("Invalid hashed full denom")]
     InvalidHashedFullDenom,
 }
+
+#[derive(Accounts)]
+pub struct AuctioneerTransfer<'info> {
+    #[account(seeds = [AUCTIONEER_SEED], bump)]
+    pub auctioneer_state: Account<'info, Auctioneer>, // The PDA representing the auctioneer's state
+    #[account(mut, token::authority = auctioneer_state)]
+    pub escrow_token_account: Account<'info, TokenAccount>, // PDA's token account holding escrowed funds
+    #[account(mut)]
+    pub recipient_token_account: Account<'info, TokenAccount>, // Recipient's token account
+    pub token_program: Program<'info, Token>, // Token program reference
+}
+
