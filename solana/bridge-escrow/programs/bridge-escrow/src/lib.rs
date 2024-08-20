@@ -29,7 +29,7 @@ const INTENT_SEED: &[u8] = b"intent";
 #[cfg(test)]
 mod tests;
 
-declare_id!("7XYDdCQWB86QXBThmzENF19wnv2bgBvTJMsKzEZ3k8kE");
+declare_id!("3N4WXdP7FZQ1u9sjhKp5Gth6Tg8YkM3vV7q2SjQf5LZG");
 
 #[program]
 pub mod bridge_escrow {
