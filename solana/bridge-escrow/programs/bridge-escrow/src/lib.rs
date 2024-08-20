@@ -72,6 +72,7 @@ pub mod bridge_escrow {
         amount_out: String,
         timeout_in_sec: u64,
         winner_solver: Pubkey,
+        single_domain: bool,
     ) -> Result<()> {
         // verify if caller is auctioneer
         let auctioneer = &ctx.accounts.auctioneer;
@@ -90,6 +91,7 @@ pub mod bridge_escrow {
         intent.timeout_timestamp_in_sec = timeout_in_sec;
         intent.amount_out = amount_out;
         intent.winner_solver = winner_solver;
+        intent.single_domain = single_domain;
 
         Ok(())
     }
@@ -141,7 +143,6 @@ pub mod bridge_escrow {
         ctx: Context<SplTokenTransfer>,
         hashed_full_denom: Option<CryptoHash>,
         solver_out: Option<String>,
-        single_domain: bool,
     ) -> Result<()> {
         let intent = &ctx.accounts.intent;
         require!(
@@ -173,7 +174,7 @@ pub mod bridge_escrow {
             amount_out,
         )?;
 
-        if single_domain {
+        if intent.single_domain {
             // Transfer tokens from Auctioneer to Solver
 
             let bump = ctx.bumps.auctioneer_state;
@@ -392,6 +393,7 @@ pub struct Intent {
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
     pub timeout_timestamp_in_sec: u64,
+    pub single_domain: bool
 }
 
 // Define the context for initializing the program

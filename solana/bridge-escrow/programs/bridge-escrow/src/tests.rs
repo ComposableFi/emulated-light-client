@@ -283,6 +283,7 @@ fn escrow_bridge_program() -> Result<()> {
             amount_out: amount_out.to_string(),
             timeout_in_sec: 10000,
             winner_solver: solver.pubkey(),
+            single_domain: true,
         })
         .payer(auctioneer.clone())
         .signer(&*auctioneer)
@@ -334,10 +335,8 @@ fn escrow_bridge_program() -> Result<()> {
             fee_collector: None,
         })
         .args(crate::instruction::SendFundsToUser {
-            intent_id,
             hashed_full_denom: None,
             solver_out: None,
-            single_domain: true,
         })
         .payer(solver.clone())
         .signer(&*solver)
