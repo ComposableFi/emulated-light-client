@@ -179,28 +179,46 @@ mod hash_account {
         assert_eq!(WANT, got.0);
     }
 
-    /// Tests that AccountProof::hash_account calculates has correctly.
-    ///
-    /// Specifically we compare it to result of `hash_account` function (which is
-    /// tested separately in `test_hash_account`).
+    /// Tests AccountHashData getters.
     #[test]
-    fn test_account_proof_hash() {
+    fn test_account_hash_data_getters() {
         let pubkey: Pubkey = PUBKEY.parse().unwrap();
         let owner: Pubkey = OWNER.parse().unwrap();
-
-        let mut accounts = [(PubKey::from(pubkey.clone()), Hash(WANT))];
-        let (_, proof) = AccountProof::generate(
-            &mut accounts,
+        let data = AccountHashData::new(
             LAMPORTS,
             (&owner).into(),
             EXECUTABLE,
             RENT_EPOCH,
             &DATA,
             (&pubkey).into(),
-        )
-        .unwrap();
+        );
 
-        assert_eq!(WANT, proof.hash_account().0);
+        assert_eq!(LAMPORTS, data.lamports());
+        assert_eq!(&owner, <&Pubkey>::from(data.owner()));
+        assert_eq!(EXECUTABLE, data.executable());
+        assert_eq!(RENT_EPOCH, data.rent_epoch());
+        assert_eq!(&DATA, data.data());
+        assert_eq!(&pubkey, <&Pubkey>::from(data.key()));
+    }
+
+    /// Tests that AccountHashData::calculate_hash calculates has correctly.
+    ///
+    /// Specifically compares result to value returned by `hash_account`
+    /// function (which is tested separately in `test_hash_account`).
+    #[test]
+    fn test_account_hash_data_hash() {
+        let pubkey: Pubkey = PUBKEY.parse().unwrap();
+        let owner: Pubkey = OWNER.parse().unwrap();
+        let data = AccountHashData::new(
+            LAMPORTS,
+            (&owner).into(),
+            EXECUTABLE,
+            RENT_EPOCH,
+            &DATA,
+            (&pubkey).into(),
+        );
+
+        assert_eq!(WANT, data.calculate_hash().0);
     }
 
     /// Test account proof verification.
