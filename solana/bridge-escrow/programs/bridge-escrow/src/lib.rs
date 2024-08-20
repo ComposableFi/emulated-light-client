@@ -141,6 +141,7 @@ pub mod bridge_escrow {
     // this function is called by Solver
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
+        intent_id: String,
         hashed_full_denom: Option<CryptoHash>,
         solver_out: Option<String>,
     ) -> Result<()> {

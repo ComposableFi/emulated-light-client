@@ -9,14 +9,17 @@ use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
-    Keypair, Signature, Signer as SolanaSigner,
+    read_keypair_file, Keypair, Signature, Signer as SolanaSigner,
 };
+use anchor_client::solana_sdk::system_transaction::transfer;
 use anchor_client::{Client, Cluster};
 use anchor_lang::system_program;
 use anchor_spl::associated_token::{self, get_associated_token_address};
 use anyhow::Result;
 use ibc::apps::transfer::types::{PrefixedCoin, PrefixedDenom};
+use lib::hash::CryptoHash;
 use spl_token::instruction::initialize_mint2;
+use spl_token::solana_program::native_token::LAMPORTS_PER_SOL;
 use spl_token::solana_program::system_instruction::create_account;
 
 const MINT_AMOUNT: u64 = 1_000_000_000;
@@ -39,11 +42,11 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
 #[ignore = "Requires local validator to run"]
 fn escrow_bridge_program() -> Result<()> {
     // Setup the client and wallet
-    let user = Rc::new(Keypair::new());
+    let auctioneer = Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
         Cluster::Localnet,
-        user.clone(),
+        auctioneer.clone(),
         CommitmentConfig::processed(),
     );
 
@@ -53,13 +56,36 @@ fn escrow_bridge_program() -> Result<()> {
     let lamports = 2_000_000_000;
 
     let solver = Rc::new(Keypair::new());
-    let auctioneer = Rc::new(Keypair::new());
+    let user = Rc::new(Keypair::new());
     let token_in_keypair = Keypair::new();
     let token_in = token_in_keypair.pubkey();
     let token_out_keypair = Keypair::new();
     let token_out = token_out_keypair.pubkey();
 
     let program_rpc = program.rpc();
+
+    // Below is for Devnet/Mainnet
+
+    // println!("User {:?}", user.to_bytes());
+    // println!("Solver {:?}", solver.to_bytes());
+
+    // let blockhash = program_rpc.get_latest_blockhash()?;
+    // let user_transfer_ix =
+    //     transfer(&auctioneer, &user.pubkey(), LAMPORTS_PER_SOL / 10, blockhash);
+    // let solver_transfer_ix = transfer(
+    //     &auctioneer,
+    //     &solver.pubkey(),
+    //     LAMPORTS_PER_SOL / 10,
+    //     blockhash,
+    // );
+
+    // let user_transfer_sig =
+    //     program_rpc.send_and_confirm_transaction(&user_transfer_ix)?;
+    // let solver_transfer_sig =
+    //     program_rpc.send_and_confirm_transaction(&solver_transfer_ix)?;
+
+    // println!("User transfer signature: {}", user_transfer_sig);
+    // println!("Solver transfer signature: {}", solver_transfer_sig);
 
     airdrop(&program_rpc, auctioneer.pubkey(), lamports);
     airdrop(&program_rpc, user.pubkey(), lamports);
@@ -255,7 +281,8 @@ fn escrow_bridge_program() -> Result<()> {
     // );
 
     // Store the intent
-    let intent_id = "123234".to_string();
+    println!("Store the intent");
+    let intent_id = "12323542".to_string();
 
     // arbitrary value
     let amount_out = 10000;
@@ -295,6 +322,7 @@ fn escrow_bridge_program() -> Result<()> {
     println!("  Signature: {}", sig);
 
     // Send funds to user ( single domain )
+    println!("Send funds to user single domain");
 
     let solver_token_in_addr =
         get_associated_token_address(&solver.pubkey(), &token_in);
@@ -335,6 +363,7 @@ fn escrow_bridge_program() -> Result<()> {
             fee_collector: None,
         })
         .args(crate::instruction::SendFundsToUser {
+            intent_id: intent_id.clone(),
             hashed_full_denom: None,
             solver_out: None,
         })
