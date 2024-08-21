@@ -190,7 +190,7 @@ pub mod restaking_v2 {
 
         msg!("Depositing {}", amount);
 
-        solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
+        // solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
         Ok(())
     }
@@ -307,7 +307,7 @@ pub mod restaking_v2 {
 
         msg!("Withdrawing {}", amount);
 
-        solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
+        // solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
         Ok(())
     }
@@ -396,7 +396,7 @@ pub mod restaking_v2 {
     }
 
     /// Updates the token pause flag for specified token.
-    /// 
+    ///
     /// Requires the admin to call this method.
     pub fn update_token_pause_flag(
         ctx: Context<UpdateStakingParams>,
@@ -556,7 +556,7 @@ pub mod restaking_v2 {
                 msg!("This is change in stake {}", change_in_stake);
                 (sigverify::ed25519::PubKey::from(validator), change_in_stake)
             })
-            .collect();
+            .collect::<Vec<(sigverify::ed25519::PubKey, i128)>>();
 
         let set_stake_ix = solana_ibc::cpi::accounts::SetStake {
             sender: ctx.accounts.signer.to_account_info(),
@@ -571,7 +571,7 @@ pub mod restaking_v2 {
             set_stake_ix,
         );
 
-        solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
+        // solana_ibc::cpi::update_stake(cpi_ctx, set_stake_arg)?;
 
         staked_token.latest_price = final_amount_in_sol;
         staked_token.last_updated_in_sec = Clock::get()?.unix_timestamp as u64;
