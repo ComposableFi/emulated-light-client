@@ -252,7 +252,7 @@ pub fn verify_for_trie(
     verify_impl::<false>(prefix, proof_bytes, root, path, value)
 }
 
-pub fn verify_impl<const WITH_BLOCK: bool>(
+fn verify_impl<const WITH_BLOCK: bool>(
     prefix: &[u8],
     mut proof_bytes: &[u8],
     root: &[u8],

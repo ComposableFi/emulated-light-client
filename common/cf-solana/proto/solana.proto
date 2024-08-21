@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package lightclients.solana.v1;
+
+// The consensus state of the Solana blockchain.
+message ConsensusState {
+	// 32-byte root of the Merkle trie.
+	bytes trie_root = 1;
+	// Timestamp in seconds.  Never zero.
+	uint64 timestamp_sec = 2;
+
+	// NEXT ID: 3
+}
+
+// The client state of the light client for the guest blockchain.
+message ClientState {
+	// Latest rooted slot.
+	uint64 latest_slot = 1;
+
+	// Address of the witness account which holds trie commitment root.
+	bytes witness_account = 2;
+
+	// Duration of the period since the last timestamp during which the
+	// submitted headers are valid for upgrade.
+	uint64 trusting_period_ns = 3;
+
+	// Whether client is frozen.
+	bool is_frozen = 4;
+
+	// NEXT ID: 5
+}
+
+message ClientMessage {
+	oneof message {
+		Header header = 1;
+		Misbehaviour misbehaviour = 2;
+	}
+
+	// NEXT ID: 3
+}
+
+message Header {
+	// Slot number.
+	uint64 slot = 1;
+
+	// 32-byte bank hash.
+	bytes bank_hash = 2;
+
+	// Accounts delta hsah proof.  This is serialised DeltaHashProof struct.
+	bytes delta_hash_proof = 3;
+
+	// Hash data of the witness account.  This is AccountHashData struct.
+	bytes account_hash_data = 4;
+
+	// Merkle proof of the witness account.  This is serialised MerkleProof
+	// struct.
+	bytes account_merkle_proof = 5;
+
+	// NEXT ID: 6
+}
+
+message Misbehaviour {
+	// First header.
+	Header header1 = 1;
+
+	// Second header.
+	//
+	// Note that any field missing in `header2` will be copied from
+	// `header1`.  This allows identical values to be deduplicated.
+	Header header2 = 2;
+
+	// NEXT ID: 3
+}
