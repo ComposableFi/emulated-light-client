@@ -463,16 +463,16 @@ pub mod solana_ibc {
 
         let fee_collector =
             ctx.accounts.fee_collector.as_ref().unwrap().to_account_info();
-        let fee_payer = ctx.accounts.fee_payer.to_account_info();
+        let sender = ctx.accounts.sender.to_account_info();
         let system_program = ctx.accounts.system_program.to_account_info();
 
         solana_program::program::invoke(
             &solana_program::system_instruction::transfer(
-                &fee_payer.key(),
+                &sender.key(),
                 &fee_collector.key(),
                 fee_amount,
             ),
-            &[fee_payer.clone(), fee_collector.clone(), system_program.clone()],
+            &[sender.clone(), fee_collector.clone(), system_program.clone()],
         )?;
 
         ibc::apps::transfer::handler::send_transfer(
@@ -810,9 +810,6 @@ pub struct MockDeliver<'info> {
 #[instruction(hashed_full_denom: CryptoHash)]
 pub struct SendTransfer<'info> {
     #[account(mut)]
-    fee_payer: Signer<'info>,
-
-    #[account(mut)]
     sender: Signer<'info>,
 
     #[account(mut)]
@@ -837,14 +834,14 @@ pub struct SendTransfer<'info> {
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     token_mint: Option<Box<Account<'info, Mint>>>,
-    #[account(init_if_needed, payer = fee_payer, seeds = [
+    #[account(init_if_needed, payer = sender, seeds = [
         ESCROW, hashed_full_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
     escrow_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, associated_token::mint = token_mint, associated_token::authority = sender)]
     receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
 
-    #[account(init_if_needed, payer = fee_payer, seeds = [FEE_SEED], bump, space = 0)]
+    #[account(init_if_needed, payer = sender, seeds = [FEE_SEED], bump, space = 0)]
     /// CHECK:
     fee_collector: Option<UncheckedAccount<'info>>,
 
