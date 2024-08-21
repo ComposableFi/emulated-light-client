@@ -184,15 +184,83 @@ impl<'a> core::iter::ExactSizeIterator for ProofLevels<'a> {
 impl<'a> core::iter::FusedIterator for ProofLevels<'a> {}
 
 
+/// Data that goes into account’s hash.
+#[derive(Clone, Debug, derive_more::Into, derive_more::AsRef)]
+pub struct AccountHashData(Vec<u8>);
+
+impl AccountHashData {
+    /// Allocates new accounts hash data for given account.
+    pub fn new(
+        lamports: u64,
+        owner: &PubKey,
+        executable: bool,
+        rent_epoch: u64,
+        data: &[u8],
+        pubkey: &PubKey,
+    ) -> Self {
+        Self(
+            [
+                &lamports.to_le_bytes()[..],
+                &rent_epoch.to_le_bytes()[..],
+                data,
+                core::slice::from_ref(&(executable as u8)),
+                owner.as_ref(),
+                pubkey.as_ref(),
+            ]
+            .concat(),
+        )
+    }
+
+    /// Generates proof for the account.
+    ///
+    /// The `accounts` will be sorted by the key before constructing proof.
+    ///
+    /// On success returns the root of the Merkle tree (i.e. state commitment)
+    /// and the new proof.  Otherwise, if the account does not exist in
+    /// `accounts`, returns `None`.  `accounts` is sorted in either case.
+    pub fn generate_proof(
+        self,
+        accounts: &mut [(PubKey, Hash)],
+    ) -> Option<(Hash, AccountProof)> {
+        let (root, proof) = MerkleProof::generate(accounts, self.key())?;
+        Some((root, AccountProof { account_hash_data: self, proof }))
+    }
+
+    /// Lamports on the account.
+    pub fn lamports(&self) -> u64 { u64::from_le_bytes(*self.get::<8>(0)) }
+    /// Rent epoch of the account.
+    pub fn rent_epoch(&self) -> u64 { u64::from_le_bytes(*self.get::<8>(8)) }
+    /// Data stored on the account.
+    pub fn data(&self) -> &[u8] { &self.0[16..self.0.len() - 65] }
+    /// Whether the account is executable.
+    pub fn executable(&self) -> bool { self.0[self.0.len() - 65] == 1 }
+    /// Owner of the account.
+    pub fn owner(&self) -> &PubKey { self.get::<32>(self.0.len() - 64).into() }
+    /// Pubkey, or address, of the account.
+    pub fn key(&self) -> &PubKey { self.get::<32>(self.0.len() - 32).into() }
+
+    /// Returns hash of the account.
+    pub fn calculate_hash(&self) -> Hash { blake3::hash(self.0.as_slice()) }
+
+    /// Returns `N`-byte long fragment of the account’s hash data starting at
+    /// index `start`.
+    fn get<const N: usize>(&self, start: usize) -> &[u8; N] {
+        self.0[start..start + N].try_into().unwrap()
+    }
+}
+
+
+
 /// Proof of an account’s state.
 #[derive(Clone, Debug)]
 pub struct AccountProof {
     /// Data that goes into account’s hash.
-    pub account_hash_data: Vec<u8>,
+    pub account_hash_data: AccountHashData,
 
     /// Proof of the value in Merkle tree.
     pub proof: MerkleProof,
 }
+
 
 impl AccountProof {
     /// Constructs a new proof for specified account.
@@ -212,53 +280,52 @@ impl AccountProof {
         pubkey: &PubKey,
     ) -> Option<(Hash, AccountProof)> {
         let (root, proof) = MerkleProof::generate(accounts, pubkey)?;
-        let account_hash_data = [
-            &lamports.to_le_bytes()[..],
-            &rent_epoch.to_le_bytes()[..],
-            data,
-            core::slice::from_ref(&(executable as u8)),
-            owner.as_ref(),
-            pubkey.as_ref(),
-        ]
-        .concat();
+        let account_hash_data = AccountHashData::new(
+            lamports, owner, executable, rent_epoch, data, pubkey,
+        );
         Some((root, Self { account_hash_data, proof }))
-    }
-
-    /// Lamports on the account.
-    pub fn lamports(&self) -> u64 { u64::from_le_bytes(*self.get::<8>(0)) }
-    /// Rent epoch of the account.
-    pub fn rent_epoch(&self) -> u64 { u64::from_le_bytes(*self.get::<8>(8)) }
-    /// Data stored on the account.
-    pub fn data(&self) -> &[u8] {
-        &self.account_hash_data[16..self.account_hash_data.len() - 65]
-    }
-    /// Whether the account is executable.
-    pub fn executable(&self) -> bool {
-        self.account_hash_data[self.account_hash_data.len() - 65] == 1
-    }
-    /// Owner of the account.
-    pub fn owner(&self) -> &PubKey {
-        self.get::<32>(self.account_hash_data.len() - 64).into()
-    }
-    /// Pubkey, or address, of the account.
-    pub fn key(&self) -> &PubKey {
-        self.get::<32>(self.account_hash_data.len() - 32).into()
-    }
-
-    /// Returns hash of the account.
-    pub fn hash_account(&self) -> Hash {
-        blake3::hash(self.account_hash_data.as_slice())
     }
 
     /// Calculates expected commitment root for this account proof.
     pub fn expected_root(&self) -> Hash {
-        self.proof.expected_root(self.hash_account())
+        self.proof.expected_root(self.account_hash_data.calculate_hash())
     }
+}
 
-    /// Returns `N`-byte long fragment of the account’s hash data starting at
-    /// index `start`.
-    fn get<const N: usize>(&self, start: usize) -> &[u8; N] {
-        self.account_hash_data[start..start + N].try_into().unwrap()
+
+/// Proof of accounts delta hash.
+#[derive(Clone, Debug)]
+pub struct DeltaHashProof {
+    pub parent_blockhash: Hash,
+    pub accounts_delta_hash: Hash,
+    pub num_sigs: u64,
+    pub blockhash: Hash,
+
+    /// Epoch accounts hash, i.e. hash of all the accounts.
+    ///
+    /// This hash is calculated only once an epoch (hence the name) when present
+    /// in the block, it is included in bank hash calculation.
+    pub epoch_accounts_hash: Option<Hash>,
+}
+
+impl DeltaHashProof {
+    /// Calculates bank hash.
+    pub fn calculate_bank_hash(&self) -> Hash {
+        // See hash_internal_state function in bank.rs source file of
+        // solana-runtime crate.
+        let hash = CryptoHash::digestv(&[
+            self.parent_blockhash.as_ref(),
+            self.accounts_delta_hash.as_ref(),
+            &self.num_sigs.to_le_bytes(),
+            self.blockhash.as_ref(),
+        ]);
+        match self.epoch_accounts_hash {
+            Some(ref epoch_hash) => {
+                CryptoHash::digestv(&[hash.as_ref(), epoch_hash.as_ref()])
+            }
+            None => hash,
+        }
+        .into()
     }
 }
 
@@ -274,6 +341,8 @@ pub fn hash_account(
     data: &[u8],
     pubkey: &PubKey,
 ) -> Hash {
+    // See hash_account_data function in sources of solana-accounts-db crate.
+
     if lamports == 0 {
         return Hash::default();
     }
