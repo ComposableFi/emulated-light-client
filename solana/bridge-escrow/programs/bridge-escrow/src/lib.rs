@@ -31,6 +31,7 @@ mod tests;
 
 declare_id!("64K4AFty7UK9VJC6qykEVwFA93VoyND2uGyQgYa98ui9");
 
+#[allow(clippy::too_many_arguments)]
 #[program]
 pub mod bridge_escrow {
     use super::*;
@@ -232,7 +233,7 @@ pub mod bridge_escrow {
                         .accounts
                         .receiver
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     storage: ctx
                         .accounts
                         .storage
