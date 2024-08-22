@@ -7700,7 +7700,6 @@ dependencies = [
  "anchor-lang 0.29.0",
  "anchor-spl",
  "base64 0.21.7",
- "bincode",
  "borsh 0.10.3",
  "bs58 0.5.1",
  "clap 4.4.18",
