@@ -1,0 +1,134 @@
+# This is outside of the workspace because it uses solana 2.x crates
+# rather than 1.17.  This makes it somewhat easier since we don’t need
+# deal with conflicting indirect dependencies.  separate CI and stuff.
+# It’s probably not the best way of dealing with it but for the time
+# being let’s just go with it.
+
+[package]
+name = "witnessed-trie-geyser"
+version = "0.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib","rlib"]
+
+[dependencies]
+arrayvec = "0.7.4"
+borsh = "1.5.1"
+crossbeam-channel = "0.5.13"
+derive_more = "0.99.18"
+hex = { git = "https://github.com/mina86/rust-hex.git", branch = "main", default-features = false }
+log = "0.4.17"
+rayon = "1.10.0"
+# TODO(mina86): Change to "1" once we update the toolchain.  Building
+# with serde 1.0.204 breaks due to the use of ‘diagnostic’ attribute.
+serde = { version = "=1.0.203", features = ["derive"] }
+serde_json = "1"
+
+cf-solana = { path = "../../common/cf-solana", default-features = false, features = ["solana-program-2"] }
+solana-witnessed-trie = { path = "../witnessed-trie", default-features = false, features = ["api2"] }
+
+solana-accounts-db             = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-geyser-plugin-interface = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-sdk                     = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-transaction-status      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+
+[dev-dependencies]
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[patch.crates-io]
+solana-account-decoder              = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-accounts-db                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-address-lookup-table-program = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-banks-client                 = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-banks-interface              = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-banks-server                 = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-bloom                        = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-bundle                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-cargo-registry               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-clap-utils                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-clap-v3-utils                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-cli                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-cli-config                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-cli-output                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-compute-budget-program       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-config-program               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-connection-cache             = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-core                         = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-cost-model                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-dos                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-download-utils               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-entry                        = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-faucet                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-frozen-abi                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-frozen-abi-macro             = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-genesis                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-genesis-utils                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-geyser-plugin-interface      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-geyser-plugin-manager        = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-gossip                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-keygen                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-ledger                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-ledger-tool                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-loader-v4-program            = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-local-cluster                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-log-analyzer                 = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-logger                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-measure                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-memory-management            = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-merkle-tree                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-metrics                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-net-shaper                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-net-utils                    = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-notifier                     = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-perf                         = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-poh                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-program                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-program-runtime              = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-pubsub-client                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-quic-client                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-rayon-threadlimit            = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-remote-wallet                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-rpc                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-rpc-client                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-rpc-client-api               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-rpc-client-nonce-utils       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-runtime                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-runtime-plugin               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-runtime-transaction          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-sdk                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-sdk-macro                    = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-send-transaction-service     = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-stake-accounts               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-stake-program                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-storage-bigtable             = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-storage-proto                = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-store-tool                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-streamer                     = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-svm                          = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-system-program               = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-thin-client                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-tip-distributor              = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-tokens                       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-tpu-client                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-transaction-dos              = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-transaction-status           = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-turbine                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-udp-client                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-unified-scheduler-logic      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-unified-scheduler-pool       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-upload-perf                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-validator                    = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-version                      = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-vote                         = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-vote-program                 = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-watchtower                   = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-wen-restart                  = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-zk-keygen                    = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-zk-token-proof-program       = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+solana-zk-token-sdk                 = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
