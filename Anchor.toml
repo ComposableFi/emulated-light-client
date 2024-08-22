@@ -1,30 +1,28 @@
+[toolchain]
+
 [features]
 seeds = false
 skip-lint = false
 
 [programs.devnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+restaking_v2 = "2bjLripDFQ9eMUUCccVoxYTcqeYrZfSHBdirwtcqJsKV"
 solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
-restaking_v2 = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg"
 
 [programs.localnet]
 restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
+restaking_v2 = "2bjLripDFQ9eMUUCccVoxYTcqeYrZfSHBdirwtcqJsKV"
 solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
-restaking_v2 = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+cluster = "Localnet"
+wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]
-members = [
-  "solana/restaking/programs/restaking",
-  "solana/solana-ibc/programs/solana-ibc",
-  "solana/restaking-v2/programs/restaking-v2"
-]
+members = ["solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc", "solana/restaking-v2/programs/restaking-v2"]
 
 [scripts]
 test = "./solana-test.sh"

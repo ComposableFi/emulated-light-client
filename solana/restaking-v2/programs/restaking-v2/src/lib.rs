@@ -4,7 +4,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use solana_ibc::program::SolanaIbc;
 
-declare_id!("BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg");
+declare_id!("2bjLripDFQ9eMUUCccVoxYTcqeYrZfSHBdirwtcqJsKV");
 
 pub const COMMON_SEED: &[u8] = b"common";
 pub const ESCROW_SEED: &[u8] = b"escrow";
