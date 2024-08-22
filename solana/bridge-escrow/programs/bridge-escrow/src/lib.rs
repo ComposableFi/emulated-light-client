@@ -44,7 +44,13 @@ pub mod bridge_escrow {
 
     /// Escrows the user funds on the source chain
     ///
-    /// The funds are stored in token account owned by the auctioneer state PDA
+    /// The funds are stored in token account owned by the auctioneer state PDA. Right now
+    /// all the deposits are present in a single pool. But we would want to deposit the funds
+    /// in seperate account so that we dont touch the funds of other users.
+    ///
+    /// TODO: Store the intent without `amount_out` and `solver_out` which would then be
+    /// updated by auctioneer. Also escrow the funds in an account whose seeds are the
+    /// intent id.
     pub fn escrow_funds(ctx: Context<EscrowFunds>, amount: u64) -> Result<()> {
         // Transfer SPL tokens from the user's account to the auctioneer's account
         let cpi_accounts = SplTransfer {
@@ -57,6 +63,16 @@ pub mod bridge_escrow {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
         token::transfer(cpi_ctx, amount)?;
+
+        events::emit(events::Event::EscrowFunds(events::EscrowFunds {
+            amount,
+            sender: ctx.accounts.user.key(),
+            token_mint: ctx.accounts.token_mint.key(),
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -83,15 +99,38 @@ pub mod bridge_escrow {
 
         // save intent on a PDA derived from the auctioneer account
         let intent = &mut ctx.accounts.intent;
-        intent.intent_id = intent_id;
+
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
+
+        intent.intent_id = intent_id.clone();
         intent.user = user_in;
         intent.token_in = token_in;
         intent.amount_in = amount_in;
-        intent.token_out = token_out;
+        intent.token_out = token_out.clone();
         intent.timeout_timestamp_in_sec = timeout_in_sec;
-        intent.amount_out = amount_out;
+        intent.creation_timestamp_in_sec = current_timestamp;
+        intent.amount_out = amount_out.clone();
         intent.winner_solver = winner_solver;
         intent.single_domain = single_domain;
+
+        events::emit(events::Event::StoreIntent(events::StoreIntent {
+            intent: Intent {
+                intent_id,
+                user: user_in,
+                token_in,
+                amount_in,
+                token_out,
+                amount_out,
+                winner_solver,
+                creation_timestamp_in_sec: current_timestamp,
+                timeout_timestamp_in_sec: timeout_in_sec,
+                single_domain,
+            },
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -135,10 +174,22 @@ pub mod bridge_escrow {
 
         token::transfer(cpi_ctx, amount)?;
 
+        events::emit(events::Event::OnReceiveTransfer(
+            events::OnReceiveTransfer {
+                amount,
+                solver: ctx.accounts.solver.key(),
+            },
+        ))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
+
         Ok(())
     }
 
     // this function is called by Solver
+    #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
@@ -201,6 +252,20 @@ pub mod bridge_escrow {
                 ),
                 intent.amount_in,
             )?;
+
+            events::emit(events::Event::SendFundsToUser(
+                events::SendFundsToUser {
+                    amount: amount_out,
+                    receiver: intent.user,
+                    token_mint: ctx.accounts.token_out.key(),
+                    intent_id,
+                    solver_out,
+                },
+            ))
+            .map_err(|err| {
+                msg!("{}", err);
+                ErrorCode::InvalidEventFormat
+            })?;
         } else {
             let solver_out =
                 solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
@@ -321,12 +386,21 @@ pub mod bridge_escrow {
             };
 
             send_transfer(transfer_ctx, hashed_full_denom, msg)?;
-        }
 
-        // // Delete intent by closing the account
-        // let intent_account_info = &mut ctx.accounts.intent.to_account_info();
-        // **intent_account_info.try_borrow_mut_lamports()? = 0;
-        // intent_account_info.data.borrow_mut().fill(0);
+            events::emit(events::Event::SendFundsToUser(
+                events::SendFundsToUser {
+                    amount: amount_out,
+                    receiver: intent.user,
+                    token_mint: ctx.accounts.token_out.key(),
+                    intent_id,
+                    solver_out: Some(solver_out),
+                },
+            ))
+            .map_err(|err| {
+                msg!("{}", err);
+                ErrorCode::InvalidEventFormat
+            })?;
+        }
 
         Ok(())
     }
@@ -335,7 +409,7 @@ pub mod bridge_escrow {
     /// after the timeout period has passed.
     pub fn on_timeout(
         ctx: Context<OnTimeout>,
-        _intent_id: String,
+        intent_id: String,
     ) -> Result<()> {
         let authority = &ctx.accounts.user.key();
 
@@ -367,6 +441,16 @@ pub mod bridge_escrow {
         );
         anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
 
+        events::emit(events::Event::OnTimeout(events::OnTimeout {
+            amount: intent.amount_in,
+            token_mint: intent.token_in,
+            intent_id,
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
+
         Ok(())
     }
 }
@@ -379,7 +463,7 @@ pub struct Auctioneer {
 
 // Define the Intent account with space calculation
 #[account]
-#[derive(InitSpace)]
+#[derive(Debug, PartialEq, Eq, InitSpace)]
 pub struct Intent {
     #[max_len(20)]
     pub intent_id: String,
@@ -394,7 +478,7 @@ pub struct Intent {
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
     pub timeout_timestamp_in_sec: u64,
-    pub single_domain: bool
+    pub single_domain: bool,
 }
 
 // Define the context for initializing the program
@@ -569,4 +653,6 @@ pub enum ErrorCode {
     InvalidSolverOutAddress,
     #[msg("Invalid hashed full denom")]
     InvalidHashedFullDenom,
+    #[msg("Invalid Event format. Check logs for more")]
+    InvalidEventFormat,
 }
