@@ -241,7 +241,6 @@ mod imp {
     }
 }
 
-
 /// Builder for the cryptographic hash.
 ///
 /// The builder calculates the digest of bytes that it’s fed using the

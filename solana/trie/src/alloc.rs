@@ -62,7 +62,6 @@ impl<D: DataRef> Allocator<D> {
     }
 }
 
-
 /// Address within the trie data.
 ///
 /// The value is never zero and when converting from [`Ptr`] always aligned to

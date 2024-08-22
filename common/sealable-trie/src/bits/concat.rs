@@ -4,7 +4,6 @@ use lib::u3::U3;
 
 use super::{Owned, Slice};
 
-
 /// Trying to concatenate slices which result in slice whose size is too large.
 ///
 /// Slice’s length must not overflow u16.
@@ -87,13 +86,11 @@ impl From<MisalignedSlice> for Error {
     fn from(_: MisalignedSlice) -> Error { Error::Misaligned }
 }
 
-
 pub trait Concat<Rhs> {
     type Error: Into<Error>;
 
     fn concat_impl(prefix: Self, suffix: Rhs) -> Result<Owned, Self::Error>;
 }
-
 
 impl<'a> Concat<Slice<'a>> for bool {
     type Error = SliceTooLong;
@@ -215,7 +212,6 @@ pub(super) fn extend_impl(
     Ok(())
 }
 
-
 /// Checks that concatenating two slices produces slice whose length doesn’t
 /// overflow `u16`.
 pub(super) fn check_length(
@@ -254,7 +250,6 @@ fn check_alignment_and_length(
     check_alignment(pre_off, pre_len, suf_off)?;
     Ok(check_length(pre_len, suf_len)?)
 }
-
 
 #[test]
 fn test_unshift() {

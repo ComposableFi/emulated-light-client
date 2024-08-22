@@ -235,7 +235,6 @@ impl<'a> core::ops::DerefMut for ClientMut<'a> {
     fn deref_mut(&mut self) -> &mut ClientStore { self.store }
 }
 
-
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// Information about a specific `(port, channel)`.
 pub struct PortChannelStore {
@@ -320,7 +319,6 @@ pub struct Asset {
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
 }
-
 
 impl PrivateStorage {
     /// Returns number of known clients; or counter for the next client.

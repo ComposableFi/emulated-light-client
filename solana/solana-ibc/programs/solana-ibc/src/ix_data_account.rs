@@ -129,7 +129,6 @@ impl anchor_lang::InstructionData for Instruction {
     fn data(&self) -> Vec<u8> { Vec::new() }
 }
 
-
 #[test]
 fn test_get_ix_data() {
     assert_eq!(

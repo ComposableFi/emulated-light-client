@@ -15,7 +15,6 @@ pub use account::ResizableAccount;
 pub use data_ref::DataRef;
 pub use sealable_trie::Trie;
 
-
 /// Trie stored in a Solana account.
 #[derive(Debug)]
 pub struct TrieAccount<D: DataRef + Sized>(
@@ -116,7 +115,6 @@ impl<D: DataRef> core::ops::Deref for TrieAccount<D> {
 impl<D: DataRef> core::ops::DerefMut for TrieAccount<D> {
     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
-
 
 #[test]
 fn test_trie_sanity() {

@@ -34,7 +34,6 @@ impl IbcProof {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
 pub enum GenerateError {
     /// State root in block header and root of trie don’t match.
@@ -103,7 +102,6 @@ pub fn generate<A: sealable_trie::Allocator>(
 
     Ok(IbcProof { proof, root, value })
 }
-
 
 #[derive(
     Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
@@ -252,7 +250,6 @@ pub fn verify(
         Err(VerifyError::VerificationFailed)
     }
 }
-
 
 #[test]
 fn test_proofs() {

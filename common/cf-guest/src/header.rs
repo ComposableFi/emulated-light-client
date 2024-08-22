@@ -169,7 +169,6 @@ impl<PK: PubKey> Header<PK> {
     }
 }
 
-
 proto_utils::define_wrapper! {
     proto: proto::Header,
     wrapper: Header<PK> where

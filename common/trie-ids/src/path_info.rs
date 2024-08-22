@@ -227,7 +227,6 @@ impl PathInfo {
     }
 }
 
-
 #[test]
 fn test_try_from_path() {
     use std::str::FromStr;

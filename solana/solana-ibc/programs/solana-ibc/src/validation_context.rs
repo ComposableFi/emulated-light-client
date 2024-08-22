@@ -9,7 +9,6 @@ use crate::consensus_state::AnyConsensusState;
 use crate::ibc::{self, ConsensusState};
 use crate::storage::{self, IbcStorage};
 
-
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
 impl ibc::ValidationContext for IbcStorage<'_, '_> {
@@ -295,7 +294,6 @@ impl IbcStorage<'_, '_> {
             .and_then(|data| data.state())
     }
 }
-
 
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn update_meta(

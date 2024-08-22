@@ -145,7 +145,6 @@ fn write_slice(dst: &mut [MaybeUninit<u8>], src: &[u8]) {
     dst.copy_from_slice(src)
 }
 
-
 /// Creates a new iterator over signatures in given Ed25519 native program
 /// instruction data.
 ///

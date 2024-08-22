@@ -118,7 +118,6 @@ impl IbcStorage<'_, '_> {
     }
 }
 
-
 impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///

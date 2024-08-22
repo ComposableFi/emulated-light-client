@@ -140,8 +140,6 @@ impl fmt::Debug for Chunks<'_> {
     }
 }
 
-
-
 impl<'a> core::iter::Iterator for Chunks<'a> {
     type Item = ExtKey<'a>;
 

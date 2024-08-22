@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 use crate::ibc::ExecutionContext;
 use crate::{ibc, storage, MockDeliver};
 
-
 pub(crate) fn mock_deliver<'a, 'info>(
     ctx: Context<'a, 'a, 'a, 'info, MockDeliver<'info>>,
     port_id: ibc::PortId,
@@ -77,7 +76,6 @@ pub(crate) fn mock_deliver<'a, 'info>(
         ),
     )
     .unwrap();
-
 
     // For Client on Chain A
     store

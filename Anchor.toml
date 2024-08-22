@@ -1,27 +1,28 @@
+[toolchain]
+
 [features]
 seeds = false
 skip-lint = false
 
 [programs.devnet]
-restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
+bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
+restaking = "JEG7nDQFRPFjjFgWVXaA25EkcXGVjma2Cy56C976sXhk"
+solana_ibc = "EUiJni1BZFL3BhaWcS7NTJmqWyh8NwRLjBzrcGBvxKU4"
 
 [programs.localnet]
-restaking = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3"
-solana_ibc = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT"
+bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
+restaking = "JEG7nDQFRPFjjFgWVXaA25EkcXGVjma2Cy56C976sXhk"
+solana_ibc = "EUiJni1BZFL3BhaWcS7NTJmqWyh8NwRLjBzrcGBvxKU4"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+cluster = "Localnet"
+wallet = "/Users/dhruvjain/.config/solana/id.json"
 
 [workspace]
-members = [
-  "solana/restaking/programs/restaking",
-  "solana/solana-ibc/programs/solana-ibc"
-]
+members = ["solana/bridge-escrow/programs/bridge-escrow", "solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
 
 [scripts]
 test = "./solana-test.sh"

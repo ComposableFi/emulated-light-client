@@ -15,7 +15,6 @@ pub enum ClientMessage<PK: PubKey> {
     Misbehaviour(Misbehaviour<PK>),
 }
 
-
 // Conversions directly to and from the Message enum.
 
 impl<PK: guestchain::PubKey> From<ClientMessage<PK>> for Message {
@@ -48,7 +47,6 @@ impl<PK: guestchain::PubKey> TryFrom<&Message> for ClientMessage<PK> {
     }
 }
 
-
 // Conversions directly into the Message enum from variant types.
 
 impl<PK: guestchain::PubKey> From<Header<PK>> for Message {
@@ -66,7 +64,6 @@ impl<PK: guestchain::PubKey> From<Misbehaviour<PK>> for Message {
 impl<PK: guestchain::PubKey> From<&Misbehaviour<PK>> for Message {
     fn from(msg: &Misbehaviour<PK>) -> Self { Self::Misbehaviour(msg.into()) }
 }
-
 
 // Conversion into ClientMessage proto from variant types.
 
@@ -89,7 +86,6 @@ impl<PK: guestchain::PubKey> From<&Misbehaviour<PK>> for proto::ClientMessage {
         Self { message: Some(msg.into()) }
     }
 }
-
 
 // And finally, conversions between proto and Rust type
 
@@ -124,7 +120,6 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientMessage>
         msg.message.as_ref().ok_or(proto::BadMessage).and_then(Self::try_from)
     }
 }
-
 
 proto_utils::define_wrapper! {
     proto: proto::ClientMessage,

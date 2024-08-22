@@ -1,7 +1,6 @@
 use super::path::SequencePath;
 use super::{ibc, ids};
 
-
 /// A key used for indexing entries in the provable storage.
 ///
 /// The key is built from IBC storage paths.  The first byte is a tag (see
@@ -277,7 +276,6 @@ impl From<ibc::path::UpgradeClientPath> for TrieKey {
     }
 }
 
-
 /// Component of a [`TrieKey`].
 ///
 /// A `TrieKey` is constructed by concatenating a sequence of components.
@@ -367,7 +365,6 @@ impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {
         self.1.append_into(dest);
     }
 }
-
 
 #[test]
 fn test_encoding() {

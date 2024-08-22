@@ -131,7 +131,6 @@ fn test_header_misbehaviour() {
     add_block(&mut ctx, Some(&bad_block_2), 25 * HOUR, 2, Ok(true), None);
 }
 
-
 /// Tests Misbehaviour client messages.
 ///
 /// Only verification and checking for misbehaviour are tested.  No state
@@ -301,7 +300,6 @@ impl TestContext {
         assert_eq!(&self.client_id, client_id)
     }
 }
-
 
 impl guestchain::Verifier<MockPubKey> for TestContext {
     fn verify(

@@ -309,7 +309,6 @@ impl<'a> KeyGen<'a> for RandKeys<'a> {
     fn count(&self) -> Option<usize> { Some(self.count) }
 }
 
-
 #[test]
 fn stress_test() {
     let count = lib::test_utils::get_iteration_count(500);
@@ -444,7 +443,6 @@ impl core::fmt::Debug for Key {
     }
 }
 
-
 trait KeyGen<'a> {
     fn next(&mut self, known: &HashMap<Key, CryptoHash>) -> Option<&'a [u8]>;
     fn count(&self) -> Option<usize>;
@@ -469,7 +467,6 @@ impl<'a, I: Iterator<Item = &'a [u8]>> KeyGen<'a> for IterKeyGen<I> {
     }
     fn count(&self) -> Option<usize> { self.0.size_hint().1 }
 }
-
 
 struct TestTrie {
     trie: super::Trie<TestAllocator<super::Value>>,

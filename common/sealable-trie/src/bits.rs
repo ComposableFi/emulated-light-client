@@ -762,8 +762,6 @@ impl core::cmp::PartialEq<Owned> for Slice<'_> {
     fn eq(&self, other: &Owned) -> bool { self == &other.as_slice() }
 }
 
-
-
 impl TryFrom<Slice<'_>> for Vec<u8> {
     type Error = MisalignedSlice;
     #[inline]
@@ -794,7 +792,6 @@ impl TryFrom<Owned> for Vec<u8> {
         }
     }
 }
-
 
 impl fmt::Display for Slice<'_> {
     fn fmt(&self, fmtr: &mut fmt::Formatter<'_>) -> fmt::Result {

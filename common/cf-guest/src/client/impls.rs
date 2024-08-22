@@ -237,7 +237,6 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 }
 
-
 impl From<proof::VerifyError> for ibc::ClientError {
     fn from(err: proof::VerifyError) -> Self {
         use ibc::CommitmentError::EncodingFailure;
@@ -395,7 +394,6 @@ where
         })
     }
 }
-
 
 impl<PK: PubKey> ClientState<PK> {
     pub fn do_update_state(
@@ -641,11 +639,9 @@ impl<PK: PubKey> ClientState<PK> {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -665,7 +661,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {
