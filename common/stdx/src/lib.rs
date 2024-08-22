@@ -36,11 +36,7 @@ pub fn split_at_checked<T>(
     slice: &[T],
     mid: usize,
 ) -> Option<(&[T], &[T])> {
-    if mid <= slice.len() {
-        Some(slice.split_at(mid))
-    } else {
-        None
-    }
+    (mid <= slice.len()).then(|| slice.split_at(mid))
 }
 
 /// Divides one slice into two at an index, returning None if the slice is too
@@ -50,11 +46,7 @@ pub fn split_at_mut_checked<T>(
     slice: &mut [T],
     mid: usize,
 ) -> Option<(&mut [T], &mut [T])> {
-    if mid <= slice.len() {
-        Some(slice.split_at_mut(mid))
-    } else {
-        None
-    }
+    (mid <= slice.len()).then(|| slice.split_at_mut(mid))
 }
 
 /// Splits `&[T]` into `(&[T; L], &[T])`.  Returns `None` if input is too
