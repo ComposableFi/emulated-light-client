@@ -62,6 +62,7 @@ pub mod bridge_escrow {
     }
 
     /// Called by the auctioneer whose address is stored in `auctioneer` state account.
+    #[allow(clippy::too_many_arguments)]
     pub fn store_intent(
         ctx: Context<StoreIntent>,
         intent_id: String,
@@ -139,6 +140,7 @@ pub mod bridge_escrow {
     }
 
     // this function is called by Solver
+    #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
@@ -179,8 +181,7 @@ pub mod bridge_escrow {
             // Transfer tokens from Auctioneer to Solver
 
             let bump = ctx.bumps.auctioneer_state;
-            let seeds =
-                &[AUCTIONEER_SEED.as_ref(), core::slice::from_ref(&bump)];
+            let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
             let seeds = seeds.as_ref();
             let signer_seeds = core::slice::from_ref(&seeds);
 
@@ -254,27 +255,27 @@ pub mod bridge_escrow {
                         .accounts
                         .mint_authority
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     token_mint: ctx
                         .accounts
                         .token_mint
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     escrow_account: ctx
                         .accounts
                         .escrow_account
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     receiver_token_account: ctx
                         .accounts
                         .receiver_token_account
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     fee_collector: ctx
                         .accounts
                         .fee_collector
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     token_program: Some(
                         ctx.accounts.token_program.to_account_info(),
                     ),
