@@ -8,8 +8,6 @@ use anchor_spl::token::{Mint, Token, TokenAccount, Transfer as SplTransfer};
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
 use ibc::apps::transfer::types::packet::PacketData;
 use ibc::apps::transfer::types::{PrefixedCoin, PrefixedDenom};
-use ibc::core::channel::types::timeout::TimeoutHeight::At;
-use ibc::core::client::types::Height;
 use ibc::core::host::types::identifiers::{ChannelId, PortId};
 use ibc::core::primitives::Timestamp;
 use ibc::primitives::Signer as IbcSigner;
@@ -37,6 +35,7 @@ declare_id!("64K4AFty7UK9VJC6qykEVwFA93VoyND2uGyQgYa98ui9");
 #[program]
 pub mod bridge_escrow {
     use anchor_spl::token::{CloseAccount, MintTo};
+    use ibc::core::channel::types::timeout::TimeoutHeight;
 
     use super::*;
 
@@ -359,13 +358,9 @@ pub mod bridge_escrow {
                     receiver: String::from("pfm").into(),
                     memo: memo.into(),
                 },
-                timeout_height_on_b: At(
-                    Height::new(2018502000, 29340670).unwrap()
-                ),
-                timeout_timestamp_on_b: Timestamp::from_nanoseconds(
-                    1000000000000000000,
-                )
-                .unwrap(),
+                timeout_height_on_b: TimeoutHeight::Never,
+                timeout_timestamp_on_b: Timestamp::from_nanoseconds(u64::MAX)
+                    .unwrap(),
             };
 
             send_transfer(transfer_ctx, hashed_full_denom, msg)?;
