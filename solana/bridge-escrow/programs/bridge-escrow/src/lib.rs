@@ -31,7 +31,6 @@ mod tests;
 
 declare_id!("64K4AFty7UK9VJC6qykEVwFA93VoyND2uGyQgYa98ui9");
 
-#[allow(clippy::too_many_arguments)]
 #[program]
 pub mod bridge_escrow {
     use super::*;
@@ -63,18 +62,9 @@ pub mod bridge_escrow {
     }
 
     /// Called by the auctioneer whose address is stored in `auctioneer` state account.
-    #[allow(clippy::too_many_arguments)]
     pub fn store_intent(
         ctx: Context<StoreIntent>,
-        intent_id: String,
-        user_in: Pubkey,
-        token_in: Pubkey,
-        amount_in: u64,
-        token_out: String,
-        amount_out: String,
-        timeout_in_sec: u64,
-        winner_solver: Pubkey,
-        single_domain: bool,
+        new_intent: IntentPayload,
     ) -> Result<()> {
         // verify if caller is auctioneer
         let auctioneer = &ctx.accounts.auctioneer;
@@ -85,15 +75,19 @@ pub mod bridge_escrow {
 
         // save intent on a PDA derived from the auctioneer account
         let intent = &mut ctx.accounts.intent;
-        intent.intent_id = intent_id;
-        intent.user = user_in;
-        intent.token_in = token_in;
-        intent.amount_in = amount_in;
-        intent.token_out = token_out;
-        intent.timeout_timestamp_in_sec = timeout_in_sec;
-        intent.amount_out = amount_out;
-        intent.winner_solver = winner_solver;
-        intent.single_domain = single_domain;
+
+        let current_timestamp = Clock::get()?.unix_timestamp as u64;
+
+        intent.intent_id = new_intent.intent_id;
+        intent.user = new_intent.user_in;
+        intent.token_in = new_intent.token_in;
+        intent.amount_in = new_intent.amount_in;
+        intent.token_out = new_intent.token_out;
+        intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
+        intent.creation_timestamp_in_sec = current_timestamp;
+        intent.amount_out = new_intent.amount_out;
+        intent.winner_solver = new_intent.winner_solver;
+        intent.single_domain = new_intent.single_domain;
 
         Ok(())
     }
@@ -395,6 +389,19 @@ pub struct Intent {
     pub winner_solver: Pubkey,
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
+    pub timeout_timestamp_in_sec: u64,
+    pub single_domain: bool,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct IntentPayload {
+    pub intent_id: String,
+    pub user_in: Pubkey,
+    pub token_in: Pubkey,
+    pub amount_in: u64,
+    pub token_out: String,
+    pub amount_out: String,
+    pub winner_solver: Pubkey,
     pub timeout_timestamp_in_sec: u64,
     pub single_domain: bool,
 }

@@ -16,6 +16,8 @@ use anyhow::Result;
 use spl_token::instruction::initialize_mint2;
 use spl_token::solana_program::system_instruction::create_account;
 
+use crate::IntentPayload;
+
 const MINT_AMOUNT: u64 = 1_000_000_000;
 const TRANSFER_AMOUNT: u64 = 1_000_000;
 
@@ -288,6 +290,18 @@ fn escrow_bridge_program() -> Result<()> {
     )
     .0;
 
+    let new_intent = IntentPayload {
+        intent_id: intent_id.clone(),
+        user_in: user.pubkey(),
+        token_in,
+        amount_in: TRANSFER_AMOUNT,
+        token_out: token_out.to_string(),
+        amount_out: amount_out.to_string(),
+        timeout_timestamp_in_sec: 10000,
+        winner_solver: solver.pubkey(),
+        single_domain: true,
+    };
+
     let sig = program
         .request()
         .accounts(crate::accounts::StoreIntent {
@@ -296,17 +310,7 @@ fn escrow_bridge_program() -> Result<()> {
             auctioneer: auctioneer_state,
             system_program: anchor_lang::solana_program::system_program::ID,
         })
-        .args(crate::instruction::StoreIntent {
-            intent_id: intent_id.clone(),
-            user_in: user.pubkey(),
-            token_in,
-            amount_in: TRANSFER_AMOUNT,
-            token_out: token_out.to_string(),
-            amount_out: amount_out.to_string(),
-            timeout_in_sec: 10000,
-            winner_solver: solver.pubkey(),
-            single_domain: true,
-        })
+        .args(crate::instruction::StoreIntent { new_intent })
         .payer(auctioneer.clone())
         .signer(&*auctioneer)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -378,17 +382,17 @@ fn escrow_bridge_program() -> Result<()> {
         sol_rpc_client.get_token_account_balance(&user_token_out_addr).unwrap();
 
     assert_eq!(
-        ((solver_token_in_balance_after.ui_amount.unwrap() -
-            solver_token_in_balance_before.ui_amount.unwrap()) *
-            1_000_000f64)
+        ((solver_token_in_balance_after.ui_amount.unwrap()
+            - solver_token_in_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
             .round() as u64,
         TRANSFER_AMOUNT
     );
 
     assert_eq!(
-        ((user_token_out_balance_after.ui_amount.unwrap() -
-            user_token_out_balance_before.ui_amount.unwrap()) *
-            1_000_000f64)
+        ((user_token_out_balance_after.ui_amount.unwrap()
+            - user_token_out_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
             .round() as u64,
         amount_out
     );
