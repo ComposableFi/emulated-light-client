@@ -19,7 +19,7 @@ url = "https://api.apr.dev"
 
 [provider]
 cluster = "Localnet"
-wallet = "/Users/dhruvjain/.config/solana/id.json"
+wallet = "~/.config/solana/id.json"
 
 [workspace]
 members = ["solana/bridge-escrow/programs/bridge-escrow", "solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
