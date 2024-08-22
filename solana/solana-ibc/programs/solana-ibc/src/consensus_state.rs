@@ -125,7 +125,6 @@ impl From<cf_guest::ConsensusState> for AnyConsensusState {
             data: prost::Message::encode_to_vec(&cf_guest::proto::Any::from(
                 &state,
             )),
-            timestamp_ns: state.timestamp_ns.get(),
         })
     }
 }
