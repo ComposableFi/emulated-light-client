@@ -120,12 +120,8 @@ pub enum AddSignatureEffect {
 }
 
 impl AddSignatureEffect {
-    pub fn got_new_signature(self) -> bool {
-        self != Self::Duplicate
-    }
-    pub fn got_quorum(self) -> bool {
-        self == Self::GotQuorum
-    }
+    pub fn got_new_signature(self) -> bool { self != Self::Duplicate }
+    pub fn got_quorum(self) -> bool { self == Self::GotQuorum }
 }
 
 impl<PK: crate::PubKey> ChainManager<PK> {
@@ -255,9 +251,9 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         let next_epoch = self.maybe_generate_next_epoch(host_height);
         let age =
             host_timestamp.get().saturating_sub(self.header.timestamp_ns.get());
-        if next_epoch.is_none()
-            && state_root == &self.header.state_root
-            && age < self.config.max_block_age_ns
+        if next_epoch.is_none() &&
+            state_root == &self.header.state_root &&
+            age < self.config.max_block_age_ns
         {
             return Err(GenerateError::UnchangedState);
         };
@@ -360,13 +356,9 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         self.candidates.candidates.as_slice()
     }
 
-    pub fn epoch_height(&self) -> crate::HostHeight {
-        self.epoch_height
-    }
+    pub fn epoch_height(&self) -> crate::HostHeight { self.epoch_height }
 
-    pub fn genesis(&self) -> &CryptoHash {
-        &self.genesis
-    }
+    pub fn genesis(&self) -> &CryptoHash { &self.genesis }
 }
 
 #[test]

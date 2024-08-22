@@ -49,9 +49,7 @@ pub enum Tag {
 }
 
 impl From<Tag> for u8 {
-    fn from(tag: Tag) -> u8 {
-        tag as u8
-    }
+    fn from(tag: Tag) -> u8 { tag as u8 }
 }
 
 /// A discriminant used to distinguish client state and consensus state upgrade
@@ -64,9 +62,7 @@ enum UpgradeType {
 }
 
 impl From<UpgradeType> for u8 {
-    fn from(ty: UpgradeType) -> u8 {
-        ty as u8
-    }
+    fn from(ty: UpgradeType) -> u8 { ty as u8 }
 }
 
 impl TrieKey {
@@ -186,9 +182,7 @@ impl TrieKey {
 
 impl core::ops::Deref for TrieKey {
     type Target = [u8];
-    fn deref(&self) -> &[u8] {
-        &self.bytes[..usize::from(self.len)]
-    }
+    fn deref(&self) -> &[u8] { &self.bytes[..usize::from(self.len)] }
 }
 
 impl core::fmt::Display for TrieKey {
@@ -356,16 +350,12 @@ impl AsComponent for UpgradeType {
 
 impl<const N: usize> AsComponent for [u8; N] {
     #[inline]
-    fn append_into(&self, dest: &mut TrieKey) {
-        dest.extend(self);
-    }
+    fn append_into(&self, dest: &mut TrieKey) { dest.extend(self); }
 }
 
 impl<T: AsComponent> AsComponent for &T {
     #[inline]
-    fn append_into(&self, dest: &mut TrieKey) {
-        (*self).append_into(dest)
-    }
+    fn append_into(&self, dest: &mut TrieKey) { (*self).append_into(dest) }
 }
 
 impl<T: AsComponent, U: AsComponent> AsComponent for (T, U) {

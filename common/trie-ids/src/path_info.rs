@@ -40,9 +40,7 @@ pub enum SequenceKind {
 }
 
 impl From<SequenceKind> for usize {
-    fn from(kind: SequenceKind) -> usize {
-        kind as usize
-    }
+    fn from(kind: SequenceKind) -> usize { kind as usize }
 }
 
 /// Error when converting IBC path into a trie key.

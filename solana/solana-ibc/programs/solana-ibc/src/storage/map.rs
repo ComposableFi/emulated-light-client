@@ -11,9 +11,7 @@ use anchor_lang::prelude::borsh::maybestd::io;
 pub struct Map<K: Eq, V>(linear_map::LinearMap<K, V>);
 
 impl<K: Eq, V> Default for Map<K, V> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
+    fn default() -> Self { Self(Default::default()) }
 }
 
 impl<K: Eq + fmt::Debug, V: fmt::Debug> fmt::Debug for Map<K, V> {
@@ -23,15 +21,11 @@ impl<K: Eq + fmt::Debug, V: fmt::Debug> fmt::Debug for Map<K, V> {
 }
 
 impl<K: Eq, V> From<Vec<(K, V)>> for Map<K, V> {
-    fn from(entries: Vec<(K, V)>) -> Self {
-        Self(entries.into())
-    }
+    fn from(entries: Vec<(K, V)>) -> Self { Self(entries.into()) }
 }
 
 impl<K: Eq, V> From<Map<K, V>> for Vec<(K, V)> {
-    fn from(map: Map<K, V>) -> Self {
-        Self::from(map.0)
-    }
+    fn from(map: Map<K, V>) -> Self { Self::from(map.0) }
 }
 
 impl<K: Eq, V> borsh::BorshSerialize for Map<K, V>

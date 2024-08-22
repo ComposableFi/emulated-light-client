@@ -123,9 +123,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ///
     /// The clients are stored in the vector so we can easily find how many
     /// clients were created. So thats why this method doesnt do anything.
-    fn increase_client_counter(&mut self) -> Result {
-        Ok(())
-    }
+    fn increase_client_counter(&mut self) -> Result { Ok(()) }
 
     fn store_connection(
         &mut self,
@@ -178,9 +176,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ///
     /// Connections are stored in a vector in an order, so the length of the
     /// array specifies the number of connections.
-    fn increase_connection_counter(&mut self) -> Result {
-        Ok(())
-    }
+    fn increase_connection_counter(&mut self) -> Result { Ok(()) }
 
     fn store_packet_commitment(
         &mut self,
@@ -300,9 +296,7 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn get_client_execution_context(&mut self) -> &mut Self::E {
-        self
-    }
+    fn get_client_execution_context(&mut self) -> &mut Self::E { self }
 }
 
 impl storage::IbcStorage<'_, '_> {

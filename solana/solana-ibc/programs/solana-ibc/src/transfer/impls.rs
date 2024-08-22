@@ -306,9 +306,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
 
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -369,9 +369,9 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
-        if accounts.token_program.is_none()
-            || accounts.token_mint.is_none()
-            || accounts.mint_authority.is_none()
+        if accounts.token_program.is_none() ||
+            accounts.token_mint.is_none() ||
+            accounts.mint_authority.is_none()
         {
             return Err(TokenTransferError::ParseAccountFailure);
         }
@@ -534,8 +534,8 @@ impl IbcStorage<'_, '_> {
         // Close the wsol account so that the receiver gets the amount in native SOL
         // instead of wrapped SOL which is unusable if the wallet doesnt have any
         // SOL to pay for the fees.
-        if matches!(op, EscrowOp::Unescrow)
-            && coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+        if matches!(op, EscrowOp::Unescrow) &&
+            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
         {
             let receiver = accounts
                 .receiver
@@ -566,8 +566,8 @@ impl IbcStorage<'_, '_> {
         // Closing the wsol account after transferring the amount to the escrow
         // so that the escrow account holds the wsol deposits in native SOL which
         // can be transferred to the receiver instead of sending wrapped sol.
-        if matches!(op, EscrowOp::Escrow)
-            && coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+        if matches!(op, EscrowOp::Escrow) &&
+            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
         {
             let mint_authority = accounts
                 .mint_authority

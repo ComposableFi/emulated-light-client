@@ -4,9 +4,7 @@ pub trait DataRef {
     fn len(&self) -> usize;
 
     /// Returns whether the data is empty.
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
+    fn is_empty(&self) -> bool { self.len() == 0 }
 
     /// Returns a shared reference to a byte or subslice depending on the type
     /// of index.
@@ -33,9 +31,7 @@ pub trait DataRef {
 
 impl DataRef for [u8] {
     #[inline]
-    fn len(&self) -> usize {
-        (*self).len()
-    }
+    fn len(&self) -> usize { (*self).len() }
 
     fn get<I: core::slice::SliceIndex<[u8]>>(
         &self,
@@ -52,16 +48,12 @@ impl DataRef for [u8] {
     }
 
     #[inline]
-    fn enlarge(&mut self, _min_size: usize) -> bool {
-        false
-    }
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }
 
 impl<const N: usize> DataRef for [u8; N] {
     #[inline]
-    fn len(&self) -> usize {
-        N
-    }
+    fn len(&self) -> usize { N }
 
     fn get<I: core::slice::SliceIndex<[u8]>>(
         &self,
@@ -78,16 +70,12 @@ impl<const N: usize> DataRef for [u8; N] {
     }
 
     #[inline]
-    fn enlarge(&mut self, _min_size: usize) -> bool {
-        false
-    }
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }
 
 impl DataRef for Vec<u8> {
     #[inline]
-    fn len(&self) -> usize {
-        (**self).len()
-    }
+    fn len(&self) -> usize { (**self).len() }
 
     fn get<I: core::slice::SliceIndex<[u8]>>(
         &self,
@@ -118,9 +106,7 @@ impl DataRef for Vec<u8> {
 }
 
 impl<D: DataRef + ?Sized> DataRef for &'_ mut D {
-    fn len(&self) -> usize {
-        (**self).len()
-    }
+    fn len(&self) -> usize { (**self).len() }
 
     fn get<I: core::slice::SliceIndex<[u8]>>(
         &self,
@@ -144,9 +130,7 @@ impl<D: DataRef + ?Sized> DataRef for &'_ mut D {
 
 impl<D: DataRef + ?Sized> DataRef for core::cell::RefMut<'_, D> {
     #[inline]
-    fn len(&self) -> usize {
-        (**self).len()
-    }
+    fn len(&self) -> usize { (**self).len() }
 
     fn get<I: core::slice::SliceIndex<[u8]>>(
         &self,
@@ -163,7 +147,5 @@ impl<D: DataRef + ?Sized> DataRef for core::cell::RefMut<'_, D> {
     }
 
     #[inline]
-    fn enlarge(&mut self, _min_size: usize) -> bool {
-        false
-    }
+    fn enlarge(&mut self, _min_size: usize) -> bool { false }
 }

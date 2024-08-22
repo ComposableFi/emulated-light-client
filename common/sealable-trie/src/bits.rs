@@ -107,23 +107,19 @@ impl<'a> Slice<'a> {
             let used = slice.bytes();
             let first = used.first().copied().unwrap_or_default();
             let last = used.last().copied().unwrap_or_default();
-            (first & !front) == 0
-                && (last & !back) == 0
-                && bytes[used.len()..].iter().all(|&b| b == 0)
+            (first & !front) == 0 &&
+                (last & !back) == 0 &&
+                bytes[used.len()..].iter().all(|&b| b == 0)
         })
     }
 
     /// Returns length of the slice in bits.
     #[inline]
-    pub fn len(&self) -> u16 {
-        self.length
-    }
+    pub fn len(&self) -> u16 { self.length }
 
     /// Returns whether the slice is empty.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
+    pub fn is_empty(&self) -> bool { self.length == 0 }
 
     /// Returns the first bit in the slice advances the slice by one position.
     ///
@@ -242,9 +238,7 @@ impl<'a> Slice<'a> {
     /// may be shorter than 272 bits (i.e. 34 * 8) however it will span full 34
     /// bytes.
     #[inline]
-    pub fn chunks(&self) -> Chunks<'a> {
-        Chunks::new(*self)
-    }
+    pub fn chunks(&self) -> Chunks<'a> { Chunks::new(*self) }
 
     /// Splits slice into two at given index.
     ///
@@ -450,9 +444,7 @@ impl<'a> Slice<'a> {
 
     /// Calculates underlying bytes length of the slice.
     #[inline]
-    fn bytes_len(&self) -> usize {
-        bytes_len(self.offset, self.length)
-    }
+    fn bytes_len(&self) -> usize { bytes_len(self.offset, self.length) }
 
     /// Helper method which returns masks for leading and trailing byte.
     ///
@@ -500,9 +492,7 @@ impl From<Slice<'_>> for Owned {
 }
 
 impl From<ExtKey<'_>> for Owned {
-    fn from(key: ExtKey<'_>) -> Self {
-        Self::from(Slice::from(key))
-    }
+    fn from(key: ExtKey<'_>) -> Self { Self::from(Slice::from(key)) }
 }
 
 impl Owned {
@@ -527,15 +517,11 @@ impl Owned {
 
     /// Returns length of the slice in bits.
     #[inline]
-    pub fn len(&self) -> u16 {
-        self.length
-    }
+    pub fn len(&self) -> u16 { self.length }
 
     /// Returns whether the slice is empty.
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
+    pub fn is_empty(&self) -> bool { self.length == 0 }
 
     /// Borrows the owned slice.
     pub fn as_slice(&self) -> Slice {
@@ -754,32 +740,26 @@ impl core::cmp::PartialEq for Slice<'_> {
         if len == 1 {
             ((lhs[0] ^ rhs[0]) & front & back) == 0
         } else {
-            ((lhs[0] ^ rhs[0]) & front) == 0
-                && ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0
-                && lhs[1..len - 1] == rhs[1..len - 1]
+            ((lhs[0] ^ rhs[0]) & front) == 0 &&
+                ((lhs[len - 1] ^ rhs[len - 1]) & back) == 0 &&
+                lhs[1..len - 1] == rhs[1..len - 1]
         }
     }
 }
 
 impl core::cmp::PartialEq for Owned {
     #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.as_slice() == other.as_slice()
-    }
+    fn eq(&self, other: &Self) -> bool { self.as_slice() == other.as_slice() }
 }
 
 impl core::cmp::PartialEq<Slice<'_>> for Owned {
     #[inline]
-    fn eq(&self, other: &Slice) -> bool {
-        &self.as_slice() == other
-    }
+    fn eq(&self, other: &Slice) -> bool { &self.as_slice() == other }
 }
 
 impl core::cmp::PartialEq<Owned> for Slice<'_> {
     #[inline]
-    fn eq(&self, other: &Owned) -> bool {
-        self == &other.as_slice()
-    }
+    fn eq(&self, other: &Owned) -> bool { self == &other.as_slice() }
 }
 
 impl TryFrom<Slice<'_>> for Vec<u8> {

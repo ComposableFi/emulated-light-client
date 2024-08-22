@@ -79,15 +79,11 @@ pub enum Error {
 }
 
 impl From<SliceTooLong> for Error {
-    fn from(_: SliceTooLong) -> Error {
-        Error::SliceTooLong
-    }
+    fn from(_: SliceTooLong) -> Error { Error::SliceTooLong }
 }
 
 impl From<MisalignedSlice> for Error {
-    fn from(_: MisalignedSlice) -> Error {
-        Error::Misaligned
-    }
+    fn from(_: MisalignedSlice) -> Error { Error::Misaligned }
 }
 
 pub trait Concat<Rhs> {

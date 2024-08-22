@@ -394,7 +394,7 @@ pub struct Intent {
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
     pub timeout_timestamp_in_sec: u64,
-    pub single_domain: bool
+    pub single_domain: bool,
 }
 
 // Define the context for initializing the program

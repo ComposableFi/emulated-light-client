@@ -460,19 +460,17 @@ fn test_proof_borsh() {
     let actual = Actual::LookupKeyLeft(NonZeroU16::MIN, CryptoHash::test(1));
 
     test(Proof::Positive(super::Membership(vec![])), &[0, 0]);
-    test(
-        Proof::Positive(super::Membership(vec![item.clone()])),
-        &[1, 0, 32, 42],
-    );
+    test(Proof::Positive(super::Membership(vec![item.clone()])), &[
+        1, 0, 32, 42,
+    ]);
     test(
         Proof::Positive(super::Membership(vec![item.clone(), item.clone()])),
         &[2, 0, 32, 42, 32, 42],
     );
     test(Proof::Negative(super::NonMembership(None, vec![])), &[0, 0x80]);
-    test(
-        Proof::Negative(super::NonMembership(None, vec![item.clone()])),
-        &[1, 0x80, 32, 42],
-    );
+    test(Proof::Negative(super::NonMembership(None, vec![item.clone()])), &[
+        1, 0x80, 32, 42,
+    ]);
     #[rustfmt::skip]
     test(
         Proof::Negative(super::NonMembership(

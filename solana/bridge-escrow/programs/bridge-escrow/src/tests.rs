@@ -42,7 +42,8 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
 #[ignore = "Requires local validator to run"]
 fn escrow_bridge_program() -> Result<()> {
     // Setup the client and wallet
-    let auctioneer = Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
+    let auctioneer =
+        Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
         Cluster::Localnet,
@@ -383,17 +384,17 @@ fn escrow_bridge_program() -> Result<()> {
         sol_rpc_client.get_token_account_balance(&user_token_out_addr).unwrap();
 
     assert_eq!(
-        ((solver_token_in_balance_after.ui_amount.unwrap()
-            - solver_token_in_balance_before.ui_amount.unwrap())
-            * 1_000_000f64)
+        ((solver_token_in_balance_after.ui_amount.unwrap() -
+            solver_token_in_balance_before.ui_amount.unwrap()) *
+            1_000_000f64)
             .round() as u64,
         TRANSFER_AMOUNT
     );
 
     assert_eq!(
-        ((user_token_out_balance_after.ui_amount.unwrap()
-            - user_token_out_balance_before.ui_amount.unwrap())
-            * 1_000_000f64)
+        ((user_token_out_balance_after.ui_amount.unwrap() -
+            user_token_out_balance_before.ui_amount.unwrap()) *
+            1_000_000f64)
             .round() as u64,
         amount_out
     );

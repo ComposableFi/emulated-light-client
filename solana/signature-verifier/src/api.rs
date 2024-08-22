@@ -55,9 +55,7 @@ impl SignatureHash {
 }
 
 impl AsRef<[u8; 32]> for SignatureHash {
-    fn as_ref(&self) -> &[u8; 32] {
-        &self.0
-    }
+    fn as_ref(&self) -> &[u8; 32] { &self.0 }
 }
 
 impl<'a> From<crate::ed25519_program::Entry<'a>> for SignatureHash {

@@ -71,9 +71,7 @@ impl<PK: PubKey> Header<PK> {
 }
 
 impl<PK: PubKey> From<Header<PK>> for proto::Header {
-    fn from(header: Header<PK>) -> Self {
-        Self::from(&header)
-    }
+    fn from(header: Header<PK>) -> Self { Self::from(&header) }
 }
 
 impl<PK: PubKey> From<&Header<PK>> for proto::Header {
