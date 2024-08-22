@@ -206,7 +206,7 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         value: Vec<u8>,
     ) -> Result {
         let value = Some(value.as_slice());
-        proof::verify(
+        proof::verify_for_block(
             prefix.as_bytes(),
             proof.as_ref(),
             root.as_bytes(),
@@ -226,7 +226,7 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
-        proof::verify(
+        proof::verify_for_block(
             prefix.as_bytes(),
             proof.as_ref(),
             root.as_bytes(),

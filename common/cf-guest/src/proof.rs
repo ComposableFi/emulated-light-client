@@ -78,19 +78,73 @@ pub enum GenerateError {
 ///
 /// (Note that Borsh uses little endian to encode integers so the sequence
 /// numbers cannot be simply borsh deserialised.)
-pub fn generate<A: sealable_trie::Allocator>(
+pub fn generate_for_block<A: sealable_trie::Allocator>(
     block_header: &BlockHeader,
     trie: &sealable_trie::Trie<A>,
     path: ibc::path::Path,
 ) -> Result<IbcProof, GenerateError> {
-    if trie.hash() != &block_header.state_root {
-        return Err(GenerateError::WrongState);
-    }
-    let root = block_header.calc_hash();
+    generate_impl(block_header, trie, path)
+}
 
+/// Generates a proof for given path without including the Guest block header.
+///
+/// This is used by the SVM rollup light client whose proofs do not include the
+/// block header (since the rollup doesn’t have a guest chain).  The root
+/// commitment for generated proof is the sealable trie hash.  Otherwise this
+/// behaves the same way as [`generate_for_block`].
+pub fn generate_for_trie<A: sealable_trie::Allocator>(
+    trie: &sealable_trie::Trie<A>,
+    path: ibc::path::Path,
+) -> Result<IbcProof, GenerateError> {
+    generate_impl((), trie, path)
+}
+
+trait GenerateContext: Copy {
+    fn get_root(self, root: &CryptoHash) -> Result<CryptoHash, GenerateError>;
+    fn serialise_proof(
+        self,
+        proof: sealable_trie::proof::Proof,
+    ) -> borsh::maybestd::io::Result<Vec<u8>>;
+}
+
+impl<'a> GenerateContext for &'a BlockHeader {
+    fn get_root(self, root: &CryptoHash) -> Result<CryptoHash, GenerateError> {
+        if root == &self.state_root {
+            Ok(self.calc_hash())
+        } else {
+            Err(GenerateError::WrongState)
+        }
+    }
+
+    fn serialise_proof(
+        self,
+        proof: sealable_trie::proof::Proof,
+    ) -> borsh::maybestd::io::Result<Vec<u8>> {
+        borsh::to_vec(&(self, &proof))
+    }
+}
+
+impl GenerateContext for () {
+    fn get_root(self, root: &CryptoHash) -> Result<CryptoHash, GenerateError> {
+        Ok(root.clone())
+    }
+    fn serialise_proof(
+        self,
+        proof: sealable_trie::proof::Proof,
+    ) -> borsh::maybestd::io::Result<Vec<u8>> {
+        borsh::to_vec(&proof)
+    }
+}
+
+fn generate_impl<A: sealable_trie::Allocator>(
+    context: impl GenerateContext,
+    trie: &sealable_trie::Trie<A>,
+    path: ibc::path::Path,
+) -> Result<IbcProof, GenerateError> {
+    let root = context.get_root(trie.hash())?;
     let trie_ids::PathInfo { key, seq_kind, .. } = path.try_into()?;
     let (value, proof) = trie.prove(&key)?;
-    let mut proof = borsh::to_vec(&(&block_header, &proof)).unwrap();
+    let mut proof = context.serialise_proof(proof).unwrap();
 
     if let Some((value, seq_kind)) = value.as_ref().zip(seq_kind) {
         proof.reserve(16);
@@ -172,7 +226,33 @@ impl From<borsh::maybestd::io::Error> for VerifyError {
 ///    32-byte value which is directly the hash stored in the trie.
 ///
 /// 4. Otherwise, the value is simply hashed.
-pub fn verify(
+pub fn verify_for_block(
+    prefix: &[u8],
+    proof_bytes: &[u8],
+    root: &[u8],
+    path: ibc::path::Path,
+    value: Option<&[u8]>,
+) -> Result<(), VerifyError> {
+    verify_impl::<true>(prefix, proof_bytes, root, path, value)
+}
+
+/// Verify a proof without a block header.
+///
+/// This is like [`verify`] but the `root` is the trie hash and `proof_bytes`
+/// don’t contain the block header.  This is used by the SVM rollup light client
+/// whose proofs do not include the block header (since the rollup doesn’t have
+/// a guest chain).  Otherwise this behaves the same way as [`verify`].
+pub fn verify_for_trie(
+    prefix: &[u8],
+    proof_bytes: &[u8],
+    root: &[u8],
+    path: ibc::path::Path,
+    value: Option<&[u8]>,
+) -> Result<(), VerifyError> {
+    verify_impl::<false>(prefix, proof_bytes, root, path, value)
+}
+
+pub fn verify_impl<const WITH_BLOCK: bool>(
     prefix: &[u8],
     mut proof_bytes: &[u8],
     root: &[u8],
@@ -192,13 +272,17 @@ pub fn verify(
     );
     let path = trie_ids::PathInfo::try_from(path)?;
 
-    let (state_root, proof) = {
+    let (state_root, proof) = if WITH_BLOCK {
         let (header, proof): (BlockHeader, sealable_trie::proof::Proof) =
             borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
         if root != &header.calc_hash() {
             return Err(VerifyError::BadBlock);
         }
         (header.state_root, proof)
+    } else {
+        let proof: sealable_trie::proof::Proof =
+            borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
+        (root.clone(), proof)
     };
 
     let value = if let Some(value) = value {
@@ -254,13 +338,15 @@ pub fn verify(
 }
 
 
-#[test]
-fn test_proofs() {
+#[cfg(test)]
+mod tests {
     use core::str::FromStr;
 
     use borsh::BorshDeserialize;
     use ibc_core_host::types::identifiers;
     use sealable_trie::nodes::RawNode;
+
+    use super::*;
 
     struct Trie {
         trie: sealable_trie::Trie<memory::test_utils::TestAllocator<RawNode>>,
@@ -293,8 +379,36 @@ fn test_proofs() {
         }
     }
 
-    #[track_caller]
+    fn generate(
+        for_block: bool,
+        trie: &Trie,
+        path: &ibc::path::Path,
+    ) -> Result<IbcProof, GenerateError> {
+        let path = path.clone();
+        if for_block {
+            generate_for_block(&trie.header, &trie.trie, path)
+        } else {
+            generate_for_trie(&trie.trie, path)
+        }
+    }
+
+    fn verify(
+        for_block: bool,
+        prefix: &[u8],
+        proof_bytes: &[u8],
+        root: &[u8],
+        path: ibc::path::Path,
+        value: Option<&[u8]>,
+    ) -> Result<(), VerifyError> {
+        if for_block {
+            verify_for_block(prefix, proof_bytes, root, path, value)
+        } else {
+            verify_for_trie(prefix, proof_bytes, root, path, value)
+        }
+    }
+
     fn assert_path_proof(
+        for_block: bool,
         path: ibc::path::Path,
         value: &[u8],
         stored_hash: &CryptoHash,
@@ -315,42 +429,72 @@ fn test_proofs() {
 
         // ========== Non-membership proof ==========
 
-        let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
+        let proof = generate(for_block, &trie, &path).unwrap();
         assert!(proof.value.is_none());
-        verify(&[], &proof.proof, proof.root.as_slice(), path.clone(), None)
-            .unwrap();
+        verify(
+            for_block,
+            &[],
+            &proof.proof,
+            proof.root.as_slice(),
+            path.clone(),
+            None,
+        )
+        .unwrap();
 
         // Verify non-membership fails if value is inserted.
         let key = trie_ids::PathInfo::try_from(path.clone()).unwrap().key;
         trie.set(&key, stored_hash.clone());
 
-        let new_proof = substitute_state_root(&proof, trie.root());
-        assert_eq!(
-            Err(VerifyError::BadBlock),
-            verify(
-                &[],
-                &new_proof.proof,
-                proof.root.as_slice(),
-                path.clone(),
-                None
-            )
-        );
-        assert_eq!(
-            Err(VerifyError::VerificationFailed),
-            verify(
-                &[],
-                &new_proof.proof,
-                new_proof.root.as_slice(),
-                path.clone(),
-                None
-            )
-        );
+        if for_block {
+            // Generate proof with block header with new state root, but use the
+            // same block hash.  The proof root commitment won’t match.
+            let new_proof = substitute_state_root(&proof, trie.root());
+            assert_eq!(
+                Err(VerifyError::BadBlock),
+                verify(
+                    for_block,
+                    &[],
+                    &new_proof.proof,
+                    proof.root.as_slice(),
+                    path.clone(),
+                    None
+                )
+            );
+            // Update block hash as well so it’s valid.  The Merkle trie proof
+            // will fail.
+            assert_eq!(
+                Err(VerifyError::VerificationFailed),
+                verify(
+                    for_block,
+                    &[],
+                    &new_proof.proof,
+                    new_proof.root.as_slice(),
+                    path.clone(),
+                    None
+                )
+            );
+        } else {
+            // Use new state root during verification.  The Merkle trie proof
+            // will fail.
+            assert_eq!(
+                Err(VerifyError::VerificationFailed),
+                verify(
+                    for_block,
+                    &[],
+                    &proof.proof,
+                    trie.root().as_slice(),
+                    path.clone(),
+                    None,
+                )
+            );
+        }
 
         // ========== Membership proof ==========
 
-        let proof = generate(&trie.header, &trie.trie, path.clone()).unwrap();
+        let proof = generate(for_block, &trie, &path).unwrap();
         assert_eq!(Some(stored_hash), proof.value.as_ref());
         verify(
+            for_block,
             &[],
             &proof.proof,
             proof.root.as_slice(),
@@ -359,10 +503,11 @@ fn test_proofs() {
         )
         .unwrap();
 
-        // Check invalid membership proofs
+        // Check invalid prefix.  It must be always empty.
         assert_eq!(
             Err(VerifyError::BadPrefix),
             verify(
+                for_block,
                 &[1u8, 2, 3],
                 &proof.proof,
                 proof.root.as_slice(),
@@ -371,16 +516,32 @@ fn test_proofs() {
             )
         );
 
+        // Check invalid root hash.  It must be 32-byte hash.
         assert_eq!(
             Err(VerifyError::BadRoot),
-            verify(&[], &proof.proof, &[1u8, 2, 3], path.clone(), Some(value),)
+            verify(
+                for_block,
+                &[],
+                &proof.proof,
+                &[1u8, 2, 3],
+                path.clone(),
+                Some(value),
+            )
         );
 
+        // Check invalid proof.  Depending whether for_block is true or not, the
+        // proof is deserialised differently so we get different errors.
         assert_eq!(
             Err(VerifyError::ProofDecodingFailure(
-                "Unexpected length of input".into()
+                if for_block {
+                    "Unexpected length of input"
+                } else {
+                    "invalid Item tag: 2"
+                }
+                .into()
             )),
             verify(
+                for_block,
                 &[],
                 &[0u8, 1, 2, 3],
                 proof.root.as_slice(),
@@ -389,9 +550,11 @@ fn test_proofs() {
             )
         );
 
+        // Check spurious bytes at the end of the proof.
         assert_eq!(
             Err(VerifyError::ProofDecodingFailure("Spurious bytes".into())),
             verify(
+                for_block,
                 &[],
                 &[proof.proof.as_slice(), b"\0"].concat(),
                 proof.root.as_slice(),
@@ -400,9 +563,17 @@ fn test_proofs() {
             )
         );
 
+        // Check invalid root commitment.  Depending of for_block this fails at
+        // either block header in the proof being incorrect or at Merkle trie
+        // proof verification.
         assert_eq!(
-            Err(VerifyError::BadBlock),
+            Err(if for_block {
+                VerifyError::BadBlock
+            } else {
+                VerifyError::VerificationFailed
+            }),
             verify(
+                for_block,
                 &[],
                 &proof.proof,
                 &CryptoHash::test(11).as_slice(),
@@ -411,90 +582,103 @@ fn test_proofs() {
             )
         );
 
-        let new_proof = substitute_state_root(&proof, &CryptoHash::test(22));
-        assert_eq!(
-            Err(VerifyError::VerificationFailed),
-            verify(
-                &[],
-                &new_proof.proof,
-                new_proof.root.as_slice(),
-                path.clone(),
-                Some(value),
-            )
+        if for_block {
+            // Substituted a new state root.
+            let new_proof =
+                substitute_state_root(&proof, &CryptoHash::test(22));
+            assert_eq!(
+                Err(VerifyError::VerificationFailed),
+                verify(
+                    for_block,
+                    &[],
+                    &new_proof.proof,
+                    new_proof.root.as_slice(),
+                    path.clone(),
+                    Some(value),
+                )
+            );
+        }
+    }
+
+    fn do_test_proofs(for_block: bool) {
+        let client_id = identifiers::ClientId::from_str("foo-bar-1").unwrap();
+        let connection_id = identifiers::ConnectionId::new(4);
+        let port_id = identifiers::PortId::transfer();
+        let channel_id = identifiers::ChannelId::new(5);
+        let sequence = identifiers::Sequence::from(6);
+
+        let value = b"foo";
+        let value_hash = CryptoHash::digest(value);
+        let cv_hash = crate::digest_with_client_id(&client_id, value);
+
+        let seq_value = prost::Message::encode_to_vec(&20u64);
+        let seq_hash = |idx: usize| {
+            let mut hash = [[0u8; 8]; 4];
+            hash[idx] = 20u64.to_be_bytes();
+            CryptoHash(bytemuck::must_cast(hash))
+        };
+
+        macro_rules! check {
+            ($path:expr) => {
+                check!($path, value, &value_hash)
+            };
+            ($path:expr; having client) => {
+                check!($path, value, &cv_hash)
+            };
+            ($path:expr; raw hash) => {
+                check!($path, value_hash.as_slice(), &value_hash)
+            };
+            ($path:expr, $value:expr, $hash:expr) => {
+                assert_path_proof(for_block, $path.into(), $value, $hash)
+            };
+        }
+
+        check!(ibc::path::ClientStatePath(client_id.clone()); having client);
+        check!(ibc::path::ClientConsensusStatePath {
+            client_id: client_id.clone(),
+            revision_number: 2,
+            revision_height: 3,
+        }; having client);
+
+        check!(ibc::path::ConnectionPath(connection_id));
+        check!(ibc::path::ChannelEndPath(port_id.clone(), channel_id.clone()));
+
+        check!(
+            ibc::path::SeqSendPath(port_id.clone(), channel_id.clone()),
+            seq_value.as_slice(),
+            &seq_hash(0)
         );
+        check!(
+            ibc::path::SeqRecvPath(port_id.clone(), channel_id.clone()),
+            seq_value.as_slice(),
+            &seq_hash(1)
+        );
+        check!(
+            ibc::path::SeqAckPath(port_id.clone(), channel_id.clone()),
+            seq_value.as_slice(),
+            &seq_hash(2)
+        );
+
+        check!(ibc::path::CommitmentPath {
+            port_id: port_id.clone(),
+            channel_id: channel_id.clone(),
+            sequence,
+        }; raw hash);
+        check!(ibc::path::AckPath {
+            port_id: port_id.clone(),
+            channel_id: channel_id.clone(),
+            sequence,
+        }; raw hash);
+        check!(ibc::path::ReceiptPath {
+            port_id: port_id.clone(),
+            channel_id: channel_id.clone(),
+            sequence,
+        }; raw hash);
     }
 
-    let client_id = identifiers::ClientId::from_str("foo-bar-1").unwrap();
-    let connection_id = identifiers::ConnectionId::new(4);
-    let port_id = identifiers::PortId::transfer();
-    let channel_id = identifiers::ChannelId::new(5);
-    let sequence = identifiers::Sequence::from(6);
+    #[test]
+    fn test_proofs_for_block() { do_test_proofs(true) }
 
-    let value = b"foo";
-    let value_hash = CryptoHash::digest(value);
-    let cv_hash = super::digest_with_client_id(&client_id, value);
-
-    let seq_value = prost::Message::encode_to_vec(&20u64);
-    let seq_hash = |idx: usize| {
-        let mut hash = [[0u8; 8]; 4];
-        hash[idx] = 20u64.to_be_bytes();
-        CryptoHash(bytemuck::must_cast(hash))
-    };
-
-    macro_rules! check {
-        ($path:expr) => {
-            check!($path, value, &value_hash)
-        };
-        ($path:expr; having client) => {
-            check!($path, value, &cv_hash)
-        };
-        ($path:expr; raw hash) => {
-            check!($path, value_hash.as_slice(), &value_hash)
-        };
-        ($path:expr, $value:expr, $hash:expr) => {
-            assert_path_proof($path.into(), $value, $hash)
-        };
-    }
-
-    check!(ibc::path::ClientStatePath(client_id.clone()); having client);
-    check!(ibc::path::ClientConsensusStatePath {
-        client_id: client_id.clone(),
-        revision_number: 2,
-        revision_height: 3,
-    }; having client);
-
-    check!(ibc::path::ConnectionPath(connection_id));
-    check!(ibc::path::ChannelEndPath(port_id.clone(), channel_id.clone()));
-
-    check!(
-        ibc::path::SeqSendPath(port_id.clone(), channel_id.clone()),
-        seq_value.as_slice(),
-        &seq_hash(0)
-    );
-    check!(
-        ibc::path::SeqRecvPath(port_id.clone(), channel_id.clone()),
-        seq_value.as_slice(),
-        &seq_hash(1)
-    );
-    check!(
-        ibc::path::SeqAckPath(port_id.clone(), channel_id.clone()),
-        seq_value.as_slice(),
-        &seq_hash(2)
-    );
-
-    check!(ibc::path::CommitmentPath {
-        port_id: port_id.clone(),
-        channel_id: channel_id.clone(),
-        sequence,
-    }; raw hash);
-    check!(ibc::path::AckPath {
-        port_id: port_id.clone(),
-        channel_id: channel_id.clone(),
-        sequence,
-    }; raw hash);
-    check!(ibc::path::ReceiptPath {
-        port_id: port_id.clone(),
-        channel_id: channel_id.clone(),
-        sequence,
-    }; raw hash);
+    #[test]
+    fn test_proofs_for_trie() { do_test_proofs(false) }
 }
