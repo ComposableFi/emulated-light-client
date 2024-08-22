@@ -101,6 +101,23 @@ impl CryptoHash {
     /// Allocates vector with the contents of the hash.
     #[inline]
     pub fn to_vec(&self) -> alloc::vec::Vec<u8> { self.as_slice().to_vec() }
+
+    /// Writes the hash as base58.
+    #[cfg(feature = "bs58")]
+    pub fn fmt_bs58(
+        &self,
+        fmtr: &mut core::fmt::Formatter,
+    ) -> core::fmt::Result {
+        // The largest buffer we’re ever encoding is 32-byte long.  Base58
+        // increases size of the value by less than 40%.  45-byte buffer is
+        // therefore enough to fit 32-byte values.
+        let mut buf = [0u8; 45];
+        let len = bs58::encode(&self.0).onto(&mut buf[..]).unwrap();
+        let output = &buf[..len];
+        // SAFETY: We know that alphabet can only include ASCII characters
+        // thus our result is an ASCII string.
+        fmtr.write_str(unsafe { core::str::from_utf8_unchecked(output) })
+    }
 }
 
 impl core::fmt::Display for CryptoHash {

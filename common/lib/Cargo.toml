@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 base64.workspace = true
+bs58 = { workspace = true, optional = true }
 borsh = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true

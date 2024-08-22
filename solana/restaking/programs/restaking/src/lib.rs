@@ -113,7 +113,7 @@ pub mod restaking {
             solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                 .unwrap();
         let validator = chain
-            .validator(validator_key)
+            .candidate(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
         let amount = validator.map_or(u128::from(amount), |val| {
             u128::from(val.stake) + u128::from(amount)
@@ -583,7 +583,7 @@ pub mod restaking {
             solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
                 .unwrap();
         let validator = chain
-            .validator(validator_key)
+            .candidate(validator_key)
             .map_err(|_| ErrorCodes::OperationNotAllowed)?;
         let amount = validator.map_or(u128::from(amount), |val| {
             u128::from(val.stake) + u128::from(amount)
