@@ -5,6 +5,7 @@ use std::time::Duration;
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
+use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer as SolanaSigner,
@@ -197,24 +198,8 @@ fn escrow_bridge_program() -> Result<()> {
 
     println!("  Signature: {}", tx);
 
-    // let hashed_full_denom = lib::hash::CryptoHash::digest(
-    //     &native_token_mint_key.to_string().as_bytes(),
-    // );
-
-    // println!("Native token mint {}", native_token_mint_key);
-    // println!("hashed full denom {}", hashed_full_denom);
-
-    // let x = PrefixedCoin {
-    //     denom: PrefixedDenom::from_str(&native_token_mint_key.to_string())
-    //         .unwrap(), // token only owned by this PDA
-    //     amount: 1.into(),
-    // };
-
-    // println!("full denom {:?}", x.denom.to_string());
-    // println!(
-    //     "hashed full denom {:?}",
-    //     lib::hash::CryptoHash::digest(x.denom.to_string().as_bytes())
-    // );
+    let dummy_token_mint =
+        Pubkey::find_program_address(&[crate::DUMMY_SEED], &crate::ID).0;
 
     // Initialize the progroam to define the auctioneer
     println!("\nInitializing the program");
@@ -223,7 +208,10 @@ fn escrow_bridge_program() -> Result<()> {
         .accounts(crate::accounts::Initialize {
             authority: auctioneer.pubkey(),
             auctioneer: auctioneer_state,
+            token_mint: dummy_token_mint,
             system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
         })
         .args(crate::instruction::Initialize {})
         .payer(auctioneer.clone())
@@ -239,7 +227,7 @@ fn escrow_bridge_program() -> Result<()> {
         get_associated_token_address(&auctioneer_state, &token_in);
 
     // Escrow user funds
-    println!("Escrow user funds");
+    println!("\nEscrow user funds for single domain");
 
     // let user_token_in_balance_before =
     //     sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
@@ -278,7 +266,7 @@ fn escrow_bridge_program() -> Result<()> {
     // );
 
     // Store the intent
-    println!("Store the intent");
+    println!("\nStore the intent for single domain");
     let intent_id = "12323542".to_string();
 
     // arbitrary value
@@ -321,7 +309,7 @@ fn escrow_bridge_program() -> Result<()> {
     println!("  Signature: {}", sig);
 
     // Send funds to user ( single domain )
-    println!("Send funds to user single domain");
+    println!("\nSend funds to user single domain");
 
     let solver_token_in_addr =
         get_associated_token_address(&solver.pubkey(), &token_in);
@@ -341,10 +329,10 @@ fn escrow_bridge_program() -> Result<()> {
             intent: intent_state,
             auctioneer_state,
             auctioneer: auctioneer.pubkey(),
-            token_in,
+            token_in: Some(token_in),
             token_out,
-            auctioneer_token_in_account: token_in_escrow_addr,
-            solver_token_in_account: solver_token_in_addr,
+            auctioneer_token_in_account: Some(token_in_escrow_addr),
+            solver_token_in_account: Some(solver_token_in_addr),
             solver_token_out_account: solver_token_out_addr,
             user_token_out_account: user_token_out_addr,
             token_program: anchor_spl::token::ID,
@@ -397,82 +385,128 @@ fn escrow_bridge_program() -> Result<()> {
         amount_out
     );
 
-    // If above fails -> timeout
+    // Store the intent
+    println!("\nStore the intent for cross domain");
+    let intent_id = "12323543".to_string();
 
-    // // Derive the necessary accounts
-    // let (storage, _bump_storage) = Pubkey::find_program_address(
-    //     &[solana_ibc::SOLANA_IBC_STORAGE_SEED],
-    //     &solana_ibc::ID,
-    // );
-    // let (trie, _bump_trie) =
-    //     Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID);
-    // let (chain, _bump_chain) = Pubkey::find_program_address(
-    //     &[solana_ibc::CHAIN_SEED],
-    //     &solana_ibc::ID,
-    // );
-    // let (mint_authority, _bump_mint_authority) = Pubkey::find_program_address(
-    //     &[solana_ibc::MINT_ESCROW_SEED],
-    //     &solana_ibc::ID,
-    // );
-    // let (escrow_account, _bump_escrow_account) = Pubkey::find_program_address(
-    //     &[solana_ibc::ESCROW, &hashed_full_denom.as_slice()],
-    //     &solana_ibc::ID,
-    // );
+    // arbitrary value
+    let amount_out = 10000;
 
-    // let receiver_token_account = get_associated_token_address(
-    //     &authority.pubkey(),
-    //     &native_token_mint_key,
-    // );
-    // let (fee_collector, _bump_fee_collector) =
-    //     Pubkey::find_program_address(&[solana_ibc::FEE_SEED], &solana_ibc::ID);
+    let intent_state = Pubkey::find_program_address(
+        &[crate::INTENT_SEED, intent_id.as_bytes()],
+        &crate::ID,
+    )
+    .0;
 
-    // let system_program = anchor_lang::system_program::ID;
+    let new_intent = IntentPayload {
+        intent_id: intent_id.clone(),
+        user_in: user.pubkey(),
+        token_in,
+        amount_in: TRANSFER_AMOUNT,
+        token_out: token_out.to_string(),
+        amount_out: amount_out.to_string(),
+        timeout_timestamp_in_sec: 10000,
+        winner_solver: solver.pubkey(),
+        single_domain: false,
+    };
 
-    // // Amount to transfer
-    // let amount = 1000000; // Example amount
+    let sig = program
+        .request()
+        .accounts(crate::accounts::StoreIntent {
+            authority: auctioneer.pubkey(),
+            intent: intent_state,
+            auctioneer: auctioneer_state,
+            system_program: anchor_lang::solana_program::system_program::ID,
+        })
+        .args(crate::instruction::StoreIntent { new_intent })
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })
+        .unwrap();
+    println!("  Signature: {}", sig);
 
-    // let destination_token_account = get_associated_token_address(
-    //     &receiver.pubkey(),
-    //     &native_token_mint_key,
-    // );
+    // Send funds to user ( cross domain )
+    println!("\nSend funds to user cross domain");
 
-    // // Build and send the transaction to call send_funds_to_user
-    // println!("\nSending funds to user");
-    // let sig = program
-    //     .request()
-    //     .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
-    //         1_000_000,
-    //     ))
-    //     .accounts(crate::accounts::SplTokenTransfer {
-    //         authority: authority.pubkey(),
-    //         solver_token_in_account: receiver_token_account,
-    //         user_token_in_account,
-    //         ibc_program: solana_ibc::ID,
-    //         receiver: receiver.pubkey(),
-    //         storage,
-    //         trie,
-    //         chain,
-    //         mint_authority,
-    //         token_mint: native_token_mint_key,
-    //         escrow_account,
-    //         receiver_token_account,
-    //         fee_collector,
-    //         token_program: anchor_spl::token::ID,
-    //         associated_token_program: anchor_spl::associated_token::ID,
-    //         system_program,
-    //         intent: todo!(),
-    //         auctioneer: todo!(),
-    //         auctioneer_token_in_account: todo!(),
-    //         solver_token_out_account: todo!(),
-    //         auctioneer_token_out_account: todo!(),
-    //     })
-    //     .args(crate::instruction::SendFundsToUser { amount, hashed_full_denom })
-    //     .payer(authority.clone())
-    //     .signer(&*authority)
-    //     .send_with_spinner_and_config(RpcSendTransactionConfig {
-    //         skip_preflight: true,
-    //         ..RpcSendTransactionConfig::default()
-    //     })?;
-    // println!("  Signature: {sig}");
+    let hashed_full_denom =
+        lib::hash::CryptoHash::digest(&dummy_token_mint.to_string().as_bytes());
+
+    println!("\nNative token mint {}", dummy_token_mint);
+    println!("hashed full denom {}", hashed_full_denom);
+
+    // Derive the necessary accounts
+    let (storage, _bump_storage) = Pubkey::find_program_address(
+        &[solana_ibc::SOLANA_IBC_STORAGE_SEED],
+        &solana_ibc::ID,
+    );
+    let (trie, _bump_trie) =
+        Pubkey::find_program_address(&[solana_ibc::TRIE_SEED], &solana_ibc::ID);
+    let (chain, _bump_chain) = Pubkey::find_program_address(
+        &[solana_ibc::CHAIN_SEED],
+        &solana_ibc::ID,
+    );
+    let (mint_authority, _bump_mint_authority) = Pubkey::find_program_address(
+        &[solana_ibc::MINT_ESCROW_SEED],
+        &solana_ibc::ID,
+    );
+    let (escrow_account, _bump_escrow_account) = Pubkey::find_program_address(
+        &[solana_ibc::ESCROW, &hashed_full_denom.as_slice()],
+        &solana_ibc::ID,
+    );
+
+    let (fee_collector, _bump_fee_collector) =
+        Pubkey::find_program_address(&[solana_ibc::FEE_SEED], &solana_ibc::ID);
+
+    let receiver_token_account =
+        get_associated_token_address(&solver.pubkey(), &dummy_token_mint);
+
+    // Build and send the transaction to call send_funds_to_user
+    println!("\nSending funds to user");
+    let sig = program
+        .request()
+        .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
+            1_000_000,
+        ))
+        .accounts(crate::accounts::SplTokenTransfer {
+            intent: intent_state,
+            auctioneer_state,
+            solver: solver.pubkey(),
+            auctioneer: auctioneer.pubkey(),
+            token_in: None,
+            token_out,
+            auctioneer_token_in_account: None,
+            solver_token_in_account: None,
+            solver_token_out_account: solver_token_out_addr,
+            user_token_out_account: user_token_out_addr,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            ibc_program: Some(solana_ibc::ID),
+            receiver: None,
+            storage: Some(storage),
+            trie: Some(trie),
+            chain: Some(chain),
+            mint_authority: Some(mint_authority),
+            token_mint: Some(dummy_token_mint),
+            escrow_account: Some(escrow_account),
+            receiver_token_account: Some(receiver_token_account),
+            fee_collector: Some(fee_collector),
+        })
+        .args(crate::instruction::SendFundsToUser {
+            intent_id,
+            hashed_full_denom: Some(hashed_full_denom),
+            // Solver out doesnt matter for this test
+            solver_out: Some(Pubkey::new_unique().to_string()),
+        })
+        .payer(solver.clone())
+        .signer(&*solver)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
     Ok(())
 }
