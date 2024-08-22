@@ -20,7 +20,7 @@ use solana_ibc::cpi::send_transfer;
 use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
 
-const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
+// const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
 // const BRIDGE_CONTRACT_PUBKEY: &str = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
@@ -106,28 +106,50 @@ pub mod bridge_escrow {
     */
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
-        msg: MsgTransfer,
+        memo: String,
     ) -> Result<()> {
         // Extract and validate the memo
-        let memo = msg.packet_data.memo.to_string();
         let parts: Vec<&str> = memo.split(',').collect();
 
-        require!(
-            msg.packet_data.token.denom.base_denom.to_string() == DUMMY,
-            ErrorCode::InvalidDenom
-        );
+        // require!(
+        //     msg.packet_data.token.denom.base_denom.to_string() == DUMMY,
+        //     ErrorCode::InvalidDenom
+        // );
+        let token_mint =
+            Pubkey::from_str(parts[0]).map_err(|_| ErrorCode::BadPublickey)?;
         let amount: u64 =
             parts[1].parse().map_err(|_| ErrorCode::InvalidAmount)?;
+        let solver =
+            Pubkey::from_str(parts[2]).map_err(|_| ErrorCode::BadPublickey)?;
+
+        if token_mint != ctx.accounts.token_mint.key() {
+            return Err(ErrorCode::InvalidTokenAddress.into());
+        }
+
+        if solver != ctx.accounts.solver_token_account.owner {
+            return Err(ErrorCode::InvalidSolverOutAddress.into());
+        }
 
         // Transfer tokens from Auctioneer to Solver
         let cpi_accounts = SplTransfer {
-            from: ctx.accounts.auctioneer.to_account_info(),
-            to: ctx.accounts.solver.to_account_info(),
-            authority: ctx.accounts.auctioneer.to_account_info(),
+            from: ctx.accounts.escrow_token_account.to_account_info(),
+            to: ctx.accounts.solver_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
         };
 
+        let seeds = &[
+            AUCTIONEER_SEED,
+            core::slice::from_ref(&ctx.bumps.auctioneer_state),
+        ];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_ctx = CpiContext::new_with_signer(
+            cpi_program,
+            cpi_accounts,
+            signer_seeds,
+        );
 
         token::transfer(cpi_ctx, amount)?;
 
@@ -434,20 +456,24 @@ pub struct StoreIntent<'info> {
 #[instruction(intent_id: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
-    pub solver: Signer<'info>,
-    #[account(seeds = [AUCTIONEER_SEED], bump)]
+    pub authority: Signer<'info>,
+
+    #[account(seeds = [AUCTIONEER_SEED], bump, has_one = authority)]
     pub auctioneer_state: Account<'info, Auctioneer>,
-    /// CHECK:
-    pub auctioneer: UncheckedAccount<'info>,
-    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    #[account(mut, close = authority, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
     pub intent: Account<'info, Intent>,
+
+    pub token_mint: Account<'info, Mint>,
+    #[account(mut, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub escrow_token_account: Account<'info, TokenAccount>,
+    #[account(mut, token::mint = token_mint)]
+    pub solver_token_account: Account<'info, TokenAccount>,
+
     #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
     pub instruction: UncheckedAccount<'info>,
     pub token_program: Program<'info, Token>,
-    #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>,
 }
 
 // Accounts for transferring SPL tokens
@@ -578,4 +604,6 @@ pub enum ErrorCode {
     InvalidSolverOutAddress,
     #[msg("Invalid hashed full denom")]
     InvalidHashedFullDenom,
+    #[msg("Unable to parse public key from string")]
+    BadPublickey,
 }
