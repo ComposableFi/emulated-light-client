@@ -32,10 +32,7 @@ pub fn split_array_mut<const L: usize, const R: usize, const N: usize>(
 /// Divides one slice into two at an index, returning None if the slice is too
 /// short.
 // TODO(mina86): Use [T]::split_at_checked once that stabilises.
-pub fn split_at_checked<T>(
-    slice: &[T],
-    mid: usize,
-) -> Option<(&[T], &[T])> {
+pub fn split_at_checked<T>(slice: &[T], mid: usize) -> Option<(&[T], &[T])> {
     (mid <= slice.len()).then(|| slice.split_at(mid))
 }
 
