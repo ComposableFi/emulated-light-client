@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
@@ -278,6 +278,11 @@ fn escrow_bridge_program() -> Result<()> {
     )
     .0;
 
+    let current_timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     let new_intent = IntentPayload {
         intent_id: intent_id.clone(),
         user_in: user.pubkey(),
@@ -285,7 +290,7 @@ fn escrow_bridge_program() -> Result<()> {
         amount_in: TRANSFER_AMOUNT,
         token_out: token_out.to_string(),
         amount_out: amount_out.to_string(),
-        timeout_timestamp_in_sec: 10000,
+        timeout_timestamp_in_sec: current_timestamp + 10000,
         winner_solver: solver.pubkey(),
         single_domain: true,
     };
@@ -405,7 +410,7 @@ fn escrow_bridge_program() -> Result<()> {
         amount_in: TRANSFER_AMOUNT,
         token_out: token_out.to_string(),
         amount_out: amount_out.to_string(),
-        timeout_timestamp_in_sec: 10000,
+        timeout_timestamp_in_sec: current_timestamp + 10000,
         winner_solver: solver.pubkey(),
         single_domain: false,
     };
