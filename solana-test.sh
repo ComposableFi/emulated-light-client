@@ -1,4 +1,4 @@
-# !/bin/sh
+#!/bin/sh
 set -eux
 solana config set --url http://127.0.0.1:8899
 cd solana/write-account
