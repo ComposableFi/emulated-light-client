@@ -1,14 +1,12 @@
 use alloc::vec::Vec;
 
 use lib::hash::CryptoHash;
-#[cfg(all(feature = "rayon", not(miri)))]
-use rayon::prelude::*;
+use lib::par::prelude::*;
 
 #[cfg(test)]
 mod tests;
 
 use crate::types::{Hash, PubKey};
-use crate::utils::{blake3, chunks, sort_unstable_by};
 
 /// The fanout of a accounts delta Merkle tree.
 ///
@@ -67,7 +65,7 @@ impl MerkleProof {
         accounts: &mut [(PubKey, Hash)],
         pubkey: &PubKey,
     ) -> Option<(Hash, MerkleProof)> {
-        sort_unstable_by(accounts, |a, b| a.0.cmp(&b.0));
+        lib::par::sort_unstable_by(accounts, |a, b| a.0.cmp(&b.0));
 
         let pos =
             accounts.binary_search_by_key(&pubkey, |item| &item.0).ok()?;
@@ -240,7 +238,9 @@ impl AccountHashData {
     pub fn key(&self) -> &PubKey { self.get::<32>(self.0.len() - 32).into() }
 
     /// Returns hash of the account.
-    pub fn calculate_hash(&self) -> Hash { blake3::hash(self.0.as_slice()) }
+    pub fn calculate_hash(&self) -> Hash {
+        crate::blake3::hash(self.0.as_slice())
+    }
 
     /// Returns `N`-byte long fragment of the account’s hash data starting at
     /// index `start`.
@@ -347,7 +347,7 @@ pub fn hash_account(
         return Hash::default();
     }
 
-    let mut hasher = blake3::Hasher::default();
+    let mut hasher = crate::blake3::Hasher::default();
 
     // allocate a buffer on the stack that's big enough
     // to hold a token account or a stake account
@@ -386,7 +386,7 @@ pub fn hash_account(
 /// we reimplement it because that method takes ownership of hashes which is
 /// something we need to keep.
 fn compute_merkle_root(accounts: &mut [(PubKey, Hash)]) -> Hash {
-    let mut hashes: Vec<Hash> = chunks(accounts, MERKLE_FANOUT)
+    let mut hashes: Vec<Hash> = lib::par::chunks(accounts, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for item in chunk {
@@ -449,7 +449,7 @@ fn generate_merkle_proof(
 }
 
 fn compute_hashes_at_next_level(hashes: &[Hash]) -> Vec<Hash> {
-    chunks(hashes, MERKLE_FANOUT)
+    lib::par::chunks(hashes, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for hash in chunk {

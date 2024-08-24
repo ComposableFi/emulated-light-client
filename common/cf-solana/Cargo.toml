@@ -10,7 +10,6 @@ blake3.workspace = true
 bs58.workspace = true
 bytemuck.workspace = true
 derive_more.workspace = true
-rayon = { workspace = true, optional = true }
 solana-program = { workspace = true, optional = true }
 
 lib = { workspace = true, features = ["bs58"] }
@@ -27,6 +26,7 @@ solana-accounts-db2 = { package = "solana-accounts-db", git = "https://github.co
 solana-program-2 = { package = "solana-program", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
 
 [features]
+rayon = ["lib/rayon"]
 solana-program = [
     "dep:solana-program",
     "lib/solana-program",
