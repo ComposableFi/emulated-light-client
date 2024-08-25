@@ -19,13 +19,12 @@ crossbeam-channel = "0.5.13"
 derive_more = "0.99.18"
 hex = { git = "https://github.com/mina86/rust-hex.git", branch = "main", default-features = false }
 log = "0.4.17"
-rayon = "1.10.0"
 # TODO(mina86): Change to "1" once we update the toolchain.  Building
 # with serde 1.0.204 breaks due to the use of ‘diagnostic’ attribute.
 serde = { version = "=1.0.203", features = ["derive"] }
 serde_json = "1"
 
-cf-solana = { path = "../../common/cf-solana", default-features = false, features = ["solana-program-2"] }
+cf-solana = { path = "../../common/cf-solana", default-features = false, features = ["solana-program-2", "rayon"] }
 solana-witnessed-trie = { path = "../witnessed-trie", default-features = false, features = ["api2"] }
 
 solana-accounts-db             = { git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
