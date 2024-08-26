@@ -43,6 +43,7 @@ uint.workspace = true
 
 guestchain.workspace = true
 cf-guest.workspace = true
+cf-solana = { workspace = true, features = ["solana-program", "no-blake3-syscall"] }
 lib = { workspace = true, features = ["solana-program"] }
 memory.workspace = true
 solana-allocator = { workspace = true, optional = true }

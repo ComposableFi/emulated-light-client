@@ -18,6 +18,7 @@ macro_rules! delegate {
             match self {
                 AnyClientState::Tendermint(cs) => cs.$name($($arg),*),
                 AnyClientState::Wasm(_) => unimplemented!(),
+                AnyClientState::Rollup(cs) => cs.$name($($arg),*),
                 #[cfg(any(test, feature = "mocks"))]
                 AnyClientState::Mock(cs) => cs.$name($($arg),*),
             }
@@ -53,6 +54,7 @@ impl ibc::ClientStateCommon for AnyClientState {
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
+            AnyClientState::Rollup(_) => unimplemented!(),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => cs.verify_upgrade_client(
                 upgraded_client_state,
@@ -84,6 +86,9 @@ impl ibc::ClientStateCommon for AnyClientState {
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
+            AnyClientState::Rollup(cs) => {
+                cs.verify_membership(prefix, proof, root, path, value)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => {
                 cs.verify_membership(prefix, proof, root, path, value)
@@ -107,6 +112,9 @@ impl ibc::ClientStateCommon for AnyClientState {
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
+            AnyClientState::Rollup(cs) => {
+                cs.verify_non_membership(prefix, proof, root, path)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => {
                 cs.verify_non_membership(prefix, proof, root, path)
@@ -132,6 +140,9 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
+            AnyClientState::Rollup(cs) => {
+                cs.verify_client_message(ctx, client_id, client_message)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(cs) => {
                 cs.verify_client_message(ctx, client_id, client_message)
@@ -155,6 +166,7 @@ impl<'a, 'b> ibc::ClientStateValidation<IbcStorage<'a, 'b>> for AnyClientState {
                 )
             }
             AnyClientState::Wasm(_) => unimplemented!(),
+            AnyClientState::Rollup(_) => unimplemented!(),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::Mock(_) => unimplemented!(),
         }
