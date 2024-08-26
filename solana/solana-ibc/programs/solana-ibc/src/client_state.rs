@@ -14,6 +14,7 @@ type Result<T = (), E = ibc::ClientError> = core::result::Result<T, E>;
 pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Wasm(ibc::wasm::ClientState),
+    Rollup(cf_solana::ClientState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -26,6 +27,7 @@ impl ibc::Protobuf<ibc::Any> for AnyClientState {}
 enum AnyClientStateTag {
     Tendermint = 0,
     Wasm = 1,
+    Rollup = 2,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -37,6 +39,7 @@ impl AnyClientStateTag {
         match url {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyClientState::WASM_TYPE => Some(Self::Wasm),
+            AnyClientState::ROLLUP_TYPE => Some(Self::Rollup),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -50,6 +53,9 @@ impl AnyClientState {
         ibc::tm::TENDERMINT_CLIENT_STATE_TYPE_URL;
     /// Protobuf type URL for WASM client state used in Any message.
     const WASM_TYPE: &'static str = ibc::wasm::WASM_CLIENT_STATE_TYPE_URL;
+    /// Protobuf type URL for Rollup client state used in Any message.
+    const ROLLUP_TYPE: &'static str =
+        cf_solana::proto::ClientState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -78,6 +84,11 @@ impl AnyClientState {
                 Self::WASM_TYPE,
                 Protobuf::<ibc::wasm::ClientStatePB>::encode_vec(state),
             ),
+            Self::Rollup(state) => (
+                AnyClientStateTag::Rollup,
+                Self::ROLLUP_TYPE,
+                Protobuf::<cf_solana::proto::ClientState>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
@@ -102,6 +113,11 @@ impl AnyClientState {
                 Protobuf::<ibc::wasm::ClientStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Wasm)
+            }
+            AnyClientStateTag::Rollup => {
+                Protobuf::<cf_solana::proto::ClientState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Rollup)
             }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
@@ -320,6 +336,104 @@ impl guestchain::Verifier<sigverify::ed25519::PubKey> for IbcStorage<'_, '_> {
         _signature: &sigverify::ed25519::Signature,
     ) -> bool {
         unimplemented!()
+    }
+}
+
+impl cf_solana::CommonContext for IbcStorage<'_, '_> {
+    type ConversionError = &'static str;
+    type AnyClientState = AnyClientState;
+    type AnyConsensusState = AnyConsensusState;
+
+    fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
+        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
+        let timestamp =
+            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+                ibc::ClientError::Other { description: err.to_string() }
+            })?;
+
+        let height = u64::from(self.borrow().chain.head()?.block_height);
+        let height = ibc::Height::new(1, height)?;
+
+        Ok((timestamp, height))
+    }
+
+    fn set_client_state(
+        &mut self,
+        client_id: &ibc::ClientId,
+        state: Self::AnyClientState,
+    ) -> Result<()> {
+        self.store_client_state_impl(client_id, state)
+    }
+
+    fn consensus_state(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<Self::AnyConsensusState> {
+        self.consensus_state_impl(client_id, height)
+    }
+
+    fn consensus_state_neighbourhood(
+        &self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result<cf_guest::Neighbourhood<Self::AnyConsensusState>> {
+        use core::cmp::Ordering;
+
+        let height = (height.revision_number(), height.revision_height());
+        let mut prev = ((0, 0), None);
+        let mut next = ((u64::MAX, u64::MAX), None);
+
+        let storage = self.borrow();
+        let states = &storage.private.client(client_id)?.consensus_states;
+        for (key, value) in states.iter() {
+            let key = (key.revision_number(), key.revision_height());
+            match key.cmp(&height) {
+                Ordering::Less if key >= prev.0 => prev = (key, Some(value)),
+                Ordering::Greater if key <= next.0 => next = (key, Some(value)),
+                Ordering::Equal => {
+                    return value.state().map(cf_guest::Neighbourhood::This)
+                }
+                _ => (),
+            }
+        }
+
+        let prev = prev.1.map(|state| state.state()).transpose()?;
+        let next = next.1.map(|state| state.state()).transpose()?;
+        Ok(cf_guest::Neighbourhood::Neighbours(prev, next))
+    }
+
+    fn store_consensus_state_and_metadata(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+        consensus: Self::AnyConsensusState,
+        _host_timestamp: ibc::Timestamp,
+        _host_height: ibc::Height,
+    ) -> Result {
+        self.store_consensus_state_impl(client_id, height, consensus)
+    }
+
+    fn delete_consensus_state_and_metadata(
+        &mut self,
+        client_id: &ibc::ClientId,
+        height: ibc::Height,
+    ) -> Result {
+        self.delete_consensus_state_impl(client_id, height)
+    }
+
+    /// Returns `None`.
+    ///
+    /// This method is used by the light client to prune old states.  However,
+    /// we are limiting number of consensus states we’re keeping in
+    /// store_consensus_state_and_metadata method, which makes it unnecessary
+    /// for the light client to perform the pruning.  Because of that, this
+    /// method returns `None`.
+    fn earliest_consensus_state(
+        &self,
+        _client_id: &ibc::ClientId,
+    ) -> Result<Option<(ibc::Height, Self::AnyConsensusState)>> {
+        Ok(None)
     }
 }
 
