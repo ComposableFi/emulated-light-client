@@ -14,7 +14,7 @@ pub mod proto;
 pub mod types;
 mod utils;
 
-// pub use client::impls::{CommonContext, Neighbourhood};
+pub use client::impls::{CommonContext, Neighbourhood};
 pub use client::ClientState;
 pub use consensus::ConsensusState;
 pub use header::Header;
