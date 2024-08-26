@@ -95,14 +95,14 @@ pub mod bridge_escrow {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
 
-        intent.intent_id = new_intent.intent_id;
+        intent.intent_id = new_intent.intent_id.clone();
         intent.user = new_intent.user_in;
         intent.token_in = new_intent.token_in;
         intent.amount_in = new_intent.amount_in;
-        intent.token_out = new_intent.token_out;
+        intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
-        intent.amount_out = new_intent.amount_out;
+        intent.amount_out = new_intent.amount_out.clone();
         intent.winner_solver = new_intent.winner_solver;
         intent.single_domain = new_intent.single_domain;
 
