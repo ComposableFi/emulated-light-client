@@ -278,10 +278,8 @@ fn escrow_bridge_program() -> Result<()> {
     )
     .0;
 
-    let current_timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let current_timestamp =
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
     let new_intent = IntentPayload {
         intent_id: intent_id.clone(),

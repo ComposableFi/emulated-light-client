@@ -85,7 +85,10 @@ pub mod bridge_escrow {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
 
-        require!(current_timestamp < new_intent.timeout_timestamp_in_sec, ErrorCode::InvalidTimeout);
+        require!(
+            current_timestamp < new_intent.timeout_timestamp_in_sec,
+            ErrorCode::InvalidTimeout
+        );
 
         intent.intent_id = new_intent.intent_id;
         intent.user = new_intent.user_in;
@@ -386,7 +389,7 @@ pub mod bridge_escrow {
 
     /// If the intent has not been solved, then the funds can withdrawn by the user
     /// after the timeout period has passed.
-    /// 
+    ///
     /// TODO: The funds should only be withdrawn if the message is sent through IBC that
     /// the request got timed out.
     pub fn on_timeout(
