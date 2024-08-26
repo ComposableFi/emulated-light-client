@@ -40,9 +40,7 @@ impl From<ConsensusState> for proto::ConsensusState {
 }
 
 impl From<&ConsensusState> for proto::ConsensusState {
-    fn from(state: &ConsensusState) -> Self {
-        Self::from(state.clone())
-    }
+    fn from(state: &ConsensusState) -> Self { Self::from(state.clone()) }
 }
 
 impl TryFrom<proto::ConsensusState> for ConsensusState {

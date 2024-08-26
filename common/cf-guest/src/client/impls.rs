@@ -43,9 +43,7 @@ pub enum Neighbourhood<T> {
 }
 
 impl<T> Default for Neighbourhood<T> {
-    fn default() -> Self {
-        Self::Neighbours(None, None)
-    }
+    fn default() -> Self { Self::Neighbours(None, None) }
 }
 
 impl<T> Neighbourhood<T> {
@@ -480,8 +478,8 @@ impl<PK: PubKey> ClientState<PK> {
             if header.genesis_hash != self.genesis_hash {
                 return Err("Unexpected genesis hash");
             }
-            if header.epoch_commitment != self.epoch_commitment
-                && header.epoch_commitment != self.prev_epoch_commitment
+            if header.epoch_commitment != self.epoch_commitment &&
+                header.epoch_commitment != self.prev_epoch_commitment
             {
                 return Err("Unexpected epoch");
             }

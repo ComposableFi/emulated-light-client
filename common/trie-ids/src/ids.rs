@@ -84,9 +84,7 @@ impl<'a> TryFrom<&'a ibc::ClientId> for ClientIdx {
 
 impl PartialEq<usize> for ClientIdx {
     #[inline]
-    fn eq(&self, rhs: &usize) -> bool {
-        usize::from(*self) == *rhs
-    }
+    fn eq(&self, rhs: &usize) -> bool { usize::from(*self) == *rhs }
 }
 
 // ==== Connection Id ==========================================================
@@ -150,16 +148,12 @@ impl TryFrom<&ibc::ConnectionId> for ConnectionIdx {
 
 impl From<ConnectionIdx> for ibc::ConnectionId {
     #[inline]
-    fn from(idx: ConnectionIdx) -> Self {
-        Self::new(u64::from(idx))
-    }
+    fn from(idx: ConnectionIdx) -> Self { Self::new(u64::from(idx)) }
 }
 
 impl From<&ConnectionIdx> for ibc::ConnectionId {
     #[inline]
-    fn from(idx: &ConnectionIdx) -> Self {
-        Self::new(u64::from(*idx))
-    }
+    fn from(idx: &ConnectionIdx) -> Self { Self::new(u64::from(*idx)) }
 }
 
 impl fmt::Debug for ConnectionIdx {
@@ -231,16 +225,12 @@ impl TryFrom<&ibc::ChannelId> for ChannelIdx {
 
 impl From<ChannelIdx> for ibc::ChannelId {
     #[inline]
-    fn from(idx: ChannelIdx) -> Self {
-        Self::new(u64::from(idx))
-    }
+    fn from(idx: ChannelIdx) -> Self { Self::new(u64::from(idx)) }
 }
 
 impl From<&ChannelIdx> for ibc::ChannelId {
     #[inline]
-    fn from(idx: &ChannelIdx) -> Self {
-        Self::new(u64::from(*idx))
-    }
+    fn from(idx: &ChannelIdx) -> Self { Self::new(u64::from(*idx)) }
 }
 
 impl fmt::Debug for ChannelIdx {
@@ -277,9 +267,7 @@ impl PortKey {
 
     /// Borrows the type as underlying byte array.
     #[inline]
-    pub fn as_bytes(&self) -> &[u8; 9] {
-        &self.0
-    }
+    pub fn as_bytes(&self) -> &[u8; 9] { &self.0 }
 
     /// Formats the port identifier in the buffer and returns reference to it as
     /// a string.
@@ -339,9 +327,7 @@ impl TryFrom<&ibc::PortId> for PortKey {
 }
 
 impl From<PortKey> for ibc::PortId {
-    fn from(port_key: PortKey) -> Self {
-        Self::from(&port_key)
-    }
+    fn from(port_key: PortKey) -> Self { Self::from(&port_key) }
 }
 
 impl From<&PortKey> for ibc::PortId {
@@ -436,9 +422,7 @@ impl PortChannelPK {
         })
     }
 
-    pub fn port_id(&self) -> ibc::PortId {
-        ibc::PortId::from(&self.port_key)
-    }
+    pub fn port_id(&self) -> ibc::PortId { ibc::PortId::from(&self.port_key) }
 
     pub fn channel_id(&self) -> ibc::ChannelId {
         ibc::ChannelId::new(self.channel_idx.into())
@@ -451,21 +435,13 @@ pub trait MaybeOwned<T> {
 }
 
 impl<T: Clone> MaybeOwned<T> for &T {
-    fn as_ref(&self) -> &T {
-        self
-    }
-    fn into_owned(self) -> T {
-        (*self).clone()
-    }
+    fn as_ref(&self) -> &T { self }
+    fn into_owned(self) -> T { (*self).clone() }
 }
 
 impl<T> MaybeOwned<T> for T {
-    fn as_ref(&self) -> &T {
-        self
-    }
-    fn into_owned(self) -> T {
-        self
-    }
+    fn as_ref(&self) -> &T { self }
+    fn into_owned(self) -> T { self }
 }
 
 // ==== Counter (inetrnal) =====================================================
@@ -525,9 +501,7 @@ impl Counter {
 
 impl From<Counter> for usize {
     #[inline]
-    fn from(cnt: Counter) -> usize {
-        cnt.0 as usize
-    }
+    fn from(cnt: Counter) -> usize { cnt.0 as usize }
 }
 
 impl core::fmt::Debug for Counter {

@@ -66,9 +66,7 @@ mod imp {
     };
 
     /// Returns reference to the global state.
-    pub(crate) fn global() -> &'static Global {
-        ALLOCATOR.global()
-    }
+    pub(crate) fn global() -> &'static Global { ALLOCATOR.global() }
 }
 
 #[cfg(any(

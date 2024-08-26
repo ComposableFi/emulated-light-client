@@ -49,14 +49,11 @@ pub fn transfer(
 /// we dont need signed invocation.
 pub fn mint_nft(accounts: MintNftAccounts<'_>) -> Result<()> {
     mint_to(
-        CpiContext::new(
-            accounts.token_program.clone(),
-            MintTo {
-                authority: accounts.mint_authority.clone(),
-                to: accounts.to,
-                mint: accounts.token_mint.clone(),
-            },
-        ),
+        CpiContext::new(accounts.token_program.clone(), MintTo {
+            authority: accounts.mint_authority.clone(),
+            to: accounts.to,
+            mint: accounts.token_mint.clone(),
+        }),
         1, // 1 token
     )?;
 
@@ -90,20 +87,17 @@ pub fn mint_nft(accounts: MintNftAccounts<'_>) -> Result<()> {
     msg!("Run create master edition v3");
 
     create_master_edition_v3(
-        CpiContext::new(
-            accounts.metadata_program,
-            CreateMasterEditionV3 {
-                edition: accounts.edition,
-                mint: accounts.token_mint,
-                update_authority: accounts.update_authority,
-                mint_authority: accounts.mint_authority,
-                payer: accounts.payer,
-                metadata: accounts.metadata,
-                token_program: accounts.token_program,
-                system_program: accounts.system_program,
-                rent: accounts.rent,
-            },
-        ),
+        CpiContext::new(accounts.metadata_program, CreateMasterEditionV3 {
+            edition: accounts.edition,
+            mint: accounts.token_mint,
+            update_authority: accounts.update_authority,
+            mint_authority: accounts.mint_authority,
+            payer: accounts.payer,
+            metadata: accounts.metadata,
+            token_program: accounts.token_program,
+            system_program: accounts.system_program,
+            rent: accounts.rent,
+        }),
         Some(1),
     )?;
     Ok(())

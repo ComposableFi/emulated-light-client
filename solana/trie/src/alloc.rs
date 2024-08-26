@@ -70,9 +70,7 @@ impl<D: DataRef> Allocator<D> {
 pub(crate) struct Addr(NonZeroU32);
 
 impl Addr {
-    fn new(addr: u32) -> Option<Self> {
-        NonZeroU32::new(addr).map(Self)
-    }
+    fn new(addr: u32) -> Option<Self> { NonZeroU32::new(addr).map(Self) }
 
     /// Returns next properly aligned block or `None` if next address would
     /// overflow.
@@ -82,14 +80,10 @@ impl Addr {
 
     /// Cast address to `usize` or retuns `None` if the value doesn’t fit.  The
     /// latter only happens on 16-bit systems.
-    pub fn usize(self) -> Option<usize> {
-        usize::try_from(self.0.get()).ok()
-    }
+    pub fn usize(self) -> Option<usize> { usize::try_from(self.0.get()).ok() }
 
     /// Returns wrapped `u32` value.
-    pub fn u32(self) -> u32 {
-        self.0.get()
-    }
+    pub fn u32(self) -> u32 { self.0.get() }
 
     /// Returns range of addresses covered by block this address points at.
     fn range(self) -> core::ops::Range<usize> {

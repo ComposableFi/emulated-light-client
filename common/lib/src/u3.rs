@@ -36,9 +36,7 @@ impl U3 {
 
     /// Divides argument by eight and returns quotient and reminder of the
     /// operation.
-    pub fn divmod(value: u16) -> (u16, U3) {
-        (value / 8, Self::wrap(value))
-    }
+    pub fn divmod(value: u16) -> (u16, U3) { (value / 8, Self::wrap(value)) }
 
     /// Returns an iterator over all `U3` values in ascending order.
     pub fn all() -> impl core::iter::Iterator<Item = U3> {
@@ -50,18 +48,14 @@ impl U3 {
     }
 
     #[inline]
-    pub fn wrapping_inc(self) -> U3 {
-        self.wrapping_add(1u8)
-    }
+    pub fn wrapping_inc(self) -> U3 { self.wrapping_add(1u8) }
 
     pub fn wrapping_sub(self, rhs: impl Unsigned) -> U3 {
         U3::wrap(self.into_integer().wrapping_sub(rhs.as_u8()))
     }
 
     #[inline]
-    pub fn wrapping_dec(self) -> U3 {
-        self.wrapping_add(7u8)
-    }
+    pub fn wrapping_dec(self) -> U3 { self.wrapping_add(7u8) }
 
     #[inline]
     pub fn checked_inc(self) -> Option<U3> {
@@ -76,22 +70,16 @@ impl U3 {
 
 impl Default for U3 {
     #[inline]
-    fn default() -> Self {
-        Self::MIN
-    }
+    fn default() -> Self { Self::MIN }
 }
 
 impl Unsigned for U3 {
-    fn as_u8(self) -> u8 {
-        self.into_integer()
-    }
+    fn as_u8(self) -> u8 { self.into_integer() }
 }
 
 impl ops::Neg for U3 {
     type Output = U3;
-    fn neg(self) -> U3 {
-        U3::_0.wrapping_sub(self)
-    }
+    fn neg(self) -> U3 { U3::_0.wrapping_sub(self) }
 }
 
 macro_rules! impls {

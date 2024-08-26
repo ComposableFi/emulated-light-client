@@ -232,9 +232,7 @@ mod tm {
             ProvidedVotingPowerCalculator<SigVerifier>,
             ProdCommitValidator,
         >;
-        fn verifier(&self) -> Self::Verifier {
-            Default::default()
-        }
+        fn verifier(&self) -> Self::Verifier { Default::default() }
     }
 
     impl VerificationPredicates for InnerProdPredicates {
@@ -291,21 +289,11 @@ impl ibc::HostFunctionsProvider for SolanaHostFunctions {
         unimplemented!()
     }
 
-    fn sha2_512(_message: &[u8]) -> [u8; 64] {
-        unimplemented!()
-    }
-    fn sha2_512_truncated(_message: &[u8]) -> [u8; 32] {
-        unimplemented!()
-    }
-    fn ripemd160(_message: &[u8]) -> [u8; 20] {
-        unimplemented!()
-    }
-    fn blake2b_512(_message: &[u8]) -> [u8; 64] {
-        unimplemented!()
-    }
-    fn blake2s_256(_message: &[u8]) -> [u8; 32] {
-        unimplemented!()
-    }
+    fn sha2_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn sha2_512_truncated(_message: &[u8]) -> [u8; 32] { unimplemented!() }
+    fn ripemd160(_message: &[u8]) -> [u8; 20] { unimplemented!() }
+    fn blake2b_512(_message: &[u8]) -> [u8; 64] { unimplemented!() }
+    fn blake2s_256(_message: &[u8]) -> [u8; 32] { unimplemented!() }
 }
 
 #[cfg(all(test, not(miri)))]

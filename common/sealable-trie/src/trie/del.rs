@@ -170,9 +170,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     }
 
     /// Frees a node.
-    fn del_node(&mut self, ptr: Ptr) {
-        self.wlog.free(ptr);
-    }
+    fn del_node(&mut self, ptr: Ptr) { self.wlog.free(ptr); }
 
     /// Converts an [`Action`] into an [`OwnedRef`] if it’s not a `Drop` action.
     ///

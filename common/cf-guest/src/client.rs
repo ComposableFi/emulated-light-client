@@ -96,15 +96,11 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
         this
     }
 
-    pub fn frozen(&self) -> Self {
-        Self { is_frozen: true, ..self.clone() }
-    }
+    pub fn frozen(&self) -> Self { Self { is_frozen: true, ..self.clone() } }
 }
 
 impl<PK: guestchain::PubKey> From<ClientState<PK>> for proto::ClientState {
-    fn from(state: ClientState<PK>) -> Self {
-        Self::from(&state)
-    }
+    fn from(state: ClientState<PK>) -> Self { Self::from(&state) }
 }
 
 impl<PK: guestchain::PubKey> From<&ClientState<PK>> for proto::ClientState {

@@ -250,9 +250,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn get_client_validation_context(&self) -> &Self::V {
-        self
-    }
+    fn get_client_validation_context(&self) -> &Self::V { self }
 
     fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
         ibc::conn::get_compatible_versions()
@@ -365,7 +363,7 @@ fn calculate_block_delay(
     if max_expected_time_per_block.is_zero() {
         return 0;
     }
-    let delay = delay_period_time.as_secs_f64()
-        / max_expected_time_per_block.as_secs_f64();
+    let delay = delay_period_time.as_secs_f64() /
+        max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
 }

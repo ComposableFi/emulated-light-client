@@ -78,8 +78,8 @@ fn check_account(
     account: &AccountInfo,
     owner: &Pubkey,
 ) -> Result<(), ProgramError> {
-    if !solana_program::system_program::check_id(account.owner)
-        && account.lamports() == 0
+    if !solana_program::system_program::check_id(account.owner) &&
+        account.lamports() == 0
     {
         Err(ProgramError::UninitializedAccount)
     } else if account.owner != owner {
@@ -109,15 +109,11 @@ impl<D: DataRef + Sized> core::ops::Drop for TrieAccount<D> {
 
 impl<D: DataRef> core::ops::Deref for TrieAccount<D> {
     type Target = sealable_trie::Trie<alloc::Allocator<D>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl<D: DataRef> core::ops::DerefMut for TrieAccount<D> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 }
 
 #[test]

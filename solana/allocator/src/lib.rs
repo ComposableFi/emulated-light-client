@@ -142,9 +142,7 @@ impl<G: bytemuck::Zeroable> BumpAllocator<G> {
     ///
     /// Note that by default `G` is a unit type which means that there is no
     /// reserved global state.
-    pub fn global(&self) -> &G {
-        &self.header().global
-    }
+    pub fn global(&self) -> &G { &self.header().global }
 }
 
 unsafe impl<G: bytemuck::Zeroable> GlobalAlloc for BumpAllocator<G> {

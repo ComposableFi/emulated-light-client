@@ -55,9 +55,7 @@ impl<'info> Default for Verifier<'info> {
     /// sigverify program (see [`Self::set_sigverify_account`]).  Unless at
     /// least on of those is initialised, the verifier will reject all
     /// signatures.
-    fn default() -> Self {
-        Self { ed25519_data: None, sigverify_data: None }
-    }
+    fn default() -> Self { Self { ed25519_data: None, sigverify_data: None } }
 }
 
 impl<'info> Verifier<'info> {
@@ -163,9 +161,7 @@ fn check_sigverify_data(data: &[u8], entry: &Entry) -> Result<bool, Error> {
 }
 
 impl From<crate::ed25519_program::BadData> for Error {
-    fn from(_: crate::ed25519_program::BadData) -> Self {
-        Self::BadData
-    }
+    fn from(_: crate::ed25519_program::BadData) -> Self { Self::BadData }
 }
 
 impl From<Error> for ProgramError {

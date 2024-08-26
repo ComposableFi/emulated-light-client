@@ -26,6 +26,7 @@ const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
 
+pub mod events;
 #[cfg(test)]
 mod tests;
 
@@ -189,7 +190,6 @@ pub mod bridge_escrow {
     }
 
     // this function is called by Solver
-    #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,

@@ -93,9 +93,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
     }
 
     /// Returns stake held by first `max_validators` candidates.
-    pub fn current_head_stake(&self) -> u128 {
-        self.head_stake
-    }
+    pub fn current_head_stake(&self) -> u128 { self.head_stake }
 
     /// Sums stake of the first `count` candidates.
     fn sum_head_stake(count: NonZeroU16, candidates: &[Candidate<PK>]) -> u128 {
@@ -137,9 +135,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
     /// Changed flag is set automatically whenever head of the candidates list
     /// is modified (note that changes outside of the head of candidates list do
     /// not affect the flag).
-    pub fn clear_changed_flag(&mut self) {
-        self.changed = false;
-    }
+    pub fn clear_changed_flag(&mut self) { self.changed = false; }
 
     /// Adds a new candidates or updates existing candidate’s stake.
     ///
@@ -336,9 +332,7 @@ impl<PK: crate::PubKey> Candidates<PK> {
 
 impl<PK> Candidates<PK> {
     /// Convenience method which returns `self.max_validators` as `usize`.
-    fn max_validators(&self) -> usize {
-        usize::from(self.max_validators.get())
-    }
+    fn max_validators(&self) -> usize { usize::from(self.max_validators.get()) }
 }
 
 /// Rotates subslice such that element at `old_pos` moves to `new_pos`.

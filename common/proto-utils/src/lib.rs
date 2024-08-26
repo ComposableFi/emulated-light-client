@@ -63,9 +63,7 @@ pub enum DecodeError {
 pub struct BadMessage;
 
 impl From<BadMessage> for DecodeError {
-    fn from(_: BadMessage) -> Self {
-        Self::BadMessage
-    }
+    fn from(_: BadMessage) -> Self { Self::BadMessage }
 }
 
 impl core::fmt::Debug for DecodeError {
