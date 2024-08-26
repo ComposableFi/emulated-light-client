@@ -114,6 +114,6 @@ impl Event {
     }
 }
 
-pub fn emit<'a>(event: impl Into<Event>) -> Result<(), String> {
+pub fn emit(event: impl Into<Event>) -> Result<(), String> {
     event.into().emit()
 }
