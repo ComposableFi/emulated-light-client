@@ -27,6 +27,7 @@ const DUMMY_SEED: &[u8] = b"dummy";
 
 const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1;
 
+pub mod events;
 #[cfg(test)]
 mod tests;
 
@@ -51,7 +52,13 @@ pub mod bridge_escrow {
 
     /// Escrows the user funds on the source chain
     ///
-    /// The funds are stored in token account owned by the auctioneer state PDA
+    /// The funds are stored in token account owned by the auctioneer state PDA. Right now
+    /// all the deposits are present in a single pool. But we would want to deposit the funds
+    /// in seperate account so that we dont touch the funds of other users.
+    ///
+    /// TODO: Store the intent without `amount_out` and `solver_out` which would then be
+    /// updated by auctioneer. Also escrow the funds in an account whose seeds are the
+    /// intent id.
     pub fn escrow_funds(ctx: Context<EscrowFunds>, amount: u64) -> Result<()> {
         // Transfer SPL tokens from the user's account to the auctioneer's account
         let cpi_accounts = SplTransfer {
@@ -64,6 +71,16 @@ pub mod bridge_escrow {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
         token::transfer(cpi_ctx, amount)?;
+
+        events::emit(events::Event::EscrowFunds(events::EscrowFunds {
+            amount,
+            sender: ctx.accounts.user.key(),
+            token_mint: ctx.accounts.token_mint.key(),
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -90,16 +107,35 @@ pub mod bridge_escrow {
             ErrorCode::InvalidTimeout
         );
 
-        intent.intent_id = new_intent.intent_id;
+        intent.intent_id = new_intent.intent_id.clone();
         intent.user = new_intent.user_in;
         intent.token_in = new_intent.token_in;
         intent.amount_in = new_intent.amount_in;
-        intent.token_out = new_intent.token_out;
+        intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
-        intent.amount_out = new_intent.amount_out;
+        intent.amount_out = new_intent.amount_out.clone();
         intent.winner_solver = new_intent.winner_solver;
         intent.single_domain = new_intent.single_domain;
+
+        events::emit(events::Event::StoreIntent(events::StoreIntent {
+            intent: Intent {
+                intent_id: new_intent.intent_id,
+                user: new_intent.user_in,
+                token_in: new_intent.token_in,
+                amount_in: new_intent.amount_in,
+                token_out: new_intent.token_out,
+                amount_out: new_intent.amount_out,
+                winner_solver: new_intent.winner_solver,
+                creation_timestamp_in_sec: current_timestamp,
+                timeout_timestamp_in_sec: new_intent.timeout_timestamp_in_sec,
+                single_domain: new_intent.single_domain,
+            },
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -159,6 +195,17 @@ pub mod bridge_escrow {
         );
 
         token::transfer(cpi_ctx, amount)?;
+
+        events::emit(events::Event::OnReceiveTransfer(
+            events::OnReceiveTransfer {
+                amount,
+                solver: ctx.accounts.solver_token_account.owner,
+            },
+        ))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -233,6 +280,20 @@ pub mod bridge_escrow {
                 ),
                 intent.amount_in,
             )?;
+
+            events::emit(events::Event::SendFundsToUser(
+                events::SendFundsToUser {
+                    amount: amount_out,
+                    receiver: intent.user,
+                    token_mint: ctx.accounts.token_out.key(),
+                    intent_id,
+                    solver_out,
+                },
+            ))
+            .map_err(|err| {
+                msg!("{}", err);
+                ErrorCode::InvalidEventFormat
+            })?;
         } else {
             let solver_out =
                 solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
@@ -383,7 +444,21 @@ pub mod bridge_escrow {
             );
 
             anchor_spl::token::close_account(cpi_ctx)?;
+            events::emit(events::Event::SendFundsToUser(
+                events::SendFundsToUser {
+                    amount: amount_out,
+                    receiver: intent.user,
+                    token_mint: ctx.accounts.token_out.key(),
+                    intent_id,
+                    solver_out: Some(solver_out),
+                },
+            ))
+            .map_err(|err| {
+                msg!("{}", err);
+                ErrorCode::InvalidEventFormat
+            })?;
         }
+
         Ok(())
     }
 
@@ -394,7 +469,7 @@ pub mod bridge_escrow {
     /// the request got timed out.
     pub fn on_timeout(
         ctx: Context<OnTimeout>,
-        _intent_id: String,
+        intent_id: String,
     ) -> Result<()> {
         let authority = &ctx.accounts.user.key();
 
@@ -426,6 +501,16 @@ pub mod bridge_escrow {
         );
         anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
 
+        events::emit(events::Event::OnTimeout(events::OnTimeout {
+            amount: intent.amount_in,
+            token_mint: intent.token_in,
+            intent_id,
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
+
         Ok(())
     }
 }
@@ -438,7 +523,7 @@ pub struct Auctioneer {
 
 // Define the Intent account with space calculation
 #[account]
-#[derive(InitSpace)]
+#[derive(Debug, PartialEq, Eq, InitSpace)]
 pub struct Intent {
     #[max_len(20)]
     pub intent_id: String,
@@ -651,6 +736,8 @@ pub enum ErrorCode {
     InvalidSolverOutAddress,
     #[msg("Invalid hashed full denom")]
     InvalidHashedFullDenom,
+    #[msg("Invalid Event format. Check logs for more")]
+    InvalidEventFormat,
     #[msg("Unable to parse public key from string")]
     BadPublickey,
 }
