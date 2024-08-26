@@ -81,15 +81,7 @@ pub mod bridge_escrow {
     /// Called by the auctioneer whose address is stored in `auctioneer` state account.
     pub fn store_intent(
         ctx: Context<StoreIntent>,
-        intent_id: String,
-        user_in: Pubkey,
-        token_in: Pubkey,
-        amount_in: u64,
-        token_out: String,
-        amount_out: String,
-        timeout_in_sec: u64,
-        winner_solver: Pubkey,
-        single_domain: bool,
+        new_intent: IntentPayload,
     ) -> Result<()> {
         // verify if caller is auctioneer
         let auctioneer = &ctx.accounts.auctioneer;
@@ -103,29 +95,29 @@ pub mod bridge_escrow {
 
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
 
-        intent.intent_id = intent_id.clone();
-        intent.user = user_in;
-        intent.token_in = token_in;
-        intent.amount_in = amount_in;
-        intent.token_out = token_out.clone();
-        intent.timeout_timestamp_in_sec = timeout_in_sec;
+        intent.intent_id = new_intent.intent_id;
+        intent.user = new_intent.user_in;
+        intent.token_in = new_intent.token_in;
+        intent.amount_in = new_intent.amount_in;
+        intent.token_out = new_intent.token_out;
+        intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
-        intent.amount_out = amount_out.clone();
-        intent.winner_solver = winner_solver;
-        intent.single_domain = single_domain;
+        intent.amount_out = new_intent.amount_out;
+        intent.winner_solver = new_intent.winner_solver;
+        intent.single_domain = new_intent.single_domain;
 
         events::emit(events::Event::StoreIntent(events::StoreIntent {
             intent: Intent {
-                intent_id,
-                user: user_in,
-                token_in,
-                amount_in,
-                token_out,
-                amount_out,
-                winner_solver,
+                intent_id: new_intent.intent_id,
+                user: new_intent.user_in,
+                token_in: new_intent.token_in,
+                amount_in: new_intent.amount_in,
+                token_out: new_intent.token_out,
+                amount_out: new_intent.amount_out,
+                winner_solver: new_intent.winner_solver,
                 creation_timestamp_in_sec: current_timestamp,
-                timeout_timestamp_in_sec: timeout_in_sec,
-                single_domain,
+                timeout_timestamp_in_sec: new_intent.timeout_timestamp_in_sec,
+                single_domain: new_intent.single_domain,
             },
         }))
         .map_err(|err| {
@@ -190,6 +182,7 @@ pub mod bridge_escrow {
     }
 
     // this function is called by Solver
+    #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
@@ -230,8 +223,7 @@ pub mod bridge_escrow {
             // Transfer tokens from Auctioneer to Solver
 
             let bump = ctx.bumps.auctioneer_state;
-            let seeds =
-                &[AUCTIONEER_SEED.as_ref(), core::slice::from_ref(&bump)];
+            let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
             let seeds = seeds.as_ref();
             let signer_seeds = core::slice::from_ref(&seeds);
 
@@ -296,7 +288,7 @@ pub mod bridge_escrow {
                         .accounts
                         .receiver
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     storage: ctx
                         .accounts
                         .storage
@@ -319,27 +311,27 @@ pub mod bridge_escrow {
                         .accounts
                         .mint_authority
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     token_mint: ctx
                         .accounts
                         .token_mint
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     escrow_account: ctx
                         .accounts
                         .escrow_account
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     receiver_token_account: ctx
                         .accounts
                         .receiver_token_account
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     fee_collector: ctx
                         .accounts
                         .fee_collector
                         .as_ref()
-                        .and_then(|acc| Some(acc.to_account_info())),
+                        .map(|acc| acc.to_account_info()),
                     token_program: Some(
                         ctx.accounts.token_program.to_account_info(),
                     ),
@@ -477,6 +469,19 @@ pub struct Intent {
     pub winner_solver: Pubkey,
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
+    pub timeout_timestamp_in_sec: u64,
+    pub single_domain: bool,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+pub struct IntentPayload {
+    pub intent_id: String,
+    pub user_in: Pubkey,
+    pub token_in: Pubkey,
+    pub amount_in: u64,
+    pub token_out: String,
+    pub amount_out: String,
+    pub winner_solver: Pubkey,
     pub timeout_timestamp_in_sec: u64,
     pub single_domain: bool,
 }

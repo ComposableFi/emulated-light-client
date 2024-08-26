@@ -1,26 +1,22 @@
 use std::rc::Rc;
-use std::str::FromStr;
 use std::thread::sleep;
 use std::time::Duration;
 
 use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
-use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer as SolanaSigner,
 };
-use anchor_client::solana_sdk::system_transaction::transfer;
 use anchor_client::{Client, Cluster};
 use anchor_lang::system_program;
 use anchor_spl::associated_token::{self, get_associated_token_address};
 use anyhow::Result;
-use ibc::apps::transfer::types::{PrefixedCoin, PrefixedDenom};
-use lib::hash::CryptoHash;
 use spl_token::instruction::initialize_mint2;
-use spl_token::solana_program::native_token::LAMPORTS_PER_SOL;
 use spl_token::solana_program::system_instruction::create_account;
+
+use crate::IntentPayload;
 
 const MINT_AMOUNT: u64 = 1_000_000_000;
 const TRANSFER_AMOUNT: u64 = 1_000_000;
@@ -245,8 +241,8 @@ fn escrow_bridge_program() -> Result<()> {
     // Escrow user funds
     println!("Escrow user funds");
 
-    let user_token_in_balance_before =
-        sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
+    // let user_token_in_balance_before =
+    //     sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
 
     let sig = program
         .request()
@@ -270,8 +266,8 @@ fn escrow_bridge_program() -> Result<()> {
         .unwrap();
     println!("  Signature: {}", sig);
 
-    let user_token_in_balance_after =
-        sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
+    // let user_token_in_balance_after =
+    //     sol_rpc_client.get_token_account_balance(&user_token_in_addr).unwrap();
 
     // assert_eq!(
     //     ((user_token_in_balance_after.ui_amount.unwrap()
@@ -294,6 +290,18 @@ fn escrow_bridge_program() -> Result<()> {
     )
     .0;
 
+    let new_intent = IntentPayload {
+        intent_id: intent_id.clone(),
+        user_in: user.pubkey(),
+        token_in,
+        amount_in: TRANSFER_AMOUNT,
+        token_out: token_out.to_string(),
+        amount_out: amount_out.to_string(),
+        timeout_timestamp_in_sec: 10000,
+        winner_solver: solver.pubkey(),
+        single_domain: true,
+    };
+
     let sig = program
         .request()
         .accounts(crate::accounts::StoreIntent {
@@ -302,17 +310,7 @@ fn escrow_bridge_program() -> Result<()> {
             auctioneer: auctioneer_state,
             system_program: anchor_lang::solana_program::system_program::ID,
         })
-        .args(crate::instruction::StoreIntent {
-            intent_id: intent_id.clone(),
-            user_in: user.pubkey(),
-            token_in,
-            amount_in: TRANSFER_AMOUNT,
-            token_out: token_out.to_string(),
-            amount_out: amount_out.to_string(),
-            timeout_in_sec: 10000,
-            winner_solver: solver.pubkey(),
-            single_domain: true,
-        })
+        .args(crate::instruction::StoreIntent { new_intent })
         .payer(auctioneer.clone())
         .signer(&*auctioneer)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
