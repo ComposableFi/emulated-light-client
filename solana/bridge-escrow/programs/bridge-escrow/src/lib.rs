@@ -487,15 +487,12 @@ pub struct StoreIntent<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(intent_id: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
     #[account(seeds = [AUCTIONEER_SEED], bump, has_one = authority)]
     pub auctioneer_state: Account<'info, Auctioneer>,
-    #[account(mut, close = authority, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
-    pub intent: Account<'info, Intent>,
 
     pub token_mint: Account<'info, Mint>,
     #[account(mut, token::mint = token_mint, token::authority = auctioneer_state)]
