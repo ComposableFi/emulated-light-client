@@ -374,17 +374,17 @@ fn escrow_bridge_program() -> Result<()> {
         sol_rpc_client.get_token_account_balance(&user_token_out_addr).unwrap();
 
     assert_eq!(
-        ((solver_token_in_balance_after.ui_amount.unwrap() -
-            solver_token_in_balance_before.ui_amount.unwrap()) *
-            1_000_000f64)
+        ((solver_token_in_balance_after.ui_amount.unwrap()
+            - solver_token_in_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
             .round() as u64,
         TRANSFER_AMOUNT
     );
 
     assert_eq!(
-        ((user_token_out_balance_after.ui_amount.unwrap() -
-            user_token_out_balance_before.ui_amount.unwrap()) *
-            1_000_000f64)
+        ((user_token_out_balance_after.ui_amount.unwrap()
+            - user_token_out_balance_before.ui_amount.unwrap())
+            * 1_000_000f64)
             .round() as u64,
         amount_out
     );
@@ -501,7 +501,7 @@ fn escrow_bridge_program() -> Result<()> {
             fee_collector: Some(fee_collector),
         })
         .args(crate::instruction::SendFundsToUser {
-            intent_id,
+            intent_id: intent_id.clone(),
             hashed_full_denom: Some(hashed_full_denom),
             // Solver out doesnt matter for this test
             solver_out: Some(Pubkey::new_unique().to_string()),
@@ -513,5 +513,89 @@ fn escrow_bridge_program() -> Result<()> {
             ..RpcSendTransactionConfig::default()
         })?;
     println!("  Signature: {sig}");
+
+    // on receive funds
+    let sig = program
+        .request()
+        .accounts(crate::accounts::ReceiveTransferContext {
+            auctioneer_state,
+            authority: auctioneer.pubkey(),
+            escrow_token_account: token_in_escrow_addr,
+            token_mint: token_in,
+            solver_token_account: solver_token_in_addr,
+            token_program: anchor_spl::token::ID,
+            instruction: crate::solana_program::sysvar::instructions::ID,
+        })
+        .args(crate::instruction::OnReceiveTransfer { memo: "".to_string() })
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+    println!("  Signature: {sig}");
+
+    // on timeout (single domain)
+    let sig = program
+        .request()
+        .accounts(crate::accounts::OnTimeout {
+            caller: auctioneer.pubkey(),
+            auctioneer_state,
+            intent: intent_state,
+            auctioneer: auctioneer.pubkey(),
+            token_in: Some(token_in),
+            user_token_account: Some(user_token_out_addr),
+            escrow_token_account: Some(token_in_escrow_addr),
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            ibc_program: None,
+            storage: None,
+            trie: None,
+            chain: None,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            fee_collector: None,
+            receiver: None,
+        })
+        .args(crate::instruction::OnTimeout { intent_id: intent_id.clone() })
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig::default())?;
+    println!("  Signature: {sig}");
+
+    // on timeout (cross domain)
+    let sig = program
+        .request()
+        .accounts(crate::accounts::OnTimeout {
+            caller: auctioneer.pubkey(),
+            auctioneer_state,
+            intent: intent_state,
+            auctioneer: auctioneer.pubkey(),
+            token_in: None,
+            user_token_account: None,
+            escrow_token_account: None,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            ibc_program: Some(solana_ibc::ID),
+            storage: Some(storage),
+            trie: Some(trie),
+            chain: Some(chain),
+            mint_authority: Some(mint_authority),
+            token_mint: Some(dummy_token_mint),
+            escrow_account: Some(escrow_account),
+            receiver_token_account: Some(receiver_token_account),
+            fee_collector: Some(fee_collector),
+            receiver: Some(user.pubkey()),
+        })
+        .args(crate::instruction::OnTimeout { intent_id: intent_id.clone() })
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig::default())?;
+    println!("  Signature: {sig}");
+
     Ok(())
 }
