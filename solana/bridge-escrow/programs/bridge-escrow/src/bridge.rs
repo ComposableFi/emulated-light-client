@@ -66,7 +66,7 @@ pub fn bridge_transfer<'info>(
     // MsgTransfer
     let msg = MsgTransfer {
         port_id_on_a: PortId::from_str("transfer").unwrap(),
-        chan_id_on_a: ChannelId::from_str("channel-0").unwrap(),
+        chan_id_on_a: ChannelId::from_str("channel-1").unwrap(),
         packet_data: PacketData {
             token: PrefixedCoin {
                 denom: PrefixedDenom::from_str(

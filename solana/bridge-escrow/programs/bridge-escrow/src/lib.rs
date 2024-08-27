@@ -17,9 +17,6 @@ const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
 const DUMMY_SEED: &[u8] = b"dummy";
 
-const SUCCESS: &str = "SUCCESS";
-const TIMEOUT: &str = "TIMEOUT";
-
 const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1;
 
 pub mod bridge;
@@ -291,8 +288,8 @@ pub mod bridge_escrow {
                 hashed_full_denom.ok_or(ErrorCode::InvalidTokenAddress)?;
 
             let my_custom_memo = format!(
-                "{}, {},{},{}",
-                SUCCESS, intent.token_in, intent.amount_in, solver_out
+                "{},{},{}",
+                intent.token_in, intent.amount_in, solver_out
             );
             bridge::bridge_transfer(
                 accounts.try_into()?,
@@ -390,8 +387,8 @@ pub mod bridge_escrow {
         } else {
             // Send a cross domain message to the source chain to unlock the funds
             let my_custom_memo = format!(
-                "{}, {},{},{}",
-                TIMEOUT, intent.token_in, intent.amount_in, intent.user_in
+                "{},{},{}",
+                intent.token_in, intent.amount_in, intent.user_in
             );
             let token_mint = ctx
                 .accounts
