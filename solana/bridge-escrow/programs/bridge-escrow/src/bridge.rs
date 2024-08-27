@@ -17,8 +17,8 @@ use crate::{
     ErrorCode, OnTimeout, SplTokenTransfer, DUMMY_TOKEN_TRANSFER_AMOUNT,
 };
 
-pub fn bridge_transfer<'info>(
-    accounts: BridgeTransferAccounts<'info>,
+pub fn bridge_transfer(
+    accounts: BridgeTransferAccounts<'_>,
     custom_memo: String,
     hashed_full_denom: CryptoHash,
     signer_seeds: &[&[&[u8]]],
