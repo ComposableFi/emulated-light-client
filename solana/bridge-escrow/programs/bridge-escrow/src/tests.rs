@@ -283,7 +283,8 @@ fn escrow_bridge_program() -> Result<()> {
 
     let new_intent = IntentPayload {
         intent_id: intent_id.clone(),
-        user_in: user.pubkey(),
+        user_in: user.pubkey().to_string(),
+        user_out: user.pubkey(),
         token_in,
         amount_in: TRANSFER_AMOUNT,
         token_out: token_out.to_string(),
@@ -403,7 +404,8 @@ fn escrow_bridge_program() -> Result<()> {
 
     let new_intent = IntentPayload {
         intent_id: intent_id.clone(),
-        user_in: user.pubkey(),
+        user_in: user.pubkey().to_string(),
+        user_out: user.pubkey(),
         token_in,
         amount_in: TRANSFER_AMOUNT,
         token_out: token_out.to_string(),
@@ -488,7 +490,7 @@ fn escrow_bridge_program() -> Result<()> {
             associated_token_program: anchor_spl::associated_token::ID,
             system_program: anchor_lang::solana_program::system_program::ID,
             ibc_program: Some(solana_ibc::ID),
-            receiver: None,
+            receiver: Some(user.pubkey()),
             storage: Some(storage),
             trie: Some(trie),
             chain: Some(chain),
