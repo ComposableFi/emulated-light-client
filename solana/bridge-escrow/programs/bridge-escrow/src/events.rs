@@ -102,7 +102,7 @@ pub struct SendFundsToUser {
 )]
 pub struct OnTimeout {
     pub amount: u64,
-    pub token_mint: Pubkey,
+    pub token_mint: String,
     pub intent_id: String,
 }
 

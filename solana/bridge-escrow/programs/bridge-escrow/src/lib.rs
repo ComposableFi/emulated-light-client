@@ -100,7 +100,7 @@ pub mod bridge_escrow {
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.clone();
         intent.user_out = new_intent.user_out;
-        intent.token_in = new_intent.token_in;
+        intent.token_in = new_intent.token_in.clone();
         intent.amount_in = new_intent.amount_in;
         intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
@@ -377,7 +377,7 @@ pub mod bridge_escrow {
 
             events::emit(events::Event::OnTimeout(events::OnTimeout {
                 amount: intent.amount_in,
-                token_mint: intent.token_in,
+                token_mint: intent.token_in.clone(),
                 intent_id,
             }))
             .map_err(|err| {
@@ -429,7 +429,8 @@ pub struct Intent {
     pub user_in: String,
     // User on destination chain
     pub user_out: Pubkey,
-    pub token_in: Pubkey,
+    #[max_len(40)]
+    pub token_in: String,
     pub amount_in: u64,
     #[max_len(20)]
     pub token_out: String,
@@ -447,7 +448,7 @@ pub struct IntentPayload {
     pub intent_id: String,
     pub user_in: String,
     pub user_out: Pubkey,
-    pub token_in: Pubkey,
+    pub token_in: String,
     pub amount_in: u64,
     pub token_out: String,
     pub amount_out: String,
