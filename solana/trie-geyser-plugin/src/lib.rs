@@ -1,7 +1,11 @@
+extern crate alloc;
+extern crate core;
+
 use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPlugin;
 
 mod config;
 mod plugin;
+mod rpc;
 mod types;
 mod utils;
 mod worker;

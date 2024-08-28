@@ -44,7 +44,7 @@ jobs:
       - name: Check formatting
         run: |
           cargo fmt --all --check
-          ( cd solana/trie-geyser && cargo fmt --all --check )
+          ( cd solana/trie-geyser-plugin && cargo fmt --all --check )
 
       - name: Check Clippy (all features)
         uses: actions-rs/clippy-check@v1
@@ -56,12 +56,12 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: --all-features --manifest-path solana/trie-geyser/Cargo.toml -- -D warnings
+          args: --all-features --manifest-path solana/trie-geyser-plugin/Cargo.toml -- -D warnings
 
       - name: Miri tests
         run: |
           cargo miri test -- -Z unstable-options --report-time --skip ::anchor
-          ( cd solana/trie-geyser && cargo miri test -- -Z unstable-options --report-time )
+          ( cd solana/trie-geyser-plugin && cargo miri test -- -Z unstable-options --report-time )
 
   anchor-build:
     name: Anchor Test
@@ -158,10 +158,10 @@ jobs:
         run: cargo test --all-features
 
       - name: Run trie-geyser tests (default features)
-        run: cd solana/trie-geyser && cargo test
+        run: cd solana/trie-geyser-plugin && cargo test
 
       - name: Run trie-geyser tests (no default features)
-        run: cd solana/trie-geyser && cargo test --no-default-features
+        run: cd solana/trie-geyser-plugin && cargo test --no-default-features
 
       - name: Run trie-geyser tests (all features)
-        run: cd solana/trie-geyser && cargo test --all-features
+        run: cd solana/trie-geyser-plugin && cargo test --all-features

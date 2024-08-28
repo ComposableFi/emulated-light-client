@@ -1,9 +1,13 @@
 use std::collections::{BTreeMap, HashMap};
 
 use cf_solana::proof::AccountHashData;
+use solana_geyser_plugin_interface::geyser_plugin_interface::GeyserPluginError;
 use solana_sdk::pubkey::Pubkey;
 
-use crate::{config, types, utils};
+use crate::{config, rpc, types, utils};
+
+/// Name of the RPC server thread.
+const THREAD_NAME: &str = "witnessed-trie-worker";
 
 /// Message sent from the plugin to the worker thread.
 #[derive(derive_more::From)]
@@ -42,6 +46,8 @@ struct Worker {
     config: config::Config,
     /// Data accumulated about individual slots.
     slots: BTreeMap<u64, SlotAccumulator>,
+    /// Database handle
+    db: rpc::DBHandle,
 }
 
 /// State of a slot which hasn’t been rooted yet.
@@ -56,11 +62,30 @@ struct SlotAccumulator {
     num_sigs: u64,
 }
 
-pub(crate) fn worker(
+pub(crate) fn spawn_worker(
+    config: config::Config,
+    db: rpc::DBHandle,
+) -> Result<
+    (std::thread::JoinHandle<()>, crossbeam_channel::Sender<Message>),
+    GeyserPluginError,
+> {
+    let (sender, receiver) = crossbeam_channel::unbounded();
+    std::thread::Builder::new()
+        .name(THREAD_NAME.into())
+        .spawn(move || worker(config, receiver, db))
+        .map(|handle| (handle, sender))
+        .map_err(|err| {
+            log::error!("{err}");
+            utils::custom_err(err)
+        })
+}
+
+fn worker(
     config: config::Config,
     receiver: crossbeam_channel::Receiver<Message>,
+    db: rpc::DBHandle,
 ) {
-    let mut worker = Worker { config, slots: Default::default() };
+    let mut worker = Worker { config, slots: Default::default(), db };
     for msg in receiver {
         match msg {
             Message::Account(msg) => worker.handle_account(msg),
@@ -71,6 +96,7 @@ pub(crate) fn worker(
             }
         }
     }
+    log::info!("{THREAD_NAME}: terminating");
 }
 
 impl Worker {
@@ -87,8 +113,8 @@ impl Worker {
             }
         }
 
-        log::info!(
-            "[{}-{}] account update: {}",
+        log::debug!(
+            "#{}-{}: account update: {}",
             info.slot,
             info.write_version,
             info.account.key(),
@@ -128,19 +154,23 @@ impl Worker {
                     if key == slot {
                         break value;
                     }
-                    log::info!("[{key}] dropping accumulator");
+                    log::debug!("#{key}: dropping accumulator");
                 }
                 _ => {
-                    log::error!("[{slot}] accumulator not found");
+                    log::error!("#{slot}: accumulator not found");
                     return;
                 }
             }
         };
 
-        // If the witness account is not in collection of changed accounts,
-        // don’t do anything.
+        // If the trie or witness accounts are not in collection of changed
+        // accounts, don’t do anything.
         if !entry.accounts.contains_key(&self.config.witness_account) {
-            log::info!("[{slot}] witness account not modified");
+            log::debug!("#{slot}: witness account not modified");
+            return;
+        }
+        if !entry.accounts.contains_key(&self.config.root_account) {
+            log::debug!("#{slot}: trie account not modified");
             return;
         }
 
@@ -148,7 +178,7 @@ impl Worker {
         let block = if let Some(block) = entry.block {
             block
         } else {
-            log::error!("[{slot}] missing block info");
+            log::error!("#{slot}: missing block info");
             return;
         };
 
@@ -162,7 +192,7 @@ impl Worker {
             .collect();
 
         // Create account proof for the witness account.
-        let (accounts_delta_hash, account_proof) = entry
+        let (accounts_delta_hash, witness_proof) = entry
             .accounts
             .remove(&self.config.witness_account)
             .unwrap()
@@ -172,7 +202,7 @@ impl Worker {
 
         // Calculate bankhash based on accounts_delta_hash and information
         // extracted from the block.
-        let hash_proof = cf_solana::proof::DeltaHashProof {
+        let delta_hash_proof = cf_solana::proof::DeltaHashProof {
             parent_blockhash: block.parent_blockhash.into(),
             accounts_delta_hash,
             num_sigs: entry.num_sigs,
@@ -185,10 +215,13 @@ impl Worker {
             epoch_accounts_hash: None,
         };
 
-        // TODO(mina86): Figure out how we communicate the proofs to relayer.
-        let bank_hash = hash_proof.calculate_bank_hash();
-        log::info!("[{slot}] bank_hash: {bank_hash}");
-        log::info!("[{slot}] hash_proof: {hash_proof:?}");
-        log::info!("[{slot}] account_proof: {account_proof:?}");
+        // Add the trie account and witness account proof to the database.
+        let root_account =
+            entry.accounts.remove(&self.config.root_account).unwrap().1;
+        let data =
+            rpc::SlotData { delta_hash_proof, witness_proof, root_account };
+
+        log::info!("#{slot}: adding to database");
+        self.db.write().unwrap().add(slot, data);
     }
 }

@@ -3,17 +3,21 @@ use solana_geyser_plugin_interface::geyser_plugin_interface::{
     ReplicaBlockInfoVersions, ReplicaTransactionInfoVersions,
 };
 
-use crate::{config, types, utils, worker};
+use crate::{config, rpc, types, utils, worker};
 
 type Result<T = (), E = GeyserPluginError> = ::core::result::Result<T, E>;
 
 #[derive(Debug, Default)]
 pub(crate) struct Plugin(Option<Inner>);
 
-#[derive(Debug)]
 struct Inner {
+    /// The RPC server.
+    server: jsonrpc_http_server::Server,
+
+    /// The worker thread.
+    worker: std::thread::JoinHandle<()>,
+    /// Channel for sending messages to the worker.
     sender: crossbeam_channel::Sender<worker::Message>,
-    thread: std::thread::JoinHandle<()>,
 }
 
 impl Plugin {
@@ -58,29 +62,30 @@ impl GeyserPlugin for Plugin {
             return Err(utils::custom_err(msg));
         }
 
-        let cfg =
+        let config =
             config::Config::load(config_file.as_ref()).map_err(|err| {
                 log::error!("{config_file}: {err}");
                 err
             })?;
-        let (sender, receiver) = crossbeam_channel::unbounded();
-        let thread = std::thread::Builder::new()
-            .name("witnessed-trie-worker".into())
-            .spawn(move || worker::worker(cfg, receiver))
-            .map_err(|err| {
-                log::error!("{err}");
-                utils::custom_err(err)
-            })?;
-        self.0 = Some(Inner { sender, thread });
+
+        let (server, db) = rpc::spawn_server(&config.bind_address)?;
+        let (worker, sender) = worker::spawn_worker(config, db)?;
+
+        self.0 = Some(Inner { worker, sender, server });
         Ok(())
     }
 
     /// Resets the object and terminates the worker thread.
     fn on_unload(&mut self) {
-        let handler = self.0.take().map(Inner::into_join_handler);
-        let err = match handler.and_then(|h| h.join().err()) {
-            Some(err) => err,
+        let inner = match self.0.take() {
+            Some(inner) => inner,
             None => return,
+        };
+        inner.server.close();
+        core::mem::drop(inner.sender);
+        let err = match inner.worker.join() {
+            Ok(()) => return,
+            Err(err) => err,
         };
         if let Some(msg) = err.downcast_ref::<&str>() {
             log::error!("worker thread panicked: {msg}")
@@ -184,10 +189,27 @@ impl Inner {
     fn send_message(&self, message: worker::Message) -> Result {
         self.sender.send(message).map_err(utils::custom_err)
     }
+}
 
-    /// Consumes self and returns the worker join handler.
-    ///
-    /// The send channel is disconnected which signals the worker to terminate.
-    /// The returned handler can be used to wait for the thread.
-    fn into_join_handler(self) -> std::thread::JoinHandle<()> { self.thread }
+impl core::fmt::Debug for Inner {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        struct Thread<'a>(&'a std::thread::Thread);
+
+        impl core::fmt::Debug for Thread<'_> {
+            fn fmt(
+                &self,
+                fmtr: &mut core::fmt::Formatter<'_>,
+            ) -> core::fmt::Result {
+                match self.0.name() {
+                    Some(name) => fmtr.write_str(name),
+                    None => self.0.id().fmt(fmtr),
+                }
+            }
+        }
+
+        fmtr.debug_struct("Inner")
+            .field("server", self.server.address())
+            .field("worker", &Thread(self.worker.thread()))
+            .finish_non_exhaustive()
+    }
 }

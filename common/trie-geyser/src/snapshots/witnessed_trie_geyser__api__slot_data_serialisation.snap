@@ -1,0 +1,27 @@
+---
+source: common/trie-geyser/src/api.rs
+expression: data
+---
+{
+  "delta_hash_proof": {
+    "parent_blockhash": "AAAAZQAAAGUAAABlAAAAZQAAAGUAAABlAAAAZQAAAGU=",
+    "accounts_delta_hash": "AAAAZgAAAGYAAABmAAAAZgAAAGYAAABmAAAAZgAAAGY=",
+    "num_sigs": 103,
+    "blockhash": "AAAAaAAAAGgAAABoAAAAaAAAAGgAAABoAAAAaAAAAGg="
+  },
+  "witness_proof": {
+    "account_hash_data": {
+      "lamports": 42,
+      "owner": "1113diW7qC4UejYmrNwaGTZbE5bsokUdUaunfztqD2",
+      "data": "Zm9v",
+      "key": "1116GS1EfP7xJU6Yhkt9Xv8BTACkcVxFxApaLznfR3"
+    },
+    "proof": "ARIAAAAKAAAACgAAAAoAAAAKAAAACgAAAAoAAAAKAAAACgAAAAwAAAAMAAAADAAAAAwAAAAMAAAADAAAAAwAAAAM"
+  },
+  "root_account": {
+    "lamports": 42,
+    "owner": "1113Gen6tYXzqXgPfZv3gKu6WGy4oJUpSnEWNcugZMs",
+    "data": "dHJpZQ==",
+    "key": "1113KHVc1Nj4KBQwSRHzFbMf6W3fg7EJ5FpRAHuaPZt"
+  }
+}
