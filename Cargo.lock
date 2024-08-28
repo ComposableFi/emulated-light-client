@@ -1189,6 +1189,7 @@ name = "cf-solana"
 version = "0.0.0"
 dependencies = [
  "arrayvec",
+ "base64 0.21.7",
  "blake3",
  "bs58 0.5.1",
  "bytemuck",
@@ -1197,9 +1198,11 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rayon",
+ "serde",
  "solana-accounts-db",
  "solana-program 1.17.31",
  "solana-program 2.0.0",
+ "stdx",
 ]
 
 [[package]]

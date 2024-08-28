@@ -15,6 +15,13 @@ use crate::utils::{blake3, chunks, sort_unstable_by};
 /// This is the same as `solana_accounts_db::accounts_hash::MERKLE_FANOUT`.
 const MERKLE_FANOUT: usize = 16;
 
+/// Path in the Merkle proof.
+///
+/// The path is limited to 16 levels which, with Solana’s fanout of 16 (see
+/// [`MERKLE_FANOUT`]) puts limit of leafs in the Merkle tree to 2⁶⁴.  This is
+/// more than enough for any possible Solana block.
+type MerklePath = arrayvec::ArrayVec<u8, 16>;
+
 /// Merkle proof path.
 ///
 /// Represents a partial proof for a value in a Merkle tree.  The proof is
@@ -24,7 +31,7 @@ const MERKLE_FANOUT: usize = 16;
 ///
 /// This is typically used within [`AccountProof`] which in addition holds
 /// information needed to calculate account hash which is stored in the tree.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct MerkleProof {
     /// Position and number of siblings at each level.
     ///
@@ -32,10 +39,7 @@ pub struct MerkleProof {
     ///
     /// Solana uses fanout of 16 thus each position and number of siblings less
     /// than 16.  As such, they are encoded in a single 8-bit number.
-    ///
-    /// The path is limited to 16 levels which puts limit of leafs in the Merkle
-    /// tree to 2⁶⁴ which is more than enough for any possible Solana block.
-    path: arrayvec::ArrayVec<u8, 16>,
+    path: MerklePath,
 
     /// Sibling hashes at each level concatenated into a single vector.
     siblings: Vec<Hash>,
@@ -145,8 +149,36 @@ impl MerkleProof {
         );
         ((index as u8) << 4) | len as u8
     }
-}
 
+    /// Serialises the object into binary form.
+    ///
+    /// This format is used in Borsh, Protobuf and Serde serialisation.
+    pub fn to_binary(&self) -> Vec<u8> {
+        let depth = self.path.len() as u8;
+        let depth = core::slice::from_ref(&depth);
+        let path = self.path.as_slice();
+        let siblings: &[u8] = bytemuck::cast_slice(self.siblings.as_slice());
+        [depth, path, siblings].concat()
+    }
+
+    /// Deserialises the object from a binary form.
+    ///
+    /// This format is used in Borsh, Protobuf and Serde serialisation.
+    pub fn from_binary(bytes: &[u8]) -> Option<Self> {
+        let (&depth, bytes) = bytes.split_first()?;
+        let (path, bytes) = stdx::split_at_checked(bytes, depth.into())?;
+        let path = MerklePath::try_from(path).ok()?;
+        let (siblings, bytes) = stdx::as_chunks::<32, u8>(bytes);
+        let siblings = bytemuck::cast_slice::<[u8; 32], Hash>(siblings);
+        let siblings_count: usize =
+            path.iter().map(|byte| Self::unpack_index_len(*byte).1).sum();
+        if bytes.is_empty() && siblings.len() == siblings_count {
+            Some(Self { path, siblings: siblings.to_vec() })
+        } else {
+            None
+        }
+    }
+}
 
 
 impl<'a> core::iter::Iterator for ProofLevels<'a> {
@@ -185,7 +217,9 @@ impl<'a> core::iter::FusedIterator for ProofLevels<'a> {}
 
 
 /// Data that goes into account’s hash.
-#[derive(Clone, Debug, derive_more::Into, derive_more::AsRef)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, derive_more::Into, derive_more::AsRef,
+)]
 pub struct AccountHashData(Vec<u8>);
 
 impl AccountHashData {
@@ -250,9 +284,9 @@ impl AccountHashData {
 }
 
 
-
 /// Proof of an account’s state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountProof {
     /// Data that goes into account’s hash.
     pub account_hash_data: AccountHashData,
@@ -260,7 +294,6 @@ pub struct AccountProof {
     /// Proof of the value in Merkle tree.
     pub proof: MerkleProof,
 }
-
 
 impl AccountProof {
     /// Constructs a new proof for specified account.
@@ -294,7 +327,8 @@ impl AccountProof {
 
 
 /// Proof of accounts delta hash.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DeltaHashProof {
     pub parent_blockhash: Hash,
     pub accounts_delta_hash: Hash,
@@ -305,6 +339,10 @@ pub struct DeltaHashProof {
     ///
     /// This hash is calculated only once an epoch (hence the name) when present
     /// in the block, it is included in bank hash calculation.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "Option::is_none", default)
+    )]
     pub epoch_accounts_hash: Option<Hash>,
 }
 
