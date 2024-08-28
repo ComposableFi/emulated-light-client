@@ -12,6 +12,8 @@ use lib::hash::CryptoHash;
     Ord,
     Hash,
     bytemuck::TransparentWrapper,
+    bytemuck::Pod,
+    bytemuck::Zeroable,
     derive_more::AsRef,
     derive_more::AsMut,
     derive_more::From,
@@ -32,6 +34,8 @@ pub struct Hash(pub [u8; 32]);
     Ord,
     Hash,
     bytemuck::TransparentWrapper,
+    bytemuck::Pod,
+    bytemuck::Zeroable,
     derive_more::AsRef,
     derive_more::AsMut,
     derive_more::From,
@@ -84,6 +88,25 @@ macro_rules! impl_ref_conversion {
 
         impl<'a> From<&'a mut [u8; 32]> for &'a mut $ty {
             fn from(bytes: &'a mut [u8; 32]) -> Self { <$ty>::wrap_mut(bytes) }
+        }
+
+
+        impl<'a> TryFrom<&'a [u8]> for &'a $ty {
+            type Error = core::array::TryFromSliceError;
+
+            #[inline]
+            fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+                <&[u8; 32]>::try_from(bytes).map(Into::into)
+            }
+        }
+
+        impl<'a> TryFrom<&'a [u8]> for $ty {
+            type Error = core::array::TryFromSliceError;
+
+            #[inline]
+            fn try_from(bytes: &'a [u8]) -> Result<Self, Self::Error> {
+                <&Self>::try_from(bytes).map(Clone::clone)
+            }
         }
     };
 }

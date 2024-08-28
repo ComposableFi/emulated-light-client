@@ -5,5 +5,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod proof;
+#[cfg(feature = "serde")]
+mod serde_impl;
 pub mod types;
 mod utils;
