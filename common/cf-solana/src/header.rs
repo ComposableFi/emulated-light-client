@@ -87,12 +87,11 @@ macro_rules! impl_from {
     ($hdr:ident : $Hdr:ty; $account_hash_data:expr) => {
         impl From<$Hdr> for proto::Header {
             fn from($hdr: $Hdr) -> Self {
-                let account_merkle_proof =
-                    $hdr.witness_proof.proof.to_proto_bytes();
+                let account_merkle_proof = $hdr.witness_proof.proof.to_binary();
                 Self {
                     slot: $hdr.slot.get(),
                     bank_hash: $hdr.bank_hash.0.to_vec(),
-                    delta_hash_proof: $hdr.delta_hash_proof.to_proto_bytes(),
+                    delta_hash_proof: $hdr.delta_hash_proof.to_binary(),
                     account_hash_data: $account_hash_data,
                     account_merkle_proof,
                 }
@@ -152,7 +151,7 @@ impl Header {
             .map_err(|_| proto::BadMessage)?;
         let delta_hash_proof = pick!(msg, base, delta_hash_proof)?;
         let delta_hash_proof =
-            proof::DeltaHashProof::from_proto_bytes(delta_hash_proof)
+            proof::DeltaHashProof::from_binary(delta_hash_proof)
                 .ok_or(proto::BadMessage)?;
         let account_hash_data = match account_hash_data {
             Some(bytes) => bytes.try_into(),
@@ -160,8 +159,8 @@ impl Header {
         }
         .map_err(|_| proto::BadMessage)?;
         let proof = pick!(msg, base, account_merkle_proof)?;
-        let proof = proof::MerkleProof::from_proto_bytes(proof)
-            .ok_or(proto::BadMessage)?;
+        let proof =
+            proof::MerkleProof::from_binary(proof).ok_or(proto::BadMessage)?;
         let witness_proof = proof::AccountProof { account_hash_data, proof };
         Ok(Self { slot, bank_hash, delta_hash_proof, witness_proof })
     }

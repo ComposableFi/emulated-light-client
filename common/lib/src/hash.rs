@@ -311,3 +311,82 @@ fn test_new_hash() {
     };
     assert_eq!(want, got);
 }
+
+
+#[cfg(feature = "serde")]
+mod serde_impl {
+    use core::fmt;
+
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use super::CryptoHash;
+
+
+    impl Serialize for CryptoHash {
+        fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+            if ser.is_human_readable() {
+                ser.collect_str(self)
+            } else {
+                ser.serialize_bytes(&self.0)
+            }
+        }
+    }
+
+
+    struct Visitor;
+
+    impl<'de> serde::de::Visitor<'de> for Visitor {
+        type Value = CryptoHash;
+
+        fn expecting(&self, fmtr: &mut fmt::Formatter) -> fmt::Result {
+            fmtr.write_str("32-byte hash")
+        }
+
+        fn visit_bytes<E: serde::de::Error>(
+            self,
+            bytes: &[u8],
+        ) -> Result<Self::Value, E> {
+            Self::Value::try_from(bytes).map_err(|_| {
+                E::invalid_value(serde::de::Unexpected::Bytes(bytes), &self)
+            })
+        }
+
+        fn visit_str<E: serde::de::Error>(
+            self,
+            value: &str,
+        ) -> Result<Self::Value, E> {
+            Self::Value::from_base64(value).ok_or_else(|| {
+                E::invalid_value(
+                    serde::de::Unexpected::Str(value),
+                    &"base64-encoded 32-byte hash",
+                )
+            })
+        }
+    }
+
+    impl<'de> Deserialize<'de> for CryptoHash {
+        fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+            if de.is_human_readable() {
+                de.deserialize_str(Visitor)
+            } else {
+                de.deserialize_bytes(Visitor)
+            }
+        }
+    }
+
+
+    #[test]
+    fn test() {
+        let hash = CryptoHash::digest(b"");
+        let serialised = serde_json::to_string(&hash).unwrap();
+        assert_eq!(
+            "\"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=\"",
+            serialised
+        );
+        let got: CryptoHash = serde_json::from_str(&serialised).unwrap();
+        assert_eq!(hash, got);
+
+        let serialised = "\"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hS\"";
+        serde_json::from_str::<CryptoHash>(&serialised).unwrap_err();
+    }
+}

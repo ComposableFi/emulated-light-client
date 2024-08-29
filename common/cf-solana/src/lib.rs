@@ -11,6 +11,8 @@ mod message;
 mod misbehaviour;
 pub mod proof;
 pub mod proto;
+#[cfg(feature = "serde")]
+mod serde_impl;
 pub mod types;
 mod utils;
 

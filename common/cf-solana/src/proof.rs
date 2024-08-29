@@ -27,7 +27,7 @@ const MERKLE_FANOUT: usize = 16;
 /// The path is limited to 16 levels which, with Solana’s fanout of 16 (see
 /// [`MERKLE_FANOUT`]) puts limit of leafs in the Merkle tree to 2⁶⁴.  This is
 /// more than enough for any possible Solana block.
-type Path = arrayvec::ArrayVec<u8, 16>;
+type MerklePath = arrayvec::ArrayVec<u8, 16>;
 
 /// Merkle proof path.
 ///
@@ -46,7 +46,7 @@ pub struct MerkleProof {
     ///
     /// Solana uses fanout of 16 thus each position and number of siblings less
     /// than 16.  As such, they are encoded in a single 8-bit number.
-    path: Path,
+    path: MerklePath,
 
     /// Sibling hashes at each level concatenated into a single vector.
     siblings: Vec<Hash>,
@@ -156,8 +156,36 @@ impl MerkleProof {
         );
         ((index as u8) << 4) | len as u8
     }
-}
 
+    /// Serialises the object into a binary format.
+    ///
+    /// This format is used in Borsh, Protobuf and Serde serialisation.
+    pub fn to_binary(&self) -> Vec<u8> {
+        let depth = self.path.len() as u8;
+        let depth = core::slice::from_ref(&depth);
+        let path = self.path.as_slice();
+        let siblings: &[u8] = bytemuck::cast_slice(self.siblings.as_slice());
+        [depth, path, siblings].concat()
+    }
+
+    /// Deserialises the object from a binary format.
+    ///
+    /// This format is used in Borsh, Protobuf and Serde serialisation.
+    pub fn from_binary(bytes: &[u8]) -> Option<Self> {
+        let (&depth, bytes) = bytes.split_first()?;
+        let (path, bytes) = stdx::split_at_checked(bytes, depth.into())?;
+        let path = MerklePath::try_from(path).ok()?;
+        let (siblings, bytes) = stdx::as_chunks::<32, u8>(bytes);
+        let siblings = bytemuck::cast_slice::<[u8; 32], Hash>(siblings);
+        let siblings_count: usize =
+            path.iter().map(|byte| Self::unpack_index_len(*byte).1).sum();
+        if bytes.is_empty() && siblings.len() == siblings_count {
+            Some(Self { path, siblings: siblings.to_vec() })
+        } else {
+            None
+        }
+    }
+}
 
 impl<'a> core::iter::Iterator for ProofLevels<'a> {
     type Item = (usize, &'a [Hash]);
@@ -266,9 +294,37 @@ impl AccountHashData {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
+pub struct AccountHashDataTooShort;
+
+impl TryFrom<&[u8]> for AccountHashData {
+    type Error = AccountHashDataTooShort;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() < Self::length_for(0) {
+            Err(AccountHashDataTooShort)
+        } else {
+            Ok(Self(bytes.to_vec()))
+        }
+    }
+}
+
+impl TryFrom<Vec<u8>> for AccountHashData {
+    type Error = AccountHashDataTooShort;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        if bytes.len() < Self::length_for(0) {
+            Err(AccountHashDataTooShort)
+        } else {
+            Ok(Self(bytes))
+        }
+    }
+}
+
 
 /// Proof of an account’s state.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountProof {
     /// Data that goes into account’s hash.
     pub account_hash_data: AccountHashData,
@@ -276,7 +332,6 @@ pub struct AccountProof {
     /// Proof of the value in Merkle tree.
     pub proof: MerkleProof,
 }
-
 
 impl AccountProof {
     /// Constructs a new proof for specified account.
@@ -311,6 +366,7 @@ impl AccountProof {
 
 /// Proof of accounts delta hash.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DeltaHashProof {
     pub parent_blockhash: Hash,
     pub accounts_delta_hash: Hash,
@@ -321,6 +377,10 @@ pub struct DeltaHashProof {
     ///
     /// This hash is calculated only once an epoch (hence the name) when present
     /// in the block, it is included in bank hash calculation.
+    #[cfg_attr(
+        feature = "serde",
+        serde(skip_serializing_if = "Option::is_none", default)
+    )]
     pub epoch_accounts_hash: Option<Hash>,
 }
 
@@ -343,70 +403,11 @@ impl DeltaHashProof {
         }
         .into()
     }
-}
 
-
-//
-// ========== Proto conversion =================================================
-//
-
-impl MerkleProof {
-    /// Serialises the object into form used in proto messages.
-    pub fn to_proto_bytes(&self) -> Vec<u8> {
-        let depth = self.path.len() as u8;
-        let depth = core::slice::from_ref(&depth);
-        let path = self.path.as_slice();
-        let siblings: &[u8] = bytemuck::cast_slice(self.siblings.as_slice());
-        [depth, path, siblings].concat()
-    }
-
-    /// Deserialises the object from form used in proto messages.
-    pub fn from_proto_bytes(bytes: &[u8]) -> Option<Self> {
-        let (&depth, bytes) = bytes.split_first()?;
-        let (path, bytes) = stdx::split_at_checked(bytes, depth.into())?;
-        let path = Path::try_from(path).ok()?;
-        let (siblings, bytes) = stdx::as_chunks::<32, u8>(bytes);
-        let siblings = bytemuck::cast_slice::<[u8; 32], Hash>(siblings);
-        let siblings_count: usize =
-            path.iter().map(|byte| Self::unpack_index_len(*byte).1).sum();
-        if bytes.is_empty() && siblings.len() == siblings_count {
-            Some(Self { path, siblings: siblings.to_vec() })
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
-pub struct AccountHashDataTooShort;
-
-impl TryFrom<&[u8]> for AccountHashData {
-    type Error = AccountHashDataTooShort;
-
-    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        if bytes.len() < Self::length_for(0) {
-            Err(AccountHashDataTooShort)
-        } else {
-            Ok(Self(bytes.to_vec()))
-        }
-    }
-}
-
-impl TryFrom<Vec<u8>> for AccountHashData {
-    type Error = AccountHashDataTooShort;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        if bytes.len() < Self::length_for(0) {
-            Err(AccountHashDataTooShort)
-        } else {
-            Ok(Self(bytes))
-        }
-    }
-}
-
-impl DeltaHashProof {
-    /// Serialises the object into form used in proto messages.
-    pub fn to_proto_bytes(&self) -> Vec<u8> {
+    /// Serialises the object into a binary format.
+    ///
+    /// This format is used in Borsh and Protobuf serialisation.
+    pub fn to_binary(&self) -> Vec<u8> {
         let epoch_hash = self.epoch_accounts_hash.as_ref().map(|hash| &hash.0);
         [
             &self.parent_blockhash.0[..],
@@ -418,8 +419,10 @@ impl DeltaHashProof {
         .concat()
     }
 
-    /// Deserialises the object from form used in proto messages.
-    pub fn from_proto_bytes(bytes: &[u8]) -> Option<Self> {
+    /// Deserialises the object from a binary format.
+    ///
+    /// This format is used in Borsh and Protobuf serialisation.
+    pub fn from_binary(bytes: &[u8]) -> Option<Self> {
         #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
         #[repr(C)]
         struct Short {

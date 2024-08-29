@@ -51,8 +51,7 @@ dependencies = [
 [[package]]
 name = "aes-gcm-siv"
 version = "0.10.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "589c637f0e68c877bbd59a4599bbe849cac8e5f3e4b5a3ebae8f528cd218dcdc"
+source = "git+https://github.com/RustCrypto/AEADs?rev=6105d7a5591aefa646a95d12b5e8d3f55a9214ef#6105d7a5591aefa646a95d12b5e8d3f55a9214ef"
 dependencies = [
  "aead",
  "aes",
@@ -801,13 +800,16 @@ name = "cf-solana"
 version = "0.0.0"
 dependencies = [
  "arrayvec",
+ "base64 0.21.7",
  "blake3",
  "bs58 0.5.1",
  "bytemuck",
  "derive_more",
  "lib",
  "rayon",
+ "serde",
  "solana-program",
+ "stdx",
 ]
 
 [[package]]
@@ -997,8 +999,7 @@ dependencies = [
 [[package]]
 name = "curve25519-dalek"
 version = "3.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90f9d052967f590a76e62eb387bd0bbb1b000182c3cefe5364db6b7211651bc0"
+source = "git+https://github.com/dalek-cryptography/curve25519-dalek?rev=8274d5cbb6fc3f38cdc742b4798173895cd2a290#8274d5cbb6fc3f38cdc742b4798173895cd2a290"
 dependencies = [
  "byteorder",
  "digest 0.9.0",
@@ -1701,6 +1702,7 @@ dependencies = [
  "bs58 0.5.1",
  "bytemuck",
  "derive_more",
+ "serde",
  "sha2 0.10.8",
  "stdx",
 ]
