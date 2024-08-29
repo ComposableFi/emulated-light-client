@@ -480,7 +480,7 @@ pub struct Initialize<'info> {
 pub struct StoreIntent<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    #[account(init, seeds = [INTENT_SEED, intent_id.as_bytes()], bump, payer = authority, space = 8 + Intent::INIT_SPACE)]
+    #[account(init, seeds = [INTENT_SEED, intent_id.as_bytes()], bump, payer = authority, space = 3000)]
     pub intent: Account<'info, Intent>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer: Account<'info, Auctioneer>,
