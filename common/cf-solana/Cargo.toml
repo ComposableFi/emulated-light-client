@@ -43,6 +43,7 @@ solana-program-2 = { package = "solana-program", git = "https://github.com/Compo
 lib = { workspace = true, features = ["test_utils"] }
 
 [features]
+no-blake3-syscall = []
 rayon = ["lib/rayon"]
 serde = [
     "dep:serde",
