@@ -578,6 +578,15 @@ pub mod restaking_v2 {
 
         Ok(())
     }
+
+    pub fn realloc_common_state(
+        ctx: Context<UpdateStakingParams>,
+        new_space: usize,
+    ) -> Result<()> {
+        let common_state = ctx.accounts.common_state.to_account_info();
+        common_state.realloc(new_space, false)?;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
