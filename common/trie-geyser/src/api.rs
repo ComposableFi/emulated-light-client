@@ -77,7 +77,9 @@ fn test_slot_data_serialisation() {
         ),
     };
 
-    insta::assert_json_snapshot!(data);
+    if !cfg!(miri) {
+        insta::assert_json_snapshot!(data);
+    }
     let serialised = serde_json::to_string(&data).unwrap();
 
     let deserialised = serde_json::from_str(&serialised).unwrap();
