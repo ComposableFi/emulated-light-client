@@ -8,22 +8,39 @@ edition = "2021"
 arrayvec.workspace = true
 blake3.workspace = true
 bs58.workspace = true
+base64.workspace = true
 bytemuck.workspace = true
 derive_more.workspace = true
+ibc-client-tendermint-types.workspace = true
+ibc-core-client-context.workspace = true
+ibc-core-commitment-types.workspace = true
+ibc-core-host.workspace = true
+ibc-primitives.workspace = true
+ibc-proto.workspace = true
+prost = { workspace = true, features = ["prost-derive"] }
+serde = { workspace = true, optional = true }
 solana-program = { workspace = true, optional = true }
 
-lib = { workspace = true, features = ["bs58"] }
+cf-guest.workspace = true
+lib = { workspace = true, features = ["bs58", "serde"] }
+proto-utils = { workspace = true, features = ["ibc"] }
+stdx.workspace = true
+trie-ids.workspace = true
 
 solana-program-2 = { package = "solana-program", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev", optional = true }
 
 [build-dependencies]
+prost-build.workspace = true
 
 [dev-dependencies]
+insta.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 
 solana-accounts-db2 = { package = "solana-accounts-db", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
 solana-program-2 = { package = "solana-program", git = "https://github.com/ComposableFi/mantis-solana.git", branch = "mantis/dev" }
+
+lib = { workspace = true, features = ["test_utils"] }
 
 [features]
 rayon = ["lib/rayon"]
