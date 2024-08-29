@@ -1,5 +1,8 @@
 use alloc::vec::Vec;
 
+pub use cf_guest::proof::{
+    generate_for_trie, verify_for_trie, GenerateError, IbcProof, VerifyError,
+};
 use lib::hash::CryptoHash;
 #[cfg(all(feature = "rayon", not(miri)))]
 use rayon::prelude::*;
@@ -14,6 +17,10 @@ use crate::utils::{blake3, chunks, sort_unstable_by};
 ///
 /// This is the same as `solana_accounts_db::accounts_hash::MERKLE_FANOUT`.
 const MERKLE_FANOUT: usize = 16;
+
+//
+// ========== Types ============================================================
+//
 
 /// Path in the Merkle proof.
 ///
@@ -150,7 +157,7 @@ impl MerkleProof {
         ((index as u8) << 4) | len as u8
     }
 
-    /// Serialises the object into binary form.
+    /// Serialises the object into a binary format.
     ///
     /// This format is used in Borsh, Protobuf and Serde serialisation.
     pub fn to_binary(&self) -> Vec<u8> {
@@ -161,7 +168,7 @@ impl MerkleProof {
         [depth, path, siblings].concat()
     }
 
-    /// Deserialises the object from a binary form.
+    /// Deserialises the object from a binary format.
     ///
     /// This format is used in Borsh, Protobuf and Serde serialisation.
     pub fn from_binary(bytes: &[u8]) -> Option<Self> {
@@ -179,7 +186,6 @@ impl MerkleProof {
         }
     }
 }
-
 
 impl<'a> core::iter::Iterator for ProofLevels<'a> {
     type Item = (usize, &'a [Hash]);
@@ -223,6 +229,11 @@ impl<'a> core::iter::FusedIterator for ProofLevels<'a> {}
 pub struct AccountHashData(Vec<u8>);
 
 impl AccountHashData {
+    /// Length of account hash data for account with data of given length.
+    const fn length_for(data_len: usize) -> usize {
+        8 + 8 + data_len + 1 + 32 + 32
+    }
+
     /// Allocates new accounts hash data for given account.
     pub fn new(
         lamports: u64,
@@ -232,17 +243,17 @@ impl AccountHashData {
         data: &[u8],
         pubkey: &PubKey,
     ) -> Self {
-        Self(
-            [
-                &lamports.to_le_bytes()[..],
-                &rent_epoch.to_le_bytes()[..],
-                data,
-                core::slice::from_ref(&(executable as u8)),
-                owner.as_ref(),
-                pubkey.as_ref(),
-            ]
-            .concat(),
-        )
+        let bytes = [
+            &lamports.to_le_bytes()[..],
+            &rent_epoch.to_le_bytes()[..],
+            data,
+            core::slice::from_ref(&(executable as u8)),
+            owner.as_ref(),
+            pubkey.as_ref(),
+        ]
+        .concat();
+        debug_assert_eq!(bytes.len(), Self::length_for(data.len()));
+        Self(bytes)
     }
 
     /// Generates proof for the account.
@@ -280,6 +291,33 @@ impl AccountHashData {
     /// index `start`.
     fn get<const N: usize>(&self, start: usize) -> &[u8; N] {
         self.0[start..start + N].try_into().unwrap()
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, derive_more::Display)]
+pub struct AccountHashDataTooShort;
+
+impl TryFrom<&[u8]> for AccountHashData {
+    type Error = AccountHashDataTooShort;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() < Self::length_for(0) {
+            Err(AccountHashDataTooShort)
+        } else {
+            Ok(Self(bytes.to_vec()))
+        }
+    }
+}
+
+impl TryFrom<Vec<u8>> for AccountHashData {
+    type Error = AccountHashDataTooShort;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        if bytes.len() < Self::length_for(0) {
+            Err(AccountHashDataTooShort)
+        } else {
+            Ok(Self(bytes))
+        }
     }
 }
 
@@ -365,8 +403,77 @@ impl DeltaHashProof {
         }
         .into()
     }
+
+    /// Serialises the object into a binary format.
+    ///
+    /// This format is used in Borsh and Protobuf serialisation.
+    pub fn to_binary(&self) -> Vec<u8> {
+        let epoch_hash = self.epoch_accounts_hash.as_ref().map(|hash| &hash.0);
+        [
+            &self.parent_blockhash.0[..],
+            &self.accounts_delta_hash.0[..],
+            &self.num_sigs.to_le_bytes()[..],
+            &self.blockhash.0[..],
+            epoch_hash.map_or(&[][..], |hash| &hash[..]),
+        ]
+        .concat()
+    }
+
+    /// Deserialises the object from a binary format.
+    ///
+    /// This format is used in Borsh and Protobuf serialisation.
+    pub fn from_binary(bytes: &[u8]) -> Option<Self> {
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        #[repr(C)]
+        struct Short {
+            parent_blockhash: [u8; 32],
+            accounts_delta_hash: [u8; 32],
+            num_sigs_le: [u8; 8],
+            blockhash: [u8; 32],
+        }
+
+        #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+        #[repr(C)]
+        struct Full {
+            short: Short,
+            accounts_delta_hash: [u8; 32],
+        }
+
+        impl<'a> From<&'a Short> for DeltaHashProof {
+            fn from(short: &'a Short) -> Self {
+                Self {
+                    parent_blockhash: short.parent_blockhash.into(),
+                    accounts_delta_hash: short.accounts_delta_hash.into(),
+                    num_sigs: u64::from_le_bytes(short.num_sigs_le),
+                    blockhash: short.blockhash.into(),
+                    epoch_accounts_hash: None,
+                }
+            }
+        }
+
+        impl<'a> From<&'a Full> for DeltaHashProof {
+            fn from(full: &'a Full) -> Self {
+                let mut this = Self::from(&full.short);
+                let hash = full.accounts_delta_hash.into();
+                this.epoch_accounts_hash = Some(hash);
+                this
+            }
+        }
+
+        if let Ok(short) = bytemuck::try_from_bytes::<Short>(bytes) {
+            Some(short.into())
+        } else if let Ok(full) = bytemuck::try_from_bytes::<Full>(bytes) {
+            Some(full.into())
+        } else {
+            None
+        }
+    }
 }
 
+
+//
+// ========== Algorithms =======================================================
+//
 
 /// Calculates hash for given account.
 ///
@@ -413,7 +520,6 @@ pub fn hash_account(
     hasher.update(&buffer);
     hasher.finalize().into()
 }
-
 
 /// Computes Merkle root of given hashes.
 ///
@@ -498,6 +604,10 @@ fn compute_hashes_at_next_level(hashes: &[Hash]) -> Vec<Hash> {
         .collect()
 }
 
+
+//
+// ========== Miscellaneous ====================================================
+//
 
 impl core::fmt::Display for Hash {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {

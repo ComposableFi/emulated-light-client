@@ -2,6 +2,17 @@ use bytemuck::TransparentWrapper;
 use lib::hash::CryptoHash;
 
 /// Cryptographically secure hash.
+///
+/// The type is completely algorithm agnostic.  It does not provide any methods
+/// for computing the hash and in particular may store SHA2 or Blake3 digest.
+/// This is in contrast to `solana_program::hash::Hash` or
+/// `solana_program::blake3::Hash` which are more strongly typed.
+///
+/// We’re using a separate type rather than [`CryptoHash`] because we want to
+/// have convenient conversion function between our type and Solana’s types.
+/// Another aspect is that [`CryptoHash`] is (so far) only used for SHA2 hashes
+/// while this type is also used for Blake3 hashes.  This is something that we
+/// may end up revisiting.
 #[derive(
     Clone,
     Copy,
@@ -89,7 +100,6 @@ macro_rules! impl_ref_conversion {
         impl<'a> From<&'a mut [u8; 32]> for &'a mut $ty {
             fn from(bytes: &'a mut [u8; 32]) -> Self { <$ty>::wrap_mut(bytes) }
         }
-
 
         impl<'a> TryFrom<&'a [u8]> for &'a $ty {
             type Error = core::array::TryFromSliceError;
