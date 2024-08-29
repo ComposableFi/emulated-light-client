@@ -18,7 +18,6 @@ ibc-core-host.workspace = true
 ibc-primitives.workspace = true
 ibc-proto.workspace = true
 prost = { workspace = true, features = ["prost-derive"] }
-rayon = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 solana-program = { workspace = true, optional = true }
 
@@ -44,6 +43,7 @@ solana-program-2 = { package = "solana-program", git = "https://github.com/Compo
 lib = { workspace = true, features = ["test_utils"] }
 
 [features]
+rayon = ["lib/rayon"]
 solana-program = [
     "dep:solana-program",
     "lib/solana-program",

@@ -10,6 +10,7 @@ borsh = { workspace = true, optional = true }
 bs58 = { workspace = true, optional = true }
 bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
+rayon = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 sha2.workspace = true
 solana-program = { workspace = true, optional = true }

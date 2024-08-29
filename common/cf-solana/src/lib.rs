@@ -4,6 +4,7 @@ extern crate alloc;
 #[cfg(any(feature = "std", test))]
 extern crate std;
 
+mod blake3;
 mod client;
 mod consensus;
 mod header;
@@ -14,7 +15,6 @@ pub mod proto;
 #[cfg(feature = "serde")]
 mod serde_impl;
 pub mod types;
-mod utils;
 
 pub use client::impls::{CommonContext, Neighbourhood};
 pub use client::ClientState;

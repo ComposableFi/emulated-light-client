@@ -5,6 +5,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod hash;
+pub mod par;
 #[cfg(any(feature = "test_utils", test))]
 pub mod test_utils;
 pub mod u3;
