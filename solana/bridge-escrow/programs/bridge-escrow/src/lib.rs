@@ -514,9 +514,9 @@ pub struct ReceiveTransferContext<'info> {
 pub struct SplTokenTransfer<'info> {
     // Intent reading
     #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
-    pub intent: Account<'info, Intent>,
+    pub intent: Box<Account<'info, Intent>>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
-    pub auctioneer_state: Account<'info, Auctioneer>,
+    pub auctioneer_state: Box<Account<'info, Auctioneer>>,
     #[account(mut)]
     pub solver: Signer<'info>,
 
@@ -524,20 +524,20 @@ pub struct SplTokenTransfer<'info> {
     /// CHECK:
     pub auctioneer: UncheckedAccount<'info>,
 
-    pub token_in: Option<Account<'info, Mint>>,
-    pub token_out: Account<'info, Mint>,
+    pub token_in: Option<Box<Account<'info, Mint>>>,
+    pub token_out: Box<Account<'info, Mint>>,
 
     // Program (Escrow) -> Solver SPL Token Transfer Accounts
     #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
-    pub auctioneer_token_in_account: Option<Account<'info, TokenAccount>>,
+    pub auctioneer_token_in_account: Option<Box<Account<'info, TokenAccount>>>,
     #[account(mut, token::authority = solver, token::mint = token_in)]
-    pub solver_token_in_account: Option<Account<'info, TokenAccount>>,
+    pub solver_token_in_account: Option<Box<Account<'info, TokenAccount>>>,
 
     // Solver -> User SPL Token Transfer Accounts
     #[account(mut, token::authority = solver, token::mint = token_out)]
-    pub solver_token_out_account: Account<'info, TokenAccount>,
+    pub solver_token_out_account: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_out)]
-    pub user_token_out_account: Account<'info, TokenAccount>,
+    pub user_token_out_account: Box<Account<'info, TokenAccount>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -551,7 +551,7 @@ pub struct SplTokenTransfer<'info> {
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
     #[account(mut)]
-    pub storage: Option<Account<'info, PrivateStorage>>,
+    pub storage: Option<Box<Account<'info, PrivateStorage>>>,
     /// CHECK:
     #[account(mut)]
     pub trie: Option<UncheckedAccount<'info>>,
