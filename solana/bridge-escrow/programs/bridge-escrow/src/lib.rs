@@ -476,11 +476,11 @@ pub struct Initialize<'info> {
 
 // Define the context for storing intent
 #[derive(Accounts)]
-#[instruction(intent_id: String)]
+#[instruction(intent: IntentPayload)]
 pub struct StoreIntent<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
-    #[account(init, seeds = [INTENT_SEED, intent_id.as_bytes()], bump, payer = authority, space = 3000)]
+    #[account(init, seeds = [INTENT_SEED, intent.intent_id.as_bytes()], bump, payer = authority, space = 3000)]
     pub intent: Account<'info, Intent>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer: Account<'info, Auctioneer>,
