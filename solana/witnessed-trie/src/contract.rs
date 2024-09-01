@@ -1,7 +1,6 @@
 use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
-use solana_program::sysvar::Sysvar;
 
 use crate::{accounts, api, utils};
 
@@ -40,6 +39,7 @@ pub(crate) fn process_instruction(
 ) -> Result {
     let data = api::Data::from_slice(instruction)?;
 
+    // Get the accounts (trie root and witness)
     let (mut trie, witness) = {
         let accounts = &mut accounts.iter();
         let payer = accounts::get_payer(accounts)?;
@@ -52,7 +52,8 @@ pub(crate) fn process_instruction(
         )?;
         let witness = accounts::get_witness(payer, accounts, program_id, root)?;
         let trie = solana_trie::TrieAccount::new(root.try_borrow_mut_data()?)
-            .ok_or(ProgramError::InvalidAccountData)?;
+            .ok_or(ProgramError::InvalidAccountData)?
+            .with_witness_account(witness, program_id)?;
 
         (trie, witness)
     };
@@ -70,22 +71,15 @@ pub(crate) fn process_instruction(
         })?;
     }
 
-    // Update witness
-    let clock = solana_program::clock::Clock::get()?;
-    let data = api::WitnessedData::new(trie.hash(), &clock);
-
-    {
-        let mut dst = witness.try_borrow_mut_data()?;
-        let dst: &mut [u8] = &mut dst;
-        let dst: &mut [u8; 40] = dst.try_into().unwrap();
-        *dst = data.into();
-    }
+    // Drop the trie so that witness is updated.
+    core::mem::drop(trie);
 
     // Return enough information so that witness account can be hashed.
     let ret = api::ReturnData {
         lamports: witness.lamports().to_le_bytes(),
         rent_epoch: witness.rent_epoch.to_le_bytes(),
-        data,
+        data: api::WitnessData::try_from(&**witness.try_borrow_data()?)
+            .unwrap(),
     };
     solana_program::program::set_return_data(bytemuck::bytes_of(&ret));
 
