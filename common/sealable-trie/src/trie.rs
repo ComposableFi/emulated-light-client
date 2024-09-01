@@ -184,7 +184,7 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
 
         let mut proof = include_proof.then(proof::Proof::builder);
         let mut node_ptr = self.root_ptr;
-        let mut node_hash = self.root_hash.clone();
+        let mut node_hash = self.root_hash;
         loop {
             let node = self.alloc.get(node_ptr.ok_or(Error::Sealed)?);
             let node = node.decode()?;
@@ -215,17 +215,18 @@ impl<A: memory::Allocator<Value = Value>> Trie<A> {
             match child {
                 Reference::Node(node) => {
                     node_ptr = node.ptr;
-                    node_hash = node.hash.clone();
+                    node_hash = *node.hash;
                 }
                 Reference::Value(value) => {
                     return if value.is_sealed {
                         Err(Error::Sealed)
                     } else if let Some(len) = NonZeroU16::new(key.len()) {
-                        let proof = proof!(proof rev.lookup_key_left(len, value.hash.clone()));
+                        let proof =
+                            proof!(proof rev.lookup_key_left(len, *value.hash));
                         Ok((None, proof))
                     } else {
                         let proof = proof!(proof rev.build());
-                        Ok((Some(value.hash.clone()), proof))
+                        Ok((Some(*value.hash), proof))
                     };
                 }
             };

@@ -126,7 +126,7 @@ impl<'a> GenerateContext for &'a BlockHeader {
 
 impl GenerateContext for () {
     fn get_root(self, root: &CryptoHash) -> Result<CryptoHash, GenerateError> {
-        Ok(root.clone())
+        Ok(*root)
     }
     fn serialise_proof(
         self,
@@ -282,7 +282,7 @@ fn verify_impl<const WITH_BLOCK: bool>(
     } else {
         let proof: sealable_trie::proof::Proof =
             borsh::BorshDeserialize::deserialize_reader(&mut proof_bytes)?;
-        (root.clone(), proof)
+        (*root, proof)
     };
 
     let value = if let Some(value) = value {
@@ -356,7 +356,7 @@ mod tests {
     impl Trie {
         fn set(&mut self, key: &[u8], value: CryptoHash) {
             self.trie.set(key, &value).unwrap();
-            self.header.state_root = self.trie.hash().clone();
+            self.header.state_root = *self.trie.hash();
         }
 
         fn root(&self) -> &CryptoHash { self.trie.hash() }
@@ -369,14 +369,10 @@ mod tests {
     ) -> IbcProof {
         let mut bytes = proof.proof.as_slice();
         let mut hdr = BlockHeader::deserialize_reader(&mut bytes).unwrap();
-        hdr.state_root = state_root.clone();
+        hdr.state_root = *state_root;
         let mut buf = borsh::to_vec(&hdr).unwrap();
         buf.extend_from_slice(bytes);
-        IbcProof {
-            proof: buf,
-            root: hdr.calc_hash(),
-            value: proof.value.clone(),
-        }
+        IbcProof { proof: buf, root: hdr.calc_hash(), value: proof.value }
     }
 
     fn generate(
@@ -421,7 +417,7 @@ mod tests {
                 guestchain::BlockHeight::from(0),
                 guestchain::HostHeight::from(42),
                 core::num::NonZeroU64::new(24).unwrap(),
-                trie.hash().clone(),
+                *trie.hash(),
                 CryptoHash::test(86),
             ),
             trie,
@@ -443,7 +439,7 @@ mod tests {
 
         // Verify non-membership fails if value is inserted.
         let key = trie_ids::PathInfo::try_from(path.clone()).unwrap().key;
-        trie.set(&key, stored_hash.clone());
+        trie.set(&key, *stored_hash);
 
         if for_block {
             // Generate proof with block header with new state root, but use the

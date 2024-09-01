@@ -141,7 +141,7 @@ fn make_trie(small: bool, sealed: bool) -> (TestTrie, &'static [u8]) {
 #[test]
 fn test_seal() {
     let (mut trie, keys) = make_trie(false, false);
-    let hash = trie.hash().clone();
+    let hash = *trie.hash();
     for b in keys {
         trie.seal(core::slice::from_ref(b), true);
     }
@@ -152,7 +152,7 @@ fn test_seal() {
 #[test]
 fn test_seal_small() {
     let (mut trie, keys) = make_trie(true, false);
-    let hash = trie.hash().clone();
+    let hash = *trie.hash();
     for b in keys {
         trie.seal(core::slice::from_ref(b), true);
     }

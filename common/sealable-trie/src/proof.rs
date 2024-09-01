@@ -112,7 +112,7 @@ impl Membership {
         if *root_hash == crate::trie::EMPTY_TRIE_ROOT {
             false
         } else if let Some(key) = bits::Slice::from_bytes(key) {
-            let want = OwnedRef::value(value_hash.clone());
+            let want = OwnedRef::value(*value_hash);
             verify_impl(root_hash, key, want, &self.0).is_some()
         } else {
             false
@@ -190,7 +190,7 @@ impl NonMembership {
                 // We’re converting non-membership proof into proof that at
                 // key[..(key.len() - len)] a `hash` value is stored.
                 key.pop_back_slice(len.get())?;
-                Some((key, OwnedRef::value(hash.clone())))
+                Some((key, OwnedRef::value(*hash)))
             }
         }
     }
@@ -339,8 +339,8 @@ impl OwnedRef {
 impl<'a, P, S> From<&'a Reference<'a, P, S>> for OwnedRef {
     fn from(rf: &'a Reference<'a, P, S>) -> OwnedRef {
         let (is_value, hash) = match rf {
-            Reference::Node(node) => (false, node.hash.clone()),
-            Reference::Value(value) => (true, value.hash.clone()),
+            Reference::Node(node) => (false, *node.hash),
+            Reference::Value(value) => (true, *value.hash),
         };
         Self { is_value, hash }
     }
@@ -423,7 +423,7 @@ fn test_simple_success() {
         );
 
         let (got, proof) = trie.prove(key.as_bytes()).unwrap();
-        assert_eq!(Some(hash.clone()), got, "Failed getting {key}");
+        assert_eq!(Some(hash), got, "Failed getting {key}");
         assert!(
             proof.verify(trie.hash(), key.as_bytes(), Some(&hash)),
             "Failed verifying {key} → {hash} get proof: {proof:?}",

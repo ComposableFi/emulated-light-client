@@ -439,7 +439,7 @@ fn anchor_test_deliver() -> Result<()> {
             token_metadata_program: anchor_spl::metadata::ID,
         })
         .args(instruction::InitMint {
-            hashed_full_denom: hashed_full_denom_on_source.clone(),
+            hashed_full_denom: hashed_full_denom_on_source,
             token_name: TOKEN_NAME.to_string(),
             token_symbol: TOKEN_SYMBOL.to_string(),
             token_uri: TOKEN_URI.to_string(),
@@ -534,7 +534,7 @@ fn anchor_test_deliver() -> Result<()> {
             token_program: Some(anchor_spl::token::ID),
         })
         .args(instruction::SendTransfer {
-            hashed_full_denom: hashed_denom.clone(),
+            hashed_full_denom: hashed_denom,
             msg: msg_transfer,
         })
         .payer(authority.clone())

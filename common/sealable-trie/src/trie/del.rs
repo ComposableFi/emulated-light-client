@@ -226,14 +226,12 @@ impl OwnedRef {
 }
 
 impl From<NodeRef<'_>> for OwnedRef {
-    fn from(nref: NodeRef) -> OwnedRef {
-        Self::Node(nref.ptr, nref.hash.clone())
-    }
+    fn from(nref: NodeRef) -> OwnedRef { Self::Node(nref.ptr, *nref.hash) }
 }
 
 impl From<ValueRef<'_>> for OwnedRef {
     fn from(vref: ValueRef) -> OwnedRef {
-        Self::Value(vref.is_sealed, vref.hash.clone())
+        Self::Value(vref.is_sealed, *vref.hash)
     }
 }
 

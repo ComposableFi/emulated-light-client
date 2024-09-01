@@ -125,7 +125,7 @@ impl<PK: PubKey> Header<PK> {
         base: Option<&Self>,
     ) -> Result<Self, proto::BadMessage> {
         let genesis_hash = if msg.genesis_hash.is_empty() {
-            base.ok_or(proto::BadMessage)?.genesis_hash.clone()
+            base.ok_or(proto::BadMessage)?.genesis_hash
         } else {
             lib::hash::CryptoHash::try_from(msg.genesis_hash.as_slice())
                 .map_err(|_| proto::BadMessage)?
@@ -138,7 +138,7 @@ impl<PK: PubKey> Header<PK> {
 
         let (epoch_commitment, epoch) = if msg.epoch.is_empty() {
             let base = base.ok_or(proto::BadMessage)?;
-            (base.epoch_commitment.clone(), base.epoch.clone())
+            (base.epoch_commitment, base.epoch.clone())
         } else {
             let bytes = msg.epoch.as_slice();
             let epoch = borsh::BorshDeserialize::try_from_slice(bytes)
