@@ -325,12 +325,11 @@ impl TestCtx {
         let count = self.candidates.candidates.len();
         let head_stake = self.candidates.head_stake;
 
-        let res =
-            self.candidates.update(&self.config, pubkey.clone(), |_| Ok(0));
+        let res = self.candidates.update(&self.config, pubkey, |_| Ok(0));
         self.check();
 
         if let Err(err) = res {
-            let old_stake = self.by_key.get(&pubkey).unwrap().clone();
+            let old_stake = *self.by_key.get(&pubkey).unwrap();
             assert_eq!(count, self.candidates.candidates.len());
             assert_eq!(head_stake, self.candidates.head_stake);
 
@@ -373,9 +372,8 @@ impl TestCtx {
         let count = self.candidates.candidates.len();
         let head_stake = self.candidates.head_stake;
 
-        let res = self
-            .candidates
-            .update(&self.config, pubkey.clone(), |_| Ok(new_stake));
+        let res =
+            self.candidates.update(&self.config, pubkey, |_| Ok(new_stake));
         self.check();
 
         if let Err(err) = res {
@@ -383,7 +381,7 @@ impl TestCtx {
             assert_eq!(head_stake, self.candidates.head_stake);
             self.verify_update_error(err, pubkey, new_stake);
         } else {
-            let entry = self.by_key.entry(pubkey.clone());
+            let entry = self.by_key.entry(pubkey);
             let new = matches!(&entry, Entry::Vacant(_));
             assert_eq!(
                 count + usize::from(new),
@@ -424,7 +422,7 @@ impl TestCtx {
             .candidates
             .candidates
             .get(usize::from(self.config.max_validators.get()));
-        let kicked_out = last.clone().map_or(false, |candidiate| {
+        let kicked_out = last.map_or(false, |candidiate| {
             candidiate <
                 &Candidate {
                     pubkey,
@@ -455,7 +453,7 @@ impl TestCtx {
             let this = unsafe { &mut *this };
             match stake {
                 0 => this.test_remove(pubkey),
-                _ => this.test_update(pubkey.clone(), u128::from(stake)),
+                _ => this.test_update(pubkey, u128::from(stake)),
             }
         });
 

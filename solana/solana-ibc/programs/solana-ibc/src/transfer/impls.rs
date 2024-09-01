@@ -655,7 +655,7 @@ mod tests {
             Some(dst.chars().filter(|chr| *chr != '_').collect::<String>())
                 .map(|val| val.parse::<u64>().ok());
         let got = convert_decimals(&src, input_decimals, output_decimals);
-        let got = got.and_then(|val| Some(check_amount_overflow(val).ok()));
+        let got = got.map(|val| check_amount_overflow(val).ok());
         assert_eq!(
             want, got,
             "{src} {input_decimals} → {dst} {output_decimals}"

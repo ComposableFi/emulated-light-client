@@ -437,7 +437,7 @@ fn test_generate() {
         let signature =
             crate::block::Fingerprint::new(&mgr.genesis, mgr.head().1)
                 .sign(&validator.pubkey().make_signer());
-        mgr.add_signature(validator.pubkey().clone(), &signature, &())
+        mgr.add_signature(*validator.pubkey(), &signature, &())
     }
 
     mgr.generate_next(5.into(), two, CryptoHash::test(1)).unwrap();
@@ -468,7 +468,7 @@ fn test_generate() {
     );
     assert_eq!(
         Err(AddSignatureError::BadSignature),
-        mgr.add_signature(bob.pubkey().clone(), &signature, &())
+        mgr.add_signature(*bob.pubkey(), &signature, &())
     );
 
     assert_eq!(

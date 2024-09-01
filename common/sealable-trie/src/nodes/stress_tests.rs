@@ -108,7 +108,7 @@ fn gen_random_node<'a>(
     let (key, right) = stdx::split_array_ref::<34, 32, 66>(buf);
     let (_, left) = stdx::split_array_ref::<2, 32, 34>(key);
     if rng.gen::<u8>() & 1 == 0 {
-        let children = [rand_ref(rng, &left), rand_ref(rng, &right)];
+        let children = [rand_ref(rng, left), rand_ref(rng, right)];
         Node::Branch { children }
     } else {
         let offset = U3::wrap(rng.gen::<u8>());
@@ -116,7 +116,7 @@ fn gen_random_node<'a>(
         let length = rng.gen_range(1..=max_length - u16::from(offset));
         Node::Extension {
             key: bits::ExtKey::new(key, offset, length).unwrap(),
-            child: rand_ref(rng, &right),
+            child: rand_ref(rng, right),
         }
     }
 }
