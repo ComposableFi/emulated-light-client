@@ -4,6 +4,7 @@ pub use cf_guest::proof::{
     generate_for_trie, verify_for_trie, GenerateError, IbcProof, VerifyError,
 };
 use lib::hash::CryptoHash;
+#[allow(unused_imports)]
 use lib::par::prelude::*;
 
 #[cfg(test)]
