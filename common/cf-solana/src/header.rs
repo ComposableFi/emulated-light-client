@@ -34,12 +34,11 @@ impl Header {
     /// trie and Solana block timestamp in seconds.
     ///
     /// Returns None if the witness account data has unexpected format
-    /// (e.g. it’s not 40-byte long).  See `WitnessedData` in
-    /// `solana-witnessed-trie`.
-    // TODO(mina86): Ideally we would use wittrie::api::WitnessedData here but
-    // wittrie depends on Solana and we don’t want to introduce required Solana
-    // dependencies here.  Moving WitnessData to a crate in common/ is an option
-    // but for the time being we’re duplicating the logic here.
+    /// (e.g. it’s not 40-byte long).  See `witness::Data` in solana-trie.
+    // TODO(mina86): Ideally we would use solana_trie::witness::Data here but
+    // solana_trie depends on Solana and we don’t want to introduce required
+    // Solana dependencies here.  Moving witness::Data to a crate in common/ is
+    // an option but for the time being we’re duplicating the logic here.
     pub fn decode_witness(&self) -> Option<(&CryptoHash, NonZeroU64)> {
         let data =
             self.witness_proof.account_hash_data.data().try_into().ok()?;

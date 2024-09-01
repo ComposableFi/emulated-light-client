@@ -7,6 +7,7 @@ use solana_program::rent::Rent;
 use solana_program::system_instruction::MAX_PERMITTED_DATA_LENGTH;
 use solana_program::sysvar::Sysvar;
 
+/// An account backing a Trie which can be resized.
 #[derive(Debug)]
 pub struct ResizableAccount<'a, 'info> {
     account: &'a AccountInfo<'info>,

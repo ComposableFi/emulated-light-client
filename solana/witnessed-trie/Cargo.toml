@@ -21,7 +21,7 @@ cf-solana = { workspace = true, optional = true }
 lib.workspace = true
 memory = { workspace = true, optional = true }
 sealable-trie = { workspace = true, optional = true }
-solana-trie = { workspace = true, optional = true }
+solana-trie.workspace = true
 stdx.workspace = true
 
 [dev-dependencies]
@@ -45,5 +45,4 @@ contract = [
     "hex",
     "memory",
     "sealable-trie",
-    "solana-trie",
 ]

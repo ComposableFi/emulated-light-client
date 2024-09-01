@@ -1,3 +1,4 @@
+use core::cell::RefMut;
 use core::mem::ManuallyDrop;
 
 #[cfg(test)]
@@ -5,11 +6,13 @@ use pretty_assertions::assert_eq;
 use solana_program::account_info::AccountInfo;
 use solana_program::program_error::ProgramError;
 use solana_program::pubkey::Pubkey;
+use solana_program::sysvar::Sysvar;
 
 mod account;
 mod alloc;
 mod data_ref;
 mod header;
+pub mod witness;
 
 pub use account::ResizableAccount;
 pub use data_ref::DataRef;
@@ -17,12 +20,14 @@ pub use sealable_trie::Trie;
 
 
 /// Trie stored in a Solana account.
-#[derive(Debug)]
-pub struct TrieAccount<D: DataRef + Sized>(
-    ManuallyDrop<sealable_trie::Trie<alloc::Allocator<D>>>,
-);
+pub struct TrieAccount<'a, D: DataRef + Sized>(ManuallyDrop<Inner<'a, D>>);
 
-impl<D: DataRef + Sized> TrieAccount<D> {
+struct Inner<'a, D: DataRef + Sized> {
+    trie: sealable_trie::Trie<alloc::Allocator<D>>,
+    witness: Option<RefMut<'a, witness::Data>>,
+}
+
+impl<'a, D: DataRef + Sized> TrieAccount<'a, D> {
     /// Creates a new TrieAccount from data in an account.
     ///
     /// If the data in the account isn’t initialised (i.e. has zero
@@ -30,11 +35,31 @@ impl<D: DataRef + Sized> TrieAccount<D> {
     pub fn new(data: D) -> Option<Self> {
         let (alloc, root) = alloc::Allocator::new(data)?;
         let trie = sealable_trie::Trie::from_parts(alloc, root.0, root.1);
-        Some(Self(ManuallyDrop::new(trie)))
+        Some(Self(ManuallyDrop::new(Inner { trie, witness: None })))
+    }
+
+    /// Returns witness data if any.
+    pub fn witness(&self) -> Option<&RefMut<'a, witness::Data>> {
+        self.0.witness.as_ref()
+    }
+
+    /// Sets the witness account.
+    ///
+    /// `witness` must be initialised, owned by `owner` and exactly 40 bytes
+    /// (see [`witness::Data::SIZE`]).  Witness is updated automatically once
+    /// this object is dropped.
+    pub fn with_witness_account<'info>(
+        mut self,
+        witness: &'a AccountInfo<'info>,
+        owner: &Pubkey,
+    ) -> Result<Self, ProgramError> {
+        check_account(witness, owner)?;
+        self.0.witness = Some(witness::Data::from_account_info(witness)?);
+        Ok(self)
     }
 }
 
-impl<'a, 'b> TrieAccount<core::cell::RefMut<'a, &'b mut [u8]>> {
+impl<'a, 'info> TrieAccount<'a, RefMut<'a, &'info mut [u8]>> {
     /// Creates a new TrieAccount from data in an account specified by given
     /// info.
     ///
@@ -43,7 +68,7 @@ impl<'a, 'b> TrieAccount<core::cell::RefMut<'a, &'b mut [u8]>> {
     /// Created TrieAccount holds exclusive reference on the account’s data thus
     /// no other code can access it while this object is alive.
     pub fn from_account_info(
-        account: &'a AccountInfo<'b>,
+        account: &'a AccountInfo<'info>,
         owner: &Pubkey,
     ) -> Result<Self, ProgramError> {
         check_account(account, owner)?;
@@ -52,7 +77,7 @@ impl<'a, 'b> TrieAccount<core::cell::RefMut<'a, &'b mut [u8]>> {
     }
 }
 
-impl<'a, 'b> TrieAccount<ResizableAccount<'a, 'b>> {
+impl<'a, 'info> TrieAccount<'a, ResizableAccount<'a, 'info>> {
     /// Creates a new TrieAccount from data in an account specified by given
     /// info.
     ///
@@ -64,9 +89,9 @@ impl<'a, 'b> TrieAccount<ResizableAccount<'a, 'b>> {
     /// If the account needs to increase in size, `payer`’s account is used to
     /// transfer lamports necessary to keep the account rent-exempt.
     pub fn from_account_with_payer(
-        account: &'a AccountInfo<'b>,
+        account: &'a AccountInfo<'info>,
         owner: &Pubkey,
-        payer: &'a AccountInfo<'b>,
+        payer: &'a AccountInfo<'info>,
     ) -> Result<Self, ProgramError> {
         check_account(account, owner)?;
         let data = ResizableAccount::new(account, payer)?;
@@ -90,13 +115,22 @@ fn check_account(
     }
 }
 
-impl<D: DataRef + Sized> core::ops::Drop for TrieAccount<D> {
+impl<'a, D: DataRef + Sized> core::ops::Drop for TrieAccount<'a, D> {
     /// Updates the header in the Solana account.
     fn drop(&mut self) {
         // SAFETY: Once we’re done with self.0 we are dropped and no one else is
         // going to have access to self.0.
-        let trie = unsafe { ManuallyDrop::take(&mut self.0) };
+        let Inner { trie, witness } =
+            unsafe { ManuallyDrop::take(&mut self.0) };
         let (mut alloc, root_ptr, root_hash) = trie.into_parts();
+
+        // Update witness
+        if let Some(mut witness) = witness {
+            let clock = solana_program::clock::Clock::get().unwrap();
+            *witness = witness::Data::new(root_hash, &clock);
+        }
+
+        // Update header
         let hdr = header::Header {
             root_ptr,
             root_hash,
@@ -108,15 +142,27 @@ impl<D: DataRef + Sized> core::ops::Drop for TrieAccount<D> {
     }
 }
 
-impl<D: DataRef> core::ops::Deref for TrieAccount<D> {
+impl<'a, D: DataRef> core::ops::Deref for TrieAccount<'a, D> {
     type Target = sealable_trie::Trie<alloc::Allocator<D>>;
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target { &self.0.trie }
 }
 
-impl<D: DataRef> core::ops::DerefMut for TrieAccount<D> {
-    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
+impl<'a, D: DataRef> core::ops::DerefMut for TrieAccount<'a, D> {
+    fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0.trie }
 }
 
+
+impl<D: DataRef + core::fmt::Debug> core::fmt::Debug for TrieAccount<'_, D> {
+    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
+        let mut fmtr = fmtr.debug_struct("TrieAccount");
+        fmtr.field("trie", &self.0.trie);
+        if let Some(witness) = self.0.witness.as_ref() {
+            let root: &witness::Data = witness;
+            fmtr.field("witness", root);
+        }
+        fmtr.finish()
+    }
+}
 
 #[test]
 fn test_trie_sanity() {
