@@ -19,8 +19,8 @@ fn test_consts_sanity() {
             assert_eq!(size_of::<$golden>(), size_of::<$our>());
         };
     }
-    assert_same_size!(solana_program_2::hash::Hash, Hash);
-    assert_same_size!(solana_program_2::blake3::Hash, Hash);
+    assert_same_size!(solana_program_2::hash::Hash, CryptoHash);
+    assert_same_size!(solana_program_2::blake3::Hash, CryptoHash);
     assert_same_size!(Pubkey, PubKey);
 }
 
@@ -39,9 +39,9 @@ fn generate<T: From<[u8; 32]>>(rng: &mut impl rand::Rng) -> T {
 }
 
 /// Generates random accounts.
-fn make_accounts(rng: &mut impl rand::Rng) -> Vec<(PubKey, Hash)> {
+fn make_accounts(rng: &mut impl rand::Rng) -> Vec<(PubKey, CryptoHash)> {
     let count = if cfg!(miri) { 50 } else { 1000 };
-    (0..count).map(|_| (generate(rng), Hash(generate(rng)))).collect()
+    (0..count).map(|_| (generate(rng), CryptoHash(generate(rng)))).collect()
 }
 
 /// Tests Merkle tree root calculation.
@@ -57,7 +57,7 @@ fn test_root() {
     // accumulate_account_hashes fails Miri tests inside of crossbeam crate
     // so we’re using hard-coded expected hash in Miri and compare to
     // upstream in non-Miri runs only.
-    let want = Hash::from(if cfg!(miri) {
+    let want = CryptoHash::from(if cfg!(miri) {
         // Accounts generation is deterministic thus this is known as well.
         [
             0x2a, 0x65, 0x5e, 0xb9, 0x96, 0x40, 0x8e, 0xd1, 0xb9, 0x7c, 0x5a,
@@ -119,7 +119,7 @@ fn test_invalid_proof_verification() {
     assert_eq!(root, proof.expected_root(leaf_hash));
 
     // Check invalid leaf hash.
-    assert_ne!(root, proof.expected_root(Hash(generate(&mut rng))));
+    assert_ne!(root, proof.expected_root(CryptoHash(generate(&mut rng))));
 
     // Check invalid index in level.
     proof.path[0] = {
@@ -229,7 +229,7 @@ mod hash_account {
 
         let mut rng = make_rng();
         let mut accounts = make_accounts(&mut rng);
-        accounts[0] = (pubkey.into(), Hash(WANT));
+        accounts[0] = (pubkey.into(), CryptoHash(WANT));
 
         let (root, proof) = AccountProof::generate(
             &mut accounts,

@@ -10,7 +10,7 @@ use lib::par::prelude::*;
 #[cfg(test)]
 mod tests;
 
-use crate::types::{Hash, PubKey};
+use crate::types::PubKey;
 
 /// The fanout of a accounts delta Merkle tree.
 ///
@@ -48,7 +48,7 @@ pub struct MerkleProof {
     path: MerklePath,
 
     /// Sibling hashes at each level concatenated into a single vector.
-    siblings: Vec<Hash>,
+    siblings: Vec<CryptoHash>,
 }
 
 /// Iterator over levels stored in a Merkle proof.
@@ -61,7 +61,7 @@ pub struct MerkleProof {
 /// the node itself.
 pub struct ProofLevels<'a> {
     path: &'a [u8],
-    siblings: &'a [Hash],
+    siblings: &'a [CryptoHash],
 }
 
 
@@ -74,9 +74,9 @@ impl MerkleProof {
     /// and the new proof.  Otherwise, if given `pubkey` does not exist in
     /// `accounts`, returns `None`.  `accounts` is sorted in either case.
     pub fn generate(
-        accounts: &mut [(PubKey, Hash)],
+        accounts: &mut [(PubKey, CryptoHash)],
         pubkey: &PubKey,
-    ) -> Option<(Hash, MerkleProof)> {
+    ) -> Option<(CryptoHash, MerkleProof)> {
         lib::par::sort_unstable_by(accounts, |a, b| a.0.cmp(&b.0));
 
         let pos =
@@ -88,7 +88,7 @@ impl MerkleProof {
 
     /// Calculates expected commitment root assuming that the proof is for
     /// account with hash specified by `account`.
-    pub fn expected_root(&self, account: Hash) -> Hash {
+    pub fn expected_root(&self, account: CryptoHash) -> CryptoHash {
         let mut hash = account;
         for (idx_in_chunk, siblings) in self.levels() {
             let (head, tail) = siblings.split_at(idx_in_chunk);
@@ -100,7 +100,7 @@ impl MerkleProof {
             for hash in tail {
                 hasher.update(hash.as_ref());
             }
-            hash = hasher.build().into();
+            hash = hasher.build();
         }
         hash
     }
@@ -121,7 +121,7 @@ impl MerkleProof {
     /// `chunk` are all hashes in a node at the level (as such it may be at most
     /// [`MERKLE_FANOUT`] elements) while `idx_in_chunk` is index of the child
     /// that is being proven in the chunk.
-    pub fn push_level(&mut self, chunk: &[Hash], idx_in_chunk: usize) {
+    pub fn push_level(&mut self, chunk: &[CryptoHash], idx_in_chunk: usize) {
         assert!(idx_in_chunk < chunk.len());
         let len = chunk.len() - 1;
         self.siblings.reserve(len);
@@ -175,7 +175,7 @@ impl MerkleProof {
         let (path, bytes) = stdx::split_at_checked(bytes, depth.into())?;
         let path = MerklePath::try_from(path).ok()?;
         let (siblings, bytes) = stdx::as_chunks::<32, u8>(bytes);
-        let siblings = bytemuck::cast_slice::<[u8; 32], Hash>(siblings);
+        let siblings = bytemuck::cast_slice::<[u8; 32], CryptoHash>(siblings);
         let siblings_count: usize =
             path.iter().map(|byte| Self::unpack_index_len(*byte).1).sum();
         if bytes.is_empty() && siblings.len() == siblings_count {
@@ -187,7 +187,7 @@ impl MerkleProof {
 }
 
 impl<'a> core::iter::Iterator for ProofLevels<'a> {
-    type Item = (usize, &'a [Hash]);
+    type Item = (usize, &'a [CryptoHash]);
 
     fn next(&mut self) -> Option<Self::Item> {
         let ((index, len), path_tail) = match self.path.split_first() {
@@ -264,8 +264,8 @@ impl AccountHashData {
     /// `accounts`, returns `None`.  `accounts` is sorted in either case.
     pub fn generate_proof(
         self,
-        accounts: &mut [(PubKey, Hash)],
-    ) -> Option<(Hash, AccountProof)> {
+        accounts: &mut [(PubKey, CryptoHash)],
+    ) -> Option<(CryptoHash, AccountProof)> {
         let (root, proof) = MerkleProof::generate(accounts, self.key())?;
         Some((root, AccountProof { account_hash_data: self, proof }))
     }
@@ -284,7 +284,7 @@ impl AccountHashData {
     pub fn key(&self) -> &PubKey { self.get::<32>(self.0.len() - 32).into() }
 
     /// Returns hash of the account.
-    pub fn calculate_hash(&self) -> Hash {
+    pub fn calculate_hash(&self) -> CryptoHash {
         crate::blake3::hash(self.0.as_slice())
     }
 
@@ -343,14 +343,14 @@ impl AccountProof {
     /// and the new proof.  Otherwise, if the account does not exist in
     /// `accounts`, returns `None`.  `accounts` is sorted in either case.
     pub fn generate(
-        accounts: &mut [(PubKey, Hash)],
+        accounts: &mut [(PubKey, CryptoHash)],
         lamports: u64,
         owner: &PubKey,
         executable: bool,
         rent_epoch: u64,
         data: &[u8],
         pubkey: &PubKey,
-    ) -> Option<(Hash, AccountProof)> {
+    ) -> Option<(CryptoHash, AccountProof)> {
         let (root, proof) = MerkleProof::generate(accounts, pubkey)?;
         let account_hash_data = AccountHashData::new(
             lamports, owner, executable, rent_epoch, data, pubkey,
@@ -359,7 +359,7 @@ impl AccountProof {
     }
 
     /// Calculates expected commitment root for this account proof.
-    pub fn expected_root(&self) -> Hash {
+    pub fn expected_root(&self) -> CryptoHash {
         self.proof.expected_root(self.account_hash_data.calculate_hash())
     }
 }
@@ -369,10 +369,10 @@ impl AccountProof {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DeltaHashProof {
-    pub parent_blockhash: Hash,
-    pub accounts_delta_hash: Hash,
+    pub parent_blockhash: CryptoHash,
+    pub accounts_delta_hash: CryptoHash,
     pub num_sigs: u64,
-    pub blockhash: Hash,
+    pub blockhash: CryptoHash,
 
     /// Epoch accounts hash, i.e. hash of all the accounts.
     ///
@@ -382,12 +382,12 @@ pub struct DeltaHashProof {
         feature = "serde",
         serde(skip_serializing_if = "Option::is_none", default)
     )]
-    pub epoch_accounts_hash: Option<Hash>,
+    pub epoch_accounts_hash: Option<CryptoHash>,
 }
 
 impl DeltaHashProof {
     /// Calculates bank hash.
-    pub fn calculate_bank_hash(&self) -> Hash {
+    pub fn calculate_bank_hash(&self) -> CryptoHash {
         // See hash_internal_state function in bank.rs source file of
         // solana-runtime crate.
         let hash = CryptoHash::digestv(&[
@@ -402,7 +402,6 @@ impl DeltaHashProof {
             }
             None => hash,
         }
-        .into()
     }
 
     /// Serialises the object into a binary format.
@@ -486,11 +485,11 @@ pub fn hash_account(
     rent_epoch: u64,
     data: &[u8],
     pubkey: &PubKey,
-) -> Hash {
+) -> CryptoHash {
     // See hash_account_data function in sources of solana-accounts-db crate.
 
     if lamports == 0 {
-        return Hash::default();
+        return CryptoHash::default();
     }
 
     let mut hasher = crate::blake3::Hasher::default();
@@ -519,7 +518,7 @@ pub fn hash_account(
     buffer.try_extend_from_slice(pubkey.as_ref()).unwrap();
 
     hasher.update(&buffer);
-    hasher.finalize().into()
+    CryptoHash(hasher.finalize().into())
 }
 
 /// Computes Merkle root of given hashes.
@@ -530,14 +529,14 @@ pub fn hash_account(
 /// This is similar to [`AccountsHasher::accumulate_account_hashes`] method but
 /// we reimplement it because that method takes ownership of hashes which is
 /// something we need to keep.
-fn compute_merkle_root(accounts: &mut [(PubKey, Hash)]) -> Hash {
-    let mut hashes: Vec<Hash> = lib::par::chunks(accounts, MERKLE_FANOUT)
+fn compute_merkle_root(accounts: &mut [(PubKey, CryptoHash)]) -> CryptoHash {
+    let mut hashes: Vec<CryptoHash> = lib::par::chunks(accounts, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for item in chunk {
                 hasher.update(item.1.as_ref());
             }
-            Hash::from(hasher.build())
+            hasher.build()
         })
         .collect();
 
@@ -554,7 +553,7 @@ fn compute_merkle_root(accounts: &mut [(PubKey, Hash)]) -> Hash {
             for item in hashes[idx..].iter().take(MERKLE_FANOUT) {
                 hasher.update(item.as_ref());
             }
-            hashes[out] = hasher.build().into();
+            hashes[out] = hasher.build();
             out += 1;
         }
         hashes.truncate(out);
@@ -568,12 +567,12 @@ fn compute_merkle_root(accounts: &mut [(PubKey, Hash)]) -> Hash {
 /// The `accounts` **must be** sorted by the public key.  This *does not* sort
 /// the accounts.  Panics if `pos >= accounts.len()`.
 fn generate_merkle_proof(
-    accounts: &[(PubKey, Hash)],
+    accounts: &[(PubKey, CryptoHash)],
     mut pos: usize,
 ) -> MerkleProof {
     let mut proof = MerkleProof::default();
 
-    let mut current_hashes: Vec<Hash> =
+    let mut current_hashes: Vec<CryptoHash> =
         accounts.iter().map(|&(_pubkey, hash)| hash).collect();
     while current_hashes.len() > 1 {
         let chunk_index = pos / MERKLE_FANOUT;
@@ -593,14 +592,14 @@ fn generate_merkle_proof(
     proof
 }
 
-fn compute_hashes_at_next_level(hashes: &[Hash]) -> Vec<Hash> {
+fn compute_hashes_at_next_level(hashes: &[CryptoHash]) -> Vec<CryptoHash> {
     lib::par::chunks(hashes, MERKLE_FANOUT)
         .map(|chunk| {
             let mut hasher = CryptoHash::builder();
             for hash in chunk {
                 hasher.update(hash.as_ref());
             }
-            hasher.build().into()
+            hasher.build()
         })
         .collect()
 }
@@ -610,21 +609,9 @@ fn compute_hashes_at_next_level(hashes: &[Hash]) -> Vec<Hash> {
 // ========== Miscellaneous ====================================================
 //
 
-impl core::fmt::Display for Hash {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        <&lib::hash::CryptoHash>::from(self).fmt(fmtr)
-    }
-}
-
 impl core::fmt::Display for PubKey {
     fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        <&lib::hash::CryptoHash>::from(&self.0).fmt_bs58(fmtr)
-    }
-}
-
-impl core::fmt::Debug for Hash {
-    fn fmt(&self, fmtr: &mut core::fmt::Formatter) -> core::fmt::Result {
-        core::fmt::Display::fmt(self, fmtr)
+        <&CryptoHash>::from(&self.0).fmt_bs58(fmtr)
     }
 }
 

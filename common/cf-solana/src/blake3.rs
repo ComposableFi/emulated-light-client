@@ -1,6 +1,5 @@
 pub use ::blake3::Hasher;
-
-use crate::types::Hash;
+use lib::hash::CryptoHash;
 
 const CONSIDER_SOL: bool =
     !cfg!(feature = "no-blake3-syscall") && cfg!(target_os = "solana-program");
@@ -13,11 +12,11 @@ const USE_SOL: bool = CONSIDER_SOL && HAS_SOL;
 /// When `solana-program` or `solana-program-2` feature is enabled and
 /// building a solana program, this is using Solana’s `sol_blake3` syscall.
 /// Otherwise, the calculation is done by `blake3` crate.
-pub fn hash(bytes: &[u8]) -> Hash {
+pub fn hash(bytes: &[u8]) -> CryptoHash {
     if USE_SOL {
         hashv(&[bytes])
     } else {
-        Hash(::blake3::hash(bytes).into())
+        CryptoHash(::blake3::hash(bytes).into())
     }
 }
 
@@ -27,17 +26,17 @@ pub fn hash(bytes: &[u8]) -> Hash {
 /// program, this is using Solana’s `sol_blake3` syscall.  Otherwise, the
 /// calculation is done by `blake3` crate.
 #[allow(unreachable_code)]
-pub fn hashv(slices: &[&[u8]]) -> Hash {
+pub fn hashv(slices: &[&[u8]]) -> CryptoHash {
     if USE_SOL {
         #[cfg(feature = "solana-program-2")]
-        return Hash(solana_program_2::blake3::hashv(slices).0);
+        return CryptoHash(solana_program_2::blake3::hashv(slices).0);
         #[cfg(feature = "solana-program")]
-        return Hash(solana_program::blake3::hashv(slices).0);
+        return CryptoHash(solana_program::blake3::hashv(slices).0);
     }
 
     let mut hasher = Hasher::default();
     for bytes in slices {
         hasher.update(bytes);
     }
-    hasher.finalize().into()
+    CryptoHash(hasher.finalize().into())
 }
