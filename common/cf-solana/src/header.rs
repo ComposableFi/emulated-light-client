@@ -1,7 +1,8 @@
 use alloc::vec::Vec;
 use core::num::NonZeroU64;
 
-use crate::types::Hash;
+use lib::hash::CryptoHash;
+
 use crate::{proof, proto};
 
 /// The consensus header of the guest blockchain.
@@ -14,7 +15,7 @@ pub struct Header {
     pub slot: NonZeroU64,
 
     /// Slot’s bank hash.
-    pub bank_hash: Hash,
+    pub bank_hash: CryptoHash,
 
     /// Proof of the accounts delta hash.
     pub delta_hash_proof: proof::DeltaHashProof,
@@ -39,7 +40,7 @@ impl Header {
     // wittrie depends on Solana and we don’t want to introduce required Solana
     // dependencies here.  Moving WitnessData to a crate in common/ is an option
     // but for the time being we’re duplicating the logic here.
-    pub fn decode_witness(&self) -> Option<(&Hash, NonZeroU64)> {
+    pub fn decode_witness(&self) -> Option<(&CryptoHash, NonZeroU64)> {
         let data =
             self.witness_proof.account_hash_data.data().try_into().ok()?;
         let (root, rest) = stdx::split_array_ref::<32, 8, 40>(data);

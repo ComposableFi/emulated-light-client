@@ -47,9 +47,7 @@ impl TryFrom<&crate::Header> for ConsensusState {
 
     fn try_from(header: &crate::Header) -> Result<Self, Self::Error> {
         header.decode_witness().ok_or(proto::BadMessage).map(
-            |(trie_root, timestamp_sec)| {
-                Self::new(trie_root.into(), timestamp_sec)
-            },
+            |(trie_root, timestamp_sec)| Self::new(trie_root, timestamp_sec),
         )
     }
 }

@@ -203,10 +203,10 @@ impl Worker {
         // Calculate bankhash based on accounts_delta_hash and information
         // extracted from the block.
         let delta_hash_proof = cf_solana::proof::DeltaHashProof {
-            parent_blockhash: block.parent_blockhash.into(),
+            parent_blockhash: block.parent_blockhash.to_bytes().into(),
             accounts_delta_hash,
             num_sigs: entry.num_sigs,
-            blockhash: block.blockhash.into(),
+            blockhash: block.blockhash.to_bytes().into(),
             // TODO(mina86): Once every epoch, Solana validators calculate
             // Merkle tree of all accounts.  When that happens, bank_hash is
             // further calculated as hashv(&[bank_hash, all_accounts_hash]).

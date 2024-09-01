@@ -2,28 +2,10 @@ use core::fmt;
 
 use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use base64::Engine;
-use lib::hash::CryptoHash;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::proof::{AccountHashData, MerkleProof};
-use crate::types::{Hash, PubKey};
-
-
-//
-// ========== Hash =============================================================
-//
-
-impl Serialize for Hash {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        <&CryptoHash>::from(self).serialize(ser)
-    }
-}
-
-impl<'de> Deserialize<'de> for Hash {
-    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
-        CryptoHash::deserialize(de).map(Self::from)
-    }
-}
+use crate::types::PubKey;
 
 
 //
