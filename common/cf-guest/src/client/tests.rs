@@ -87,12 +87,7 @@ fn test_header_misbehaviour() {
         let (fp, mut header) = {
             let current = current.unwrap_or(&ctx.genesis);
             let host_height = u64::from(current.host_height) + 1;
-            ctx.generate_next(
-                current,
-                host_height.into(),
-                timestamp,
-                state_root,
-            )
+            ctx.generate_next(current, host_height, timestamp, state_root)
         };
         header.signatures.push((0, ctx.sign(0, &fp)));
         header.signatures.push((1, ctx.sign(1, &fp)));
@@ -200,7 +195,7 @@ impl TestContext {
         let validators = epoch
             .validators()
             .iter()
-            .map(|validator| MockSigner(validator.pubkey.clone()))
+            .map(|validator| MockSigner(validator.pubkey))
             .collect::<Vec<_>>();
 
         let genesis = guestchain::BlockHeader::generate_genesis(

@@ -77,7 +77,7 @@ macro_rules! make_message {
 #[ignore = "Requires local validator to run"]
 fn anchor_test_deliver() -> Result<()> {
     let authority = Rc::new(read_keypair_file("../../keypair.json").unwrap());
-    println!("This is pubkey {}", authority.pubkey().to_string());
+    println!("This is pubkey {}", authority.pubkey());
     let lamports = 2_000_000_000;
 
     let client = Client::new_with_options(
@@ -190,7 +190,7 @@ fn anchor_test_deliver() -> Result<()> {
     let chain_account: chain::ChainData = program.account(chain).unwrap();
 
     let genesis_hash = chain_account.genesis().unwrap();
-    println!("This is genesis hash {}", genesis_hash.to_string());
+    println!("This is genesis hash {}", genesis_hash);
 
     /*
      * Create New Mock Client
@@ -929,7 +929,7 @@ fn construct_packet_from_denom(
     };
 
     let packet_data = ibc::apps::transfer::types::packet::PacketData {
-        token: token.into(),
+        token,
         sender: ibc::Signer::from(sender_token_address.to_string()), // Should be a token account
         receiver: ibc::Signer::from(receiver_token_address.to_string()), // Should be a token account
         memo: memo.into(),
@@ -937,7 +937,9 @@ fn construct_packet_from_denom(
 
     let serialized_data = serde_json::to_vec(&packet_data).unwrap();
 
-    let packet = ibc::Packet {
+
+
+    ibc::Packet {
         seq_on_a: sequence.into(),
         port_id_on_a: port_id.clone(),
         chan_id_on_a: channel_id_on_a,
@@ -946,9 +948,7 @@ fn construct_packet_from_denom(
         data: serialized_data.clone(),
         timeout_height_on_b: max_timeout_height(),
         timeout_timestamp_on_b: ibc::Timestamp::none(),
-    };
-
-    packet
+    }
 }
 
 fn construct_transfer_packet_from_denom(
@@ -974,7 +974,7 @@ fn construct_transfer_packet_from_denom(
     println!("This is token {:?}", token);
 
     let packet_data = ibc::apps::transfer::types::packet::PacketData {
-        token: token.into(),
+        token,
         sender: ibc::Signer::from(sender_address.to_string()), // Should be a token account
         receiver: ibc::Signer::from(receiver_address.to_string()), // Should be a token account
         memo: String::from("Sending a transfer").into(),

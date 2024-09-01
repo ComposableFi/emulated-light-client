@@ -386,8 +386,8 @@ mod test_write_log {
         let mut wlog = WriteLog::new(&mut alloc);
         let new_ptrs =
             (10..20).map(|num| wlog.alloc(num).unwrap()).collect::<Vec<Ptr>>();
-        assert_nodes(20, &wlog.allocator(), &ptrs, 0);
-        assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
+        assert_nodes(20, wlog.allocator(), &ptrs, 0);
+        assert_nodes(20, wlog.allocator(), &new_ptrs, 10);
         wlog.commit();
         assert_nodes(20, &alloc, &ptrs, 0);
         assert_nodes(20, &alloc, &new_ptrs, 10);
@@ -399,8 +399,8 @@ mod test_write_log {
         let mut wlog = WriteLog::new(&mut alloc);
         let new_ptrs =
             (10..20).map(|num| wlog.alloc(num).unwrap()).collect::<Vec<Ptr>>();
-        assert_nodes(20, &wlog.allocator(), &ptrs, 0);
-        assert_nodes(20, &wlog.allocator(), &new_ptrs, 10);
+        assert_nodes(20, wlog.allocator(), &ptrs, 0);
+        assert_nodes(20, wlog.allocator(), &new_ptrs, 10);
         core::mem::drop(wlog);
         assert_nodes(10, &alloc, &ptrs, 0);
     }

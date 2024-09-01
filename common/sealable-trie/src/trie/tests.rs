@@ -324,8 +324,7 @@ fn stress_test() {
 
     // Now insert and delete keys randomly total of count times.  On average
     // that means count/2 deletions and count/2 new insertions.
-    let mut keys =
-        trie.mapping.keys().map(|key| key.clone()).collect::<Vec<Key>>();
+    let mut keys = trie.mapping.keys().cloned().collect::<Vec<Key>>();
     for _ in 0..count {
         let idx = if keys.is_empty() {
             1
@@ -619,7 +618,7 @@ impl TestTrie {
 
     fn check_all_reads(&self) {
         for (key, value) in self.mapping.iter() {
-            let got = self.trie.get(&key).unwrap_or_else(|err| {
+            let got = self.trie.get(key).unwrap_or_else(|err| {
                 panic!("Failed getting ‘{key:?}’: {err}")
             });
             assert_eq!(Some(value), got.as_ref(), "Invalid value at ‘{key:?}’");

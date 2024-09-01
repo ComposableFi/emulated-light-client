@@ -993,7 +993,7 @@ mod test_pop {
         op: impl Fn(&mut Owned) -> R,
     ) -> R {
         let result = op(bits);
-        assert_eq!(bits.len() == 0, bits.bytes.is_empty());
+        assert_eq!(bits.is_empty(), bits.bytes.is_empty());
         result
     }
 

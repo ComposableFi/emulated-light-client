@@ -49,7 +49,7 @@ fn make_accounts(rng: &mut impl rand::Rng) -> Vec<(PubKey, Hash)> {
 fn test_root() {
     let mut rng = make_rng();
     let mut accounts = make_accounts(&mut rng);
-    let leaf = accounts[0].0.clone();
+    let leaf = accounts[0].0;
     // Note that we on purpose leav accounts unsorted to make sure the
     // function sorts the elements before calculating the root and proof.
     let (got, _) = MerkleProof::generate(&mut accounts, &leaf).unwrap();
@@ -96,7 +96,7 @@ fn test_proof_verification() {
     #[cfg(not(miri))]
     let indexes = indexes.chain((0..100).map(|_| rng.gen_range(0..len)));
     for index in indexes {
-        let (leaf_pubkey, leaf_hash) = accounts[index].clone();
+        let (leaf_pubkey, leaf_hash) = accounts[index];
         let (root, proof) =
             MerkleProof::generate(&mut accounts, &leaf_pubkey).unwrap();
         assert_eq!(root, proof.expected_root(leaf_hash), "index: {index}");
@@ -110,13 +110,13 @@ fn test_invalid_proof_verification() {
     let mut accounts = make_accounts(&mut rng);
 
     let index = rng.gen_range(0..accounts.len());
-    let (leaf_pubkey, leaf_hash) = accounts[index].clone();
+    let (leaf_pubkey, leaf_hash) = accounts[index];
 
     let (root, mut proof) =
         MerkleProof::generate(&mut accounts, &leaf_pubkey).unwrap();
 
     // Sanity check.
-    assert_eq!(root, proof.expected_root(leaf_hash.clone()));
+    assert_eq!(root, proof.expected_root(leaf_hash));
 
     // Check invalid leaf hash.
     assert_ne!(root, proof.expected_root(Hash(generate(&mut rng))));
@@ -127,7 +127,7 @@ fn test_invalid_proof_verification() {
         let idx = if idx == 0 { 1 } else { 0 };
         MerkleProof::pack_index_len(idx, len)
     };
-    assert_ne!(root, proof.expected_root(leaf_hash.clone()));
+    assert_ne!(root, proof.expected_root(leaf_hash));
 }
 
 #[cfg(not(miri))] // Miri fails on FFI in blake3 crate
@@ -229,7 +229,7 @@ mod hash_account {
 
         let mut rng = make_rng();
         let mut accounts = make_accounts(&mut rng);
-        accounts[0] = (pubkey.clone().into(), Hash(WANT));
+        accounts[0] = (pubkey.into(), Hash(WANT));
 
         let (root, proof) = AccountProof::generate(
             &mut accounts,

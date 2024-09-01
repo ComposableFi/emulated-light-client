@@ -387,6 +387,6 @@ mod serde_impl {
         assert_eq!(hash, got);
 
         let serialised = "\"47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hS\"";
-        serde_json::from_str::<CryptoHash>(&serialised).unwrap_err();
+        serde_json::from_str::<CryptoHash>(serialised).unwrap_err();
     }
 }

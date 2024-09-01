@@ -576,7 +576,7 @@ mod tests {
                 for_block,
                 &[],
                 &proof.proof,
-                &CryptoHash::test(11).as_slice(),
+                CryptoHash::test(11).as_slice(),
                 path.clone(),
                 Some(value),
             )

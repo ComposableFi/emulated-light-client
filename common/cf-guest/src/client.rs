@@ -64,7 +64,7 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
         let prev_epoch_commitment = epoch_commitment.clone();
         Self {
             genesis_hash: genesis.calc_hash(),
-            latest_height: genesis.block_height.into(),
+            latest_height: genesis.block_height,
             trusting_period_ns: 24 * 3600 * 1_000_000_000,
             epoch_commitment,
             prev_epoch_commitment,
