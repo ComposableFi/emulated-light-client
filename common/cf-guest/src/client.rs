@@ -46,7 +46,7 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
         is_frozen: bool,
     ) -> Self {
         let prev_epoch_commitment =
-            prev_epoch_commitment.unwrap_or_else(|| epoch_commitment.clone());
+            prev_epoch_commitment.unwrap_or(epoch_commitment);
         Self {
             genesis_hash,
             latest_height,
@@ -60,8 +60,8 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
 
     #[cfg(test)]
     pub fn from_genesis(genesis: &guestchain::BlockHeader) -> Self {
-        let epoch_commitment = genesis.next_epoch_commitment.clone().unwrap();
-        let prev_epoch_commitment = epoch_commitment.clone();
+        let epoch_commitment = genesis.next_epoch_commitment.unwrap();
+        let prev_epoch_commitment = epoch_commitment;
         Self {
             genesis_hash: genesis.calc_hash(),
             latest_height: genesis.block_height,
@@ -89,8 +89,8 @@ impl<PK: guestchain::PubKey> ClientState<PK> {
             // accept headers from Epoch which has just ended (i.e. this header
             // is the last block of) and the Epoch that has just started.
             if let Some(ref next) = header.block_header.next_epoch_commitment {
-                this.prev_epoch_commitment = this.epoch_commitment.clone();
-                this.epoch_commitment = next.clone();
+                this.prev_epoch_commitment = this.epoch_commitment;
+                this.epoch_commitment = *next;
             }
         }
         this
@@ -139,7 +139,7 @@ impl<PK: guestchain::PubKey> TryFrom<&proto::ClientState> for ClientState<PK> {
         let genesis_hash = make_hash(&msg.genesis_hash)?;
         let epoch_commitment = make_hash(&msg.epoch_commitment)?;
         let prev_epoch_commitment = if msg.prev_epoch_commitment.is_empty() {
-            epoch_commitment.clone()
+            epoch_commitment
         } else {
             make_hash(&msg.prev_epoch_commitment)?
         };

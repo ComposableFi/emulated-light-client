@@ -199,7 +199,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
                 // It’s a value reference so we just need to update it.  We know
                 // key is empty so there's nothing complex we need to do.  Just
                 // return new value reference.
-                Ok(OwnedRef::Value(self.value_hash.clone()))
+                Ok(OwnedRef::Value(*self.value_hash))
             }
         }
     }
@@ -213,7 +213,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
     /// of the key) and returns reference to the first ancestor node.
     fn insert_value(&mut self) -> Result<OwnedRef> {
         let mut ptr: Option<Ptr> = None;
-        let mut hash = self.value_hash.clone();
+        let mut hash = *self.value_hash;
         for chunk in self.key.chunks().rev() {
             let child = match ptr {
                 None => Reference::value(false, &hash),

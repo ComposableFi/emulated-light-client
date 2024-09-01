@@ -133,7 +133,7 @@ impl<'a> Op<'a> {
     /// Converts `self` to [`OwnedOp`] by allocating buffers an heap.
     pub fn to_owned(&self) -> OwnedOp {
         match self {
-            Self::Set(key, hash) => OwnedOp::Set(key.to_vec(), (*hash).clone()),
+            Self::Set(key, hash) => OwnedOp::Set(key.to_vec(), *(*hash)),
             Self::Del(key) => OwnedOp::Del(key.to_vec()),
             Self::Seal(key) => OwnedOp::Seal(key.to_vec()),
         }

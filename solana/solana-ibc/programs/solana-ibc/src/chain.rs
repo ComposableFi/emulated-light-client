@@ -77,7 +77,7 @@ impl ChainData {
             1.into(),
             host_height,
             host_timestamp,
-            trie.hash().clone(),
+            *trie.hash(),
             genesis_epoch,
         )
         .map_err(|err| Error::Internal(err.into()))?;
@@ -149,7 +149,7 @@ impl ChainData {
         let block_hash = header.calc_hash();
         if res.got_new_signature() {
             events::emit(events::BlockSigned {
-                block_hash: block_hash.clone(),
+                block_hash,
                 block_height: header.block_height,
                 pubkey,
                 signature: signature.clone(),
@@ -299,7 +299,7 @@ impl ChainData {
 
     pub fn genesis(&self) -> Result<CryptoHash, ChainNotInitialised> {
         let inner = self.get()?;
-        Ok(inner.manager.genesis().clone())
+        Ok(*inner.manager.genesis())
     }
 
     pub fn sig_verify_program_id(&self) -> Result<Pubkey, Error> {
@@ -371,7 +371,7 @@ impl ChainInner {
         let res = self.manager.generate_next(
             host_height,
             host_timestamp,
-            trie.hash().clone(),
+            *trie.hash(),
         );
         match res {
             Ok(_) => {

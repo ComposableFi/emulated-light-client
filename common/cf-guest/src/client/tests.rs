@@ -226,9 +226,7 @@ impl TestContext {
         this
     }
 
-    fn genesis_hash(&self) -> CryptoHash {
-        self.client_state.genesis_hash.clone()
-    }
+    fn genesis_hash(&self) -> CryptoHash { self.client_state.genesis_hash }
 
     fn generate_next(
         &self,

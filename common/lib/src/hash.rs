@@ -7,14 +7,17 @@ use bytemuck::TransparentWrapper;
 /// A cryptographic hash.
 #[derive(
     Clone,
+    Copy,
     Default,
     PartialEq,
     Eq,
-    derive_more::AsRef,
+    bytemuck::Pod,
+    bytemuck::TransparentWrapper,
+    bytemuck::Zeroable,
     derive_more::AsMut,
+    derive_more::AsRef,
     derive_more::From,
     derive_more::Into,
-    bytemuck::TransparentWrapper,
 )]
 #[cfg_attr(
     feature = "borsh",
@@ -143,7 +146,7 @@ impl core::fmt::Debug for CryptoHash {
 impl<'a> From<&'a [u8; CryptoHash::LENGTH]> for CryptoHash {
     #[inline]
     fn from(hash: &'a [u8; CryptoHash::LENGTH]) -> Self {
-        <&CryptoHash>::from(hash).clone()
+        *<&CryptoHash>::from(hash)
     }
 }
 

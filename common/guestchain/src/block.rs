@@ -221,8 +221,8 @@ impl BlockHeader {
         // with epoch id equal to self’s block hash.  Otherwise, epoch doesn’t
         // change and the new block uses the same epoch id as self.
         let epoch_id = match self.next_epoch_commitment.is_some() {
-            false => self.epoch_id.clone(),
-            true => prev_block_hash.clone(),
+            false => self.epoch_id,
+            true => prev_block_hash,
         };
         let next_epoch_commitment =
             next_epoch.as_ref().map(crate::Epoch::calc_commitment);
@@ -354,11 +354,11 @@ fn test_block_generation() {
     assert!(genesis.is_genesis());
 
     let mut block = genesis.clone();
-    block.prev_block_hash = genesis_hash.clone();
+    block.prev_block_hash = genesis_hash;
     assert!(!block.is_genesis());
 
     let mut block = genesis.clone();
-    block.epoch_id = genesis_hash.clone();
+    block.epoch_id = genesis_hash;
     assert!(!block.is_genesis());
 
     assert_eq!(genesis_hash, genesis.calc_hash());

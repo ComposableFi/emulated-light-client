@@ -98,7 +98,7 @@ fn test_header_encoding() {
 
     let hdr = Header {
         root_ptr: Ptr::new(420).unwrap(),
-        root_hash: ONE.clone(),
+        root_hash: ONE,
         next_block: 42,
         first_free: 24,
     };

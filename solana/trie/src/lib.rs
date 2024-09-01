@@ -142,12 +142,12 @@ fn test_trie_sanity() {
         assert_eq!(Ok(None), trie.get(&[0]));
 
         assert_eq!(Ok(()), trie.set(&[0], &ONE));
-        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+        assert_eq!(Ok(Some(ONE)), trie.get(&[0]));
     }
 
     {
         let mut trie = TrieAccount::new(account.data.borrow_mut()).unwrap();
-        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+        assert_eq!(Ok(Some(ONE)), trie.get(&[0]));
 
         assert_eq!(Ok(()), trie.seal(&[0]));
         assert_eq!(Err(sealable_trie::Error::Sealed), trie.get(&[0]));
@@ -163,7 +163,7 @@ fn test_trie_resize() {
         let mut trie = TrieAccount::new(&mut data).unwrap();
         assert_eq!(Ok(None), trie.get(&[0]));
         assert_eq!(Ok(()), trie.set(&[0], &ONE));
-        assert_eq!(Ok(Some(ONE.clone())), trie.get(&[0]));
+        assert_eq!(Ok(Some(ONE)), trie.get(&[0]));
     }
     #[rustfmt::skip]
     assert_eq!([

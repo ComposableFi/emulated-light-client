@@ -127,7 +127,7 @@ fn get_subtrie_root<A: memory::Allocator<Value = super::Value>>(
                 return GetSubtrieRootResult::Single(Entry {
                     is_sealed: value.is_sealed,
                     sub_key: prefix,
-                    hash: Some(value.hash.clone()),
+                    hash: Some(*value.hash),
                 });
             }
             Reference::Value(_) => {
@@ -214,7 +214,7 @@ impl<'a, A: memory::Allocator<Value = super::Value>> Context<'a, A> {
         self.entries.push(Entry {
             is_sealed,
             sub_key: self.prefix.clone(),
-            hash: Some(hash.clone()),
+            hash: Some(*hash),
         });
         self.prefix.truncate(len);
     }
