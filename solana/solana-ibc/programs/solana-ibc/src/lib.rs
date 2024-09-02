@@ -37,7 +37,7 @@ declare_id!("EUiJni1BZFL3BhaWcS7NTJmqWyh8NwRLjBzrcGBvxKU4");
 
 #[cfg(not(feature = "mocks"))]
 mod relayer {
-    anchor_lang::declare_id!("Ao2wBFe6VzG5B1kQKkNw4grnPRQZNpP4wwQW86vXGxpY");
+    anchor_lang::declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
 }
 
 mod allocator;
