@@ -198,13 +198,13 @@ impl<PK: crate::PubKey> ChainManager<PK> {
         host_height: crate::HostHeight,
         host_timestamp: NonZeroU64,
         state_root: CryptoHash,
-    ) -> Result<bool, GenerateError> {
+    ) -> Result<(), GenerateError> {
         let next_epoch = self.validate_generate_next(
             host_height,
             host_timestamp,
             &state_root,
         )?;
-        let epoch_ends = self.header.next_epoch_commitment.is_some();
+        let has_next_epoch = next_epoch.is_some();
         let next_block = self.header.generate_next(
             host_height,
             host_timestamp,
@@ -227,11 +227,21 @@ impl<PK: crate::PubKey> ChainManager<PK> {
             signers: Set::new(),
             signing_stake: 0,
         });
-        self.candidates.clear_changed_flag();
 
-        Ok(epoch_ends)
+        if has_next_epoch {
+            self.candidates.clear_changed_flag();
+        }
+
+        Ok(())
     }
 
+    /// Verifies whether new block can be generated.
+    ///
+    /// Like [`generate_next`] returns an error if the new block cannot be
+    /// generated.  If it can, returns an `Ok` value.
+    ///
+    /// If the new block should contain a next epoch commitment, returns `Some`
+    /// new epoch.  Otherwise returns `None`.
     pub fn validate_generate_next(
         &self,
         host_height: crate::HostHeight,
