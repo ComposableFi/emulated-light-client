@@ -485,7 +485,7 @@ pub mod restaking_v2 {
             sol_price.price *= random_value;
             (token_price, sol_price)
         } else {
-            let maximum_age_in_sec: u64 = 30;
+            let maximum_age_in_sec: u64 = 300;
             let feed_id: [u8; 32] = get_feed_id_from_hex(token_feed_id)?;
             let sol_price = sol_price_feed.get_price_no_older_than(
                 &Clock::get()?,
