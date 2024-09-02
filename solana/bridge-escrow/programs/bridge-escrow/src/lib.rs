@@ -11,7 +11,7 @@ use solana_ibc::program::SolanaIbc;
 use solana_ibc::storage::PrivateStorage;
 
 // const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
-// const BRIDGE_CONTRACT_PUBKEY: &str = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
+const BRIDGE_CONTRACT_PUBKEY: &str = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
@@ -546,7 +546,9 @@ pub struct SplTokenTransfer<'info> {
     // The accounts below are only needed for cross chain intents
 
     // Cross-chain Transfer Accounts
-    pub ibc_program: Option<Program<'info, SolanaIbc>>, // Use IbcProgram here
+    #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
+    /// CHECK:
+    pub ibc_program: Option<UncheckedAccount<'info>>, // Use IbcProgram here
     #[account(mut)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
@@ -610,7 +612,9 @@ pub struct OnTimeout<'info> {
     pub escrow_token_account: Option<Account<'info, TokenAccount>>,
 
     // Cross chain transfer accounts
-    pub ibc_program: Option<Program<'info, SolanaIbc>>, // Use IbcProgram here
+    #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
+    /// CHECK:
+    pub ibc_program: Option<UncheckedAccount<'info>>,  // Use IbcProgram here
     #[account(mut)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
