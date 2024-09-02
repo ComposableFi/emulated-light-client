@@ -53,6 +53,7 @@ pub mod restaking {
     /// sent in the same order as given below
     /// - Chain Data
     /// - trie
+    /// - witness (if compiled with `witness` Cargo feature)
     /// - Guest blockchain program ID
     pub fn deposit<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, Deposit<'info>>,
@@ -106,8 +107,12 @@ pub mod restaking {
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
+        let remaining_accounts = validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
         let borrowed_chain_data =
-            ctx.remaining_accounts[0].data.try_borrow().unwrap();
+            remaining_accounts.chain.try_borrow_data().unwrap();
         let mut chain_data: &[u8] = &borrowed_chain_data;
         let chain =
             solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
@@ -118,20 +123,19 @@ pub mod restaking {
         let amount = validator.map_or(u128::from(amount), |val| {
             u128::from(val.stake) + u128::from(amount)
         });
-        validation::validate_remaining_accounts(
-            ctx.remaining_accounts,
-            &guest_chain_program_id,
-        )?;
         core::mem::drop(borrowed_chain_data);
+
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
-            chain: ctx.remaining_accounts[0].clone(),
-            trie: ctx.remaining_accounts[1].clone(),
+            chain: remaining_accounts.chain.clone(),
+            trie: remaining_accounts.trie.clone(),
+            #[cfg(feature = "witness")]
+            witness: remaining_accounts.witness.clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
             instruction: ctx.accounts.instruction.to_account_info(),
         };
-        let cpi_program = ctx.remaining_accounts[2].clone();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_ctx =
+            CpiContext::new(remaining_accounts.program.clone(), cpi_accounts);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
@@ -359,6 +363,8 @@ pub mod restaking {
             sender: ctx.accounts.withdrawer.to_account_info(),
             chain: chain.to_account_info(),
             trie: ctx.accounts.trie.to_account_info(),
+            #[cfg(feature = "witness")]
+            witness: ctx.accounts.witness.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
             instruction: validation::check_instructions_sysvar(
                 &ctx.accounts.instruction,
@@ -550,7 +556,6 @@ pub mod restaking {
     ) -> Result<()> {
         let vault_params = &mut ctx.accounts.vault_params;
         let staking_params = &mut ctx.accounts.staking_params;
-        let guest_chain = &ctx.remaining_accounts[0];
 
         let token_account = &ctx.accounts.receipt_token_account;
         if token_account.amount < 1 {
@@ -561,6 +566,10 @@ pub mod restaking {
             Some(id) => id,
             None => return Err(error!(ErrorCodes::OperationNotAllowed)),
         };
+        let remaining_accounts = validation::validate_remaining_accounts(
+            ctx.remaining_accounts,
+            &guest_chain_program_id,
+        )?;
         if vault_params.service.is_some() {
             return Err(error!(ErrorCodes::ServiceAlreadySet));
         }
@@ -577,7 +586,8 @@ pub mod restaking {
         let validator_key = match service {
             Service::GuestChain { validator } => validator,
         };
-        let borrowed_chain_data = guest_chain.data.try_borrow().unwrap();
+        let borrowed_chain_data =
+            remaining_accounts.chain.try_borrow_data().unwrap();
         let mut chain_data: &[u8] = &borrowed_chain_data;
         let chain =
             solana_ibc::chain::ChainData::try_deserialize(&mut chain_data)
@@ -593,15 +603,17 @@ pub mod restaking {
 
         let cpi_accounts = SetStake {
             sender: ctx.accounts.depositor.to_account_info(),
-            chain: guest_chain.to_account_info(),
-            trie: ctx.remaining_accounts[1].clone(),
+            chain: remaining_accounts.chain.clone(),
+            trie: remaining_accounts.trie.clone(),
+            #[cfg(feature = "witness")]
+            witness: remaining_accounts.witness.clone(),
             system_program: ctx.accounts.system_program.to_account_info(),
             instruction: validation::check_instructions_sysvar(
                 &ctx.accounts.instruction,
             )?,
         };
-        let cpi_program = ctx.remaining_accounts[2].clone();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_ctx =
+            CpiContext::new(remaining_accounts.program.clone(), cpi_accounts);
         solana_ibc::cpi::set_stake(cpi_ctx, validator_key, amount)
     }
 
@@ -865,6 +877,10 @@ pub struct Withdraw<'info> {
     #[account(mut, seeds = [TRIE_SEED], bump, seeds::program = guest_chain_program.key())]
     /// CHECK:
     pub trie: AccountInfo<'info>,
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [solana_ibc::WITNESS_SEED, trie.key().as_ref()], bump)]
+    /// CHECK:
+    pub witness: AccountInfo<'info>,
 
     pub token_mint: Box<Account<'info, Mint>>,
     #[account(mut, token::mint = token_mint)]

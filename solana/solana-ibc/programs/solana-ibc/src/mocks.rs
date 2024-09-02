@@ -15,6 +15,8 @@ pub(crate) fn mock_deliver<'a, 'info>(
         private: &mut ctx.accounts.storage,
         provable: storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?,
         chain: &mut ctx.accounts.chain,

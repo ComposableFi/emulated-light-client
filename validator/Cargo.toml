@@ -32,3 +32,6 @@ restaking.workspace = true
 solana-signature-verifier = { workspace = true, features = ["library"] }
 solana-ibc.workspace = true
 solana-trie.workspace = true
+
+[features]
+witness = ["solana-ibc/witness"]

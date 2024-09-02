@@ -121,6 +121,13 @@ pub fn submit_call(
     max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
+    #[cfg(feature = "witness")]
+    let witness = Pubkey::find_program_address(
+        [solana_ibc::WITNESS_SEED, trie.as_ref()].as_ref(),
+        &program.id(),
+    )
+    .0;
+
     let mut tx = Ok(signature);
     for tries in 0..max_retries {
         tx = program
@@ -140,6 +147,8 @@ pub fn submit_call(
                 sender: validator.pubkey(),
                 chain,
                 trie,
+                #[cfg(feature = "witness")]
+                witness,
                 ix_sysvar:
                     anchor_lang::solana_program::sysvar::instructions::ID,
                 system_program: system_program::ID,
@@ -168,6 +177,13 @@ pub fn submit_generate_block_call(
     max_retries: usize,
     priority_fees: &u64,
 ) -> Result<Signature, ClientError> {
+    #[cfg(feature = "witness")]
+    let witness = Pubkey::find_program_address(
+        [solana_ibc::WITNESS_SEED, trie.as_ref()].as_ref(),
+        &program.id(),
+    )
+    .0;
+
     let mut tx = Ok(Signature::new_unique());
     for tries in 0..max_retries {
         tx = program
@@ -182,6 +198,8 @@ pub fn submit_generate_block_call(
                 sender: validator.pubkey(),
                 chain,
                 trie,
+                #[cfg(feature = "witness")]
+                witness,
                 system_program: anchor_lang::system_program::ID,
             })
             .args(instruction::GenerateBlock {})

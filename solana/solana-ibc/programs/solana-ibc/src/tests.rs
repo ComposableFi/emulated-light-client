@@ -110,6 +110,12 @@ fn anchor_test_deliver() -> Result<()> {
     )
     .0;
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
+    #[cfg(feature = "witness")]
+    let witness = Pubkey::find_program_address(
+        &[crate::WITNESS_SEED, trie.as_ref()],
+        &crate::ID,
+    )
+    .0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
     let fee_collector_pda =
@@ -155,6 +161,8 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
         })
@@ -251,6 +259,8 @@ fn anchor_test_deliver() -> Result<()> {
                 receiver: None,
                 storage,
                 trie,
+                #[cfg(feature = "witness")]
+                witness,
                 chain,
                 system_program: system_program::ID,
                 mint_authority: None,
@@ -306,6 +316,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver: None,
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
             mint_authority: None,
@@ -343,6 +355,8 @@ fn anchor_test_deliver() -> Result<()> {
             sender: authority.pubkey(),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
         })
@@ -524,6 +538,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver: Some(receiver.pubkey()),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
@@ -609,6 +625,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver: Some(receiver.pubkey()),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
@@ -679,6 +697,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver: Some(authority.pubkey()),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
@@ -768,6 +788,8 @@ fn anchor_test_deliver() -> Result<()> {
             receiver: Some(receiver.pubkey()),
             storage,
             trie,
+            #[cfg(feature = "witness")]
+            witness,
             chain,
             system_program: system_program::ID,
             mint_authority: Some(mint_authority_key),
