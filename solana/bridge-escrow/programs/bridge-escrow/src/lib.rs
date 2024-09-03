@@ -15,7 +15,7 @@ const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
 const DUMMY_SEED: &[u8] = b"dummy";
 
-const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1;
+const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1_000_000_000;
 
 pub mod bridge;
 pub mod events;
