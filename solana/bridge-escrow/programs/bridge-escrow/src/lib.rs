@@ -575,13 +575,18 @@ pub struct SplTokenTransfer<'info> {
     pub mint_authority: Option<UncheckedAccount<'info>>,
     /// CHECK: validated by solana-ibc program
     #[account(mut, seeds = [DUMMY_SEED], bump)]
-    pub token_mint: Option<UncheckedAccount<'info>>,
+    pub token_mint: Option<Box<Account<'info, Mint>>>,
     /// CHECK:
     #[account(mut)]
     pub escrow_account: Option<UncheckedAccount<'info>>,
     /// CHECK: validated by solana-ibc program
-    #[account(mut)]
-    pub receiver_token_account: Option<UncheckedAccount<'info>>,
+    #[account(
+        init_if_needed,
+        payer = solver,
+        associated_token::mint = token_mint,
+        associated_token::authority = auctioneer_state
+    )]
+    pub receiver_token_account: Option<Account<'info, TokenAccount>>,
     /// CHECK:
     #[account(mut)]
     pub fee_collector: Option<UncheckedAccount<'info>>,
