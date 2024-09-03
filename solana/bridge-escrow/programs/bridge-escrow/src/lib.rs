@@ -6,12 +6,10 @@ use anchor_spl::associated_token::AssociatedToken;
 use anchor_spl::token;
 use anchor_spl::token::{Mint, Token, TokenAccount, Transfer as SplTransfer};
 use lib::hash::CryptoHash;
-use solana_ibc::chain;
-use solana_ibc::program::SolanaIbc;
-use solana_ibc::storage::PrivateStorage;
 
 // const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
-const BRIDGE_CONTRACT_PUBKEY: &str = "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
+const BRIDGE_CONTRACT_PUBKEY: &str =
+    "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
@@ -207,6 +205,7 @@ pub mod bridge_escrow {
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
+        // Unused parameter
         hashed_full_denom: Option<CryptoHash>,
         solver_out: Option<String>,
     ) -> Result<()> {
@@ -284,8 +283,14 @@ pub mod bridge_escrow {
         } else {
             let solver_out =
                 solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
+            let token_mint = accounts
+                .token_mint
+                .as_ref()
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .key();
+
             let hashed_full_denom =
-                hashed_full_denom.ok_or(ErrorCode::InvalidTokenAddress)?;
+                CryptoHash::digest(token_mint.to_string().as_bytes());
 
             let my_custom_memo = format!(
                 "{},{},{}",
@@ -298,12 +303,6 @@ pub mod bridge_escrow {
                 signer_seeds,
             )?;
 
-            let token_mint = accounts
-                .token_mint
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?;
-
-            // anchor_spl::token::close_account(cpi_ctx)?;
             events::emit(events::Event::SendFundsToUser(
                 events::SendFundsToUser {
                     amount: amount_out,
@@ -406,6 +405,16 @@ pub mod bridge_escrow {
                 hashed_full_denom,
                 signer_seeds,
             )?;
+
+            events::emit(events::Event::OnTimeout(events::OnTimeout {
+                amount: intent.amount_in,
+                token_mint: intent.token_in.clone(),
+                intent_id,
+            }))
+            .map_err(|err| {
+                msg!("{}", err);
+                ErrorCode::InvalidEventFormat
+            })?;
         }
 
         Ok(())
@@ -548,27 +557,31 @@ pub struct SplTokenTransfer<'info> {
     // Cross-chain Transfer Accounts
     #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
     /// CHECK:
-    pub ibc_program: Option<UncheckedAccount<'info>>, // Use IbcProgram here
+    pub ibc_program: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut)]
-    pub storage: Option<Box<Account<'info, PrivateStorage>>>,
+    pub storage: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub trie: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut)]
-    pub chain: Option<Box<Account<'info, chain::ChainData>>>,
+    pub chain: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub mint_authority: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut, seeds = [DUMMY_SEED], bump)]
-    pub token_mint: Option<Box<Account<'info, Mint>>>,
+    pub token_mint: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub escrow_account: Option<UncheckedAccount<'info>>,
-    #[account(init_if_needed, payer = solver, associated_token::mint = token_mint, associated_token::authority = solver)]
-    pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(mut)]
+    pub receiver_token_account: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub fee_collector: Option<UncheckedAccount<'info>>,
@@ -611,30 +624,34 @@ pub struct OnTimeout<'info> {
     #[account(mut, token::mint = token_mint, token::authority = auctioneer_state)]
     pub escrow_token_account: Option<Account<'info, TokenAccount>>,
 
-    // Cross chain transfer accounts
+    // Cross-chain Transfer Accounts
     #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
     /// CHECK:
-    pub ibc_program: Option<UncheckedAccount<'info>>,  // Use IbcProgram here
+    pub ibc_program: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut)]
-    pub storage: Option<Account<'info, PrivateStorage>>,
+    pub storage: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub trie: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut)]
-    pub chain: Option<Box<Account<'info, chain::ChainData>>>,
+    pub chain: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub mint_authority: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
     #[account(mut, seeds = [DUMMY_SEED], bump)]
-    pub token_mint: Option<Box<Account<'info, Mint>>>,
+    pub token_mint: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub escrow_account: Option<UncheckedAccount<'info>>,
-    #[account(init_if_needed, payer = caller, associated_token::mint = token_mint, associated_token::authority = caller)]
-    pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(mut)]
+    pub receiver_token_account: Option<UncheckedAccount<'info>>,
     /// CHECK:
     #[account(mut)]
     pub fee_collector: Option<UncheckedAccount<'info>>,

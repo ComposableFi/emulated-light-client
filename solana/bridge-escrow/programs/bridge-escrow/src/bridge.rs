@@ -50,7 +50,7 @@ pub fn bridge_transfer(
         mint_authority: Some(accounts.mint_authority),
         token_mint: Some(accounts.token_mint.clone()),
         escrow_account: Some(accounts.escrow_account),
-        receiver_token_account: Some(receiver_token_account.to_account_info()),
+        receiver_token_account: Some(receiver_token_account.clone()),
         fee_collector: Some(accounts.fee_collector),
         token_program: Some(accounts.token_program.clone()),
         system_program: accounts.system_program,
@@ -148,33 +148,33 @@ impl<'info> TryFrom<&mut SplTokenTransfer<'info>>
             mint_authority: accounts
                 .mint_authority
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             token_mint: accounts
                 .token_mint
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             escrow_account: accounts
                 .escrow_account
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             receiver_token_account: accounts
                 .receiver_token_account
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             fee_collector: accounts
                 .fee_collector
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             ibc_program: accounts
                 .ibc_program
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             token_program: accounts.token_program.to_account_info(),
             system_program: accounts.system_program.to_account_info(),
         })
@@ -211,33 +211,33 @@ impl<'info> TryFrom<&mut OnTimeout<'info>> for BridgeTransferAccounts<'info> {
             mint_authority: accounts
                 .mint_authority
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             token_mint: accounts
                 .token_mint
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             escrow_account: accounts
                 .escrow_account
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             receiver_token_account: accounts
                 .receiver_token_account
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             fee_collector: accounts
                 .fee_collector
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             ibc_program: accounts
                 .ibc_program
                 .as_ref()
-                .map(|acc| acc.to_account_info())
-                .ok_or(ErrorCode::AccountsNotPresent)?,
+                .ok_or(ErrorCode::AccountsNotPresent)?
+                .to_account_info(),
             token_program: accounts.token_program.to_account_info(),
             system_program: accounts.system_program.to_account_info(),
         })
