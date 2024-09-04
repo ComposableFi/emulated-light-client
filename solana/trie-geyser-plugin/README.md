@@ -23,11 +23,16 @@ necessary binaries:
     cargo build -r --manifest-path=solana/trie-geyser-plugin/Cargo.toml
 
 To start the Solana validator with the plugin enabled, use the
-`--geyser-plugin-config` flag to point at the `config.json` file.
+`--geyser-plugin-config` flag to point at the `config.json` file.  Note that
+when running on MacOS, path in `config.json` needs to be updated to point to
+a `.dylib` file.
 
     cd mantis-solana
-    ./target/release/solana-test-validator --geyser-plugin-config \
-        path/to/emulated-light-client/solana/trie-geyser-plugin/config.json
+    config=path/to/emulated-light-client/solana/trie-geyser-plugin/config.json
+    # On MacOS execute:
+    # sed -i s/\\.so/.dylib/ -- "${config:?}"
+    ./target/release/solana-test-validator \
+        --geyser-plugin-config "${config:?}"
 
 In another terminal, deploy the witnessed-trie contract and test it with
 provided command line tool:
