@@ -24,6 +24,7 @@ pub type Chunks<'a, T> = core::slice::Chunks<'a, T>;
 /// # Example
 ///
 /// ```
+/// #[allow(unused_imports)]
 /// use lib::par::prelude::*;
 ///
 /// let chunks = lib::par::chunks(&[0, 1, 2, 3, 4], 3)

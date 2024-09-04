@@ -15,6 +15,7 @@ use crate::ibc::{self, Protobuf};
 pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
     Wasm(ibc::wasm::ConsensusState),
+    Rollup(cf_solana::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockConsensusState),
 }
@@ -25,6 +26,7 @@ pub enum AnyConsensusState {
 enum AnyConsensusStateTag {
     Tendermint = 0,
     Wasm = 1,
+    Rollup = 2,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -36,6 +38,7 @@ impl AnyConsensusStateTag {
         match url {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyConsensusState::WASM_TYPE => Some(Self::Wasm),
+            AnyConsensusState::ROLLUP_TYPE => Some(Self::Rollup),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -44,13 +47,16 @@ impl AnyConsensusStateTag {
 }
 
 impl AnyConsensusState {
-    /// Protobuf type URL for Tendermint client state used in Any message.
+    /// Protobuf type URL for Tendermint consensus state used in Any message.
     const TENDERMINT_TYPE: &'static str =
         ibc::tm::TENDERMINT_CONSENSUS_STATE_TYPE_URL;
-    /// Protobuf type URL for WASM client state used in Any message.
+    /// Protobuf type URL for WASM consensus state used in Any message.
     const WASM_TYPE: &'static str = ibc::wasm::WASM_CONSENSUS_STATE_TYPE_URL;
+    /// Protobuf type URL for Rollup consensus state used in Any message.
+    const ROLLUP_TYPE: &'static str =
+        cf_solana::proto::ConsensusState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
-    /// Protobuf type URL for Mock client state used in Any message.
+    /// Protobuf type URL for Mock consensus state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
 
     /// Encodes the payload and returns discriminants that allow decoding the
@@ -58,7 +64,7 @@ impl AnyConsensusState {
     ///
     /// Returns a `(tag, type, value)` triple where `tag` is discriminant
     /// identifying variant of the enum, `type` is protobuf type URL
-    /// corresponding to the client state and `value` is the client state
+    /// corresponding to the consensus state and `value` is the consensus state
     /// encoded as protobuf.
     ///
     /// `(tag, value)` is used when borsh-encoding and `(type, value)` is used
@@ -76,6 +82,11 @@ impl AnyConsensusState {
                 AnyConsensusStateTag::Wasm,
                 Self::WASM_TYPE,
                 Protobuf::<ibc::wasm::ConsensusStatePB>::encode_vec(state),
+            ),
+            AnyConsensusState::Rollup(state) => (
+                AnyConsensusStateTag::Rollup,
+                Self::ROLLUP_TYPE,
+                Protobuf::<cf_solana::proto::ConsensusState>::encode_vec(state),
             ),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(state) => (
@@ -101,6 +112,11 @@ impl AnyConsensusState {
                 Protobuf::<ibc::wasm::ConsensusStatePB>::decode_vec(&value)
                     .map_err(|err| err.to_string())
                     .map(Self::Wasm)
+            }
+            AnyConsensusStateTag::Rollup => {
+                Protobuf::<cf_solana::proto::ConsensusState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Rollup)
             }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusStateTag::Mock => {

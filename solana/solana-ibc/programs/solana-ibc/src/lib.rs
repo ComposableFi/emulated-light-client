@@ -956,7 +956,7 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
             "738b7c23e23543d25ac128b2ed4c676194c0bb20fad0154e1a5b1e639c9c4de0"
         )),
         Pubkey::new_from_array(hex_literal::hex!(
-            "a1d0177376e0e90b580181247c1a63b73e473b47bc5b06f70a6a4844e0b05015"
+            "79890dbcf24e48972b57e5094e5889be2742ed560c8e8d4842a6fea84b5e9c37"
         )),
     ];
     match expected_program_ids.contains(program_id) {
@@ -968,7 +968,7 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
 #[test]
 fn test_staking_program() {
     const GOOD_ONE: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
-    const GOOD_TWO: &str = "BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg";
+    const GOOD_TWO: &str = "9BRYTakYsrFkSNr5VPYWnM1bQV5yZnX5uM8Ny2q5Nixv";
     const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
     check_staking_program(&GOOD_ONE.parse().unwrap()).unwrap();
     check_staking_program(&GOOD_TWO.parse().unwrap()).unwrap();
