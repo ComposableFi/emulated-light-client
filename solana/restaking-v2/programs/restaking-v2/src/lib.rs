@@ -4,7 +4,7 @@ use anchor_spl::token::{Mint, Token, TokenAccount};
 use pyth_solana_receiver_sdk::price_update::PriceUpdateV2;
 use solana_ibc::program::SolanaIbc;
 
-declare_id!("BtegF7pQSriyP7gSkDpAkPDMvTS8wfajHJSmvcVoC7kg");
+declare_id!("H69iS4rPnrRAMciLJcpEY3tRtFro7Mo7a2YAU8Q1busv");
 
 pub const COMMON_SEED: &[u8] = b"common";
 pub const ESCROW_SEED: &[u8] = b"escrow";
@@ -396,7 +396,7 @@ pub mod restaking_v2 {
     }
 
     /// Updates the token pause flag for specified token.
-    /// 
+    ///
     /// Requires the admin to call this method.
     pub fn update_token_pause_flag(
         ctx: Context<UpdateStakingParams>,
@@ -576,6 +576,32 @@ pub mod restaking_v2 {
         staked_token.latest_price = final_amount_in_sol;
         staked_token.last_updated_in_sec = Clock::get()?.unix_timestamp as u64;
 
+        Ok(())
+    }
+
+    pub fn realloc_common_state(
+        ctx: Context<UpdateStakingParams>,
+        new_space: usize,
+    ) -> Result<()> {
+        let common_state = ctx.accounts.common_state.to_account_info();
+        let minimum_rent_required = Rent::get()?.minimum_balance(new_space);
+        let available_lamports = common_state.lamports();
+        if available_lamports < minimum_rent_required {
+            let lamports_needed = minimum_rent_required - available_lamports;
+            solana_program::program::invoke(
+                &solana_program::system_instruction::transfer(
+                    &ctx.accounts.admin.key(),
+                    &common_state.key(),
+                    lamports_needed,
+                ),
+                &[
+                    ctx.accounts.admin.to_account_info(),
+                    common_state.to_account_info(),
+                ],
+            )?;
+        }
+
+        common_state.realloc(new_space, false)?;
         Ok(())
     }
 }
