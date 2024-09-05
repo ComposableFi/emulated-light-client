@@ -1,0 +1,19 @@
+[package]
+name = "witnessed-trie-geyser"
+authors = ["Michal Nazarewicz <mina86@mina86.com>"]
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true, features = ["rc", "std"] }
+serde_json.workspace = true
+jsonrpc-core-client.workspace = true
+jsonrpc-core.workspace = true
+jsonrpc-derive.workspace = true
+
+cf-solana = { workspace = true, features = ["serde"] }
+
+[dev-dependencies]
+insta = { workspace = true, features = ["json"] }
+
+lib = { workspace = true, features = ["test_utils"] }
