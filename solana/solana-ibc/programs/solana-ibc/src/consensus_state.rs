@@ -16,6 +16,7 @@ pub enum AnyConsensusState {
     Tendermint(ibc::tm::ConsensusState),
     Wasm(ibc::wasm::ConsensusState),
     Rollup(cf_solana::ConsensusState),
+    Guest(cf_guest::ConsensusState),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockConsensusState),
 }
@@ -27,6 +28,7 @@ enum AnyConsensusStateTag {
     Tendermint = 0,
     Wasm = 1,
     Rollup = 2,
+    Guest = 3,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -39,6 +41,7 @@ impl AnyConsensusStateTag {
             AnyConsensusState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyConsensusState::WASM_TYPE => Some(Self::Wasm),
             AnyConsensusState::ROLLUP_TYPE => Some(Self::Rollup),
+            AnyConsensusState::GUEST_TYPE => Some(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -55,6 +58,9 @@ impl AnyConsensusState {
     /// Protobuf type URL for Rollup consensus state used in Any message.
     const ROLLUP_TYPE: &'static str =
         cf_solana::proto::ConsensusState::IBC_TYPE_URL;
+    /// Protobuf type URL for Guest consensus state used in Any message.
+    const GUEST_TYPE: &'static str =
+        cf_guest::proto::ConsensusState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock consensus state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CONSENSUS_STATE_TYPE_URL;
@@ -88,6 +94,11 @@ impl AnyConsensusState {
                 Self::ROLLUP_TYPE,
                 Protobuf::<cf_solana::proto::ConsensusState>::encode_vec(state),
             ),
+            AnyConsensusState::Guest(state) => (
+                AnyConsensusStateTag::Guest,
+                Self::GUEST_TYPE,
+                Protobuf::<cf_guest::proto::ConsensusState>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusState::Mock(state) => (
                 AnyConsensusStateTag::Mock,
@@ -118,6 +129,11 @@ impl AnyConsensusState {
                     .map_err(|err| err.to_string())
                     .map(Self::Rollup)
             }
+            AnyConsensusStateTag::Guest => {
+                Protobuf::<cf_guest::proto::ConsensusState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Guest)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyConsensusStateTag::Mock => {
                 Protobuf::<ibc::mock::ConsensusStatePB>::decode_vec(&value)
@@ -128,32 +144,9 @@ impl AnyConsensusState {
     }
 }
 
-
 impl From<ibc::tm::types::ConsensusState> for AnyConsensusState {
     fn from(state: ibc::tm::types::ConsensusState) -> Self {
         Self::Tendermint(state.into())
-    }
-}
-
-impl From<cf_guest::ConsensusState> for AnyConsensusState {
-    fn from(state: cf_guest::ConsensusState) -> Self {
-        Self::from(ibc::wasm::ConsensusState {
-            data: prost::Message::encode_to_vec(&cf_guest::proto::Any::from(
-                &state,
-            )),
-            timestamp_ns: state.timestamp_ns.get(),
-        })
-    }
-}
-
-impl TryFrom<AnyConsensusState> for cf_guest::ConsensusState {
-    type Error = cf_guest::DecodeError;
-    fn try_from(state: AnyConsensusState) -> Result<Self, Self::Error> {
-        use prost::Message;
-        let state = ibc::wasm::ConsensusState::try_from(state)
-            .map_err(|_| cf_guest::DecodeError::BadMessage)?;
-        let any = cf_guest::proto::Any::decode(state.data.as_slice())?;
-        cf_guest::ConsensusState::try_from(any)
     }
 }
 
