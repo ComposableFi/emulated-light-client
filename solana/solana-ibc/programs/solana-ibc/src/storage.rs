@@ -390,10 +390,8 @@ impl PrivateStorage {
 }
 
 /// Provable storage, i.e. the trie, held in an account.
-pub type TrieAccount<'a, 'b> = solana_trie::WitnessedTrieAccount<
-    'a,
-    solana_trie::ResizableAccount<'a, 'b>,
->;
+pub type TrieAccount<'a, 'b> =
+    solana_trie::TrieAccount<solana_trie::ResizableAccount<'a, 'b>>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
