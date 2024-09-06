@@ -15,6 +15,7 @@ pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Wasm(ibc::wasm::ClientState),
     Rollup(cf_solana::ClientState),
+    Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -28,6 +29,7 @@ enum AnyClientStateTag {
     Tendermint = 0,
     Wasm = 1,
     Rollup = 2,
+    Guest = 3,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -40,6 +42,7 @@ impl AnyClientStateTag {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyClientState::WASM_TYPE => Some(Self::Wasm),
             AnyClientState::ROLLUP_TYPE => Some(Self::Rollup),
+            AnyClientState::GUEST_TYPE => Some(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -56,6 +59,8 @@ impl AnyClientState {
     /// Protobuf type URL for Rollup client state used in Any message.
     const ROLLUP_TYPE: &'static str =
         cf_solana::proto::ClientState::IBC_TYPE_URL;
+    /// Protobuf type URL for Guest client state used in Any message.
+    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -89,6 +94,11 @@ impl AnyClientState {
                 Self::ROLLUP_TYPE,
                 Protobuf::<cf_solana::proto::ClientState>::encode_vec(state),
             ),
+            Self::Guest(state) => (
+                AnyClientStateTag::Guest,
+                Self::GUEST_TYPE,
+                Protobuf::<cf_guest::proto::ClientState>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
@@ -119,6 +129,11 @@ impl AnyClientState {
                     .map_err(|err| err.to_string())
                     .map(Self::Rollup)
             }
+            AnyClientStateTag::Guest => {
+                Protobuf::<cf_guest::proto::ClientState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Guest)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
                 Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
@@ -132,21 +147,6 @@ impl AnyClientState {
 impl From<ibc::tm::types::ClientState> for AnyClientState {
     fn from(state: ibc::tm::types::ClientState) -> Self {
         Self::Tendermint(state.into())
-    }
-}
-
-impl<PK: guestchain::PubKey> From<cf_guest::ClientState<PK>>
-    for AnyClientState
-{
-    fn from(state: cf_guest::ClientState<PK>) -> Self {
-        Self::from(ibc::wasm::ClientState {
-            data: prost::Message::encode_to_vec(&cf_guest::proto::Any::from(
-                &state,
-            )),
-            checksum: Default::default(),
-            latest_height: ibc::Height::new(1, u64::from(state.latest_height))
-                .unwrap(),
-        })
     }
 }
 
@@ -231,7 +231,7 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
 impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     for IbcStorage<'_, '_>
 {
-    type ConversionError = cf_guest::DecodeError;
+    type ConversionError = &'static str;
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
