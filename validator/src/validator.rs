@@ -104,7 +104,8 @@ pub fn run_validator(config: Config) {
                 .value
                 .unwrap();
             let trie_data =
-                solana_trie::TrieAccount::new(trie_account.data).unwrap();
+                solana_trie::TrieAccount::<_, ()>::new(trie_account.data)
+                    .unwrap();
             let timestamp_in_ns = host_timestamp
                 .checked_mul(1_000_000_000)
                 .and_then(NonZeroU64::new)
