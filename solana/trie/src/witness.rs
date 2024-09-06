@@ -69,6 +69,51 @@ impl Data {
 }
 
 
+/// Trait for an optional reference to a witness account.
+///
+/// Used as a generic bound for in [`crate::TrieAccount`] to allow customising
+/// the type.  Most notably, it allows using `RefMut` for Solana contacts but
+/// disabling witness support in relayer which needs `TrieAccount` to be Send
+/// and Sync.
+pub trait OptRef: Default {
+    /// Updates value stored in the witness.
+    fn update(
+        &mut self,
+        root_hash: CryptoHash,
+        get_clock: impl FnOnce() -> solana_program::clock::Clock,
+    );
+
+    fn as_data(&self) -> Option<&Data>;
+}
+
+impl OptRef for () {
+    fn update(
+        &mut self,
+        _root_hash: CryptoHash,
+        _get_clock: impl FnOnce() -> solana_program::clock::Clock,
+    ) {
+    }
+
+    fn as_data(&self) -> Option<&Data> { None }
+}
+
+impl<'a> OptRef for Option<RefMut<'a, Data>> {
+    fn update(
+        &mut self,
+        root_hash: CryptoHash,
+        get_clock: impl FnOnce() -> solana_program::clock::Clock,
+    ) {
+        if let Some(witness) = self.as_mut() {
+            **witness = Data::new(root_hash, &get_clock());
+        }
+    }
+
+    fn as_data(&self) -> Option<&Data> {
+        use core::ops::Deref;
+        self.as_ref().map(|data| data.deref())
+    }
+}
+
 
 impl From<[u8; Data::SIZE]> for Data {
     fn from(bytes: [u8; Data::SIZE]) -> Self { bytemuck::cast(bytes) }
