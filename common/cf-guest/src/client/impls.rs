@@ -384,6 +384,11 @@ where
             Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
                 return Ok(ibc::Status::Expired)
             }
+            // If the client state is not found, then a new client is going to be created and since its known from
+            // above that the client state is not frozen, we return the client state as active.
+            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+                return Ok(ibc::Status::Active)
+            }
             Err(err) => return Err(err),
         };
 
