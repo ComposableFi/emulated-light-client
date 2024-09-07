@@ -270,7 +270,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 u64::from(self.latest_height),
             ),
             consensus_state.into(),
