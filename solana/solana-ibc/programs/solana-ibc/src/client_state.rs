@@ -237,20 +237,33 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
-        let clock = anchor_lang::solana_program::sysvar::clock::Clock::get()
-            .map_err(|e| ibc::ClientError::ClientSpecific {
-                description: e.to_string(),
+        #[cfg(feature = "witness")]
+        {
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let slot = clock.slot;
+            let timestamp_sec = clock.unix_timestamp;
+
+            let timestamp =
+                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10i64.pow(9))
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+            let height = ibc::Height::new(1, slot)?;
+            return Ok((timestamp, height));
+        }
+        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
+        let timestamp =
+            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
+                ibc::ClientError::Other { description: err.to_string() }
             })?;
 
-        let slot = clock.slot;
-        let timestamp_sec = clock.unix_timestamp as u64;
-
-        let timestamp =
-            ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
-                .map_err(|e| ibc::ClientError::ClientSpecific {
-                    description: e.to_string(),
-                })?;
-        let height = ibc::Height::new(1, slot)?;
+        let height = u64::from(self.borrow().chain.head()?.block_height);
+        let height = ibc::Height::new(1, height)?;
 
         Ok((timestamp, height))
     }
