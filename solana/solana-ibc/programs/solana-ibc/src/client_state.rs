@@ -246,10 +246,10 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
                     })?;
 
             let slot = clock.slot;
-            let timestamp_sec = clock.unix_timestamp;
+            let timestamp_sec = clock.unix_timestamp as u64;
 
             let timestamp =
-                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10i64.pow(9))
+                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
                     .map_err(|e| ibc::ClientError::ClientSpecific {
                         description: e.to_string(),
                     })?;
