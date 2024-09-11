@@ -43,7 +43,7 @@ fn escrow_bridge_program() -> Result<()> {
         Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
-        Cluster::Localnet,
+        Cluster::Custom("https://mantis-rollup.composable-shared-artifacts.composablenodes.tech/rpc".to_string(), "https://mantis-rollup.composable-shared-artifacts.composablenodes.tech/ws".to_string()),
         auctioneer.clone(),
         CommitmentConfig::processed(),
     );

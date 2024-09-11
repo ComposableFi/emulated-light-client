@@ -15,14 +15,14 @@ const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
 const DUMMY_SEED: &[u8] = b"dummy";
 
-const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1;
+const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1_000_000_000;
 
 pub mod bridge;
 pub mod events;
 #[cfg(test)]
 mod tests;
 
-declare_id!("yAJJJMZmjWSQjvq8WuARKygH8KJkeQTXB5BGJBJcR4T");
+declare_id!("61beRZG1h3SvPgGYh9tXhx42jABkMjbMQWpgqUqXw2hw");
 
 #[program]
 pub mod bridge_escrow {

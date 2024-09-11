@@ -33,7 +33,7 @@ pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
+declare_id!("7AU8dnzVw6TV9JyQ7dXX4XpRaQSJALTBwjwUiJKCW1kg");
 
 #[cfg(not(feature = "mocks"))]
 mod relayer {

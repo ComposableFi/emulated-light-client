@@ -94,7 +94,7 @@ pub fn bridge_transfer(
 
     let cpi_ctx = CpiContext::new(accounts.token_program, close_accs);
 
-    anchor_spl::token::close_account(cpi_ctx)?;
+    // anchor_spl::token::close_account(cpi_ctx)?;
 
     Ok(())
 }
