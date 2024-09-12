@@ -500,7 +500,8 @@ pub mod restaking_v2 {
             (token_price, sol_price)
         };
 
-        let token_decimals = ctx.accounts.token_mint.decimals;
+        // ALL stablecoin tokens have 6 decimals
+        let token_decimals = 6;
 
         // There would be a slight loss in precision due to the conversion from f64 to u64
         // but only when the price is very large. And since it has exponents, the price being
@@ -715,7 +716,8 @@ pub struct UpdateTokenPrice<'info> {
     #[account(mut, seeds = [COMMON_SEED], bump)]
     pub common_state: Account<'info, CommonState>,
 
-    pub token_mint: Account<'info, Mint>,
+    /// CHECK:
+    pub token_mint: UncheckedAccount<'info>,
 
     pub token_price_feed: Account<'info, PriceUpdateV2>,
     pub sol_price_feed: Account<'info, PriceUpdateV2>,
@@ -748,6 +750,8 @@ pub struct UpdateStakingParams<'info> {
 
     #[account(mut, seeds = [COMMON_SEED], bump, has_one = admin)]
     pub common_state: Account<'info, CommonState>,
+
+    pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
@@ -757,6 +761,7 @@ pub struct UpdateAdmin<'info> {
 
     #[account(mut, seeds = [COMMON_SEED], bump)]
     pub common_state: Account<'info, CommonState>,
+
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
