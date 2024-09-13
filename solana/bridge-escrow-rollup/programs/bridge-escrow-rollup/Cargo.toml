@@ -1,5 +1,5 @@
 [package]
-name = "bridge-escrow"
+name = "bridge-escrow-rollup"
 description = "Created with Anchor"
 edition = "2021"
 version.workspace = true

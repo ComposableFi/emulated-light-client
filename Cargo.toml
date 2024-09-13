@@ -8,7 +8,7 @@ rust-version = "1.71.0"
 members = [
     "common/*",
     "solana/allocator",
-    "solana/bridge-escrow/programs/*",
+    "solana/bridge-escrow-rollup/programs/*",
     "solana/restaking/programs/*",
     "solana/signature-verifier",
     "solana/solana-ibc/programs/*",

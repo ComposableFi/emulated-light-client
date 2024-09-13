@@ -5,12 +5,12 @@ seeds = false
 skip-lint = false
 
 [programs.devnet]
-bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
-restaking = "Bq1ZRagd3B5cE48TcnEaJBEByVYBYDTtJYe2HQRHqcmx"
+bridge-escrow-rollup = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
+restaking-rollup = "Bq1ZRagd3B5cE48TcnEaJBEByVYBYDTtJYe2HQRHqcmx"
 solana_ibc = "7AU8dnzVw6TV9JyQ7dXX4XpRaQSJALTBwjwUiJKCW1kg"
 
 [programs.localnet]
-bridge-escrow = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
+bridge-escrow-rollup = "A5ygmioT2hWFnxpPapY3XyDjwwfMDhnSP1Yxoynd5hs4"
 restaking = "Bq1ZRagd3B5cE48TcnEaJBEByVYBYDTtJYe2HQRHqcmx"
 solana_ibc = "7AU8dnzVw6TV9JyQ7dXX4XpRaQSJALTBwjwUiJKCW1kg"
 
@@ -22,7 +22,7 @@ cluster = "Localnet"
 wallet = "/home/dorayaki/.config/solana/id.json"
 
 [workspace]
-members = ["solana/bridge-escrow/programs/bridge-escrow", "solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
+members = ["solana/bridge-escrow-rollup/programs/bridge-escrow-rollup", "solana/restaking/programs/restaking", "solana/solana-ibc/programs/solana-ibc"]
 
 [scripts]
 test = "./solana-test.sh"
