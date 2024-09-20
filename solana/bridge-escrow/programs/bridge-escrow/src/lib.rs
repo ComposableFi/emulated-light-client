@@ -205,8 +205,6 @@ pub mod bridge_escrow {
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
-        // Unused parameter
-        hashed_full_denom: Option<CryptoHash>,
         solver_out: Option<String>,
     ) -> Result<()> {
         let accounts = ctx.accounts;
