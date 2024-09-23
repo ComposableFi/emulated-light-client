@@ -235,7 +235,7 @@ dependencies = [
  "arrayref",
  "base64 0.13.1",
  "bincode",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bytemuck",
  "solana-program 2.0.0",
  "thiserror",
@@ -596,9 +596,9 @@ dependencies = [
 
 [[package]]
 name = "borsh"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
+checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.3",
  "hashbrown 0.13.2",
@@ -833,7 +833,7 @@ dependencies = [
 name = "cf-guest"
 version = "0.0.0"
 dependencies = [
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bytemuck",
  "derive_more",
  "guestchain",
@@ -1620,7 +1620,7 @@ dependencies = [
 name = "guestchain"
 version = "0.0.0"
 dependencies = [
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bytemuck",
  "derive_more",
  "ibc-core-client-context",
@@ -2292,7 +2292,7 @@ name = "lib"
 version = "0.0.0"
 dependencies = [
  "base64 0.21.7",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bs58 0.5.1",
  "bytemuck",
  "derive_more",
@@ -3347,7 +3347,7 @@ version = "0.0.0"
 dependencies = [
  "ascii 1.1.0",
  "base64 0.21.7",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bytemuck",
  "derive_more",
  "lib",
@@ -3836,7 +3836,7 @@ dependencies = [
  "bincode",
  "bitflags 2.6.0",
  "blake3",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "borsh 0.9.3",
  "borsh 1.5.1",
  "bs58 0.4.0",
@@ -3890,7 +3890,7 @@ dependencies = [
  "bincode",
  "bitflags 2.6.0",
  "blake3",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "borsh 0.9.3",
  "borsh 1.5.1",
  "bs58 0.4.0",
