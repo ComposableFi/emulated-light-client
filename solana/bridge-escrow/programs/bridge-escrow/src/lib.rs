@@ -43,58 +43,60 @@ pub mod bridge_escrow {
     /// The funds are stored in token account owned by the auctioneer state PDA. Right now
     /// all the deposits are present in a single pool. But we would want to deposit the funds
     /// in seperate account so that we dont touch the funds of other users.
-    ///
-    /// TODO: Store the intent without `amount_out` and `solver_out` which would then be
-    /// updated by auctioneer. Also escrow the funds in an account whose seeds are the
-    /// intent id.
-    pub fn escrow_funds(ctx: Context<EscrowFunds>, amount: u64) -> Result<()> {
-        // Transfer SPL tokens from the user's account to the auctioneer's account
+    pub fn escrow_and_store_intent(
+        ctx: Context<EscrowAndStoreIntent>, 
+        amount: u64, 
+        new_intent: IntentPayload
+    ) -> Result<()> {
+        // Step 1: Check the conditions (translated from Solidity)
+    
+        require!(
+            ctx.accounts.intent.user_in == "", 
+            ErrorCode::IntentAlreadyExists
+        );
+    
+        require!(
+            new_intent.winner_solver == Pubkey::default(), 
+            ErrorCode::WinnerSolverMustBeEmpty
+        );
+    
+        require!(
+            new_intent.user_in == ctx.accounts.user.key().to_string(),
+            ErrorCode::SrcUserNotSender
+        );
+    
+        // Step 2: Escrow the funds (same as before)
+    
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.user_token_account.to_account_info(),
             to: ctx.accounts.escrow_token_account.to_account_info(),
             authority: ctx.accounts.user.to_account_info(),
         };
-
+    
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-
+    
         token::transfer(cpi_ctx, amount)?;
-
+    
         events::emit(events::Event::EscrowFunds(events::EscrowFunds {
             amount,
             sender: ctx.accounts.user.key(),
             token_mint: ctx.accounts.token_mint.key(),
-        }))
-        .map_err(|err| {
+        })).map_err(|err| {
             msg!("{}", err);
             ErrorCode::InvalidEventFormat
         })?;
-
-        Ok(())
-    }
-
-    /// Called by the auctioneer whose address is stored in `auctioneer` state account.
-    pub fn store_intent(
-        ctx: Context<StoreIntent>,
-        new_intent: IntentPayload,
-    ) -> Result<()> {
-        // verify if caller is auctioneer
-        let auctioneer = &ctx.accounts.auctioneer;
-        require!(
-            *ctx.accounts.authority.key == auctioneer.authority,
-            ErrorCode::Unauthorized
-        );
-
-        // save intent on a PDA derived from the auctioneer account
+    
+        // Step 3: Store the intent (same as before)
+    
         let intent = &mut ctx.accounts.intent;
-
         let current_timestamp = Clock::get()?.unix_timestamp as u64;
-
+    
         require!(
             current_timestamp < new_intent.timeout_timestamp_in_sec,
             ErrorCode::InvalidTimeout
         );
-
+    
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.clone();
         intent.user_out = new_intent.user_out;
@@ -106,7 +108,7 @@ pub mod bridge_escrow {
         intent.amount_out = new_intent.amount_out.clone();
         intent.winner_solver = new_intent.winner_solver;
         intent.single_domain = new_intent.single_domain;
-
+    
         events::emit(events::Event::StoreIntent(events::StoreIntent {
             intent: Intent {
                 intent_id: new_intent.intent_id,
@@ -121,11 +123,49 @@ pub mod bridge_escrow {
                 timeout_timestamp_in_sec: new_intent.timeout_timestamp_in_sec,
                 single_domain: new_intent.single_domain,
             },
-        }))
-        .map_err(|err| {
+        })).map_err(|err| {
             msg!("{}", err);
             ErrorCode::InvalidEventFormat
         })?;
+    
+        Ok(())
+    }    
+
+    pub fn update_auction_data(
+        ctx: Context<UpdateAuctionData>,
+        intent_id: String,
+        amount_out: String,
+        winner_solver: Pubkey,
+    ) -> Result<()> {
+        // Retrieve the intent from the provided context
+        let intent = &mut ctx.accounts.intent;
+
+        // Ensure that the auctioneer is the signer
+        require!(
+            ctx.accounts.auctioneer.authority == ctx.accounts.authority.key(),
+            ErrorCode::Unauthorized
+        );
+
+        // Verify that the intent ID matches the expected one
+        require!(
+            intent.intent_id == intent_id,
+            ErrorCode::IntentDoesNotExist
+        );
+
+        // Update the auction data
+        intent.amount_out = amount_out;
+        intent.winner_solver = winner_solver;
+
+        // Emit an event for the auction data update (optional)
+        // events::emit(events::Event::UpdateAuctionData {
+        //     intent_id,
+        //     amount_out,
+        //     winner_solver: winner_solver.to_string(),
+        // })
+        // .map_err(|err| {
+        //     msg!("{}", err);
+        //     ErrorCode::InvalidEventFormat
+        // })?;
 
         Ok(())
     }
@@ -141,34 +181,24 @@ pub mod bridge_escrow {
         ctx: Context<ReceiveTransferContext>,
         memo: String,
     ) -> Result<()> {
-        // Extract and validate the memo
+        // Split and extract memo fields
         let parts: Vec<&str> = memo.split(',').collect();
-
-        // require!(
-        //     msg.packet_data.token.denom.base_denom.to_string() == DUMMY,
-        //     ErrorCode::InvalidDenom
-        // );
-        let token_mint =
-            Pubkey::from_str(parts[0]).map_err(|_| ErrorCode::BadPublickey)?;
-        let amount: u64 =
-            parts[1].parse().map_err(|_| ErrorCode::InvalidAmount)?;
-        let solver =
-            Pubkey::from_str(parts[2]).map_err(|_| ErrorCode::BadPublickey)?;
-
-        if token_mint != ctx.accounts.token_mint.key() {
-            return Err(ErrorCode::InvalidTokenAddress.into());
-        }
-
-        if solver != ctx.accounts.solver_token_account.owner {
-            return Err(ErrorCode::InvalidSolverOutAddress.into());
-        }
-
-        // Transfer tokens from Auctioneer to Solver
-        let cpi_accounts = SplTransfer {
-            from: ctx.accounts.escrow_token_account.to_account_info(),
-            to: ctx.accounts.solver_token_account.to_account_info(),
-            authority: ctx.accounts.auctioneer_state.to_account_info(),
-        };
+        require!(parts.len() == 7, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
+    
+        // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
+        let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
+        let intent_id = parts[1];
+        let from = Pubkey::from_str(parts[2]).map_err(|_| ErrorCode::BadPublickey)?;
+        let token_mint = Pubkey::from_str(parts[3]).map_err(|_| ErrorCode::BadPublickey)?;
+        let to = Pubkey::from_str(parts[4]).map_err(|_| ErrorCode::BadPublickey)?;
+        let amount: u64 = parts[5].parse().map_err(|_| ErrorCode::InvalidAmount)?;
+        // let solver_out = Pubkey::from_str(parts[6]).map_err(|_| ErrorCode::BadPublickey)?;
+    
+        // Retrieve the intent from the provided context
+        let intent = &mut ctx.accounts.intent;
+        
+        // Validate the intent
+        require!(intent.intent_id == intent_id, ErrorCode::IntentDoesNotExist);
 
         let seeds = &[
             AUCTIONEER_SEED,
@@ -177,50 +207,91 @@ pub mod bridge_escrow {
         let seeds = seeds.as_ref();
         let signer_seeds = core::slice::from_ref(&seeds);
 
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new_with_signer(
-            cpi_program,
-            cpi_accounts,
-            signer_seeds,
-        );
-
-        token::transfer(cpi_ctx, amount)?;
-
-        events::emit(events::Event::OnReceiveTransfer(
-            events::OnReceiveTransfer {
-                amount,
-                solver: ctx.accounts.solver_token_account.owner,
-            },
-        ))
-        .map_err(|err| {
-            msg!("{}", err);
-            ErrorCode::InvalidEventFormat
-        })?;
-
+        if withdraw_user_flag {
+            // Case 1: User withdrawal
+            require!(
+                intent.user_out == from,
+                ErrorCode::IntentMismatchFromUser
+            );
+    
+            // Transfer tokens from the escrow account to the user's token account
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.solver_token_account.to_account_info(),
+                authority: ctx.accounts.auctioneer_state.to_account_info(),
+            };
+    
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+            token::transfer(cpi_ctx, amount)?;
+    
+        } else {
+            // Case 2: Solver transaction
+            require!(
+                intent.winner_solver == from,
+                ErrorCode::IntentMismatchFromSolver
+            );
+            require!(
+                intent.token_out == token_mint.to_string(),
+                ErrorCode::InvalidTokenOut
+            );
+            require!(
+                intent.user_out == to,
+                ErrorCode::IntentMismatchToUser
+            );
+            require!(
+                intent.amount_out.parse::<u64>().unwrap() <= amount,
+                ErrorCode::InsufficientAmount
+            );
+    
+            // Transfer tokens from the escrow account to the solver's token account
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.solver_token_account.to_account_info(),
+                authority: ctx.accounts.auctioneer_state.to_account_info(),
+            };
+    
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+            token::transfer(cpi_ctx, amount)?;
+        }
+    
+        // Emit event based on the action performed
+        // events::emit(events::Event::OnReceiveTransfer(
+        //     events::OnReceiveTransfer {
+        //         amount,
+        //         solver: if withdraw_user_flag {
+        //             ctx.accounts.solver_token_account.owner
+        //         } else {
+        //             ctx.accounts.solver_token_account.owner
+        //         },
+        //     },
+        // ))
+        // .map_err(|err| {
+        //     msg!("{}", err);
+        //     ErrorCode::InvalidEventFormat
+        // })?;
+    
         Ok(())
     }
+    
+    
 
     // this function is called by Solver
     #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
+        amount_out: u64,
         solver_out: Option<String>,
+        single_domain: bool
     ) -> Result<()> {
         let accounts = ctx.accounts;
-        let intent = accounts.intent.clone();
-        require!(
-            *accounts.solver.key == intent.winner_solver,
-            ErrorCode::Unauthorized
-        );
 
         let token_program = &accounts.token_program;
         let solver = &accounts.solver;
-
-        let amount_out = intent
-            .amount_out
-            .parse::<u64>()
-            .map_err(|_| ErrorCode::InvalidAmount)?;
 
         // Transfer tokens from Solver to User
         let cpi_accounts = SplTransfer {
@@ -239,7 +310,18 @@ pub mod bridge_escrow {
         let seeds = seeds.as_ref();
         let signer_seeds = core::slice::from_ref(&seeds);
 
-        if intent.single_domain {
+        if single_domain {
+            let intent = accounts.intent.clone();
+            require!(
+                *accounts.solver.key == intent.winner_solver,
+                ErrorCode::Unauthorized
+            );
+
+            let amount_out = intent
+            .amount_out
+            .parse::<u64>()
+            .map_err(|_| ErrorCode::InvalidAmount)?;
+
             // Transfer tokens from Auctioneer to Solver
             let auctioneer_token_in_account = accounts
                 .auctioneer_token_in_account
@@ -290,9 +372,22 @@ pub mod bridge_escrow {
             let hashed_full_denom =
                 CryptoHash::digest(token_mint.to_string().as_bytes());
 
+            // bool withdraw_user,
+            // string intentId,
+            // string from,
+            // string token,
+            // string to,
+            // string amount,
+            // string solver_out
+
             let my_custom_memo = format!(
-                "{},{},{}",
-                intent.token_in, intent.amount_in, solver_out
+                "0,{},{},{},{},{},{}",
+                intent_id,
+                accounts.solver.key,
+                accounts.token_out.key(),
+                accounts.user_token_out_account.owner,
+                amount_out,
+                solver_out
             );
             bridge::bridge_transfer(
                 accounts.try_into()?,
@@ -304,7 +399,7 @@ pub mod bridge_escrow {
             events::emit(events::Event::SendFundsToUser(
                 events::SendFundsToUser {
                     amount: amount_out,
-                    receiver: intent.user_out,
+                    receiver: accounts.user_token_out_account.owner,
                     token_mint: accounts.token_out.key(),
                     intent_id,
                     solver_out: Some(solver_out),
@@ -324,7 +419,7 @@ pub mod bridge_escrow {
     ///
     /// For the cross chain intents, a message is sent to the source chain to unlock
     /// the funds.
-    pub fn on_timeout(
+    pub fn user_cancel_intent(
         ctx: Context<OnTimeout>,
         intent_id: String,
     ) -> Result<()> {
@@ -384,8 +479,8 @@ pub mod bridge_escrow {
         } else {
             // Send a cross domain message to the source chain to unlock the funds
             let my_custom_memo = format!(
-                "{},{},{}",
-                intent.token_in, intent.amount_in, intent.user_in
+                "{},{}",
+                intent_id, authority
             );
             let token_mint = ctx
                 .accounts
@@ -481,20 +576,8 @@ pub struct Initialize<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-// Define the context for storing intent
 #[derive(Accounts)]
-#[instruction(intent_payload: IntentPayload)]
-pub struct StoreIntent<'info> {
-    #[account(mut)]
-    pub authority: Signer<'info>,
-    #[account(init, seeds = [INTENT_SEED, intent_payload.intent_id.as_bytes()], bump, payer = authority, space = 3000)]
-    pub intent: Account<'info, Intent>,
-    #[account(seeds = [AUCTIONEER_SEED], bump)]
-    pub auctioneer: Account<'info, Auctioneer>,
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
+#[instruction(intent_id: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
@@ -512,8 +595,36 @@ pub struct ReceiveTransferContext<'info> {
     /// CHECK: Used for getting the caller program id to verify if the right
     /// program is calling the method.
     pub instruction: UncheckedAccount<'info>,
+
     pub token_program: Program<'info, Token>,
+
+    // New Intent account addition
+    #[account(
+        mut, 
+        seeds = [b"intent", intent_id.as_bytes()], 
+        bump,
+        constraint = intent.user_in == authority.key().to_string()
+    )]
+    pub intent: Account<'info, Intent>,
 }
+
+#[derive(Accounts)]
+#[instruction(intent_id: String)]
+pub struct UpdateAuctionData<'info> {
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    #[account(
+        seeds = [AUCTIONEER_SEED],
+        bump,
+        has_one = authority // Ensures that the authority is the auctioneer
+    )]
+    pub auctioneer: Account<'info, Auctioneer>,
+
+    #[account(mut, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    pub intent: Account<'info, Intent>,
+}
+
 
 // Accounts for transferring SPL tokens
 #[derive(Accounts)]
@@ -591,7 +702,9 @@ pub struct SplTokenTransfer<'info> {
 }
 
 #[derive(Accounts)]
-pub struct EscrowFunds<'info> {
+#[instruction(intent_payload: IntentPayload)]
+pub struct EscrowAndStoreIntent<'info> {
+    // From EscrowFunds
     #[account(mut)]
     pub user: Signer<'info>,
     #[account(mut, token::authority = user, token::mint = token_mint)]
@@ -601,10 +714,17 @@ pub struct EscrowFunds<'info> {
     pub token_mint: Account<'info, Mint>,
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
     pub escrow_token_account: Account<'info, TokenAccount>,
+    
+    // From StoreIntent
+    #[account(init, seeds = [INTENT_SEED, intent_payload.intent_id.as_bytes()], bump, payer = user, space = 3000)]
+    pub intent: Account<'info, Intent>,
+    
+    // Shared Programs
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
 }
+
 
 #[derive(Accounts)]
 #[instruction(intent_id: String)]
@@ -695,4 +815,26 @@ pub enum ErrorCode {
     InvalidEventFormat,
     #[msg("Unable to parse public key from string")]
     BadPublickey,
+    #[msg("Intent already exists.")]
+    IntentAlreadyExists,
+    #[msg("WinnerSolver must be an empty string.")]
+    WinnerSolverMustBeEmpty,
+    #[msg("Source user does not match the sender.")]
+    SrcUserNotSender,
+    #[msg("Invalid withdraw flag format.")]
+    InvalidWithdrawFlag,
+    #[msg("Intent does not exist.")]
+    IntentDoesNotExist,
+    #[msg("Intent mismatch: 'from' address does not match expected intent.dstUser.")]
+    IntentMismatchFromUser,
+    #[msg("Intent mismatch: 'from' address does not match expected intent.winnerSolver.")]
+    IntentMismatchFromSolver,
+    #[msg("Intent mismatch: 'to' address does not match expected intent.dstUser.")]
+    IntentMismatchToUser,
+    #[msg("Insufficient amount provided.")]
+    InsufficientAmount,
+    #[msg("Invalid Memo format")]
+    InvalidMemoFormat,
+    #[msg("Invalid token out")]
+    InvalidTokenOut
 }
