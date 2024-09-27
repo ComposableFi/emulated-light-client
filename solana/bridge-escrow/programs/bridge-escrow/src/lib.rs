@@ -22,7 +22,7 @@ pub mod events;
 #[cfg(test)]
 mod tests;
 
-declare_id!("yAJJJMZmjWSQjvq8WuARKygH8KJkeQTXB5BGJBJcR4T");
+declare_id!("PBLWtsR1u28r31EHChBBaizEH2dc7QrCTpB64PJ6iem");
 
 #[program]
 pub mod bridge_escrow {
