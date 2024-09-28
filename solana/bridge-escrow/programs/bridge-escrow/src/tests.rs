@@ -201,7 +201,7 @@ fn escrow_bridge_program() -> Result<()> {
     let dummy_token_mint =
         Pubkey::find_program_address(&[crate::DUMMY_SEED], &crate::ID).0;
 
-    // Initialize the progroam to define the auctioneer
+    // Initialize the program to define the auctioneer
     println!("\nInitializing the program");
     let sig = program
         .request()

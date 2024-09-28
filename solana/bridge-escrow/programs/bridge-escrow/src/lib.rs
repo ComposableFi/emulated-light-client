@@ -154,7 +154,7 @@ pub mod bridge_escrow {
 
         // Ensure amount_out >= intent.amount_out
         require!(
-            amount_out >= intent.amount_out,
+            amount_out.parse::<u64>().unwrap() >= intent.amount_out.parse::<u64>().unwrap(),
             ErrorCode::InvalidAmountOut
         );
 
