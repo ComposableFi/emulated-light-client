@@ -51,17 +51,17 @@ pub mod bridge_escrow {
         // Step 1: Check the conditions (translated from Solidity)
     
         require!(
-            ctx.accounts.intent.user_in == "", 
+            ctx.accounts.intent.user_in == Pubkey::default(), 
             ErrorCode::IntentAlreadyExists
         );
     
         require!(
-            new_intent.winner_solver == Pubkey::default(), 
+            new_intent.winner_solver == "", 
             ErrorCode::WinnerSolverMustBeEmpty
         );
     
         require!(
-            new_intent.user_in == ctx.accounts.user.key().to_string(),
+            new_intent.user_in == ctx.accounts.user.key(),
             ErrorCode::SrcUserNotSender
         );
     
@@ -98,15 +98,15 @@ pub mod bridge_escrow {
         );
     
         intent.intent_id = new_intent.intent_id.clone();
-        intent.user_in = new_intent.user_in.clone();
-        intent.user_out = new_intent.user_out;
-        intent.token_in = new_intent.token_in.clone();
+        intent.user_in = new_intent.user_in.key();
+        intent.user_out = new_intent.user_out.clone();
+        intent.token_in = new_intent.token_in.key();
         intent.amount_in = new_intent.amount_in;
         intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
         intent.amount_out = new_intent.amount_out.clone();
-        intent.winner_solver = new_intent.winner_solver;
+        intent.winner_solver = new_intent.winner_solver.clone();
         intent.single_domain = new_intent.single_domain;
     
         events::emit(events::Event::StoreIntent(events::StoreIntent {
@@ -135,7 +135,7 @@ pub mod bridge_escrow {
         ctx: Context<UpdateAuctionData>,
         intent_id: String,
         amount_out: String,
-        winner_solver: Pubkey,
+        winner_solver: String,
     ) -> Result<()> {
         // Retrieve the intent from the provided context
         let intent = &mut ctx.accounts.intent;
@@ -150,6 +150,12 @@ pub mod bridge_escrow {
         require!(
             intent.intent_id == intent_id,
             ErrorCode::IntentDoesNotExist
+        );
+
+        // Ensure amount_out >= intent.amount_out
+        require!(
+            amount_out >= intent.amount_out,
+            ErrorCode::InvalidAmountOut
         );
 
         // Update the auction data
@@ -188,9 +194,9 @@ pub mod bridge_escrow {
         // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
         let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
         let intent_id = parts[1];
-        let from = Pubkey::from_str(parts[2]).map_err(|_| ErrorCode::BadPublickey)?;
+        let from = parts[2];
         let token_mint = Pubkey::from_str(parts[3]).map_err(|_| ErrorCode::BadPublickey)?;
-        let to = Pubkey::from_str(parts[4]).map_err(|_| ErrorCode::BadPublickey)?;
+        let to = parts[4];
         let amount: u64 = parts[5].parse().map_err(|_| ErrorCode::InvalidAmount)?;
         // let solver_out = Pubkey::from_str(parts[6]).map_err(|_| ErrorCode::BadPublickey)?;
     
@@ -313,7 +319,7 @@ pub mod bridge_escrow {
         if single_domain {
             let intent = accounts.intent.clone();
             require!(
-                *accounts.solver.key == intent.winner_solver,
+                *accounts.solver.key.to_string() == intent.winner_solver,
                 ErrorCode::Unauthorized
             );
 
@@ -347,19 +353,19 @@ pub mod bridge_escrow {
                 intent.amount_in,
             )?;
 
-            events::emit(events::Event::SendFundsToUser(
-                events::SendFundsToUser {
-                    amount: amount_out,
-                    receiver: intent.user_out,
-                    token_mint: accounts.token_out.key(),
-                    intent_id,
-                    solver_out,
-                },
-            ))
-            .map_err(|err| {
-                msg!("{}", err);
-                ErrorCode::InvalidEventFormat
-            })?;
+            // events::emit(events::Event::SendFundsToUser(
+            //     events::SendFundsToUser {
+            //         amount: amount_out,
+            //         receiver: intent.user_out,
+            //         token_mint: accounts.token_out.key(),
+            //         intent_id,
+            //         solver_out,
+            //     },
+            // ))
+            // .map_err(|err| {
+            //     msg!("{}", err);
+            //     ErrorCode::InvalidEventFormat
+            // })?;
         } else {
             let solver_out =
                 solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
@@ -396,19 +402,19 @@ pub mod bridge_escrow {
                 signer_seeds,
             )?;
 
-            events::emit(events::Event::SendFundsToUser(
-                events::SendFundsToUser {
-                    amount: amount_out,
-                    receiver: accounts.user_token_out_account.owner,
-                    token_mint: accounts.token_out.key(),
-                    intent_id,
-                    solver_out: Some(solver_out),
-                },
-            ))
-            .map_err(|err| {
-                msg!("{}", err);
-                ErrorCode::InvalidEventFormat
-            })?;
+            // events::emit(events::Event::SendFundsToUser(
+            //     events::SendFundsToUser {
+            //         amount: amount_out,
+            //         receiver: accounts.user_token_out_account.owner,
+            //         token_mint: accounts.token_out.key(),
+            //         intent_id,
+            //         solver_out: Some(solver_out),
+            //     },
+            // ))
+            // .map_err(|err| {
+            //     msg!("{}", err);
+            //     ErrorCode::InvalidEventFormat
+            // })?;
         }
 
         Ok(())
@@ -467,15 +473,15 @@ pub mod bridge_escrow {
             );
             anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
 
-            events::emit(events::Event::OnTimeout(events::OnTimeout {
-                amount: intent.amount_in,
-                token_mint: intent.token_in.clone(),
-                intent_id,
-            }))
-            .map_err(|err| {
-                msg!("{}", err);
-                ErrorCode::InvalidEventFormat
-            })?;
+            // events::emit(events::Event::OnTimeout(events::OnTimeout {
+            //     amount: intent.amount_in,
+            //     token_mint: intent.token_in.clone(),
+            //     intent_id,
+            // }))
+            // .map_err(|err| {
+            //     msg!("{}", err);
+            //     ErrorCode::InvalidEventFormat
+            // })?;
         } else {
             // Send a cross domain message to the source chain to unlock the funds
             let my_custom_memo = format!(
@@ -499,15 +505,15 @@ pub mod bridge_escrow {
                 signer_seeds,
             )?;
 
-            events::emit(events::Event::OnTimeout(events::OnTimeout {
-                amount: intent.amount_in,
-                token_mint: intent.token_in.clone(),
-                intent_id,
-            }))
-            .map_err(|err| {
-                msg!("{}", err);
-                ErrorCode::InvalidEventFormat
-            })?;
+            // events::emit(events::Event::OnTimeout(events::OnTimeout {
+            //     amount: intent.amount_in,
+            //     token_mint: intent.token_in.clone(),
+            //     intent_id,
+            // }))
+            // .map_err(|err| {
+            //     msg!("{}", err);
+            //     ErrorCode::InvalidEventFormat
+            // })?;
         }
 
         Ok(())
@@ -527,18 +533,18 @@ pub struct Intent {
     #[max_len(20)]
     pub intent_id: String,
     // User on source chain
-    #[max_len(40)]
-    pub user_in: String,
+    pub user_in: Pubkey,
     // User on destination chain
-    pub user_out: Pubkey,
-    #[max_len(40)]
-    pub token_in: String,
+    #[max_len(44)]
+    pub user_out: String,
+    pub token_in: Pubkey,
     pub amount_in: u64,
-    #[max_len(20)]
+    #[max_len(44)]
     pub token_out: String,
-    #[max_len(20)]
+    #[max_len(64)]
     pub amount_out: String,
-    pub winner_solver: Pubkey,
+    #[max_len(44)]
+    pub winner_solver: String,
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
     pub timeout_timestamp_in_sec: u64,
@@ -548,13 +554,13 @@ pub struct Intent {
 #[derive(AnchorSerialize, AnchorDeserialize, Debug)]
 pub struct IntentPayload {
     pub intent_id: String,
-    pub user_in: String,
-    pub user_out: Pubkey,
-    pub token_in: String,
+    pub user_in: Pubkey,
+    pub user_out: String,
+    pub token_in: Pubkey,
     pub amount_in: u64,
     pub token_out: String,
     pub amount_out: String,
-    pub winner_solver: Pubkey,
+    pub winner_solver: String,
     pub timeout_timestamp_in_sec: u64,
     pub single_domain: bool,
 }
@@ -603,7 +609,7 @@ pub struct ReceiveTransferContext<'info> {
         mut, 
         seeds = [b"intent", intent_id.as_bytes()], 
         bump,
-        constraint = intent.user_in == authority.key().to_string()
+        constraint = intent.user_in == authority.key()
     )]
     pub intent: Account<'info, Intent>,
 }
@@ -836,5 +842,7 @@ pub enum ErrorCode {
     #[msg("Invalid Memo format")]
     InvalidMemoFormat,
     #[msg("Invalid token out")]
-    InvalidTokenOut
+    InvalidTokenOut,
+    #[msg("Auctioneer cannot update an amountOut less than current amountOut")]
+    InvalidAmountOut
 }

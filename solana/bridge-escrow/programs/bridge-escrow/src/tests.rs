@@ -247,14 +247,14 @@ fn escrow_bridge_program() -> Result<()> {
     // Define the new intent payload
     let new_intent = IntentPayload {
         intent_id: intent_id.clone(),
-        user_in: user.pubkey().to_string(),  // Must match the ctx.accounts.user key in the contract
-        user_out: user.pubkey(),
-        token_in: token_in.to_string(),
+        user_in: user.pubkey(),  // Must match the ctx.accounts.user key in the contract
+        user_out: user.pubkey().to_string(),
+        token_in: token_in,
         amount_in: TRANSFER_AMOUNT,
         token_out: token_out.to_string(),
         amount_out: amount_out.to_string(),  // Amount out as a string
         timeout_timestamp_in_sec: current_timestamp + 10000,  // Arbitrary timeout
-        winner_solver: Pubkey::default(),  // Ensure winner_solver is empty at first
+        winner_solver: "".to_string(),  // Ensure winner_solver is empty at first
         single_domain: true,
     };
 
@@ -304,7 +304,7 @@ fn escrow_bridge_program() -> Result<()> {
         .args(crate::instruction::UpdateAuctionData {
             intent_id: intent_id.clone(),
             amount_out: amount_out.clone().to_string(),
-            winner_solver: winner_solver,
+            winner_solver: winner_solver.to_string(),
         })
         .payer(auctioneer.clone())
         .signer(&*auctioneer)

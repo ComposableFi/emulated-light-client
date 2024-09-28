@@ -81,7 +81,7 @@ pub struct OnReceiveTransfer {
 )]
 pub struct SendFundsToUser {
     pub amount: u64,
-    pub receiver: Pubkey,
+    pub receiver: String,
     pub token_mint: Pubkey,
     pub intent_id: String,
     /// The solver on source chain who would receive
