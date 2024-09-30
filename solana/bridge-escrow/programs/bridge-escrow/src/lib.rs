@@ -22,7 +22,7 @@ pub mod events;
 #[cfg(test)]
 mod tests;
 
-declare_id!("PBLWtsR1u28r31EHChBBaizEH2dc7QrCTpB64PJ6iem");
+declare_id!("hz4RhAQM87WHxa6ghUe42equB29bWDFuPRPiJQykCEY");
 
 #[program]
 pub mod bridge_escrow {
@@ -713,19 +713,28 @@ pub struct EscrowAndStoreIntent<'info> {
     // From EscrowFunds
     #[account(mut)]
     pub user: Signer<'info>,
+    
+    // Box this account to avoid copying large account data
     #[account(mut, token::authority = user, token::mint = token_mint)]
-    pub user_token_account: Account<'info, TokenAccount>,
+    pub user_token_account: Box<Account<'info, TokenAccount>>,
+    
+    // Box this account as it holds state that might be large
     #[account(seeds = [AUCTIONEER_SEED], bump)]
-    pub auctioneer_state: Account<'info, Auctioneer>,
-    pub token_mint: Account<'info, Mint>,
+    pub auctioneer_state: Box<Account<'info, Auctioneer>>,
+    
+    // Box the token mint account if it's large or for performance reasons
+    pub token_mint: Box<Account<'info, Mint>>,
+
+    // Box the escrow token account as it's mutable and holds token data
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
-    pub escrow_token_account: Account<'info, TokenAccount>,
+    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
     
     // From StoreIntent
+    // Box the intent account, as it's a new account with considerable space allocated
     #[account(init, seeds = [INTENT_SEED, intent_payload.intent_id.as_bytes()], bump, payer = user, space = 3000)]
-    pub intent: Account<'info, Intent>,
-    
-    // Shared Programs
+    pub intent: Box<Account<'info, Intent>>,
+
+    // Shared Programs (do not box programs, as they're generally small and immutable)
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
