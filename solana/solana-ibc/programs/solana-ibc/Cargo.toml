@@ -10,6 +10,7 @@ name = "solana_ibc"
 
 [features]
 default = ["custom-entrypoint", "custom-heap"]
+witness = []
 cpi = ["no-entrypoint"]
 custom-heap = ["solana-allocator"]
 custom-entrypoint = ["custom-heap"]

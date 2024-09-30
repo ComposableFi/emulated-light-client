@@ -404,20 +404,29 @@ pub type TrieAccount<'a, 'b> =
 /// account will never be shrunk.
 pub fn get_provable_from<'a, 'info>(
     info: &'a UncheckedAccount<'info>,
+    #[cfg(feature = "witness")] witness: &'a UncheckedAccount<'info>,
     payer: &'a Signer<'info>,
 ) -> Result<TrieAccount<'a, 'info>> {
-    TrieAccount::from_account_with_payer(info, &crate::ID, payer).map_err(
-        |err| {
-            let bad_owner = matches!(err, ProgramError::InvalidAccountOwner);
-            let err = Error::from(err);
-            let err = if bad_owner {
-                err.with_pubkeys((*info.owner, crate::ID))
-            } else {
-                err
-            };
-            err.with_account_name("trie")
-        },
-    )
+    let make_err = |err, info: &'a AccountInfo<'info>, name| {
+        let bad_owner = matches!(err, ProgramError::InvalidAccountOwner);
+        let mut err = Error::from(err);
+        if bad_owner {
+            err = err.with_pubkeys((*info.owner, crate::ID));
+        }
+        err.with_account_name(name)
+    };
+
+    #[allow(unused_mut)]
+    let mut trie =
+        TrieAccount::from_account_with_payer(info, &crate::ID, payer)
+            .map_err(|err| make_err(err, info, "trie"))?;
+    #[cfg(feature = "witness")]
+    {
+        trie = trie
+            .with_witness_account(witness, &crate::ID)
+            .map_err(|err| make_err(err, witness, "witness"))?;
+    }
+    Ok(trie)
 }
 
 /// Used for finding the account info from the keys.
@@ -542,7 +551,11 @@ macro_rules! from_ctx {
     }};
     ($ctx:expr, accounts = $accounts:expr) => {{
         let provable = $crate::storage::get_provable_from(
-            &$ctx.accounts.trie, &$ctx.accounts.sender)?;
+            &$ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &$ctx.accounts.witness,
+            &$ctx.accounts.sender,
+        )?;
         let chain = &mut $ctx.accounts.chain;
 
         // Before anything else, try generating a new guest block.  However, if
