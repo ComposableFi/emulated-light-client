@@ -3,6 +3,7 @@
 import json
 import base64
 import base58
+import sys
 
 import common
 
@@ -43,10 +44,16 @@ def process_raw_tx(path):
 
         tx = data.pop('transaction')
         if len(tx['signatures']) != 1:
-                print(f'{path.name}: multiple signatures')
+                print(f'{path.name}: multiple signatures', file=sys.stderr)
         data['signature'] = tx['signatures'][0]
         tx = tx['message']
         meta = data['meta']
+
+        # TODO(mina86): Handle versioned transactions
+        if 'addressTableLookups' in tx:
+                print(f'{path.name}: skipping versioned transaction',
+                      file=sys.stderr)
+                return
 
         if not data['meta'].get('err'):
                 data['meta'].pop('err')
@@ -72,6 +79,6 @@ common.TX_DIR.mkdir(parents=True, exist_ok=True)
 for path in common.RAW_TX_DIR.iterdir():
         try:
                 process_raw_tx(path)
-        except Exception as e:
-                print(f'{path.name}: e', file=sys.stderr)
+        except Exception as ex:
+                print(f'{path.name}: {ex}', file=sys.stderr)
                 raise

@@ -2,6 +2,7 @@
 
 import json
 import pathlib
+import tempfile
 import time
 import sys
 
@@ -52,10 +53,14 @@ for sig in signatures:
         if output.exists():
                 continue
 
-        tx = API.call('getTransaction', [sig, 'json'])
-        temp = pathlib.Path('temp')
-        with open(temp, 'w') as wr:
+        opts = {'maxSupportedTransactionVersion': 0, 'encoding': 'json'}
+        try:
+                tx = API.call('getTransaction', [sig, opts])
+        except common.APIError as ex:
+                sys.stderr.write(f'{sig}: {ex.error}\n')
+                continue
+        with tempfile.NamedTemporaryFile(mode='w', dir=output.parent) as wr:
                 json.dump(tx, wr)
-        temp.rename(output)
+                pathlib.Path(wr.name).rename(output)
 
 print(f'{slot_start}..={slot_end}')

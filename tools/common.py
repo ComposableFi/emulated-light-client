@@ -6,8 +6,8 @@ import time
 import requests
 
 
-START_SLOT = 266978318
-END_SLOT = 267335724
+START_SLOT = 287199632
+END_SLOT = 292691726
 
 
 OWN_PROGRAMS_BY_ADDRESS = {
@@ -129,6 +129,11 @@ def parse_logs(messages):
                         yield (program, msg)
 
 
+class APIError(RuntimeError):
+        def __init__(self, error):
+                self.error = error
+
+
 class API:
         __url: str
 
@@ -165,6 +170,8 @@ class API:
 
                 data = res.json()
                 assert data.get('id') == 1
+                if err := data.get('error'):
+                        raise APIError(err)
                 return data['result']
 
 
