@@ -254,7 +254,6 @@ fn escrow_bridge_program() -> Result<()> {
         token_out: token_out.to_string(),
         amount_out: amount_out.to_string(),  // Amount out as a string
         timeout_timestamp_in_sec: current_timestamp + 10000,  // Arbitrary timeout
-        winner_solver: "".to_string(),  // Ensure winner_solver is empty at first
         single_domain: true,
     };
 
