@@ -586,7 +586,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(intent_id: String, memo: String)]
+#[instruction(intent_id: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
