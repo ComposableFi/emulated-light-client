@@ -180,22 +180,18 @@ pub mod bridge_escrow {
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
         intent_id: String,  
-        withdraw_user_flag: bool,
-        from: String,
-        _token: String,
-        to: String,
-        amount: u64
+        memo: String,
     ) -> Result<()> {
-        // // Split and extract memo fields
-        // let parts: Vec<&str> = memo.split(',').collect();
-        // require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
+        // Split and extract memo fields
+        let parts: Vec<&str> = memo.split(',').collect();
+        require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
     
-        // // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
-        // let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
-        // let from = parts[1];
-        // let token = parts[2];
-        // let to = parts[3];
-        // let amount: u64 = parts[4].parse().map_err(|_| ErrorCode::InvalidAmount)?;
+        // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
+        let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
+        let from = parts[1];
+        let token = parts[2];
+        let to = parts[3];
+        let amount: u64 = parts[4].parse().map_err(|_| ErrorCode::InvalidAmount)?;
         // let solver_out = Pubkey::from_str(parts[6]).map_err(|_| ErrorCode::BadPublickey)?;
     
         // Retrieve the intent from the provided context
@@ -243,7 +239,7 @@ pub mod bridge_escrow {
                 ErrorCode::IntentMismatchFromSolver
             );
             require!(
-                intent.token_out == _token,
+                intent.token_out == token,
                 ErrorCode::InvalidTokenOut
             );
             require!(
@@ -586,7 +582,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(intent_id: String)]
+#[instruction(intent_id: String, memo: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
