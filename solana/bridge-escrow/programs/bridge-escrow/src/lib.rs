@@ -607,8 +607,7 @@ pub struct ReceiveTransferContext<'info> {
     #[account(
         mut, 
         seeds = [b"intent", intent_id.as_bytes()], 
-        bump,
-        constraint = intent.user_in == authority.key()
+        bump
     )]
     pub intent: Account<'info, Intent>,
 }
