@@ -56,11 +56,6 @@ pub mod bridge_escrow {
         );
     
         require!(
-            new_intent.winner_solver == "", 
-            ErrorCode::WinnerSolverMustBeEmpty
-        );
-    
-        require!(
             new_intent.user_in == ctx.accounts.user.key(),
             ErrorCode::SrcUserNotSender
         );
@@ -106,7 +101,6 @@ pub mod bridge_escrow {
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
         intent.amount_out = new_intent.amount_out.clone();
-        intent.winner_solver = new_intent.winner_solver.clone();
         intent.single_domain = new_intent.single_domain;
     
         events::emit(events::Event::StoreIntent(events::StoreIntent {
@@ -118,7 +112,7 @@ pub mod bridge_escrow {
                 amount_in: new_intent.amount_in,
                 token_out: new_intent.token_out,
                 amount_out: new_intent.amount_out,
-                winner_solver: new_intent.winner_solver,
+                winner_solver: String::default(),
                 creation_timestamp_in_sec: current_timestamp,
                 timeout_timestamp_in_sec: new_intent.timeout_timestamp_in_sec,
                 single_domain: new_intent.single_domain,
@@ -185,19 +179,19 @@ pub mod bridge_escrow {
     /// from the auctioneer.
     pub fn on_receive_transfer(
         ctx: Context<ReceiveTransferContext>,
+        intent_id: String,  
         memo: String,
     ) -> Result<()> {
         // Split and extract memo fields
         let parts: Vec<&str> = memo.split(',').collect();
-        require!(parts.len() == 7, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
+        require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
     
         // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
         let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
-        let intent_id = parts[1];
-        let from = parts[2];
-        let token_mint = Pubkey::from_str(parts[3]).map_err(|_| ErrorCode::BadPublickey)?;
-        let to = parts[4];
-        let amount: u64 = parts[5].parse().map_err(|_| ErrorCode::InvalidAmount)?;
+        let from = parts[1];
+        let token = parts[2];
+        let to = parts[3];
+        let amount: u64 = parts[4].parse().map_err(|_| ErrorCode::InvalidAmount)?;
         // let solver_out = Pubkey::from_str(parts[6]).map_err(|_| ErrorCode::BadPublickey)?;
     
         // Retrieve the intent from the provided context
@@ -215,6 +209,12 @@ pub mod bridge_escrow {
 
         if withdraw_user_flag {
             // Case 1: User withdrawal
+            let current_time = Clock::get()?.unix_timestamp as u64;
+            require!(
+                current_time >= intent.timeout_timestamp_in_sec,
+                ErrorCode::IntentNotTimedOut
+            );
+
             require!(
                 intent.user_out == from,
                 ErrorCode::IntentMismatchFromUser
@@ -239,7 +239,7 @@ pub mod bridge_escrow {
                 ErrorCode::IntentMismatchFromSolver
             );
             require!(
-                intent.token_out == token_mint.to_string(),
+                intent.token_out == token,
                 ErrorCode::InvalidTokenOut
             );
             require!(
@@ -560,7 +560,6 @@ pub struct IntentPayload {
     pub amount_in: u64,
     pub token_out: String,
     pub amount_out: String,
-    pub winner_solver: String,
     pub timeout_timestamp_in_sec: u64,
     pub single_domain: bool,
 }
@@ -583,7 +582,7 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(intent_id: String)]
+#[instruction(intent_id: String, memo: String)]
 pub struct ReceiveTransferContext<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
