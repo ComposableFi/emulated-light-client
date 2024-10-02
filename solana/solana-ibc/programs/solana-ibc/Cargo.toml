@@ -17,6 +17,7 @@ mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
+witness = []
 
 [dependencies]
 anchor-lang.workspace = true

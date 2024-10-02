@@ -2,13 +2,14 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
+#[cfg(feature = "witness")]
+use anchor_lang::prelude::SolanaSysvar;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc::{self, ConsensusState};
 use crate::storage::{self, IbcStorage};
-
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -22,7 +23,12 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<Self::AnyClientState> {
-        Ok(self.borrow().private.client(client_id)?.client_state.get()?)
+        self.borrow()
+            .private
+            .client(client_id)?
+            .client_state
+            .get()
+            .map_err(Into::into)
     }
 
     fn decode_client_state(
@@ -43,12 +49,41 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
+        #[cfg(feature = "witness")]
+        {
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let slot = clock.slot;
+            let height = ibc::Height::new(1, slot)?;
+            return Ok(height);
+        }
         let height = u64::from(self.borrow().chain.head()?.block_height);
         let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
+        #[cfg(feature = "witness")]
+        {
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let timestamp_sec = clock.unix_timestamp as u64;
+            return ibc::Timestamp::from_nanoseconds(
+                timestamp_sec * 10u64.pow(9),
+            )
+            .map_err(|e| {
+                ibc::ClientError::ClientSpecific { description: e.to_string() }
+                    .into()
+            });
+        }
         let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
         ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
@@ -295,7 +330,6 @@ impl IbcStorage<'_, '_> {
             .and_then(|data| data.state())
     }
 }
-
 
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn update_meta(
