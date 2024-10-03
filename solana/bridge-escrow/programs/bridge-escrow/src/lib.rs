@@ -317,7 +317,7 @@ pub mod bridge_escrow {
         let signer_seeds = core::slice::from_ref(&seeds);
 
         if single_domain {
-            let intent = accounts.intent.clone();
+            let intent = accounts.intent.clone().unwrap();
             require!(
                 *accounts.solver.key.to_string() == intent.winner_solver,
                 ErrorCode::Unauthorized
@@ -636,7 +636,7 @@ pub struct UpdateAuctionData<'info> {
 pub struct SplTokenTransfer<'info> {
     // Intent reading
     #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
-    pub intent: Box<Account<'info, Intent>>,
+    pub intent: Option<Box<Account<'info, Intent>>>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer_state: Box<Account<'info, Auctioneer>>,
     #[account(mut)]
