@@ -14,7 +14,7 @@ use solana_ibc::cpi::accounts::SendTransfer;
 use solana_ibc::cpi::send_transfer;
 
 use crate::{
-    ErrorCode, OnTimeout, SplTokenTransfer, DUMMY_TOKEN_TRANSFER_AMOUNT,
+    ErrorCode, OnTimeout, SplTokenTransferCrossChain, DUMMY_TOKEN_TRANSFER_AMOUNT,
 };
 
 pub fn bridge_transfer(
@@ -116,12 +116,12 @@ pub struct BridgeTransferAccounts<'info> {
     pub system_program: AccountInfo<'info>,
 }
 
-impl<'info> TryFrom<&mut SplTokenTransfer<'info>>
+impl<'info> TryFrom<&mut SplTokenTransferCrossChain<'info>>
     for BridgeTransferAccounts<'info>
 {
     type Error = anchor_lang::error::Error;
 
-    fn try_from(accounts: &mut SplTokenTransfer<'info>) -> Result<Self> {
+    fn try_from(accounts: &mut SplTokenTransferCrossChain<'info>) -> Result<Self> {
         Ok(Self {
             sender: accounts.solver.to_account_info(),
             auctioneer_state: accounts.auctioneer_state.to_account_info(),

@@ -316,106 +316,137 @@ pub mod bridge_escrow {
         let seeds = seeds.as_ref();
         let signer_seeds = core::slice::from_ref(&seeds);
 
-        if single_domain {
-            let intent = accounts.intent.clone().unwrap();
-            require!(
-                *accounts.solver.key.to_string() == intent.winner_solver,
-                ErrorCode::Unauthorized
-            );
+        let intent = accounts.intent.clone().unwrap();
+        require!(
+            *accounts.solver.key.to_string() == intent.winner_solver,
+            ErrorCode::Unauthorized
+        );
 
-            let amount_out = intent
-            .amount_out
-            .parse::<u64>()
-            .map_err(|_| ErrorCode::InvalidAmount)?;
+        let amount_out = intent
+        .amount_out
+        .parse::<u64>()
+        .map_err(|_| ErrorCode::InvalidAmount)?;
 
-            // Transfer tokens from Auctioneer to Solver
-            let auctioneer_token_in_account = accounts
-                .auctioneer_token_in_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?;
-            let solver_token_in_account = accounts
-                .solver_token_in_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?;
+        // Transfer tokens from Auctioneer to Solver
+        let auctioneer_token_in_account = accounts
+            .auctioneer_token_in_account
+            .as_ref()
+            .ok_or(ErrorCode::AccountsNotPresent)?;
+        let solver_token_in_account = accounts
+            .solver_token_in_account
+            .as_ref()
+            .ok_or(ErrorCode::AccountsNotPresent)?;
 
-            let cpi_accounts = SplTransfer {
-                from: auctioneer_token_in_account.to_account_info(),
-                to: solver_token_in_account.to_account_info(),
-                authority: accounts.auctioneer_state.to_account_info(),
-            };
-            let cpi_program = token_program.to_account_info();
-            token::transfer(
-                CpiContext::new_with_signer(
-                    cpi_program,
-                    cpi_accounts,
-                    signer_seeds,
-                ),
-                intent.amount_in,
-            )?;
-
-            // events::emit(events::Event::SendFundsToUser(
-            //     events::SendFundsToUser {
-            //         amount: amount_out,
-            //         receiver: intent.user_out,
-            //         token_mint: accounts.token_out.key(),
-            //         intent_id,
-            //         solver_out,
-            //     },
-            // ))
-            // .map_err(|err| {
-            //     msg!("{}", err);
-            //     ErrorCode::InvalidEventFormat
-            // })?;
-        } else {
-            let solver_out =
-                solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
-            let token_mint = accounts
-                .token_mint
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .key();
-
-            let hashed_full_denom =
-                CryptoHash::digest(token_mint.to_string().as_bytes());
-
-            // bool withdraw_user,
-            // string intentId,
-            // string from,
-            // string token,
-            // string to,
-            // string amount,
-            // string solver_out
-
-            let my_custom_memo = format!(
-                "0,{},{},{},{},{},{}",
-                intent_id,
-                accounts.solver.key,
-                accounts.token_out.key(),
-                accounts.user_token_out_account.owner,
-                amount_out,
-                solver_out
-            );
-            bridge::bridge_transfer(
-                accounts.try_into()?,
-                my_custom_memo,
-                hashed_full_denom,
+        let cpi_accounts = SplTransfer {
+            from: auctioneer_token_in_account.to_account_info(),
+            to: solver_token_in_account.to_account_info(),
+            authority: accounts.auctioneer_state.to_account_info(),
+        };
+        let cpi_program = token_program.to_account_info();
+        token::transfer(
+            CpiContext::new_with_signer(
+                cpi_program,
+                cpi_accounts,
                 signer_seeds,
-            )?;
+            ),
+            intent.amount_in,
+        )?;
 
-            // events::emit(events::Event::SendFundsToUser(
-            //     events::SendFundsToUser {
-            //         amount: amount_out,
-            //         receiver: accounts.user_token_out_account.owner,
-            //         token_mint: accounts.token_out.key(),
-            //         intent_id,
-            //         solver_out: Some(solver_out),
-            //     },
-            // ))
-            // .map_err(|err| {
-            //     msg!("{}", err);
-            //     ErrorCode::InvalidEventFormat
-            // })?;
-        }
+        // events::emit(events::Event::SendFundsToUser(
+        //     events::SendFundsToUser {
+        //         amount: amount_out,
+        //         receiver: intent.user_out,
+        //         token_mint: accounts.token_out.key(),
+        //         intent_id,
+        //         solver_out,
+        //     },
+        // ))
+        // .map_err(|err| {
+        //     msg!("{}", err);
+        //     ErrorCode::InvalidEventFormat
+        // })?;
+
+        Ok(())
+    }
+
+    // this function is called by Solver
+    #[allow(unused_variables)]
+    pub fn send_funds_to_user_cross_chain(
+        ctx: Context<SplTokenTransferCrossChain>,
+        intent_id: String,
+        amount_out: u64,
+        solver_out: Option<String>,
+    ) -> Result<()> {
+        let accounts = ctx.accounts;
+
+        let token_program = &accounts.token_program;
+        let solver = &accounts.solver;
+
+        // Transfer tokens from Solver to User
+        let cpi_accounts = SplTransfer {
+            from: accounts.solver_token_out_account.to_account_info().clone(),
+            to: accounts.user_token_out_account.to_account_info().clone(),
+            authority: solver.to_account_info().clone(),
+        };
+        let cpi_program = token_program.to_account_info();
+        token::transfer(
+            CpiContext::new(cpi_program, cpi_accounts),
+            amount_out,
+        )?;
+
+        let bump = ctx.bumps.auctioneer_state;
+        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+
+        let solver_out =
+            solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
+        let token_mint = accounts
+            .token_mint
+            .as_ref()
+            .ok_or(ErrorCode::AccountsNotPresent)?
+            .key();
+
+        let hashed_full_denom =
+            CryptoHash::digest(token_mint.to_string().as_bytes());
+
+        // bool withdraw_user,
+        // string intentId,
+        // string from,
+        // string token,
+        // string to,
+        // string amount,
+        // string solver_out
+
+        let my_custom_memo = format!(
+            "0,{},{},{},{},{},{}",
+            intent_id,
+            accounts.solver.key,
+            accounts.token_out.key(),
+            accounts.user_token_out_account.owner,
+            amount_out,
+            solver_out
+        );
+        bridge::bridge_transfer(
+            accounts.try_into()?,
+            my_custom_memo,
+            hashed_full_denom,
+            signer_seeds,
+        )?;
+
+        // events::emit(events::Event::SendFundsToUser(
+        //     events::SendFundsToUser {
+        //         amount: amount_out,
+        //         receiver: accounts.user_token_out_account.owner,
+        //         token_mint: accounts.token_out.key(),
+        //         intent_id,
+        //         solver_out: Some(solver_out),
+        //     },
+        // ))
+        // .map_err(|err| {
+        //     msg!("{}", err);
+        //     ErrorCode::InvalidEventFormat
+        // })?;
 
         Ok(())
     }
@@ -629,6 +660,76 @@ pub struct UpdateAuctionData<'info> {
     pub intent: Account<'info, Intent>,
 }
 
+// Accounts for transferring SPL tokens
+#[derive(Accounts)]
+pub struct SplTokenTransferCrossChain<'info> {
+    #[account(seeds = [AUCTIONEER_SEED], bump)]
+    pub auctioneer_state: Box<Account<'info, Auctioneer>>,
+    #[account(mut)]
+    pub solver: Signer<'info>,
+
+    #[account(mut, address = auctioneer_state.authority)]
+    /// CHECK:
+    pub auctioneer: UncheckedAccount<'info>,
+
+    pub token_in: Option<Box<Account<'info, Mint>>>,
+    pub token_out: Box<Account<'info, Mint>>,
+
+    // Program (Escrow) -> Solver SPL Token Transfer Accounts
+    #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
+    pub auctioneer_token_in_account: Option<Box<Account<'info, TokenAccount>>>,
+    #[account(mut, token::authority = solver, token::mint = token_in)]
+    pub solver_token_in_account: Option<Box<Account<'info, TokenAccount>>>,
+
+    // Solver -> User SPL Token Transfer Accounts
+    #[account(mut, token::authority = solver, token::mint = token_out)]
+    pub solver_token_out_account: Box<Account<'info, TokenAccount>>,
+    #[account(mut, token::mint = token_out)]
+    pub user_token_out_account: Box<Account<'info, TokenAccount>>,
+
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+
+    // The accounts below are only needed for cross chain intents
+
+    // Cross-chain Transfer Accounts
+    #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
+    /// CHECK:
+    pub ibc_program: Option<UncheckedAccount<'info>>,
+    #[account(mut)]
+    /// CHECK:
+    pub receiver: Option<AccountInfo<'info>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(mut)]
+    pub storage: Option<UncheckedAccount<'info>>,
+    /// CHECK:
+    #[account(mut)]
+    pub trie: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(mut)]
+    pub chain: Option<UncheckedAccount<'info>>,
+    /// CHECK:
+    #[account(mut)]
+    pub mint_authority: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(mut, seeds = [DUMMY_SEED], bump)]
+    pub token_mint: Option<Box<Account<'info, Mint>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub escrow_account: Option<UncheckedAccount<'info>>,
+    /// CHECK: validated by solana-ibc program
+    #[account(
+        init_if_needed,
+        payer = solver,
+        associated_token::mint = token_mint,
+        associated_token::authority = solver
+    )]
+    pub receiver_token_account: Option<Box<Account<'info, TokenAccount>>>,
+    /// CHECK:
+    #[account(mut)]
+    pub fee_collector: Option<UncheckedAccount<'info>>,
+}
 
 // Accounts for transferring SPL tokens
 #[derive(Accounts)]
