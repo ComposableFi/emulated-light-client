@@ -1,0 +1,15 @@
+[package]
+name = "ed25519-program"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "ed25519test"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+bytemuck = { workspace = true, features = ["derive", "must_cast"] }
+ed25519-dalek = { workspace = true, features = ["u64_backend"] }
+solana-program.workspace = true
+serde.workspace = true

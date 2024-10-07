@@ -1,0 +1,13 @@
+[package]
+name = "hash-client"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more = { workspace = true, features = ["display", "from"] }
+serde.workspace = true
+solana-cli-config.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true

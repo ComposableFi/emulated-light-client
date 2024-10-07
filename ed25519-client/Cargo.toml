@@ -1,0 +1,16 @@
+[package]
+name = "ed25519-client"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+derive_more = { workspace = true, features = ["display", "from"] }
+ed25519-dalek = { workspace = true, features = ["u64_backend"] }
+hex = { workspace = true, features = ["alloc"] }
+rand.workspace = true
+serde.workspace = true
+solana-cli-config.workspace = true
+solana-client.workspace = true
+solana-sdk.workspace = true
+solana-transaction-status.workspace = true

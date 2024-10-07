@@ -1,0 +1,16 @@
+[package]
+name = "hash-test"
+authors.workspace = true
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "hashtest"
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+bytemuck = { workspace = true, features = ["derive", "must_cast"] }
+ed25519-dalek = { workspace = true, features = ["u64_backend"] }
+solana-program.workspace = true
+serde.workspace = true
+sha2.workspace = true
