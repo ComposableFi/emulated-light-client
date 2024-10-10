@@ -847,7 +847,7 @@ pub struct SplTokenTransfer<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(amount: u64, intent_payload: IntentPayload)]
+#[instruction(intent_payload: IntentPayload)]
 pub struct EscrowAndStoreIntent<'info> {
     // From EscrowFunds
     #[account(mut)]
