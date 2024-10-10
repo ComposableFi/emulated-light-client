@@ -111,8 +111,9 @@ pub mod restaking_v2 {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
 
-            (whitelisted_token.latest_price * amount)
-                / 10u64.pow(SOL_DECIMALS as u32)
+            let amount_u128 = (whitelisted_token.latest_price as u128 * amount as u128)
+                / 10u128.pow(SOL_DECIMALS as u32);
+            amount_u128 as u64
         } else {
             amount
         };
@@ -266,8 +267,9 @@ pub mod restaking_v2 {
             {
                 return Err(error!(ErrorCodes::PriceTooStale));
             }
-            (whitelisted_token.latest_price * amount)
-                / 10u64.pow(SOL_DECIMALS as u32)
+            let amount_u128 = (whitelisted_token.latest_price as u128 * amount as u128)
+                / 10u128.pow(SOL_DECIMALS as u32);
+            amount_u128 as u64
         } else {
             amount
         };
