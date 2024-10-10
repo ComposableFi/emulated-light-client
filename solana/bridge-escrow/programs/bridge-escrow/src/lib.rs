@@ -45,7 +45,6 @@ pub mod bridge_escrow {
     /// in seperate account so that we dont touch the funds of other users.
     pub fn escrow_and_store_intent(
         ctx: Context<EscrowAndStoreIntent>, 
-        amount: u64, 
         new_intent: IntentPayload
     ) -> Result<()> {
         // Step 1: Check the conditions (translated from Solidity)
@@ -59,6 +58,16 @@ pub mod bridge_escrow {
             new_intent.user_in == ctx.accounts.user.key(),
             ErrorCode::SrcUserNotSender
         );
+
+        require!(
+            new_intent.token_in == ctx.accounts.user_token_account.mint,
+            ErrorCode::TokenInNotMint
+        );
+
+        require!(
+            new_intent.user_in == ctx.accounts.user_token_account.owner,
+            ErrorCode::SrcUserNotUserIn
+        );
     
         // Step 2: Escrow the funds (same as before)
     
@@ -71,10 +80,10 @@ pub mod bridge_escrow {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     
-        token::transfer(cpi_ctx, amount)?;
+        token::transfer(cpi_ctx, new_intent.amount_in)?;
     
         events::emit(events::Event::EscrowFunds(events::EscrowFunds {
-            amount,
+            amount: new_intent.amount_in,
             sender: ctx.accounts.user.key(),
             token_mint: ctx.accounts.token_mint.key(),
         })).map_err(|err| {
@@ -290,7 +299,6 @@ pub mod bridge_escrow {
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
         intent_id: String,
-        amount_out: u64,
         solver_out: Option<String>,
         single_domain: bool
     ) -> Result<()> {
@@ -299,6 +307,13 @@ pub mod bridge_escrow {
         let token_program = &accounts.token_program;
         let solver = &accounts.solver;
 
+        let intent = accounts.intent.clone().unwrap();
+
+        require!(
+            intent.token_out == accounts.solver_token_out_account.mint.to_string(),
+            ErrorCode::TokenInNotMint
+        );
+
         // Transfer tokens from Solver to User
         let cpi_accounts = SplTransfer {
             from: accounts.solver_token_out_account.to_account_info().clone(),
@@ -306,6 +321,12 @@ pub mod bridge_escrow {
             authority: solver.to_account_info().clone(),
         };
         let cpi_program = token_program.to_account_info();
+
+        let amount_out = intent
+            .amount_out
+            .parse::<u64>()
+            .map_err(|_| ErrorCode::InvalidAmount)?;
+
         token::transfer(
             CpiContext::new(cpi_program, cpi_accounts),
             amount_out,
@@ -316,16 +337,14 @@ pub mod bridge_escrow {
         let seeds = seeds.as_ref();
         let signer_seeds = core::slice::from_ref(&seeds);
 
-        let intent = accounts.intent.clone().unwrap();
         require!(
             *accounts.solver.key.to_string() == intent.winner_solver,
             ErrorCode::Unauthorized
         );
-
-        let amount_out = intent
-        .amount_out
-        .parse::<u64>()
-        .map_err(|_| ErrorCode::InvalidAmount)?;
+        require!(
+            accounts.user_token_out_account.owner == intent.user_in,
+            ErrorCode::Unauthorized
+        );
 
         // Transfer tokens from Auctioneer to Solver
         let auctioneer_token_in_account = accounts
@@ -336,6 +355,11 @@ pub mod bridge_escrow {
             .solver_token_in_account
             .as_ref()
             .ok_or(ErrorCode::AccountsNotPresent)?;
+
+        require!(
+            intent.token_in == auctioneer_token_in_account.mint,
+            ErrorCode::MismatchTokenIn
+        );
 
         let cpi_accounts = SplTransfer {
             from: auctioneer_token_in_account.to_account_info(),
@@ -378,6 +402,13 @@ pub mod bridge_escrow {
         solver_out: Option<String>,
     ) -> Result<()> {
         let accounts = ctx.accounts;
+
+        let (fee_collector, _) = Pubkey::find_program_address(&[solana_ibc::FEE_SEED], &solana_ibc::ID);
+
+        require!(
+            &fee_collector == accounts.fee_collector.as_ref().unwrap().key,
+            ErrorCode::InvalidFeeCollector
+        );
 
         let token_program = &accounts.token_program;
         let solver = &accounts.solver;
@@ -485,9 +516,18 @@ pub mod bridge_escrow {
                 .escrow_token_account
                 .as_ref()
                 .ok_or(ErrorCode::AccountsNotPresent)?;
+
             require!(
                 user_token_account.owner == *authority,
                 ErrorCode::Unauthorized
+            );
+            require!(
+                user_token_account.owner == intent.user_in,
+                ErrorCode::MisMatchUserIn
+            );
+            require!(
+                user_token_account.mint == intent.token_in,
+                ErrorCode::MismatchTokenIn
             );
 
             // Unescrow the tokens
@@ -952,5 +992,15 @@ pub enum ErrorCode {
     #[msg("Invalid token out")]
     InvalidTokenOut,
     #[msg("Auctioneer cannot update an amountOut less than current amountOut")]
-    InvalidAmountOut
+    InvalidAmountOut,
+    #[msg("new_intent.token_in != ctx.accounts.user_token_account.mint")]
+    TokenInNotMint,
+    #[msg("new_intent.user_in != ctx.accounts.user_token_account.owner")]
+    SrcUserNotUserIn,
+    #[msg("user_token_account.owner != intent.user_in")]
+    MisMatchUserIn,
+    #[msg("user_token_account.mint != intent.token_in")]
+    MismatchTokenIn,
+    #[msg("fee_collector != accounts.fee_collector.as_ref().unwrap().key")]
+    InvalidFeeCollector
 }
