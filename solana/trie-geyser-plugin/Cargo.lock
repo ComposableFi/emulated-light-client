@@ -840,6 +840,7 @@ dependencies = [
  "ibc-client-tendermint-types",
  "ibc-core-client-context",
  "ibc-core-commitment-types",
+ "ibc-core-connection-types",
  "ibc-core-host",
  "ibc-primitives",
  "ibc-proto",
@@ -848,6 +849,7 @@ dependencies = [
  "prost-build",
  "proto-utils",
  "sealable-trie",
+ "solana-program 1.18.23",
  "stdx",
  "trie-ids",
 ]
@@ -874,6 +876,7 @@ dependencies = [
  "prost-build",
  "proto-utils",
  "serde",
+ "solana-program 1.18.23",
  "solana-program 2.0.0",
  "stdx",
  "trie-ids",
@@ -1864,7 +1867,7 @@ dependencies = [
 [[package]]
 name = "ibc-client-tendermint-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "displaydoc",
  "ibc-core-client-types",
@@ -1881,7 +1884,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-channel-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -1899,7 +1902,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-context"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -1916,8 +1919,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-client-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
+ "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-core-commitment-types",
@@ -1931,8 +1935,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-commitment-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
+ "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-primitives",
@@ -1944,8 +1949,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-connection-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
+ "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-core-client-types",
@@ -1960,7 +1966,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-handler-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -1979,7 +1985,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-host"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -1997,8 +2003,9 @@ dependencies = [
 [[package]]
 name = "ibc-core-host-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
+ "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-primitives",
@@ -2007,7 +2014,7 @@ dependencies = [
 [[package]]
 name = "ibc-core-router-types"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
  "derive_more",
  "displaydoc",
@@ -2021,8 +2028,9 @@ dependencies = [
 [[package]]
 name = "ibc-primitives"
 version = "0.50.0"
-source = "git+https://github.com/mina86/ibc-rs?rev=f07276383091f75b7ee8bff6fd434f8214ac5054#f07276383091f75b7ee8bff6fd434f8214ac5054"
+source = "git+https://github.com/mina86/ibc-rs?rev=e1be8c9292c82c1e7c158067f0014fb292ee652d#e1be8c9292c82c1e7c158067f0014fb292ee652d"
 dependencies = [
+ "borsh 0.10.3",
  "derive_more",
  "displaydoc",
  "ibc-proto",
@@ -2038,6 +2046,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dd4ee32b22d3b06f31529b956f4928e5c9a068d71e46cf6abfa19c31ca550553"
 dependencies = [
  "base64 0.21.7",
+ "borsh 0.10.3",
  "bytes",
  "flex-error",
  "ics23",

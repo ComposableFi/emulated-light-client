@@ -79,7 +79,7 @@ impl IbcStorage<'_, '_> {
         height: ibc::Height,
         state: AnyConsensusState,
     ) -> Result<(), ibc::ClientError> {
-        msg!("store_consensus_state({})", client_id);
+        msg!("store_consensus_state({} {})", client_id, height);
         let mut store = self.borrow_mut();
         let (processed_time, processed_height) = {
             let head = store.chain.head()?;
@@ -118,13 +118,14 @@ impl IbcStorage<'_, '_> {
     }
 }
 
-
 impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     /// Does nothing in the current implementation.
     ///
     /// The clients are stored in the vector so we can easily find how many
     /// clients were created. So thats why this method doesnt do anything.
-    fn increase_client_counter(&mut self) -> Result { Ok(()) }
+    fn increase_client_counter(&mut self) -> Result {
+        Ok(())
+    }
 
     fn store_connection(
         &mut self,
@@ -137,9 +138,14 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         let connection = trie_ids::ConnectionIdx::try_from(&path.0)?;
         let serialised = storage::Serialised::new(&connection_end)?;
         let encoded_connection_end = connection_end.encode_vec();
+        msg!("Encoded {:?}", encoded_connection_end.as_slice());
         let hash = CryptoHash::digest(encoded_connection_end.as_slice());
-
+        msg!("Hash {:?}", hash);
         let mut store = self.borrow_mut();
+        let value = store
+            .provable
+            .prove(&trie_ids::TrieKey::for_connection(connection));
+        msg!("Value {:?}", value);
 
         let connections = &mut store.private.connections;
         let index = usize::from(connection);
@@ -177,7 +183,9 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
     ///
     /// Connections are stored in a vector in an order, so the length of the
     /// array specifies the number of connections.
-    fn increase_connection_counter(&mut self) -> Result { Ok(()) }
+    fn increase_connection_counter(&mut self) -> Result {
+        Ok(())
+    }
 
     fn store_packet_commitment(
         &mut self,
@@ -297,7 +305,9 @@ impl ibc::ExecutionContext for IbcStorage<'_, '_> {
         Ok(())
     }
 
-    fn get_client_execution_context(&mut self) -> &mut Self::E { self }
+    fn get_client_execution_context(&mut self) -> &mut Self::E {
+        self
+    }
 }
 
 impl storage::IbcStorage<'_, '_> {
@@ -321,6 +331,7 @@ impl storage::IbcStorage<'_, '_> {
         let state_any = state.encode_vec();
         let hash =
             cf_guest::digest_with_client_id(client_id, state_any.as_slice());
+        msg!("Hash {}", hash);
         let key = trie_ids::TrieKey::for_client_state(client.index);
         store.provable.set(&key, &hash).map_err(client_error)
     }

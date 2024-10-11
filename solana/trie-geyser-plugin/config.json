@@ -1,6 +1,6 @@
 {
-	"libpath": "target/release/libwitnessed_trie_geyser_plugin.so",
-	"trie_program": "8Czzh5DFpFAN69Qow3gvpqS4APJyTFpqZR7cJhwphqPE",
-	"root_account": "4r4XhdAitwVUXmurwF6ywkVjUYnUqxe23NjzBo6MdNsj",
+	"libpath": "target/release/libwitnessed_trie_geyser_plugin.dylib",
+	"trie_program": "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT",
+	"root_account": "A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm",
 	"bind_address": "127.0.0.1:42069"
 }

@@ -4,6 +4,7 @@ use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
 use anchor_client::solana_sdk::signature::{Keypair, Signature};
 use anchor_client::solana_sdk::signer::Signer;
@@ -156,7 +157,10 @@ pub fn submit_call(
             .args(instruction::SignBlock { signature: signature.into() })
             .payer(validator.clone())
             .signer(validator)
-            .send();
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..Default::default()
+            });
         if let Err(err @ ClientError::SolanaClientError(_)) = tx {
             return Err(err);
         } else if let Ok(tx) = tx {
@@ -205,7 +209,10 @@ pub fn submit_generate_block_call(
             .args(instruction::GenerateBlock {})
             .payer(validator.clone())
             .signer(validator)
-            .send();
+            .send_with_spinner_and_config(RpcSendTransactionConfig {
+                skip_preflight: true,
+                ..Default::default()
+            });
         if let Err(err @ ClientError::SolanaClientError(_)) = tx {
             return Err(err);
         } else if let Ok(tx) = tx {

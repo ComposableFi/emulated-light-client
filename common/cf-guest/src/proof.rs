@@ -1,3 +1,4 @@
+use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 
@@ -23,17 +24,20 @@ pub struct IbcProof {
 
 impl IbcProof {
     /// Returns commitment prefix to use during verification.
-    pub fn prefix(&self) -> ibc::CommitmentPrefix { Default::default() }
+    pub fn prefix(&self) -> ibc::CommitmentPrefix {
+        Default::default()
+    }
 
     /// Returns commitment root.
-    pub fn root(&self) -> ibc::CommitmentRoot { self.root.to_vec().into() }
+    pub fn root(&self) -> ibc::CommitmentRoot {
+        self.root.to_vec().into()
+    }
 
     /// Consumes object and returns commitment proof.
     pub fn proof(self) -> ibc::CommitmentProofBytes {
         self.proof.try_into().unwrap()
     }
 }
-
 
 #[derive(Clone, Debug, PartialEq, Eq, derive_more::From)]
 pub enum GenerateError {
@@ -158,7 +162,6 @@ fn generate_impl<A: sealable_trie::Allocator>(
     Ok(IbcProof { proof, root, value })
 }
 
-
 #[derive(
     Clone, Debug, PartialEq, Eq, derive_more::From, derive_more::Display,
 )]
@@ -266,10 +269,11 @@ fn verify_impl<const WITH_BLOCK: bool>(
         <&CryptoHash>::try_from(root).map_err(|_| VerifyError::BadRoot)?;
     let is_packet_commitment = matches!(
         path,
-        ibc::path::Path::Commitment(_) |
-            ibc::path::Path::Receipt(_) |
-            ibc::path::Path::Ack(_)
+        ibc::path::Path::Commitment(_)
+            | ibc::path::Path::Receipt(_)
+            | ibc::path::Path::Ack(_)
     );
+    solana_program::msg!("This is path {:?}\n and value {:?}", path, value);
     let path = trie_ids::PathInfo::try_from(path)?;
 
     let (state_root, proof) = if WITH_BLOCK {
@@ -312,6 +316,7 @@ fn verify_impl<const WITH_BLOCK: bool>(
             };
             CryptoHash(bytemuck::must_cast(hash))
         } else if let Some(id) = path.client_id.as_ref() {
+            solana_program::msg!("This is client {}", id);
             // If path includes client id, hash stored in the trie is calculated
             // with the id mixed in.
             super::digest_with_client_id(id, value)
@@ -328,6 +333,13 @@ fn verify_impl<const WITH_BLOCK: bool>(
         None
     };
 
+    solana_program::msg!(
+        "Value {:?} , proof bytes {:?} and path {:?}",
+        value,
+        proof,
+        path
+    );
+
     if !proof_bytes.is_empty() {
         Err(VerifyError::ProofDecodingFailure("Spurious bytes".into()))
     } else if proof.verify(&state_root, &path.key, value.as_ref()) {
@@ -337,13 +349,16 @@ fn verify_impl<const WITH_BLOCK: bool>(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use core::str::FromStr;
 
     use borsh::BorshDeserialize;
+    use ibc_core_connection_types::ConnectionEnd;
     use ibc_core_host::types::identifiers;
+    use ibc_proto::Protobuf;
+    use prost::Message;
+    use proto_utils::Any;
     use sealable_trie::nodes::RawNode;
 
     use super::*;
@@ -353,13 +368,54 @@ mod tests {
         header: BlockHeader,
     }
 
+    #[test]
+    fn another_test() {
+        use ibc_core_host::types::identifiers::ClientId;
+
+        let client_id = ClientId::new("cf-solana", 1).unwrap();
+        let value = alloc::vec![
+            10, 35, 47, 108, 105, 103, 104, 116, 99, 108, 105, 101, 110, 116,
+            115, 46, 115, 111, 108, 97, 110, 97, 46, 118, 49, 46, 67, 108, 105,
+            101, 110, 116, 83, 116, 97, 116, 101, 18, 46, 8, 200, 20, 18, 32,
+            100, 197, 118, 138, 60, 77, 138, 131, 221, 1, 51, 119, 148, 97, 62,
+            48, 9, 81, 195, 37, 203, 137, 59, 226, 176, 250, 21, 161, 251, 184,
+            96, 195, 24, 128, 128, 164, 201, 255, 193, 137, 1
+        ];
+        // let another_value = alloc::vec![
+        //     10, 11, 99, 102, 45, 115, 111, 108, 97, 110, 97, 45, 49, 18, 35,
+        //     10, 1, 49, 18, 13, 79, 82, 68, 69, 82, 95, 79, 82, 68, 69, 82, 69,
+        //     68, 18, 15, 79, 82, 68, 69, 82, 95, 85, 78, 79, 82, 68, 69, 82, 69,
+        //     68, 24, 3, 34, 33, 10, 10, 99, 102, 45, 103, 117, 101, 115, 116,
+        //     45, 49, 18, 12, 99, 111, 110, 110, 101, 99, 116, 105, 111, 110, 45,
+        //     48, 26, 5, 10, 3, 105, 98, 99, 40, 128, 200, 175, 160, 37
+        // ];
+        let digest_value = crate::digest_with_client_id(&client_id, value.as_slice());
+        let crypto_value = CryptoHash::digest(digest_value.as_slice());
+        let decoded = Any::decode(value.as_slice());
+        // let connection_end = ConnectionEnd::decode(value.as_slice());
+        // let hash = CryptoHash::digest(value.as_slice());
+
+        // let connection_end_2 = ConnectionEnd::decode(another_value.as_slice());
+        // let hash_2 = CryptoHash::digest(another_value.as_slice());
+        // std::println!(
+        //     "This is value \n{:?}\n{:?}",
+        //     connection_end,
+        //     connection_end_2
+        // );
+        // std::println!("this is hash \n{:?}\n{:?}", hash, hash_2);
+
+        std::println!("This is decoded {:?}\n{:?}", decoded, crypto_value);
+    }
+
     impl Trie {
         fn set(&mut self, key: &[u8], value: CryptoHash) {
             self.trie.set(key, &value).unwrap();
             self.header.state_root = *self.trie.hash();
         }
 
-        fn root(&self) -> &CryptoHash { self.trie.hash() }
+        fn root(&self) -> &CryptoHash {
+            self.trie.hash()
+        }
     }
 
     /// Takes a proof and substitutes the block header encoded in it.
@@ -673,8 +729,12 @@ mod tests {
     }
 
     #[test]
-    fn test_proofs_for_block() { do_test_proofs(true) }
+    fn test_proofs_for_block() {
+        do_test_proofs(true)
+    }
 
     #[test]
-    fn test_proofs_for_trie() { do_test_proofs(false) }
+    fn test_proofs_for_trie() {
+        do_test_proofs(false)
+    }
 }

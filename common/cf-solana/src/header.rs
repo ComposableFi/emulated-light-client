@@ -1,5 +1,6 @@
-use alloc::vec::Vec;
+use alloc::{string::ToString, vec::Vec};
 use core::num::NonZeroU64;
+use proto_utils::AnyConvert;
 
 use lib::hash::CryptoHash;
 
@@ -166,8 +167,26 @@ impl Header {
     }
 }
 
-
 proto_utils::define_wrapper! {
     proto: proto::Header,
     wrapper: Header,
+}
+
+#[test]
+fn testing() {
+    use std::println;
+    use std::str::FromStr;
+    let data = ibc_proto::google::protobuf::Any {
+        type_url: "/lightclients.solana.v1.Header".to_string(),
+        value: alloc::vec![
+            10, 32, 79, 107, 4, 23, 252, 100, 41, 18, 74, 154, 75, 116, 136,
+            161, 188, 46, 166, 238, 71, 249, 38, 86, 128, 203, 162, 153, 151,
+            83, 133, 64, 15, 247, 16, 5, 24, 128, 128, 160, 229, 185, 194, 145,
+            1, 34, 32, 86, 12, 131, 131, 127, 125, 82, 54, 32, 207, 121, 149,
+            204, 11, 121, 102, 180, 211, 111, 54, 0, 207, 247, 125, 195, 57,
+            10, 10, 80, 84, 86, 152
+        ],
+    };
+    let header = Header::try_from_any(&data.type_url, &data.value).unwrap();
+    println!("Header {:?}", header);
 }

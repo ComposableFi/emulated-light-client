@@ -35,7 +35,7 @@ pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-declare_id!("2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT");
+declare_id!("8o54PU8EcKtf4AqkFfqNhCWBqwpvFki64WEVNWAUP84c");
 
 #[cfg(not(feature = "mocks"))]
 mod relayer {
@@ -122,6 +122,12 @@ pub mod solana_ibc {
             &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
+        let storage = &mut ctx.accounts.storage;
+        let slot = Clock::get()?.slot;
+        let timestamp = Clock::get()?.unix_timestamp as u64;
+        storage
+            .add_local_consensus_state(slot, timestamp, provable.hash().clone())
+            .unwrap();
         ctx.accounts.chain.initialise(
             &mut provable,
             config,
@@ -296,8 +302,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len()) +
-            MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len())
+            + MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -333,10 +339,13 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(hashed_full_denom, storage::Asset {
-                original_decimals,
-                effective_decimals_on_sol: effective_decimals,
-            });
+            private_storage.assets.insert(
+                hashed_full_denom,
+                storage::Asset {
+                    original_decimals,
+                    effective_decimals_on_sol: effective_decimals,
+                },
+            );
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -398,6 +407,8 @@ pub mod solana_ibc {
         let mut store = storage::from_ctx!(ctx, with accounts);
         let mut router = store.clone();
 
+        // #[cfg(feature = "witness")]
+
         if let Some((last, rest)) = ctx.remaining_accounts.split_last() {
             let mut verifier = sigverify::Verifier::default();
             if verifier
@@ -414,10 +425,26 @@ pub mod solana_ibc {
         let height = store.borrow().chain.head()?.block_height;
         // height just before the data is added to the trie.
         msg!("Current Block height {}", height);
+        msg!("Message {:?}", message);
+        let previous_root = store.borrow().provable.hash().clone();
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))?;
+
+        #[cfg(feature = "witness")]
+        {
+            let root = store.borrow().provable.hash().clone();
+            if previous_root != root {
+                msg!("Writing local consensus state");
+                let slot = Clock::get()?.slot;
+                let timestamp = Clock::get()?.unix_timestamp as u64;
+                let storage = &mut store.borrow_mut().private;
+                storage
+                    .add_local_consensus_state(slot, timestamp, root)
+                    .unwrap();
+            }
+        }
 
         Ok(())
     }
@@ -463,8 +490,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }

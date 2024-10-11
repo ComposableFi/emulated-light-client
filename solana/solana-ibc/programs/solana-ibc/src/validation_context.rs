@@ -1,14 +1,16 @@
+use std::num::NonZeroU64;
 use std::str::FromStr;
 use std::time::Duration;
 
 use anchor_lang::prelude::Pubkey;
+#[cfg(feature = "witness")]
+use anchor_lang::prelude::SolanaSysvar;
 use lib::hash::CryptoHash;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc::{self, ConsensusState};
 use crate::storage::{self, IbcStorage};
-
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
 
@@ -22,13 +24,20 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<Self::AnyClientState> {
-        Ok(self.borrow().private.client(client_id)?.client_state.get()?)
+        crate::msg!("Fetching client state");
+        self.borrow()
+            .private
+            .client(client_id)?
+            .client_state
+            .get()
+            .map_err(Into::into)
     }
 
     fn decode_client_state(
         &self,
         client_state: ibc::Any,
     ) -> Result<Self::AnyClientState> {
+        crate::msg!("decoding client state");
         Ok(Self::AnyClientState::try_from(client_state)?)
     }
 
@@ -43,12 +52,41 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn host_height(&self) -> Result<ibc::Height> {
+        #[cfg(feature = "witness")]
+        {
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let slot = clock.slot;
+            let height = ibc::Height::new(1, slot)?;
+            return Ok(height);
+        }
         let height = u64::from(self.borrow().chain.head()?.block_height);
         let height = ibc::Height::new(1, height)?;
         Ok(height)
     }
 
     fn host_timestamp(&self) -> Result<ibc::Timestamp> {
+        #[cfg(feature = "witness")]
+        {
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let timestamp_sec = clock.unix_timestamp as u64;
+            return ibc::Timestamp::from_nanoseconds(
+                timestamp_sec * 10u64.pow(9),
+            )
+            .map_err(|e| {
+                ibc::ClientError::ClientSpecific { description: e.to_string() }
+                    .into()
+            });
+        }
         let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
         ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
             ibc::ClientError::Other { description: err.to_string() }.into()
@@ -60,6 +98,30 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
+        #[cfg(feature = "witness")]
+        {
+            crate::msg!("This is height in host consensus state {}", height);
+            let (slot, fetched_timestamp, fetched_trie_root) = store
+                .private
+                .local_consensus_state
+                .iter()
+                .find(|cs| cs.0 == height.revision_height())
+                .unwrap();
+            let witness = store.provable.witness().unwrap();
+            let (trie_root, timestamp) = witness.decode().unwrap();
+            let rollup_consensus_state = cf_solana::ConsensusState {
+                trie_root: ibc::CommitmentRoot::from_bytes(
+                    fetched_trie_root.as_slice(),
+                ),
+                timestamp_sec: NonZeroU64::new(fetched_timestamp.clone())
+                    .unwrap(),
+            };
+            crate::msg!(
+                "This is rollup_consensus state {:?}",
+                rollup_consensus_state
+            );
+            return Ok(AnyConsensusState::Rollup(rollup_consensus_state));
+        }
         let state = if height.revision_number() == 1 {
             store.chain.consensus_state(height.revision_height().into())?
         } else {
@@ -72,11 +134,12 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
             block_hash: state.0.as_array().to_vec().into(),
             timestamp_ns: state.1,
         };
-        let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
-            guest_consensus_state.encode_vec(),
-            state.1.into(),
-        );
-        Ok(AnyConsensusState::Wasm(wasm_consensus_state))
+        Ok(AnyConsensusState::Guest(guest_consensus_state))
+        // let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
+        //     guest_consensus_state.encode_vec(),
+        //     state.1.into(),
+        // );
+        // Ok(AnyConsensusState::Wasm(wasm_consensus_state))
         // Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
         //     block_hash: state.0.as_array().to_vec().into(),
         //     timestamp_ns: state.1,
@@ -84,6 +147,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     }
 
     fn client_counter(&self) -> Result<u64> {
+        crate::msg!("finding client counter");
         Ok(self.borrow().private.client_counter())
     }
 
@@ -251,7 +315,9 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn get_client_validation_context(&self) -> &Self::V { self }
+    fn get_client_validation_context(&self) -> &Self::V {
+        self
+    }
 
     fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
         ibc::conn::get_compatible_versions()
@@ -295,7 +361,6 @@ impl IbcStorage<'_, '_> {
             .and_then(|data| data.state())
     }
 }
-
 
 impl ibc::ClientValidationContext for IbcStorage<'_, '_> {
     fn update_meta(
@@ -365,7 +430,7 @@ fn calculate_block_delay(
     if max_expected_time_per_block.is_zero() {
         return 0;
     }
-    let delay = delay_period_time.as_secs_f64() /
-        max_expected_time_per_block.as_secs_f64();
+    let delay = delay_period_time.as_secs_f64()
+        / max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
 }

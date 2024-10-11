@@ -24,5 +24,7 @@ pub use message::ClientMessage;
 pub use misbehaviour::Misbehaviour;
 pub use proof::IbcProof;
 
+pub use crate::proto::{BadMessage, DecodeError};
+
 /// Client type of the Solana blockchain’s light client.
 pub const CLIENT_TYPE: &str = "cf-solana";

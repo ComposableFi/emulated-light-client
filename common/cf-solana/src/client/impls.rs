@@ -1,6 +1,15 @@
+use alloc::format;
 use alloc::string::ToString;
 use alloc::vec::Vec;
+use cf_guest::digest_with_client_id;
+use ibc_core_host::types::identifiers::ClientId;
+use ibc_primitives::ToProto;
+use proto_utils::AnyConvert;
 use core::num::NonZeroU64;
+use core::str::FromStr;
+use solana_program::pubkey::Pubkey;
+
+use ibc_core_client_context::consensus_state::ConsensusState as _;
 
 use crate::proto::Any;
 use crate::{
@@ -138,7 +147,7 @@ impl ibc::ClientStateCommon for ClientState {
     ) -> Result {
         let value = Some(value.as_slice());
         proof::verify_for_trie(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,
@@ -157,17 +166,10 @@ impl ibc::ClientStateCommon for ClientState {
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
-        proof::verify_for_trie(
-            prefix.as_bytes(),
-            proof.as_ref(),
-            root.as_bytes(),
-            path,
-            None,
-        )
-        .map_err(Into::into)
+        proof::verify_for_trie(&[], proof.as_ref(), root.as_bytes(), path, None)
+            .map_err(Into::into)
     }
 }
-
 
 impl<E> ibc::ClientStateExecution<E> for ClientState
 where
@@ -188,7 +190,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 self.latest_slot.get(),
             ),
             consensus_state.into(),
@@ -292,12 +294,17 @@ where
         }
 
         let height = self.latest_height();
+        solana_program::msg!("Height {}", height);
         let consensus = CommonContext::consensus_state(ctx, client_id, height)
             .and_then(|state| state.try_into().map_err(error));
         let consensus = match consensus {
             Ok(consensus) => consensus,
             Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
-                return Ok(ibc::Status::Expired)
+                solana_program::msg!("Consensus state not found");
+                return Ok(ibc::Status::Expired);
+            }
+            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+                return Ok(ibc::Status::Active)
             }
             Err(err) => return Err(err),
         };
@@ -310,7 +317,6 @@ where
         })
     }
 }
-
 
 impl ClientState {
     pub fn do_update_state(
@@ -391,8 +397,8 @@ impl ClientState {
         let Header { bank_hash, delta_hash_proof, witness_proof, .. } = header;
         if bank_hash != delta_hash_proof.calculate_bank_hash() {
             Err(error("Invalid accounts delta hash proof"))
-        } else if delta_hash_proof.accounts_delta_hash !=
-            witness_proof.expected_root()
+        } else if delta_hash_proof.accounts_delta_hash
+            != witness_proof.expected_root()
         {
             Err(error("Invalid witness proof"))
         } else if witness_proof.account_hash_data.key() != &self.witness_account
@@ -448,8 +454,8 @@ impl ClientState {
                 // If it isn’t, that’s evidence of misbehaviour.  Solana uses
                 // timestamps with second-granularity with sub-second blocks so
                 // consecutive slots may have the same timestamp.
-                check_timestamp(prev, |prev| current < prev)? ||
-                    check_timestamp(next, |next| next < current)?
+                check_timestamp(prev, |prev| current < prev)?
+                    || check_timestamp(next, |next| next < current)?
             }
         })
     }
@@ -464,8 +470,8 @@ impl ClientState {
         if header1.slot == header2.slot {
             // If blocks have the same height they must be the same, i.e. have
             // the same witness account.
-            Ok(header1.witness_proof.account_hash_data !=
-                header2.witness_proof.account_hash_data)
+            Ok(header1.witness_proof.account_hash_data
+                != header2.witness_proof.account_hash_data)
         } else {
             // Otherwise, if blocks have different heights, their ordering must
             // match ordering of their timestamps (with the exception that it’s
@@ -486,9 +492,15 @@ impl ClientState {
         host_timestamp: ibc::Timestamp,
     ) -> bool {
         let expiry_ns = consensus
-            .timestamp_sec
-            .get()
+            .timestamp()
+            .nanoseconds()
             .saturating_add(self.trusting_period_ns);
+        solana_program::msg!(
+            "expiry {} trusting period {} and host_timestamp {}",
+            expiry_ns,
+            self.trusting_period_ns,
+            host_timestamp
+        );
         ibc::Timestamp::from_nanoseconds(expiry_ns).unwrap() <= host_timestamp
     }
 
@@ -511,11 +523,9 @@ impl ClientState {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -536,7 +546,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     Err(ibc::ClientError::ClientSpecific { description })
 }
 
-
 #[test]
 fn test_verify_client_type() {
     use core::str::FromStr;
@@ -554,3 +563,20 @@ fn test_verify_client_type() {
         assert_eq!(ok, parse_client_id(&client_id).is_ok(), "id={id}");
     }
 }
+
+// #[test]
+// fn testing() {
+//     let client = ClientState {
+//         latest_slot: NonZeroU64::new(6594).unwrap(),
+//         witness_account: Pubkey::from_str(
+//             "7nNQcUGGmDed6d6Vh2oDobcV7ZQ6FP7TfKKaRBHcghwY",
+//         )
+//         .unwrap().to_bytes().into(),
+//         trusting_period_ns: 604800000000000,
+//         is_frozen: false,
+//     };
+//     let any_client_state = client.to_any();
+//     let client_id = ClientId::new("cf-solana", 2).unwrap();
+//     let digest_value = digest_with_client_id(&client_id, any_client_state.as_slice());
+//     std::println!("Any client state {:?}\n{:?}", any_client_state, digest_value);
+// }

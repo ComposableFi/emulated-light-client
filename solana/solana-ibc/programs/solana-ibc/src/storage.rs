@@ -1,6 +1,7 @@
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::num::NonZeroU64;
+use std::collections::VecDeque;
 
 use anchor_lang::prelude::*;
 use borsh::maybestd::io;
@@ -217,7 +218,9 @@ pub struct ClientRef<'a> {
 
 impl<'a> core::ops::Deref for ClientRef<'a> {
     type Target = ClientStore;
-    fn deref(&self) -> &ClientStore { self.store }
+    fn deref(&self) -> &ClientStore {
+        self.store
+    }
 }
 
 /// An exclusive reference to a [`ClientStore`] together with its index.
@@ -228,13 +231,16 @@ pub struct ClientMut<'a> {
 
 impl<'a> core::ops::Deref for ClientMut<'a> {
     type Target = ClientStore;
-    fn deref(&self) -> &ClientStore { self.store }
+    fn deref(&self) -> &ClientStore {
+        self.store
+    }
 }
 
 impl<'a> core::ops::DerefMut for ClientMut<'a> {
-    fn deref_mut(&mut self) -> &mut ClientStore { self.store }
+    fn deref_mut(&mut self) -> &mut ClientStore {
+        self.store
+    }
 }
-
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// Information about a specific `(port, channel)`.
@@ -313,6 +319,9 @@ pub struct PrivateStorage {
 
     // Fee to be charged for each transfer
     pub fee_in_lamports: u64,
+
+    // #[cfg(feature = "witness")]
+    pub local_consensus_state: VecDeque<(u64, u64, CryptoHash)>,
 }
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
@@ -320,7 +329,6 @@ pub struct Asset {
     pub original_decimals: u8,
     pub effective_decimals_on_sol: u8,
 }
-
 
 impl PrivateStorage {
     /// Returns number of known clients; or counter for the next client.
@@ -337,6 +345,7 @@ impl PrivateStorage {
         &self,
         client_id: &ibc::ClientId,
     ) -> Result<ClientRef<'_>, ibc::ClientError> {
+        msg!("Fetching client state for client id {}", client_id);
         trie_ids::ClientIdx::try_from(client_id)
             .ok()
             .and_then(|index| {
@@ -387,11 +396,26 @@ impl PrivateStorage {
                 client_id: client_id.clone(),
             })
     }
+
+    pub fn add_local_consensus_state(
+        &mut self,
+        slot: u64,
+        timestamp: u64,
+        trie_root: CryptoHash,
+    ) -> Result<(), ibc::ClientError> {
+        if self.local_consensus_state.len() == MAX_CONSENSUS_STATES {
+            self.local_consensus_state.pop_front();
+        }
+        self.local_consensus_state.push_back((slot, timestamp, trie_root));
+        Ok(())
+    }
 }
 
 /// Provable storage, i.e. the trie, held in an account.
-pub type TrieAccount<'a, 'b> =
-    solana_trie::TrieAccount<solana_trie::ResizableAccount<'a, 'b>>;
+pub type TrieAccount<'a, 'b> = solana_trie::TrieAccount<
+    solana_trie::ResizableAccount<'a, 'b>,
+    Option<core::cell::RefMut<'a, solana_trie::witness::Data>>,
+>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
@@ -589,15 +613,21 @@ pub(crate) use from_ctx;
 pub struct Serialised<T>(Vec<u8>, core::marker::PhantomData<T>);
 
 impl<T> Serialised<T> {
-    pub fn empty() -> Self { Self(Vec::new(), core::marker::PhantomData) }
+    pub fn empty() -> Self {
+        Self(Vec::new(), core::marker::PhantomData)
+    }
 
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
     pub fn transmute<U>(self) -> Serialised<U> {
         Serialised(self.0, core::marker::PhantomData)
     }
 
-    pub fn as_bytes(&self) -> &[u8] { self.0.as_slice() }
+    pub fn as_bytes(&self) -> &[u8] {
+        self.0.as_slice()
+    }
 }
 
 impl<T: borsh::BorshSerialize> Serialised<T> {

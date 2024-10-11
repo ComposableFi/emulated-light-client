@@ -205,9 +205,11 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         path: ibc::path::Path,
         value: Vec<u8>,
     ) -> Result {
+        use alloc::format;
+        solana_program::msg!("This is path from ibc {:?}", path);
         let value = Some(value.as_slice());
         proof::verify_for_block(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,
@@ -227,7 +229,7 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         path: ibc::path::Path,
     ) -> Result {
         proof::verify_for_block(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,
@@ -242,6 +244,9 @@ impl From<proof::VerifyError> for ibc::ClientError {
     fn from(err: proof::VerifyError) -> Self {
         use ibc::CommitmentError::EncodingFailure;
         use proof::VerifyError::*;
+        use alloc::format;
+
+        solana_program::msg!("This is error {:?}", err);
 
         Self::InvalidCommitmentProof(match err {
             ProofDecodingFailure(msg) => EncodingFailure(msg),
@@ -270,7 +275,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 u64::from(self.latest_height),
             ),
             consensus_state.into(),
@@ -383,6 +388,9 @@ where
             Ok(consensus) => consensus,
             Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
                 return Ok(ibc::Status::Expired)
+            }
+            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+                return Ok(ibc::Status::Active)
             }
             Err(err) => return Err(err),
         };

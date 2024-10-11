@@ -1,5 +1,6 @@
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
+use spl_token::solana_program::sysvar::Sysvar;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
@@ -236,6 +237,26 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
+        #[cfg(feature = "witness")]
+        {
+            crate::msg!("Witness");
+            let clock =
+                anchor_lang::solana_program::sysvar::clock::Clock::get()
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+
+            let slot = clock.slot;
+            let timestamp_sec = clock.unix_timestamp as u64;
+
+            let timestamp =
+                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
+                    .map_err(|e| ibc::ClientError::ClientSpecific {
+                        description: e.to_string(),
+                    })?;
+            let height = ibc::Height::new(1, slot)?;
+            return Ok((timestamp, height));
+        }           
         let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
         let timestamp =
             ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
@@ -331,11 +352,18 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
 impl guestchain::Verifier<sigverify::ed25519::PubKey> for IbcStorage<'_, '_> {
     fn verify(
         &self,
-        _message: &[u8],
-        _pubkey: &sigverify::ed25519::PubKey,
-        _signature: &sigverify::ed25519::Signature,
+        message: &[u8],
+        pubkey: &sigverify::ed25519::PubKey,
+        signature: &sigverify::ed25519::Signature,
     ) -> bool {
-        unimplemented!()
+        let pubkey = pubkey.as_ref();
+        let sig = signature.as_ref();
+        if let Some(verifier) = crate::global().verifier() {
+            if verifier.verify(message, pubkey, sig).unwrap_or(false) {
+                return true;
+            }
+        }
+        false
     }
 }
 
@@ -345,14 +373,20 @@ impl cf_solana::CommonContext for IbcStorage<'_, '_> {
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
-        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
-        let timestamp =
-            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
-                ibc::ClientError::Other { description: err.to_string() }
+        let clock = anchor_lang::solana_program::sysvar::clock::Clock::get()
+            .map_err(|e| ibc::ClientError::ClientSpecific {
+                description: e.to_string(),
             })?;
 
-        let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(1, height)?;
+        let slot = clock.slot;
+        let timestamp_sec = clock.unix_timestamp as u64;
+
+        let timestamp =
+            ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
+                .map_err(|e| ibc::ClientError::ClientSpecific {
+                    description: e.to_string(),
+                })?;
+        let height = ibc::Height::new(1, slot)?;
 
         Ok((timestamp, height))
     }
