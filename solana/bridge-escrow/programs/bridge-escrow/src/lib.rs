@@ -399,16 +399,16 @@ pub mod bridge_escrow {
         ctx: Context<SplTokenTransferCrossChain>,
         intent_id: String,
         amount_out: u64,
-        solver_out: Option<String>,
+        solver_out: String,
     ) -> Result<()> {
         let accounts = ctx.accounts;
 
-        let (fee_collector, _) = Pubkey::find_program_address(&[solana_ibc::FEE_SEED], &solana_ibc::ID);
+        // let (fee_collector, _) = Pubkey::find_program_address(&[solana_ibc::FEE_SEED], &solana_ibc::ID);
 
-        require!(
-            &fee_collector == accounts.fee_collector.as_ref().unwrap().key,
-            ErrorCode::InvalidFeeCollector
-        );
+        // require!(
+        //     &fee_collector == accounts.fee_collector.as_ref().unwrap().key,
+        //     ErrorCode::InvalidFeeCollector
+        // );
 
         let token_program = &accounts.token_program;
         let solver = &accounts.solver;
@@ -430,8 +430,6 @@ pub mod bridge_escrow {
         let seeds = seeds.as_ref();
         let signer_seeds = core::slice::from_ref(&seeds);
 
-        let solver_out =
-            solver_out.ok_or(ErrorCode::InvalidSolverAddress)?;
         let token_mint = accounts
             .token_mint
             .as_ref()
@@ -450,7 +448,7 @@ pub mod bridge_escrow {
         // string solver_out
 
         let my_custom_memo = format!(
-            "0,{},{},{},{},{},{}",
+            "{},{},{},{},{},{}",
             intent_id,
             accounts.solver.key,
             accounts.token_out.key(),
