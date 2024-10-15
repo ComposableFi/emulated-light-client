@@ -6,9 +6,6 @@ pub struct ConsensusState {
     /// protobuf encoded data of consensus state
     #[prost(bytes = "vec", tag = "1")]
     pub data: alloc::vec::Vec<u8>,
-    /// Timestamp in nanoseconds.
-    #[prost(uint64, tag = "2")]
-    pub timestamp_ns: u64,
 }
 
 impl prost::Name for ConsensusState {
@@ -37,6 +34,6 @@ impl prost::Name for ConsensusState {
 proto_utils::define_message! {
     ConsensusState; test_consensus_state {
         let data = lib::hash::CryptoHash::test(42).to_vec();
-        Self { data, timestamp_ns: 1 }
+        Self { data }
     }
 }
