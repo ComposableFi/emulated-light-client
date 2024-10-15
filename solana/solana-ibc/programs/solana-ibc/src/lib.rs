@@ -416,8 +416,9 @@ pub mod solana_ibc {
                 let clock = Clock::get()?;
                 let slot = clock.slot;
                 let timestamp = clock.unix_timestamp as u64;
-                store.borrow_mut()
-                    .private;
+                store
+                    .borrow_mut()
+                    .private
                     .add_local_consensus_state(slot, timestamp, root)
                     .unwrap();
             }
