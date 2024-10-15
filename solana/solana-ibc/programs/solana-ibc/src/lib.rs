@@ -413,8 +413,9 @@ pub mod solana_ibc {
             let root = store.borrow().provable.hash().clone();
             if previous_root != root {
                 msg!("Writing local consensus state");
-                let slot = Clock::get()?.slot;
-                let timestamp = Clock::get()?.unix_timestamp as u64;
+                let clock = Clock::get()?;
+                let slot = clock.slot;
+                let timestamp = clock.unix_timestamp as u64;
                 let storage = &mut store.borrow_mut().private;
                 storage
                     .add_local_consensus_state(slot, timestamp, root)
