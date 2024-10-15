@@ -188,7 +188,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 self.latest_slot.get(),
             ),
             consensus_state.into(),
