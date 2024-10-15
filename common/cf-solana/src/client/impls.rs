@@ -157,14 +157,8 @@ impl ibc::ClientStateCommon for ClientState {
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
-        proof::verify_for_trie(
-            &[],
-            proof.as_ref(),
-            root.as_bytes(),
-            path,
-            None,
-        )
-        .map_err(Into::into)
+        proof::verify_for_trie(&[], proof.as_ref(), root.as_bytes(), path, None)
+            .map_err(Into::into)
     }
 }
 
