@@ -2,6 +2,8 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::num::NonZeroU64;
 
+use ibc_core_client_context::consensus_state::ConsensusState as _;
+
 use crate::proto::Any;
 use crate::{
     proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
@@ -168,7 +170,6 @@ impl ibc::ClientStateCommon for ClientState {
     }
 }
 
-
 impl<E> ibc::ClientStateExecution<E> for ClientState
 where
     E: ibc::ExecutionContext + ibc::ClientExecutionContext + CommonContext,
@@ -310,7 +311,6 @@ where
         })
     }
 }
-
 
 impl ClientState {
     pub fn do_update_state(
@@ -486,8 +486,8 @@ impl ClientState {
         host_timestamp: ibc::Timestamp,
     ) -> bool {
         let expiry_ns = consensus
-            .timestamp_sec
-            .get()
+            .timestamp()
+            .nanoseconds()
             .saturating_add(self.trusting_period_ns);
         ibc::Timestamp::from_nanoseconds(expiry_ns).unwrap() <= host_timestamp
     }
@@ -511,11 +511,9 @@ impl ClientState {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -535,7 +533,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {
