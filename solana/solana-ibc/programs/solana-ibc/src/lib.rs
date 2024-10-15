@@ -402,7 +402,7 @@ pub mod solana_ibc {
         let height = store.borrow().chain.head()?.block_height;
         // height just before the data is added to the trie.
         msg!("Current Block height {}", height);
-        let previous_root = store.borrow().provable.hash().clone();
+        let previous_root = *store.borrow().provable.hash();
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
