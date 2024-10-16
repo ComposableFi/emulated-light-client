@@ -409,8 +409,8 @@ mod test_write_log {
     fn test_free_commit() {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
-        for num in 5..10 {
-            wlog.free(ptrs[num]);
+        for ptr in &ptrs[5..10] {
+            wlog.free(*ptr);
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         wlog.commit();
@@ -421,8 +421,8 @@ mod test_write_log {
     fn test_free_rollback() {
         let (mut alloc, ptrs) = make_allocator();
         let mut wlog = WriteLog::new(&mut alloc);
-        for num in 5..10 {
-            wlog.free(ptrs[num]);
+        for ptr in &ptrs[5..10] {
+            wlog.free(*ptr);
         }
         assert_nodes(10, wlog.allocator(), &ptrs, 0);
         core::mem::drop(wlog);

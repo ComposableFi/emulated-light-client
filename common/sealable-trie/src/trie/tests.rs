@@ -385,7 +385,7 @@ fn stress_test_iter() {
     }
 }
 
-#[derive(Clone, Eq, Ord)]
+#[derive(Clone, Eq)]
 struct Key {
     len: u8,
     buf: [u8; 35],
@@ -425,9 +425,15 @@ impl core::cmp::PartialEq for Key {
     fn eq(&self, other: &Self) -> bool { self.as_bytes() == other.as_bytes() }
 }
 
+impl core::cmp::Ord for Key {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.as_bytes().cmp(other.as_bytes())
+    }
+}
+
 impl core::cmp::PartialOrd for Key {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        self.as_bytes().partial_cmp(other.as_bytes())
+        Some(self.cmp(other))
     }
 }
 

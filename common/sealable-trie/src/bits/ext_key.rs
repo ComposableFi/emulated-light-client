@@ -266,7 +266,6 @@ fn test_decode() {
 
     #[track_caller]
     fn test(length: u16, offset: U3, bad: &[u8], good: &[u8]) {
-        let offset = U3::try_from(offset).unwrap();
         let num = length * 8 + u16::from(offset);
         let bad = [&num.to_be_bytes()[..], bad].concat();
         assert_eq!(None, ExtKey::decode(&bad, 0));
