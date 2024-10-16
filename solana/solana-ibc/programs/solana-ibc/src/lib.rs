@@ -127,7 +127,7 @@ pub mod solana_ibc {
                 .add_local_consensus_state(
                     slot,
                     timestamp,
-                    provable.hash().clone(),
+                    *provable.hash(),
                 )
                 .unwrap();
         }
