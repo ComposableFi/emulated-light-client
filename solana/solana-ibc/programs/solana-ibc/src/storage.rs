@@ -1,6 +1,8 @@
 use alloc::rc::Rc;
 use core::cell::RefCell;
 use core::num::NonZeroU64;
+#[cfg(feature = "witness")]
+use std::collections::VecDeque;
 
 use anchor_lang::prelude::*;
 use borsh::maybestd::io;
@@ -313,6 +315,9 @@ pub struct PrivateStorage {
 
     // Fee to be charged for each transfer
     pub fee_in_lamports: u64,
+
+    #[cfg(feature = "witness")]
+    pub local_consensus_state: VecDeque<(u64, u64, CryptoHash)>,
 }
 
 #[derive(Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
@@ -387,11 +392,25 @@ impl PrivateStorage {
                 client_id: client_id.clone(),
             })
     }
+
+    #[cfg(feature = "witness")]
+    pub fn add_local_consensus_state(
+        &mut self,
+        slot: u64,
+        timestamp: u64,
+        trie_root: CryptoHash,
+    ) -> Result<(), ibc::ClientError> {
+        if self.local_consensus_state.len() == MAX_CONSENSUS_STATES {
+            self.local_consensus_state.pop_front();
+        }
+        self.local_consensus_state.push_back((slot, timestamp, trie_root));
+        Ok(())
+    }
 }
 
 /// Provable storage, i.e. the trie, held in an account.
 pub type TrieAccount<'a, 'b> =
-    solana_trie::TrieAccount<'a, solana_trie::ResizableAccount<'a, 'b>>;
+    solana_trie::TrieAccount<solana_trie::ResizableAccount<'a, 'b>>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///

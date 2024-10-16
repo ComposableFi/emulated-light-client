@@ -270,7 +270,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 u64::from(self.latest_height),
             ),
             consensus_state.into(),
@@ -383,6 +383,11 @@ where
             Ok(consensus) => consensus,
             Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
                 return Ok(ibc::Status::Expired)
+            }
+            // If the client state is not found, then a new client is going to be created and since its known from
+            // above that the client state is not frozen, we return the client state as active.
+            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+                return Ok(ibc::Status::Active)
             }
             Err(err) => return Err(err),
         };
