@@ -402,10 +402,27 @@ pub mod solana_ibc {
         let height = store.borrow().chain.head()?.block_height;
         // height just before the data is added to the trie.
         msg!("Current Block height {}", height);
+        let previous_root = *store.borrow().provable.hash();
 
         ::ibc::core::entrypoint::dispatch(&mut store, &mut router, message)
             .map_err(error::Error::ContextError)
             .map_err(move |err| error!((&err)))?;
+
+        #[cfg(feature = "witness")]
+        {
+            let root = *store.borrow().provable.hash();
+            if previous_root != root {
+                msg!("Writing local consensus state");
+                let clock = Clock::get()?;
+                let slot = clock.slot;
+                let timestamp = clock.unix_timestamp as u64;
+                store
+                    .borrow_mut()
+                    .private
+                    .add_local_consensus_state(slot, timestamp, root)
+                    .unwrap();
+            }
+        }
 
         Ok(())
     }

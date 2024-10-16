@@ -1,6 +1,7 @@
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
-use spl_token::solana_program::sysvar::Sysvar;
+use anchor_lang::solana_program::sysvar::clock::Clock;
+use anchor_lang::solana_program::sysvar::Sysvar;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
@@ -16,6 +17,7 @@ pub enum AnyClientState {
     Tendermint(ibc::tm::ClientState),
     Wasm(ibc::wasm::ClientState),
     Rollup(cf_solana::ClientState),
+    Guest(cf_guest::ClientState<sigverify::ed25519::PubKey>),
     #[cfg(any(test, feature = "mocks"))]
     Mock(ibc::mock::MockClientState),
 }
@@ -29,6 +31,7 @@ enum AnyClientStateTag {
     Tendermint = 0,
     Wasm = 1,
     Rollup = 2,
+    Guest = 3,
     #[cfg(any(test, feature = "mocks"))]
     Mock = 255,
 }
@@ -41,6 +44,7 @@ impl AnyClientStateTag {
             AnyClientState::TENDERMINT_TYPE => Some(Self::Tendermint),
             AnyClientState::WASM_TYPE => Some(Self::Wasm),
             AnyClientState::ROLLUP_TYPE => Some(Self::Rollup),
+            AnyClientState::GUEST_TYPE => Some(Self::Guest),
             #[cfg(any(test, feature = "mocks"))]
             AnyClientState::MOCK_TYPE => Some(Self::Mock),
             _ => None,
@@ -57,6 +61,8 @@ impl AnyClientState {
     /// Protobuf type URL for Rollup client state used in Any message.
     const ROLLUP_TYPE: &'static str =
         cf_solana::proto::ClientState::IBC_TYPE_URL;
+    /// Protobuf type URL for Guest client state used in Any message.
+    const GUEST_TYPE: &'static str = cf_guest::proto::ClientState::IBC_TYPE_URL;
     #[cfg(any(test, feature = "mocks"))]
     /// Protobuf type URL for Mock client state used in Any message.
     const MOCK_TYPE: &'static str = ibc::mock::MOCK_CLIENT_STATE_TYPE_URL;
@@ -90,6 +96,11 @@ impl AnyClientState {
                 Self::ROLLUP_TYPE,
                 Protobuf::<cf_solana::proto::ClientState>::encode_vec(state),
             ),
+            Self::Guest(state) => (
+                AnyClientStateTag::Guest,
+                Self::GUEST_TYPE,
+                Protobuf::<cf_guest::proto::ClientState>::encode_vec(state),
+            ),
             #[cfg(any(test, feature = "mocks"))]
             Self::Mock(state) => (
                 AnyClientStateTag::Mock,
@@ -120,6 +131,11 @@ impl AnyClientState {
                     .map_err(|err| err.to_string())
                     .map(Self::Rollup)
             }
+            AnyClientStateTag::Guest => {
+                Protobuf::<cf_guest::proto::ClientState>::decode_vec(&value)
+                    .map_err(|err| err.to_string())
+                    .map(Self::Guest)
+            }
             #[cfg(any(test, feature = "mocks"))]
             AnyClientStateTag::Mock => {
                 Protobuf::<ibc::mock::ClientStatePB>::decode_vec(&value)
@@ -133,21 +149,6 @@ impl AnyClientState {
 impl From<ibc::tm::types::ClientState> for AnyClientState {
     fn from(state: ibc::tm::types::ClientState) -> Self {
         Self::Tendermint(state.into())
-    }
-}
-
-impl<PK: guestchain::PubKey> From<cf_guest::ClientState<PK>>
-    for AnyClientState
-{
-    fn from(state: cf_guest::ClientState<PK>) -> Self {
-        Self::from(ibc::wasm::ClientState {
-            data: prost::Message::encode_to_vec(&cf_guest::proto::Any::from(
-                &state,
-            )),
-            checksum: Default::default(),
-            latest_height: ibc::Height::new(1, u64::from(state.latest_height))
-                .unwrap(),
-        })
     }
 }
 
@@ -232,40 +233,26 @@ impl ibc::tm::CommonContext for IbcStorage<'_, '_> {
 impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     for IbcStorage<'_, '_>
 {
-    type ConversionError = cf_guest::DecodeError;
+    type ConversionError = &'static str;
     type AnyClientState = AnyClientState;
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
-        #[cfg(feature = "witness")]
-        {
-            let clock =
-                anchor_lang::solana_program::sysvar::clock::Clock::get()
-                    .map_err(|e| ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?;
-
-            let slot = clock.slot;
-            let timestamp_sec = clock.unix_timestamp as u64;
-
-            let timestamp =
-                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
-                    .map_err(|e| ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?;
-            let height = ibc::Height::new(1, slot)?;
-            return Ok((timestamp, height));
-        }
-        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
-        let timestamp =
-            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
-                ibc::ClientError::Other { description: err.to_string() }
+        let (timestamp_ns, height) = if cfg!(feature = "witness") {
+            let clock = Clock::get().map_err(|e| {
+                ibc::ClientError::ClientSpecific { description: e.to_string() }
             })?;
-
-        let height = u64::from(self.borrow().chain.head()?.block_height);
-        let height = ibc::Height::new(1, height)?;
-
-        Ok((timestamp, height))
+            (clock.unix_timestamp as u64 * 10u64.pow(9), clock.slot)
+        } else {
+            self.borrow().chain.head().map(|head| {
+                (head.timestamp_ns.get(), head.block_height.into())
+            })?
+        };
+        let timestamp = ibc::Timestamp::from_nanoseconds(timestamp_ns)
+            .map_err(|e| ibc::ClientError::ClientSpecific {
+                description: e.to_string(),
+            })?;
+        Ok((timestamp, ibc::Height::new(1, height)?))
     }
 
     fn set_client_state(
@@ -351,11 +338,18 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
 impl guestchain::Verifier<sigverify::ed25519::PubKey> for IbcStorage<'_, '_> {
     fn verify(
         &self,
-        _message: &[u8],
-        _pubkey: &sigverify::ed25519::PubKey,
-        _signature: &sigverify::ed25519::Signature,
+        message: &[u8],
+        pubkey: &sigverify::ed25519::PubKey,
+        signature: &sigverify::ed25519::Signature,
     ) -> bool {
-        unimplemented!()
+        let pubkey = pubkey.as_ref();
+        let sig = signature.as_ref();
+        if let Some(verifier) = crate::global().verifier() {
+            if verifier.verify(message, pubkey, sig).unwrap_or(false) {
+                return true;
+            }
+        }
+        false
     }
 }
 

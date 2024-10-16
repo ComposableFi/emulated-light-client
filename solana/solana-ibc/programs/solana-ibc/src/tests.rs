@@ -903,6 +903,7 @@ fn max_timeout_height() -> ibc::TimeoutHeight {
     ibc::TimeoutHeight::At(ibc::Height::new(u64::MAX, u64::MAX).unwrap())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn construct_packet_from_denom(
     base_denom: &str,
     port_id: ibc::PortId,

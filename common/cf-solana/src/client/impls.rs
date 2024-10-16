@@ -168,7 +168,6 @@ impl ibc::ClientStateCommon for ClientState {
     }
 }
 
-
 impl<E> ibc::ClientStateExecution<E> for ClientState
 where
     E: ibc::ExecutionContext + ibc::ClientExecutionContext + CommonContext,
@@ -188,7 +187,7 @@ where
         ctx.store_consensus_state(
             ibc::path::ClientConsensusStatePath::new(
                 client_id.clone(),
-                0,
+                1,
                 self.latest_slot.get(),
             ),
             consensus_state.into(),
@@ -299,6 +298,11 @@ where
             Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
                 return Ok(ibc::Status::Expired)
             }
+            // If the client state is not found, then a new client is going to be created and since its known from
+            // above that the client state is not frozen, we return the client state as active.
+            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+                return Ok(ibc::Status::Active)
+            }
             Err(err) => return Err(err),
         };
 
@@ -310,7 +314,6 @@ where
         })
     }
 }
-
 
 impl ClientState {
     pub fn do_update_state(
@@ -511,11 +514,9 @@ impl ClientState {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -535,7 +536,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {
