@@ -252,8 +252,7 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
             .map_err(|e| ibc::ClientError::ClientSpecific {
                 description: e.to_string(),
             })?;
-        let height = ibc::Height::new(1, height)?;
-        Ok((timestamp, height))
+        Ok((timestamp, ibc::Height::new(1, height)?))
     }
 
     fn set_client_state(
