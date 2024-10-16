@@ -422,7 +422,7 @@ pub mod solana_ibc {
 
         #[cfg(feature = "witness")]
         {
-            let root = store.borrow().provable.hash().clone();
+            let root = *store.borrow().provable.hash();
             if previous_root != root {
                 msg!("Writing local consensus state");
                 let clock = Clock::get()?;

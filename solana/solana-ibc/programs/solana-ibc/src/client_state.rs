@@ -1,5 +1,7 @@
 use anchor_lang::prelude::borsh;
 use anchor_lang::prelude::borsh::maybestd::io;
+use anchor_lang::solana_program::sysvar::clock::Clock;
+use anchor_lang::solana_program::sysvar::Sysvar;
 
 use crate::consensus_state::AnyConsensusState;
 use crate::ibc;
@@ -236,34 +238,21 @@ impl cf_guest::CommonContext<sigverify::ed25519::PubKey>
     type AnyConsensusState = AnyConsensusState;
 
     fn host_metadata(&self) -> Result<(ibc::Timestamp, ibc::Height)> {
-        #[cfg(feature = "witness")]
-        {
-            let clock =
-                anchor_lang::solana_program::sysvar::clock::Clock::get()
-                    .map_err(|e| ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?;
-
-            let slot = clock.slot;
-            let timestamp_sec = clock.unix_timestamp as u64;
-
-            let timestamp =
-                ibc::Timestamp::from_nanoseconds(timestamp_sec * 10u64.pow(9))
-                    .map_err(|e| ibc::ClientError::ClientSpecific {
-                        description: e.to_string(),
-                    })?;
-            let height = ibc::Height::new(1, slot)?;
-            return Ok((timestamp, height));
-        }
-        let timestamp = self.borrow().chain.head()?.timestamp_ns.get();
-        let timestamp =
-            ibc::Timestamp::from_nanoseconds(timestamp).map_err(|err| {
-                ibc::ClientError::Other { description: err.to_string() }
+        let (timestamp_ns, height) = if cfg!(feature = "witness") {
+            let clock = Clock::get().map_err(|e| {
+                ibc::ClientError::ClientSpecific { description: e.to_string() }
             })?;
-
-        let height = u64::from(self.borrow().chain.head()?.block_height);
+            (clock.unix_timestamp as u64 * 10u64.pow(9), clock.slot)
+        } else {
+            self.borrow().chain.head().map(|head| {
+                (head.timestamp_ns.get(), head.block_height.into())
+            })?
+        };
+        let timestamp = ibc::Timestamp::from_nanoseconds(timestamp_ns)
+            .map_err(|e| ibc::ClientError::ClientSpecific {
+                description: e.to_string(),
+            })?;
         let height = ibc::Height::new(1, height)?;
-
         Ok((timestamp, height))
     }
 

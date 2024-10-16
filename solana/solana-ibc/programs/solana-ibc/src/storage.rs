@@ -408,9 +408,18 @@ impl PrivateStorage {
     }
 }
 
+#[cfg(not(feature = "witness"))]
+type WitnessOptRef<'a> = ();
+
+#[cfg(feature = "witness")]
+type WitnessOptRef<'a> =
+    Option<core::cell::RefMut<'a, solana_trie::witness::Data>>;
+
 /// Provable storage, i.e. the trie, held in an account.
-pub type TrieAccount<'a, 'b> =
-    solana_trie::TrieAccount<solana_trie::ResizableAccount<'a, 'b>>;
+pub type TrieAccount<'a, 'b> = solana_trie::TrieAccount<
+    solana_trie::ResizableAccount<'a, 'b>,
+    WitnessOptRef<'a>,
+>;
 
 /// Checks contents of given unchecked account and returns a trie if it’s valid.
 ///
