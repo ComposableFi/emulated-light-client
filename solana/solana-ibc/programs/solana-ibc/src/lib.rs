@@ -121,8 +121,9 @@ pub mod solana_ibc {
         #[cfg(feature = "witness")]
         {
             let storage = &mut ctx.accounts.storage;
-            let slot = Clock::get()?.slot;
-            let timestamp = Clock::get()?.unix_timestamp as u64;
+            let clock = Clock::get()?;
+            let slot = clock.slot;
+            let timestamp = clock?.unix_timestamp as u64;
             storage
                 .add_local_consensus_state(
                     slot,
