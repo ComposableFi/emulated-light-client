@@ -206,6 +206,8 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
         value: Vec<u8>,
     ) -> Result {
         let value = Some(value.as_slice());
+        // TODO: Once IBC is updated everywhere to version which supports empty
+        // prefixes, change `&[]` with `prefix.as_bytes()`.
         proof::verify_for_block(
             &[],
             proof.as_ref(),
