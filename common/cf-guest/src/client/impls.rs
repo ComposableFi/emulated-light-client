@@ -199,15 +199,17 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     /// See [`proof::verify`] for documentation of the proof format.
     fn verify_membership(
         &self,
-        prefix: &ibc::CommitmentPrefix,
+        _prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
         value: Vec<u8>,
     ) -> Result {
         let value = Some(value.as_slice());
+        // TODO: Once IBC is updated everywhere to version which supports empty
+        // prefixes, change `&[]` with `prefix.as_bytes()`.
         proof::verify_for_block(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,
@@ -221,13 +223,13 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     /// See [`proof::verify`] for documentation of the proof format.
     fn verify_non_membership(
         &self,
-        prefix: &ibc::CommitmentPrefix,
+        _prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
         proof::verify_for_block(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,

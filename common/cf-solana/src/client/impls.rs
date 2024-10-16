@@ -132,7 +132,7 @@ impl ibc::ClientStateCommon for ClientState {
     /// See [`proof::verify`] for documentation of the proof format.
     fn verify_membership(
         &self,
-        prefix: &ibc::CommitmentPrefix,
+        _prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
@@ -140,7 +140,7 @@ impl ibc::ClientStateCommon for ClientState {
     ) -> Result {
         let value = Some(value.as_slice());
         proof::verify_for_trie(
-            prefix.as_bytes(),
+            &[],
             proof.as_ref(),
             root.as_bytes(),
             path,
@@ -154,19 +154,13 @@ impl ibc::ClientStateCommon for ClientState {
     /// See [`proof::verify`] for documentation of the proof format.
     fn verify_non_membership(
         &self,
-        prefix: &ibc::CommitmentPrefix,
+        _prefix: &ibc::CommitmentPrefix,
         proof: &ibc::CommitmentProofBytes,
         root: &ibc::CommitmentRoot,
         path: ibc::path::Path,
     ) -> Result {
-        proof::verify_for_trie(
-            prefix.as_bytes(),
-            proof.as_ref(),
-            root.as_bytes(),
-            path,
-            None,
-        )
-        .map_err(Into::into)
+        proof::verify_for_trie(&[], proof.as_ref(), root.as_bytes(), path, None)
+            .map_err(Into::into)
     }
 }
 
