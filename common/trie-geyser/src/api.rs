@@ -51,11 +51,8 @@ fn test_slot_data_serialisation() {
     );
 
     let mut proof = proof::MerkleProof::default();
-    let level = [
-        CryptoHash::test(10),
-        CryptoHash::test(11),
-        CryptoHash::test(12),
-    ];
+    let level =
+        [CryptoHash::test(10), CryptoHash::test(11), CryptoHash::test(12)];
     proof.push_level(&level, 1);
 
     let data = SlotData {
