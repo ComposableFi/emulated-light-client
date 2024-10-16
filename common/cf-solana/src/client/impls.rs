@@ -2,6 +2,8 @@ use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::num::NonZeroU64;
 
+use ibc_core_client_context::consensus_state::ConsensusState as _;
+
 use crate::proto::Any;
 use crate::{
     proof, ClientMessage, ClientState, ConsensusState, Header, Misbehaviour,
@@ -489,8 +491,8 @@ impl ClientState {
         host_timestamp: ibc::Timestamp,
     ) -> bool {
         let expiry_ns = consensus
-            .timestamp_sec
-            .get()
+            .timestamp()
+            .nanoseconds()
             .saturating_add(self.trusting_period_ns);
         ibc::Timestamp::from_nanoseconds(expiry_ns).unwrap() <= host_timestamp
     }
