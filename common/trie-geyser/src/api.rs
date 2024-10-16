@@ -52,18 +52,18 @@ fn test_slot_data_serialisation() {
 
     let mut proof = proof::MerkleProof::default();
     let level = [
-        CryptoHash::test(10).into(),
-        CryptoHash::test(11).into(),
-        CryptoHash::test(12).into(),
+        CryptoHash::test(10),
+        CryptoHash::test(11),
+        CryptoHash::test(12),
     ];
     proof.push_level(&level, 1);
 
     let data = SlotData {
         delta_hash_proof: proof::DeltaHashProof {
-            parent_blockhash: CryptoHash::test(101).into(),
-            accounts_delta_hash: CryptoHash::test(102).into(),
+            parent_blockhash: CryptoHash::test(101),
+            accounts_delta_hash: CryptoHash::test(102),
             num_sigs: 103,
-            blockhash: CryptoHash::test(104).into(),
+            blockhash: CryptoHash::test(104),
             epoch_accounts_hash: None,
         },
         witness_proof: proof::AccountProof { account_hash_data, proof },
