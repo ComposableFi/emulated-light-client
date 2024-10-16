@@ -121,7 +121,8 @@ impl<'a, 'info> SignaturesAccount<'a, 'info> {
     #[cfg(any(test, not(feature = "library")))]
     pub(crate) fn write_count_and_sort(&self, count: u32) -> Result {
         let mut data = self.0.try_borrow_mut_data()?;
-        let (head, tail) = stdx::split_at_mut::<4, _>(&mut *data)
+        #[allow(clippy::explicit_auto_deref)]
+        let (head, tail) = stdx::split_at_mut::<4, _>(*data)
             .ok_or(ProgramError::AccountDataTooSmall)?;
         let entries = stdx::as_chunks_mut::<{ SignatureHash::SIZE }, _>(tail)
             .0

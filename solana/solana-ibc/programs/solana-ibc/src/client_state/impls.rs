@@ -394,7 +394,7 @@ fn test_merkle_hash() {
         assert_eq!(theirs.leaf_hash(input), ours.leaf_hash(input));
     }
 
-    let foo = Sha256::digest(b"foo");
-    let bar = Sha256::digest(b"bar");
-    assert_eq!(theirs.inner_hash(foo, bar), ours.inner_hash(foo, bar));
+    let one = Sha256::digest(b"foo");
+    let two = Sha256::digest(b"bar");
+    assert_eq!(theirs.inner_hash(one, two), ours.inner_hash(one, two));
 }

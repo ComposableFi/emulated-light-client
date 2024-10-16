@@ -1005,6 +1005,7 @@ mod test_pop {
     }
 
     #[test]
+    #[allow(clippy::just_underscores_and_digits)]
     fn test_pop_back_slice() {
         let bytes = [
             7, 182, 182, 167, 177, 247, 171, 255, 255, 255, 0, 0, 0, 0, 0, 0,
