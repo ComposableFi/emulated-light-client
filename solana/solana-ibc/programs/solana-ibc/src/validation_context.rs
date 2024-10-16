@@ -1,12 +1,9 @@
 use std::str::FromStr;
 use std::time::Duration;
 
-use anchor_lang::prelude::Pubkey;
-#[cfg(feature = "witness")]
-use anchor_lang::prelude::SolanaSysvar;
+use anchor_lang::prelude::{Pubkey, SolanaSysvar};
 use lib::hash::CryptoHash;
 use spl_token::solana_program::clock::Clock;
-use spl_token::solana_program::sysvar::Sysvar;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
