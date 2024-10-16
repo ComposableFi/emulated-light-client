@@ -125,11 +125,7 @@ pub mod solana_ibc {
             let slot = clock.slot;
             let timestamp = clock?.unix_timestamp as u64;
             storage
-                .add_local_consensus_state(
-                    slot,
-                    timestamp,
-                    *provable.hash(),
-                )
+                .add_local_consensus_state(slot, timestamp, *provable.hash())
                 .unwrap();
         }
         ctx.accounts.chain.initialise(
