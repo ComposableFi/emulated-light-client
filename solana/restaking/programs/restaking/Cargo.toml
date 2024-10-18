@@ -16,6 +16,7 @@ no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
 default = []
+witness = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
