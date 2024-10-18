@@ -10,7 +10,6 @@ name = "solana_ibc"
 
 [features]
 default = ["custom-entrypoint", "custom-heap"]
-witness = []
 cpi = ["no-entrypoint"]
 custom-heap = ["solana-allocator"]
 custom-entrypoint = ["custom-heap"]
@@ -18,6 +17,7 @@ mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
+witness = []
 
 [dependencies]
 anchor-lang.workspace = true
