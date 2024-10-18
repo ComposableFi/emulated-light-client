@@ -1,3 +1,5 @@
+#[cfg(feature = "witness")]
+use core::num::NonZeroU64;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -7,7 +9,7 @@ use spl_token::solana_program::clock::Clock;
 
 use crate::client_state::AnyClientState;
 use crate::consensus_state::AnyConsensusState;
-use crate::ibc::{self, ConsensusState};
+use crate::ibc;
 use crate::storage::{self, IbcStorage};
 
 type Result<T = (), E = ibc::ContextError> = core::result::Result<T, E>;
@@ -79,27 +81,42 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         height: &ibc::Height,
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
-        let state = if height.revision_number() == 1 {
-            store.chain.consensus_state(height.revision_height().into())?
-        } else {
-            None
-        }
-        .ok_or(ibc::ClientError::MissingLocalConsensusState {
-            height: *height,
-        })?;
-        let guest_consensus_state = cf_guest::ConsensusState {
-            block_hash: state.0.as_array().to_vec().into(),
-            timestamp_ns: state.1,
-        };
-        let wasm_consensus_state = wasm::consensus_state::ConsensusState::new(
-            guest_consensus_state.encode_vec(),
-            state.1.into(),
-        );
-        Ok(AnyConsensusState::Wasm(wasm_consensus_state))
-        // Ok(Self::AnyConsensusState::from(cf_guest::ConsensusState {
-        //     block_hash: state.0.as_array().to_vec().into(),
-        //     timestamp_ns: state.1,
-        // }))
+        #[cfg(feature = "witness")]
+        let state = (height.revision_number() == 1)
+            .then(|| {
+                store
+                    .private
+                    .local_consensus_state
+                    .iter()
+                    .find(|cs| cs.0 == height.revision_height())
+                    .map(|(_slot, timestamp, trie_root)| {
+                        let state = cf_solana::ConsensusState {
+                            trie_root: trie_root.to_vec().into(),
+                            timestamp_sec: NonZeroU64::new(*timestamp).unwrap(),
+                        };
+                        AnyConsensusState::Rollup(state)
+                    })
+            })
+            .flatten();
+        #[cfg(not(feature = "witness"))]
+        let state = (height.revision_number() == 1)
+            .then(|| {
+                let height = height.revision_height().into();
+                store.chain.consensus_state(height)
+            })
+            .transpose()?
+            .flatten()
+            .map(|state| {
+                let state = cf_guest::ConsensusState {
+                    block_hash: state.0.as_array().to_vec().into(),
+                    timestamp_ns: state.1,
+                };
+                AnyConsensusState::Guest(state)
+            });
+        state.ok_or(
+            ibc::ClientError::MissingLocalConsensusState { height: *height }
+                .into(),
+        )
     }
 
     fn client_counter(&self) -> Result<u64> {
