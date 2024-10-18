@@ -91,9 +91,7 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
                     .find(|cs| cs.0 == height.revision_height())
                     .map(|(_slot, timestamp, trie_root)| {
                         let state = cf_solana::ConsensusState {
-                            trie_root: ibc::CommitmentRoot::from_bytes(
-                                trie_root.as_slice(),
-                            ),
+                            trie_root: trie_root.to_vec().into(),
                             timestamp_sec: NonZeroU64::new(*timestamp).unwrap(),
                         };
                         AnyConsensusState::Rollup(state)
