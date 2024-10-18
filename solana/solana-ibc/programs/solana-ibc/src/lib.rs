@@ -21,6 +21,8 @@ pub const CHAIN_SEED: &[u8] = b"chain";
 pub const PACKET_SEED: &[u8] = b"packet";
 pub const SOLANA_IBC_STORAGE_SEED: &[u8] = b"private";
 pub const TRIE_SEED: &[u8] = b"trie";
+#[cfg(feature = "witness")]
+pub const WITNESS_SEED: &[u8] = b"witness";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MINT: &[u8] = b"mint";
 pub const ESCROW: &[u8] = b"escrow";
@@ -116,6 +118,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let mut provable = storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
         #[cfg(feature = "witness")]
@@ -147,6 +151,8 @@ pub mod solana_ibc {
     pub fn generate_block(ctx: Context<Chain>) -> Result<()> {
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
         ctx.accounts.chain.generate_block(&provable)
@@ -171,6 +177,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
         let mut verifier = sigverify::Verifier::default();
@@ -203,6 +211,8 @@ pub mod solana_ibc {
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
         chain.maybe_generate_block(&provable)?;
@@ -226,6 +236,8 @@ pub mod solana_ibc {
         let chain = &mut ctx.accounts.chain;
         let provable = storage::get_provable_from(
             &ctx.accounts.trie,
+            #[cfg(feature = "witness")]
+            &ctx.accounts.witness,
             &ctx.accounts.sender,
         )?;
         chain.maybe_generate_block(&provable)?;
@@ -626,6 +638,15 @@ pub struct Initialise<'info> {
     #[account(init, payer = sender, seeds = [TRIE_SEED], bump, space = 10240)]
     trie: UncheckedAccount<'info>,
 
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(init, payer = sender, space = 40,
+              seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
+
     system_program: Program<'info, System>,
 }
 
@@ -645,6 +666,14 @@ pub struct Chain<'info> {
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
+
     system_program: Program<'info, System>,
 }
 
@@ -663,6 +692,14 @@ pub struct SetStake<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
+
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
 
     system_program: Program<'info, System>,
 
@@ -687,6 +724,14 @@ pub struct ChainWithVerifier<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
+
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
 
     #[account(address = solana_program::sysvar::instructions::ID)]
     /// CHECK:
@@ -786,6 +831,14 @@ pub struct Deliver<'info> {
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
+
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Box<Account<'info, chain::ChainData>>,
@@ -826,6 +879,14 @@ pub struct MockDeliver<'info> {
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
 
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
+
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
     chain: Account<'info, chain::ChainData>,
@@ -852,6 +913,14 @@ pub struct SendTransfer<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
+
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
 
     /// The guest blockchain data.
     #[account(mut, seeds = [CHAIN_SEED], bump)]
@@ -919,6 +988,14 @@ pub struct UpdateConnectionDelay<'info> {
     /// function.
     #[account(mut, seeds = [TRIE_SEED], bump)]
     trie: UncheckedAccount<'info>,
+
+    /// The witness account holding trie’s state root.
+    ///
+    /// CHECK: Account’s owner and address is checked by
+    /// [`storage::get_provable_from`] function.
+    #[cfg(feature = "witness")]
+    #[account(mut, seeds = [WITNESS_SEED, trie.key().as_ref()], bump)]
+    witness: UncheckedAccount<'info>,
 }
 
 impl ibc::Router for storage::IbcStorage<'_, '_> {

@@ -15,6 +15,7 @@ import {
   guestChainProgramID,
   restakingProgramID,
 } from "./helper";
+import { Transaction, TransactionInstruction } from "@solana/web3.js";
 
 export const depositInstruction = async (
   program: anchor.Program<Restaking>,
@@ -159,36 +160,55 @@ export const withdrawInstruction = async (
     withdrawer
   );
 
-  const tx = await program.methods
-    .withdraw()
-    .preInstructions([
+  let instruction = new TransactionInstruction({
+    keys: [
+      { pubkey: withdrawer, isSigner: true, isWritable: true },
+      { pubkey: withdrawer, isSigner: false, isWritable: true },
+      { pubkey: vaultParamsPDA, isSigner: false, isWritable: true },
+      { pubkey: stakingParamsPDA, isSigner: false, isWritable: true },
+      { pubkey: guestChainPDA, isSigner: false, isWritable: true },
+      { pubkey: triePDA, isSigner: false, isWritable: true },
+      { pubkey: stakedTokenMint, isSigner: false, isWritable: true },
+      {
+        pubkey: withdrawerStakedTokenAccount,
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: vaultTokenAccountPDA, isSigner: false, isWritable: true },
+      { pubkey: receiptTokenMint, isSigner: false, isWritable: true },
+      { pubkey: escrowReceiptTokenPDA, isSigner: false, isWritable: true },
+      { pubkey: guestChainProgramID, isSigner: false, isWritable: true },
+      { pubkey: spl.TOKEN_PROGRAM_ID, isSigner: false, isWritable: true },
+      {
+        pubkey: anchor.web3.SystemProgram.programId,
+        isSigner: false,
+        isWritable: true,
+      },
+      {
+        pubkey: new anchor.web3.PublicKey(mpl.MPL_TOKEN_METADATA_PROGRAM_ID),
+        isSigner: false,
+        isWritable: true,
+      },
+      { pubkey: anchor.web3.SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: true },
+      { pubkey: masterEditionPDA, isSigner: false, isWritable: true },
+      { pubkey: nftMetadataPDA, isSigner: false, isWritable: true },
+      {
+        pubkey: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
+        isSigner: false,
+        isWritable: true,
+      },
+    ],
+    programId: restakingProgramID,
+    data: Buffer.from([183, 18, 70, 156, 148, 109, 161, 34]),
+  });
+
+  let tx = new Transaction()
+    .add(
       anchor.web3.ComputeBudgetProgram.setComputeUnitLimit({
         units: 1000000,
-      }),
-    ])
-    .accounts({
-      signer: withdrawer,
-      withdrawer,
-      vaultParams: vaultParamsPDA,
-      stakingParams: stakingParamsPDA,
-      guestChain: guestChainPDA,
-      trie: triePDA,
-      tokenMint: stakedTokenMint,
-      withdrawerTokenAccount: withdrawerStakedTokenAccount,
-      vaultTokenAccount: vaultTokenAccountPDA,
-      receiptTokenMint,
-      escrowReceiptTokenAccount: escrowReceiptTokenPDA,
-      guestChainProgram: guestChainProgramID,
-      tokenProgram: spl.TOKEN_PROGRAM_ID,
-      masterEditionAccount: masterEditionPDA,
-      nftMetadata: nftMetadataPDA,
-      systemProgram: anchor.web3.SystemProgram.programId,
-      metadataProgram: new anchor.web3.PublicKey(
-        mpl.MPL_TOKEN_METADATA_PROGRAM_ID
-      ),
-      instruction: anchor.web3.SYSVAR_INSTRUCTIONS_PUBKEY,
-    })
-    .transaction();
+      })
+    )
+    .add(instruction);
 
   return tx;
 };
@@ -315,7 +335,7 @@ export const setServiceInstruction = async (
   validator: anchor.web3.PublicKey,
   receiptTokenMint: anchor.web3.PublicKey,
   /// Token which is staked
-  stakeTokenMint: anchor.web3.PublicKey,
+  stakeTokenMint: anchor.web3.PublicKey
 ) => {
   const { vaultParamsPDA } = getVaultParamsPDA(receiptTokenMint);
   const { stakingParamsPDA } = getStakingParamsPDA();
