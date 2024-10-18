@@ -123,7 +123,7 @@ pub mod solana_ibc {
             let storage = &mut ctx.accounts.storage;
             let clock = Clock::get()?;
             let slot = clock.slot;
-            let timestamp = clock?.unix_timestamp as u64;
+            let timestamp = clock.unix_timestamp as u64;
             storage
                 .add_local_consensus_state(slot, timestamp, *provable.hash())
                 .unwrap();
