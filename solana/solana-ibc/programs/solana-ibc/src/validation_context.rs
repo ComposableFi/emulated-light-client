@@ -82,39 +82,39 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
         #[cfg(feature = "witness")]
-        {
-            let (_slot, fetched_timestamp, fetched_trie_root) = store
-                .private
-                .local_consensus_state
-                .iter()
-                .find(|cs| cs.0 == height.revision_height())
-                .unwrap();
-            let rollup_consensus_state = cf_solana::ConsensusState {
-                trie_root: ibc::CommitmentRoot::from_bytes(
-                    fetched_trie_root.as_slice(),
-                ),
-                timestamp_sec: NonZeroU64::new(*fetched_timestamp).unwrap(),
-            };
-            Ok(AnyConsensusState::Rollup(rollup_consensus_state))
-        }
+        let state = store
+            .private
+            .local_consensus_state
+            .iter()
+            .find(|cs| cs.0 == height.revision_height())
+            .map(|(_slot, timestamp, trie_root)| {
+                let state = cf_solana::ConsensusState {
+                    trie_root: ibc::CommitmentRoot::from_bytes(
+                        trie_root.as_slice(),
+                    ),
+                    timestamp_sec: NonZeroU64::new(*timestamp).unwrap(),
+                };
+                AnyConsensusState::Rollup(state)
+            });
         #[cfg(not(feature = "witness"))]
-        {
-            let state = if height.revision_number() == 1 {
-                store.chain.consensus_state(height.revision_height().into())?
-            } else {
-                None
-            }
-            .ok_or(
-                ibc::ClientError::MissingLocalConsensusState {
-                    height: *height,
-                },
-            )?;
-            let guest_consensus_state = cf_guest::ConsensusState {
-                block_hash: state.0.as_array().to_vec().into(),
-                timestamp_ns: state.1,
-            };
-            return Ok(AnyConsensusState::Guest(guest_consensus_state));
-        }
+        let state = (height.revision_number() == 1)
+            .then(|| {
+                let height = height.revision_height().into();
+                store.chain.consensus_state(height)
+            })
+            .transpose()?
+            .flatten()
+            .map(|state| {
+                let state = cf_guest::ConsensusState {
+                    block_hash: state.0.as_array().to_vec().into(),
+                    timestamp_ns: state.1,
+                };
+                AnyConsensusState::Guest(state)
+            });
+        state.ok_or(
+            ibc::ClientError::MissingLocalConsensusState { height: *height }
+                .into(),
+        )
     }
 
     fn client_counter(&self) -> Result<u64> {
@@ -285,7 +285,9 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
         }
     }
 
-    fn get_client_validation_context(&self) -> &Self::V { self }
+    fn get_client_validation_context(&self) -> &Self::V {
+        self
+    }
 
     fn get_compatible_versions(&self) -> Vec<ibc::conn::Version> {
         ibc::conn::get_compatible_versions()
@@ -398,7 +400,7 @@ fn calculate_block_delay(
     if max_expected_time_per_block.is_zero() {
         return 0;
     }
-    let delay = delay_period_time.as_secs_f64() /
-        max_expected_time_per_block.as_secs_f64();
+    let delay = delay_period_time.as_secs_f64()
+        / max_expected_time_per_block.as_secs_f64();
     delay.ceil() as u64
 }
