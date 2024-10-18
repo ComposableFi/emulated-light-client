@@ -570,7 +570,7 @@ pub mod solana_ibc {
         let connection_id = ibc::ConnectionId::new(connection_id_idx.into());
 
         // Panic if connection_id doenst exist
-        if storage.connections.len() >= usize::from(connection_id_idx) {
+        if storage.connections.len() <= usize::from(connection_id_idx) {
             return Err(error!(error::Error::ContextError(
                 ibc::ContextError::ConnectionError(
                     ibc::ConnectionError::ConnectionNotFound {
