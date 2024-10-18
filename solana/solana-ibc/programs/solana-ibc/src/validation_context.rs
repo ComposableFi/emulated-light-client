@@ -82,20 +82,22 @@ impl ibc::ValidationContext for IbcStorage<'_, '_> {
     ) -> Result<Self::AnyConsensusState> {
         let store = self.borrow();
         #[cfg(feature = "witness")]
-        let state = store
-            .private
-            .local_consensus_state
-            .iter()
-            .find(|cs| cs.0 == height.revision_height())
-            .map(|(_slot, timestamp, trie_root)| {
-                let state = cf_solana::ConsensusState {
-                    trie_root: ibc::CommitmentRoot::from_bytes(
-                        trie_root.as_slice(),
-                    ),
-                    timestamp_sec: NonZeroU64::new(*timestamp).unwrap(),
-                };
-                AnyConsensusState::Rollup(state)
-            });
+        let state = (height.revision_number() == 1).then(|| {
+            store
+                .private
+                .local_consensus_state
+                .iter()
+                .find(|cs| cs.0 == height.revision_height())
+                .map(|(_slot, timestamp, trie_root)| {
+                    let state = cf_solana::ConsensusState {
+                        trie_root: ibc::CommitmentRoot::from_bytes(
+                            trie_root.as_slice(),
+                        ),
+                        timestamp_sec: NonZeroU64::new(*timestamp).unwrap(),
+                    };
+                    AnyConsensusState::Rollup(state)
+                })
+        });
         #[cfg(not(feature = "witness"))]
         let state = (height.revision_number() == 1)
             .then(|| {
