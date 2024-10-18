@@ -118,6 +118,16 @@ pub mod solana_ibc {
             &ctx.accounts.trie,
             &ctx.accounts.sender,
         )?;
+        #[cfg(feature = "witness")]
+        {
+            let storage = &mut ctx.accounts.storage;
+            let clock = Clock::get()?;
+            let slot = clock.slot;
+            let timestamp = clock.unix_timestamp as u64;
+            storage
+                .add_local_consensus_state(slot, timestamp, *provable.hash())
+                .unwrap();
+        }
         ctx.accounts.chain.initialise(
             &mut provable,
             config,
