@@ -391,6 +391,29 @@ pub mod solana_ibc {
         Ok(())
     }
 
+    /// Mint the given token to an account with the given amount
+    pub fn mint_tokens<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        let bump = ctx.bumps["mint_authority"];
+        let seeds = &[MINT_ESCROW_SEED.as_ref(), &[bump]];
+        let signer_seeds = &[&seeds[..]];
+
+        let cpi_accounts = anchor_spl::token::MintTo {
+            mint: ctx.accounts.token_mint.to_account_info(),
+            to: ctx.accounts.token_account.to_account_info(),
+            authority: ctx.accounts.mint_authority.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+
+        anchor_spl::token::mint_to(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
@@ -809,6 +832,16 @@ pub struct InitMint<'info> {
 
     rent: Sysvar<'info, Rent>,
     token_metadata_program: Program<'info, Metadata>,
+}
+
+#[derive(Accounts)]
+pub struct MintTokens<'info> {
+    #[account(mut)]
+    pub token_mint: Account<'info, Mint>,  // The token mint account
+    #[account(mut)]
+    pub token_account: Account<'info, TokenAccount>,  // The recipient's token account
+    pub mint_authority: Signer<'info>,  // The mint authority, which is the program
+    pub token_program: Program<'info, Token>,
 }
 
 #[derive(Accounts, Clone)]
