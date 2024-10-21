@@ -298,9 +298,7 @@ pub mod bridge_escrow {
     #[allow(unused_variables)]
     pub fn send_funds_to_user(
         ctx: Context<SplTokenTransfer>,
-        intent_id: String,
-        solver_out: Option<String>,
-        single_domain: bool
+        intent_id: String
     ) -> Result<()> {
         let accounts = ctx.accounts;
 
@@ -489,101 +487,50 @@ pub mod bridge_escrow {
         ctx: Context<OnTimeout>,
         intent_id: String,
     ) -> Result<()> {
-        let authority = &ctx.accounts.caller.key();
+        let accounts = ctx.accounts;
+        let token_program = &accounts.token_program;
 
-        let intent = &ctx.accounts.intent.clone();
-        let current_time = Clock::get()?.unix_timestamp as u64;
+        let intent = accounts.intent.clone().unwrap();
+
         require!(
-            current_time >= intent.timeout_timestamp_in_sec,
-            ErrorCode::IntentNotTimedOut
+            intent.token_out == accounts.user_token_account.clone().unwrap().mint.to_string(),
+            ErrorCode::TokenInNotMint
         );
 
+        // Transfer tokens from Auctioneer to User
+        let auctioneer_token_in_account = accounts
+            .escrow_token_account
+            .as_ref()
+            .ok_or(ErrorCode::AccountsNotPresent)?;
+        let user_token_in_account = accounts
+            .user_token_account
+            .as_ref()
+            .ok_or(ErrorCode::AccountsNotPresent)?;
+
+        require!(
+            intent.token_in == auctioneer_token_in_account.mint,
+            ErrorCode::MismatchTokenIn
+        );
+
+        let cpi_accounts = SplTransfer {
+            from: auctioneer_token_in_account.to_account_info(),
+            to: user_token_in_account.to_account_info(),
+            authority: accounts.auctioneer_state.to_account_info(),
+        };
+        let cpi_program = token_program.to_account_info();
         let bump = ctx.bumps.auctioneer_state;
-        let signer_seeds = &[AUCTIONEER_SEED, &[bump]];
-        let signer_seeds = signer_seeds.as_ref();
-        let signer_seeds = core::slice::from_ref(&signer_seeds);
+        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
 
-        if intent.single_domain {
-            let user_token_account = ctx
-                .accounts
-                .user_token_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?;
-            let escrow_token_account = ctx
-                .accounts
-                .escrow_token_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?;
-
-            require!(
-                user_token_account.owner == *authority,
-                ErrorCode::Unauthorized
-            );
-            require!(
-                user_token_account.owner == intent.user_in,
-                ErrorCode::MisMatchUserIn
-            );
-            require!(
-                user_token_account.mint == intent.token_in,
-                ErrorCode::MismatchTokenIn
-            );
-
-            // Unescrow the tokens
-            let cpi_accounts = SplTransfer {
-                from: escrow_token_account.to_account_info(),
-                to: user_token_account.to_account_info(),
-                authority: ctx.accounts.auctioneer_state.to_account_info(),
-            };
-
-            let cpi_ctx = CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
+        token::transfer(
+            CpiContext::new_with_signer(
+                cpi_program,
                 cpi_accounts,
                 signer_seeds,
-            );
-            anchor_spl::token::transfer(cpi_ctx, intent.amount_in)?;
-
-            // events::emit(events::Event::OnTimeout(events::OnTimeout {
-            //     amount: intent.amount_in,
-            //     token_mint: intent.token_in.clone(),
-            //     intent_id,
-            // }))
-            // .map_err(|err| {
-            //     msg!("{}", err);
-            //     ErrorCode::InvalidEventFormat
-            // })?;
-        } else {
-            // Send a cross domain message to the source chain to unlock the funds
-            let my_custom_memo = format!(
-                "{},{}",
-                intent_id, authority
-            );
-            let token_mint = ctx
-                .accounts
-                .token_mint
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .key();
-
-            let hashed_full_denom =
-                CryptoHash::digest(token_mint.to_string().as_bytes());
-
-            bridge::bridge_transfer(
-                ctx.accounts.try_into()?,
-                my_custom_memo,
-                hashed_full_denom,
-                signer_seeds,
-            )?;
-
-            // events::emit(events::Event::OnTimeout(events::OnTimeout {
-            //     amount: intent.amount_in,
-            //     token_mint: intent.token_in.clone(),
-            //     intent_id,
-            // }))
-            // .map_err(|err| {
-            //     msg!("{}", err);
-            //     ErrorCode::InvalidEventFormat
-            // })?;
-        }
+            ),
+            intent.amount_in,
+        )?;
 
         Ok(())
     }
@@ -881,6 +828,31 @@ pub struct EscrowAndStoreIntent<'info> {
 #[derive(Accounts)]
 #[instruction(intent_id: String)]
 pub struct OnTimeout<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+
+    #[account(seeds = [AUCTIONEER_SEED], bump, constraint = auctioneer_state.authority == *auctioneer.key)]
+    pub auctioneer_state: Account<'info, Auctioneer>,
+    #[account(mut)]
+    /// CHECK:
+    pub auctioneer: UncheckedAccount<'info>,
+    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    pub intent: Option<Box<Account<'info, Intent>>>,
+
+    // Single domain transfer accounts
+    pub token_in: Option<Account<'info, Mint>>,
+    #[account(mut, token::mint = token_in)]
+    pub user_token_account: Option<Account<'info, TokenAccount>>,
+    #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
+    pub escrow_token_account: Option<Account<'info, TokenAccount>>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(intent_id: String)]
+pub struct OnTimeoutCrossChain<'info> {
     #[account(mut)]
     pub caller: Signer<'info>,
 
