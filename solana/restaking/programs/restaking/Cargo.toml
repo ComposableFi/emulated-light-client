@@ -15,6 +15,7 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
+witness = []
 witness = ["solana-ibc/witness"]
 default = []
 

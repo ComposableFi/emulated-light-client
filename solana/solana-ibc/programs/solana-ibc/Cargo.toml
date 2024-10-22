@@ -17,7 +17,7 @@ mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
-witness = []
+witness = [] # turn on for Mantis
 
 [dependencies]
 anchor-lang.workspace = true
@@ -60,6 +60,10 @@ anchor-client.workspace = true
 anyhow.workspace = true
 ibc-testkit.workspace = true
 insta.workspace = true
+env_logger = "0.11.5"
+log = "0.4.22"
+
+solana-rpc-client = { version = "1.17.31", features = [] }
 
 lib = { workspace = true, features = ["test_utils"] }
 solana-write-account = { workspace = true, features = ["library"] }

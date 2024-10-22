@@ -396,19 +396,24 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
         amount: u64,
     ) -> Result<()> {
-        let bump = ctx.bumps["mint_authority"];
-        let seeds = &[MINT_ESCROW_SEED.as_ref(), &[bump]];
-        let signer_seeds = &[&seeds[..]];
+        if cfg!(not(feature = "mocks")) {
+            msg!("Mint tokens is disabled");
+            return Ok(())
+        }
 
+        // CPI Context for minting tokens
         let cpi_accounts = anchor_spl::token::MintTo {
             mint: ctx.accounts.token_mint.to_account_info(),
             to: ctx.accounts.token_account.to_account_info(),
             authority: ctx.accounts.mint_authority.to_account_info(),
         };
-
         let cpi_program = ctx.accounts.token_program.to_account_info();
+        let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
+        let signer_seeds = &[&seeds[..]];
+
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
 
+        // Use the mint_to instruction to mint tokens
         anchor_spl::token::mint_to(cpi_ctx, amount)?;
 
         Ok(())
@@ -837,11 +842,16 @@ pub struct InitMint<'info> {
 #[derive(Accounts)]
 pub struct MintTokens<'info> {
     #[account(mut)]
-    pub token_mint: Account<'info, Mint>,  // The token mint account
+    pub token_mint: Account<'info, Mint>,  // Mint account
     #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>,  // The recipient's token account
-    pub mint_authority: Signer<'info>,  // The mint authority, which is the program
-    pub token_program: Program<'info, Token>,
+    pub token_account: Account<'info, TokenAccount>,  // Destination token account
+    #[account(
+        seeds = [MINT_ESCROW_SEED],  // Replace this with your seed for mint authority
+        bump
+    )]
+    /// CHECK: This is the mint authority
+    pub mint_authority: UncheckedAccount<'info>,  // Mint authority (from the program)
+    pub token_program: Program<'info, Token>,  // Token program
 }
 
 #[derive(Accounts, Clone)]
