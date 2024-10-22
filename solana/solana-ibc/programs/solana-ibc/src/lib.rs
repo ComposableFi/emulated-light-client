@@ -104,6 +104,7 @@ pub mod solana_ibc {
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
+    use spl_token::solana_program::program::invoke;
 
     use super::*;
     use crate::ibc::{ExecutionContext, ValidationContext};
@@ -432,6 +433,19 @@ pub mod solana_ibc {
         let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
+
+        // initialize the account
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(94);
+        let ix = anchor_lang::solana_program::system_instruction::create_account(
+            &ctx.accounts.sender.key,
+            &ctx.accounts.token_mint.key,
+            lamports,
+            94,
+            &spl_token::ID,
+        );
+        let accounts = [ctx.accounts.sender.to_account_info(), ctx.accounts.token_mint.to_account_info()];
+        invoke(&ix, accounts.as_slice())?;
 
         let ix = spl_token::instruction::initialize_mint2_with_rebasing(
             &spl_token::ID,
