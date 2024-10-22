@@ -434,18 +434,22 @@ pub mod solana_ibc {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        // initialize the account
-        let rent = Rent::get()?;
-        let lamports = rent.minimum_balance(94);
-        let ix = anchor_lang::solana_program::system_instruction::create_account(
-            &ctx.accounts.sender.key,
-            &ctx.accounts.token_mint.key,
-            lamports,
-            94,
-            &spl_token::ID,
-        );
-        let accounts = [ctx.accounts.sender.to_account_info(), ctx.accounts.token_mint.to_account_info()];
-        invoke(&ix, accounts.as_slice())?;
+        // // initialize the account
+        // let rent = Rent::get()?;
+        // let lamports = rent.minimum_balance(94);
+        // let ix =
+        //     anchor_lang::solana_program::system_instruction::create_account(
+        //         &ctx.accounts.sender.key,
+        //         &ctx.accounts.token_mint.key,
+        //         lamports,
+        //         94,
+        //         &spl_token::ID,
+        //     );
+        // let accounts = [
+        //     ctx.accounts.sender.to_account_info(),
+        //     ctx.accounts.token_mint.to_account_info(),
+        // ];
+        // invoke(&ix, accounts.as_slice())?;
 
         let ix = spl_token::instruction::initialize_mint2_with_rebasing(
             &spl_token::ID,
@@ -979,7 +983,9 @@ pub struct InitRebasingMint<'info> {
     storage: Account<'info, PrivateStorage>,
 
     /// CHECK:
-    #[account(mut)]
+    #[account(init, payer = sender,
+        seeds = [MINT, hashed_full_denom.as_ref()],
+        bump, space = 94)]
     token_mint: UncheckedAccount<'info>,
 
     token_program: Program<'info, Token>,
