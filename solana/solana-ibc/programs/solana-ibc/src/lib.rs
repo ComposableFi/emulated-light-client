@@ -978,6 +978,7 @@ pub struct InitRebasingMint<'info> {
     #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
     storage: Account<'info, PrivateStorage>,
 
+    /// CHECK:
     #[account(mut)]
     token_mint: UncheckedAccount<'info>,
 
