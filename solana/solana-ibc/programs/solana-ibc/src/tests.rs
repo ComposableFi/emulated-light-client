@@ -450,7 +450,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
         .instruction(ComputeBudgetInstruction::set_compute_unit_limit(
             1_000_000u32,
         ))
-        .accounts(accounts::InitMint {
+        .accounts(accounts::InitRebasingMint {
             sender: fee_collector,
             mint_authority: mint_authority_key,
             token_mint: token_mint_key,
@@ -461,7 +461,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             metadata: token_metadata_pda,
             token_metadata_program: anchor_spl::metadata::ID,
         })
-        .args(instruction::InitMint {
+        .args(instruction::InitRebasingMint {
             hashed_full_denom: hashed_full_denom_on_source,
             token_name: TOKEN_NAME.to_string(),
             token_symbol: TOKEN_SYMBOL.to_string(),

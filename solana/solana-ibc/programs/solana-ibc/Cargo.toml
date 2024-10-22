@@ -9,7 +9,8 @@ crate-type = ["cdylib", "lib"]
 name = "solana_ibc"
 
 [features]
-default = ["custom-entrypoint", "custom-heap"]
+#default = ["custom-entrypoint", "custom-heap"]
+default = ["custom-entrypoint", "custom-heap", "mocks"]
 cpi = ["no-entrypoint"]
 custom-heap = ["solana-allocator"]
 custom-entrypoint = ["custom-heap"]

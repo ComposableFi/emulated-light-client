@@ -121,7 +121,6 @@ solana-write-account = { path = "solana/write-account" }
 stdx = { path = "common/stdx" }
 trie-ids = { path = "common/trie-ids" }
 wasm = { path = "common/wasm" }
-spl-token2 = { git = "https://github.com/ComposableFi/solana-program-library", branch = "mantis" }
 
 # dev-dependencies
 anchor-client = "0.29.0"
