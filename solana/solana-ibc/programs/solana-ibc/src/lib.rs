@@ -306,8 +306,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len()) +
-            MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len())
+            + MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -343,10 +343,13 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(hashed_full_denom, storage::Asset {
-                original_decimals,
-                effective_decimals_on_sol: effective_decimals,
-            });
+            private_storage.assets.insert(
+                hashed_full_denom,
+                storage::Asset {
+                    original_decimals,
+                    effective_decimals_on_sol: effective_decimals,
+                },
+            );
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -391,6 +394,97 @@ pub mod solana_ibc {
         Ok(())
     }
 
+    /// Called to create token mint for wrapped rebasing tokens
+    ///
+    /// It has to be ensured that the right denom is hashed
+    /// and proper decimals are passed.
+    ///
+    /// Note: The denom will always contain port and channel id
+    /// of solana.
+    pub fn init_rebasing_mint<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, InitRebasingMint<'info>>,
+        effective_decimals: u8,
+        hashed_full_denom: CryptoHash,
+        original_decimals: u8,
+        token_name: String,
+        token_symbol: String,
+        token_uri: String,
+    ) -> Result<()> {
+        let private_storage = &mut ctx.accounts.storage;
+
+        if effective_decimals > original_decimals {
+            return Err(error!(error::Error::InvalidDecimals));
+        }
+
+        if !private_storage.assets.contains_key(&hashed_full_denom) {
+            private_storage.assets.insert(
+                hashed_full_denom,
+                storage::Asset {
+                    original_decimals,
+                    effective_decimals_on_sol: effective_decimals,
+                },
+            );
+        } else {
+            return Err(error!(error::Error::AssetAlreadyExists));
+        }
+
+        let bump = ctx.bumps.mint_authority;
+        let seeds = [MINT_ESCROW_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let seeds = core::slice::from_ref(&seeds);
+
+        let ix = spl_token::instruction::initialize_mint2_with_rebasing(
+            &spl_token::ID,
+            ctx.accounts.token_mint.key,
+            ctx.accounts.mint_authority.key,
+            None,
+            effective_decimals,
+        )
+        .unwrap();
+
+        let accounts = [ctx.accounts.token_mint.to_account_info()];
+
+        anchor_lang::solana_program::program::invoke_signed(
+            &ix,
+            accounts.as_slice(),
+            seeds,
+        )?;
+
+        let token_data: DataV2 = DataV2 {
+            name: token_name,
+            symbol: token_symbol,
+            uri: token_uri,
+            seller_fee_basis_points: 0,
+            creators: None,
+            collection: None,
+            uses: None,
+        };
+
+        let metadata_ctx = CpiContext::new_with_signer(
+            ctx.accounts.token_metadata_program.to_account_info(),
+            CreateMetadataAccountsV3 {
+                payer: ctx.accounts.sender.to_account_info(),
+                update_authority: ctx.accounts.mint_authority.to_account_info(),
+                mint: ctx.accounts.token_mint.to_account_info(),
+                metadata: ctx.accounts.metadata.to_account_info(),
+                mint_authority: ctx.accounts.mint_authority.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                rent: ctx.accounts.rent.to_account_info(),
+            },
+            seeds,
+        );
+
+        create_metadata_accounts_v3(
+            metadata_ctx,
+            token_data,
+            false,
+            true,
+            None,
+        )?;
+
+        Ok(())
+    }
+
     /// Mint the given token to an account with the given amount
     pub fn mint_tokens<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
@@ -398,7 +492,7 @@ pub mod solana_ibc {
     ) -> Result<()> {
         if cfg!(not(feature = "mocks")) {
             msg!("Mint tokens is disabled");
-            return Ok(())
+            return Ok(());
         }
 
         // CPI Context for minting tokens
@@ -411,7 +505,11 @@ pub mod solana_ibc {
         let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
         let signer_seeds = &[&seeds[..]];
 
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+        let cpi_ctx = CpiContext::new_with_signer(
+            cpi_program,
+            cpi_accounts,
+            signer_seeds,
+        );
 
         // Use the mint_to instruction to mint tokens
         anchor_spl::token::mint_to(cpi_ctx, amount)?;
@@ -518,8 +616,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set() &&
-            !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set()
+            && !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -840,18 +938,55 @@ pub struct InitMint<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(decimals: u8, hashed_full_denom: CryptoHash)]
+pub struct InitRebasingMint<'info> {
+    #[account(mut, constraint = sender.key == &storage.fee_collector)]
+    sender: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            METADATA,
+            token_metadata_program.key().as_ref(),
+            token_mint.key().as_ref(),
+        ],
+        bump,
+        seeds::program = token_metadata_program.key()
+    )]
+    /// CHECK:
+    pub metadata: UncheckedAccount<'info>,
+
+    /// CHECK:
+    #[account(init_if_needed, payer = sender, seeds = [MINT_ESCROW_SEED],
+              bump, space = 0)]
+    mint_authority: UncheckedAccount<'info>,
+
+    #[account(mut, seeds = [SOLANA_IBC_STORAGE_SEED], bump)]
+    storage: Account<'info, PrivateStorage>,
+
+    #[account(mut)]
+    token_mint: UncheckedAccount<'info>,
+
+    token_program: Program<'info, Token>,
+    system_program: Program<'info, System>,
+
+    rent: Sysvar<'info, Rent>,
+    token_metadata_program: Program<'info, Metadata>,
+}
+
+#[derive(Accounts)]
 pub struct MintTokens<'info> {
     #[account(mut)]
-    pub token_mint: Account<'info, Mint>,  // Mint account
+    pub token_mint: Account<'info, Mint>, // Mint account
     #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>,  // Destination token account
+    pub token_account: Account<'info, TokenAccount>, // Destination token account
     #[account(
         seeds = [MINT_ESCROW_SEED],  // Replace this with your seed for mint authority
         bump
     )]
     /// CHECK: This is the mint authority
-    pub mint_authority: UncheckedAccount<'info>,  // Mint authority (from the program)
-    pub token_program: Program<'info, Token>,  // Token program
+    pub mint_authority: UncheckedAccount<'info>, // Mint authority (from the program)
+    pub token_program: Program<'info, Token>, // Token program
 }
 
 #[derive(Accounts, Clone)]
