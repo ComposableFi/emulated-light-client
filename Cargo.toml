@@ -96,7 +96,7 @@ solana-program-2 = { package = "solana-program", version = "2" }
 solana-sdk = "1.17.30"
 solana-transaction-status = "1.17.30"
 spl-associated-token-account = "2.2.0"
-spl-token = "3.5.0"
+spl-token = { version = "3.5.0", default-features = false, features = ["no-entrypoint"] }
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
 tendermint = { version = "0.34.0", default-features = false }
 tendermint-light-client-verifier = { version = "0.34.0", default-features = false }
