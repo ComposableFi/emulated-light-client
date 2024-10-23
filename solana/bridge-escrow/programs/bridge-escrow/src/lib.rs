@@ -26,6 +26,8 @@ declare_id!("AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj");
 
 #[program]
 pub mod bridge_escrow {
+    // use anchor_client::solana_sdk::signer::Signer;
+
     use super::*;
 
     /// Sets the authority and creates a token mint which would be used to
@@ -492,9 +494,16 @@ pub mod bridge_escrow {
 
         let intent = accounts.intent.clone().unwrap();
 
+        require!(intent.intent_id == intent_id, ErrorCode::IntentDoesNotExist);
+
         require!(
-            intent.token_out == accounts.user_token_account.clone().unwrap().mint.to_string(),
+            intent.token_in == accounts.user_token_account.clone().unwrap().mint,
             ErrorCode::TokenInNotMint
+        );
+
+        require!(
+            &intent.user_in == accounts.user.key,
+            ErrorCode::UserInNotIntentUserIn
         );
 
         // Transfer tokens from Auctioneer to User
@@ -972,5 +981,7 @@ pub enum ErrorCode {
     #[msg("user_token_account.mint != intent.token_in")]
     MismatchTokenIn,
     #[msg("fee_collector != accounts.fee_collector.as_ref().unwrap().key")]
-    InvalidFeeCollector
+    InvalidFeeCollector,
+    #[msg("User in (signer) is not intent.user_in")]
+    UserInNotIntentUserIn
 }
