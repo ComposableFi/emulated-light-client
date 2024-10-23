@@ -104,7 +104,7 @@ pub mod solana_ibc {
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
-    use spl_token::solana_program::program::invoke;
+    use spl_token::solana_program::program::invoke_signed;
 
     use super::*;
     use crate::ibc::{ExecutionContext, ValidationContext};
@@ -307,8 +307,8 @@ pub mod solana_ibc {
     ) -> Result<()> {
         let fee_account = &ctx.accounts.fee_account;
         let minimum_balance = Rent::get()?
-            .minimum_balance(fee_account.data_len())
-            + MINIMUM_FEE_ACCOUNT_BALANCE;
+            .minimum_balance(fee_account.data_len()) +
+            MINIMUM_FEE_ACCOUNT_BALANCE;
         let mut available_balance = fee_account.try_borrow_mut_lamports()?;
         if **available_balance > minimum_balance {
             **ctx.accounts.fee_collector.try_borrow_mut_lamports()? +=
@@ -344,13 +344,10 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(
-                hashed_full_denom,
-                storage::Asset {
-                    original_decimals,
-                    effective_decimals_on_sol: effective_decimals,
-                },
-            );
+            private_storage.assets.insert(hashed_full_denom, storage::Asset {
+                original_decimals,
+                effective_decimals_on_sol: effective_decimals,
+            });
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -418,13 +415,10 @@ pub mod solana_ibc {
         }
 
         if !private_storage.assets.contains_key(&hashed_full_denom) {
-            private_storage.assets.insert(
-                hashed_full_denom,
-                storage::Asset {
-                    original_decimals,
-                    effective_decimals_on_sol: effective_decimals,
-                },
-            );
+            private_storage.assets.insert(hashed_full_denom, storage::Asset {
+                original_decimals,
+                effective_decimals_on_sol: effective_decimals,
+            });
         } else {
             return Err(error!(error::Error::AssetAlreadyExists));
         }
@@ -434,22 +428,39 @@ pub mod solana_ibc {
         let seeds = seeds.as_ref();
         let seeds = core::slice::from_ref(&seeds);
 
-        // // initialize the account
-        // let rent = Rent::get()?;
-        // let lamports = rent.minimum_balance(94);
-        // let ix =
-        //     anchor_lang::solana_program::system_instruction::create_account(
-        //         &ctx.accounts.sender.key,
-        //         &ctx.accounts.token_mint.key,
-        //         lamports,
-        //         94,
-        //         &spl_token::ID,
-        //     );
-        // let accounts = [
-        //     ctx.accounts.sender.to_account_info(),
-        //     ctx.accounts.token_mint.to_account_info(),
-        // ];
-        // invoke(&ix, accounts.as_slice())?;
+        let (token_mint_address, token_mint_bump) =
+            Pubkey::find_program_address(
+                &[MINT, hashed_full_denom.as_ref()],
+                &crate::ID,
+            );
+        if &token_mint_address != ctx.accounts.token_mint.key {
+            return Err(ProgramError::InvalidSeeds.into());
+        }
+
+        let token_mint_seeds = [
+            MINT,
+            hashed_full_denom.as_ref(),
+            core::slice::from_ref(&token_mint_bump),
+        ];
+        let token_mint_seeds = token_mint_seeds.as_ref();
+        let token_mint_seeds = core::slice::from_ref(&token_mint_seeds);
+
+        // initialize the account
+        let rent = Rent::get()?;
+        let lamports = rent.minimum_balance(94);
+        let ix =
+            anchor_lang::solana_program::system_instruction::create_account(
+                &ctx.accounts.sender.key,
+                &ctx.accounts.token_mint.key,
+                lamports,
+                94,
+                &spl_token::ID,
+            );
+        let accounts = [
+            ctx.accounts.sender.to_account_info(),
+            ctx.accounts.token_mint.to_account_info(),
+        ];
+        invoke_signed(&ix, accounts.as_slice(), token_mint_seeds)?;
 
         let ix = spl_token::instruction::initialize_mint2_with_rebasing(
             &spl_token::ID,
@@ -634,8 +645,8 @@ pub mod solana_ibc {
         let mut token_ctx = store.clone();
 
         // Check if atleast one of the timeouts is non zero.
-        if !msg.timeout_height_on_b.is_set()
-            && !msg.timeout_timestamp_on_b.is_set()
+        if !msg.timeout_height_on_b.is_set() &&
+            !msg.timeout_timestamp_on_b.is_set()
         {
             return Err(error::Error::InvalidTimeout.into());
         }
@@ -983,9 +994,7 @@ pub struct InitRebasingMint<'info> {
     storage: Account<'info, PrivateStorage>,
 
     /// CHECK:
-    #[account(init, payer = sender,
-        seeds = [MINT, hashed_full_denom.as_ref()],
-        bump, space = 94)]
+    #[account(mut)]
     token_mint: UncheckedAccount<'info>,
 
     token_program: Program<'info, Token>,

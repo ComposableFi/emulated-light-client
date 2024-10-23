@@ -9,16 +9,18 @@ use anchor_client::solana_client::rpc_client::RpcClient;
 use anchor_client::solana_client::rpc_config::RpcSendTransactionConfig;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::compute_budget::ComputeBudgetInstruction;
+use anchor_client::solana_sdk::hash::Hash;
 use anchor_client::solana_sdk::pubkey::Pubkey;
-use anchor_client::solana_sdk::signature::{read_keypair_file, Keypair, SeedDerivable, Signature, Signer};
+use anchor_client::solana_sdk::signature::{
+    read_keypair_file, Keypair, SeedDerivable, Signature, Signer,
+};
 use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
-use anchor_client::solana_sdk::hash::Hash;
 use anchor_lang::AnchorSerialize;
 use anchor_spl::associated_token::get_associated_token_address;
 use anyhow::Result;
-use log::info;
 use ibc::apps::transfer::types::msgs::transfer::MsgTransfer;
+use log::info;
 use spl_associated_token_account::instruction::create_associated_token_account;
 use spl_token::solana_program::system_instruction;
 use spl_token::solana_program::sysvar::SysvarId;
@@ -110,14 +112,14 @@ fn anchor_test_mint_tokens() -> Result<()> {
         &[crate::SOLANA_IBC_STORAGE_SEED],
         &crate::ID,
     )
-        .0;
+    .0;
     let trie = Pubkey::find_program_address(&[crate::TRIE_SEED], &crate::ID).0;
     #[cfg(feature = "witness")]
     let witness = Pubkey::find_program_address(
         &[crate::WITNESS_SEED, trie.as_ref()],
         &crate::ID,
     )
-        .0;
+    .0;
     let chain =
         Pubkey::find_program_address(&[crate::CHAIN_SEED], &crate::ID).0;
     let fee_collector_pda =
@@ -187,7 +189,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
                 )],
                 NonZeroU128::new(1000).unwrap(),
             )
-                .unwrap(),
+            .unwrap(),
         })
         .payer(authority.clone())
         .signer(&*authority)
@@ -195,8 +197,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     let chain_account: chain::ChainData = program.account(chain).unwrap();
 
@@ -235,7 +236,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
         WRITE_ACCOUNT_SEED,
         instruction_data,
     )
-        .unwrap();
+    .unwrap();
     // Note: We’re using small chunks size on purpose to test the behaviour of
     // the write account program.
     chunks.chunk_size = core::num::NonZeroU16::new(50).unwrap();
@@ -403,8 +404,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     /*
         Set up the fees
@@ -424,8 +424,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
@@ -443,7 +442,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
         ],
         &anchor_spl::metadata::ID,
     )
-        .0;
+    .0;
 
     let sig = program
         .request()
@@ -475,8 +474,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
@@ -484,10 +482,11 @@ fn anchor_test_mint_tokens() -> Result<()> {
 
     // Step 1: Create Token Account for the recipient (to receive minted tokens)
     let recipient = Rc::new(Keypair::new()); // Create a new recipient keypair
-    let recipient_token_account = spl_associated_token_account::get_associated_token_address(
-        &recipient.pubkey(),
-        &token_mint_key,
-    );
+    let recipient_token_account =
+        spl_associated_token_account::get_associated_token_address(
+            &recipient.pubkey(),
+            &token_mint_key,
+        );
 
     log::info!("{}", line!());
     // Create the associated token account
@@ -519,9 +518,7 @@ fn anchor_test_mint_tokens() -> Result<()> {
             mint_authority: mint_authority_key,
             token_program: anchor_spl::token::ID,
         })
-        .args(instruction::MintTokens {
-            amount: mint_amount,
-        })
+        .args(instruction::MintTokens { amount: mint_amount })
         .payer(fee_collector_keypair.clone())
         .signer(&*fee_collector_keypair)
         .send_with_spinner_and_config(RpcSendTransactionConfig {
@@ -655,8 +652,7 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     let chain_account: chain::ChainData = program.account(chain).unwrap();
 
@@ -863,8 +859,7 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     /*
         Set up the fees
@@ -884,8 +879,7 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-    ;
+    println!("  Signature: {sig}");
 
     // Make sure all the accounts needed for transfer are ready ( mint, escrow etc.)
     // Pass the instruction for transfer
@@ -935,8 +929,7 @@ fn anchor_test_deliver() -> Result<()> {
             skip_preflight: true,
             ..RpcSendTransactionConfig::default()
         })?;
-    println!("  Signature: {sig}")
-        ;
+    println!("  Signature: {sig}");
 
     let mint_info = sol_rpc_client.get_token_supply(&token_mint_key).unwrap();
 
