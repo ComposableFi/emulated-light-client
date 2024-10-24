@@ -473,6 +473,9 @@ pub struct TransferAccounts<'a> {
     pub mint_authority: Option<AccountInfo<'a>>,
     pub token_program: Option<AccountInfo<'a>>,
     pub fee_collector: Option<AccountInfo<'a>>,
+    /// Contains the list of accounts required for the hooks
+    /// if present
+    pub remaining_accounts: Vec<AccountInfo<'a>>,
 }
 
 #[derive(Debug)]
@@ -544,6 +547,7 @@ macro_rules! from_ctx {
     };
     ($ctx:expr, with accounts) => {{
         let accounts = &$ctx.accounts;
+        let remaining_accounts = &$ctx.remaining_accounts;
         let accounts = TransferAccounts {
             sender: Some(accounts.sender.as_ref().to_account_info()),
             receiver: accounts
@@ -574,6 +578,7 @@ macro_rules! from_ctx {
                 .fee_collector
                 .as_deref()
                 .map(ToAccountInfo::to_account_info),
+            remaining_accounts: remaining_accounts.to_vec()
         };
         $crate::storage::from_ctx!($ctx, accounts = accounts)
     }};

@@ -1,13 +1,15 @@
 use std::result::Result;
-use std::str;
+use std::str::{self, FromStr};
 
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
+use spl_token::solana_program::instruction::Instruction;
+use spl_token::solana_program::program::invoke;
 
-use crate::ibc;
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
 use crate::storage::IbcStorage;
+use crate::{ibc, BRIDGE_ESCROW_PROGRAM_ID, HOOK_TOKEN_ADDRESS};
 
 pub(crate) mod impls;
 
@@ -142,12 +144,115 @@ impl ibc::Module for IbcStorage<'_, '_> {
             .into_bytes(),
             ..packet.clone()
         };
-        let (extras, ack) = ibc::apps::transfer::module::on_recv_packet_execute(
-            self,
-            &maybe_ft_packet,
-        );
-        let ack_status = str::from_utf8(ack.as_bytes())
+        let (extras, mut ack) =
+            ibc::apps::transfer::module::on_recv_packet_execute(
+                self,
+                &maybe_ft_packet,
+            );
+        let cloned_ack = ack.clone();
+        let ack_status = str::from_utf8(cloned_ack.as_bytes())
             .expect("Invalid acknowledgement string");
+        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
+            ack.as_bytes(),
+        );
+        let success = if let Ok(status) = status {
+            status.is_successful()
+        } else {
+            ack = ibc::AcknowledgementStatus::error(
+                ibc::TokenTransferError::AckDeserialization.into(),
+            )
+            .into();
+            false
+        };
+        fn call_bridge_escrow(
+            accounts: &[AccountInfo],
+            data: Vec<u8>,
+        ) -> Result<(), ibc::AcknowledgementStatus> {
+            // Perform hooks
+            let data = match serde_json::from_slice::<PacketData>(&data) {
+                Ok(data) => data,
+                Err(_) => {
+                    return Err(ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::PacketDataDeserialization
+                            .into(),
+                    )
+                    .into());
+                }
+            };
+            // The hook would only be called if the transferred token is the one we are interested in
+            if data.token.denom.base_denom.as_str() == HOOK_TOKEN_ADDRESS {
+                // The memo is a string and the structure is as follow:
+                // "<number of accounts>,<AccountKey1> ..... <AccountKeyN>,<intent_id>,<memo>"
+                //
+                // The relayer would parse the memo and pass the relevant accounts
+                // The intent_id and memo needs to be stripped
+                let memo = data.memo.as_ref();
+                let (accounts_size, rest) = memo.split_once(",").ok_or(
+                    ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::Other(
+                            "Invalid memo".to_string(),
+                        )
+                        .into(),
+                    )
+                    .into(),
+                )?;
+                // This is the 8 byte discriminant since the program is written in
+                // anchor. it is hash of "<namespace>:<function_name>" which is
+                // "global:on_receive_transfer" respectively.
+                let instruction_discriminant: Vec<u8> =
+                    vec![149, 112, 68, 208, 4, 206, 248, 125];
+                let values = rest.split(",").collect::<Vec<&str>>();
+                let (_passed_accounts, ix_data) =
+                    values.split_at(accounts_size.parse::<usize>().unwrap());
+                let intent_id = ix_data.get(0).ok_or(
+                    ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::Other(
+                            "Invalid memo".to_string(),
+                        )
+                        .into(),
+                    )
+                    .into(),
+                )?;
+                let memo = ix_data[1..].join(",");
+                let mut instruction_data = instruction_discriminant;
+                instruction_data.extend_from_slice(&intent_id.as_bytes());
+                instruction_data.extend_from_slice(memo.as_bytes());
+
+                let bridge_escrow_program_id =
+                    Pubkey::from_str(BRIDGE_ESCROW_PROGRAM_ID).unwrap();
+
+                let account_metas = accounts
+                    .iter()
+                    .map(|account| AccountMeta {
+                        pubkey: *account.key,
+                        is_signer: account.is_signer,
+                        is_writable: account.is_writable,
+                    })
+                    .collect::<Vec<AccountMeta>>();
+                let instruction = Instruction::new_with_bytes(
+                    bridge_escrow_program_id,
+                    &instruction_data,
+                    account_metas,
+                );
+
+                invoke(&instruction, accounts).map_err(|err| {
+                    return ibc::AcknowledgementStatus::error(
+                        ibc::TokenTransferError::Other(err.to_string()).into(),
+                    );
+                })?;
+                msg!("Hook: Bridge escrow call successful");
+            }
+            Ok(())
+        }
+
+        if success {
+            let store = self.borrow();
+            let accounts = &store.accounts.remaining_accounts;
+            let result = call_bridge_escrow(accounts, maybe_ft_packet.data);
+            if let Err(status) = result {
+                ack = status.into();
+            }
+        }
         msg!("ibc::Packet acknowledgement: {}", ack_status);
         (extras, ack)
     }
