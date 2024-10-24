@@ -175,8 +175,7 @@ impl ibc::Module for IbcStorage<'_, '_> {
                     return Err(ibc::AcknowledgementStatus::error(
                         ibc::TokenTransferError::PacketDataDeserialization
                             .into(),
-                    )
-                    .into());
+                    ));
                 }
             };
             // The hook would only be called if the transferred token is the one we are interested in
@@ -187,35 +186,33 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 // The relayer would parse the memo and pass the relevant accounts
                 // The intent_id and memo needs to be stripped
                 let memo = data.memo.as_ref();
-                let (accounts_size, rest) = memo.split_once(",").ok_or(
+                let (accounts_size, rest) = memo.split_once(',').ok_or(
                     ibc::AcknowledgementStatus::error(
                         ibc::TokenTransferError::Other(
                             "Invalid memo".to_string(),
                         )
                         .into(),
-                    )
-                    .into(),
+                    ),
                 )?;
                 // This is the 8 byte discriminant since the program is written in
                 // anchor. it is hash of "<namespace>:<function_name>" which is
                 // "global:on_receive_transfer" respectively.
                 let instruction_discriminant: Vec<u8> =
                     vec![149, 112, 68, 208, 4, 206, 248, 125];
-                let values = rest.split(",").collect::<Vec<&str>>();
+                let values = rest.split(',').collect::<Vec<&str>>();
                 let (_passed_accounts, ix_data) =
                     values.split_at(accounts_size.parse::<usize>().unwrap());
-                let intent_id = ix_data.get(0).ok_or(
+                let intent_id = ix_data.first().ok_or(
                     ibc::AcknowledgementStatus::error(
                         ibc::TokenTransferError::Other(
                             "Invalid memo".to_string(),
                         )
                         .into(),
-                    )
-                    .into(),
+                    ),
                 )?;
                 let memo = ix_data[1..].join(",");
                 let mut instruction_data = instruction_discriminant;
-                instruction_data.extend_from_slice(&intent_id.as_bytes());
+                instruction_data.extend_from_slice(intent_id.as_bytes());
                 instruction_data.extend_from_slice(memo.as_bytes());
 
                 let bridge_escrow_program_id =
@@ -236,9 +233,9 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 );
 
                 invoke(&instruction, accounts).map_err(|err| {
-                    return ibc::AcknowledgementStatus::error(
+                    ibc::AcknowledgementStatus::error(
                         ibc::TokenTransferError::Other(err.to_string()).into(),
-                    );
+                    )
                 })?;
                 msg!("Hook: Bridge escrow call successful");
             }
