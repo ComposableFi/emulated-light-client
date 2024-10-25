@@ -197,8 +197,8 @@ impl ibc::Module for IbcStorage<'_, '_> {
             // This is the 8 byte discriminant since the program is written in
             // anchor. it is hash of "<namespace>:<function_name>" which is
             // "global:on_receive_transfer" respectively.
-            let instruction_discriminant: Vec<u8> =
-                vec![149, 112, 68, 208, 4, 206, 248, 125];
+            const INSTRUCTION_DISCRIMINANT: [u8; 8] =
+                [149, 112, 68, 208, 4, 206, 248, 125];
             let values = rest.split(',').collect::<Vec<&str>>();
             let (_passed_accounts, ix_data) =
                 values.split_at(accounts_size.parse::<usize>().unwrap());
@@ -208,9 +208,12 @@ impl ibc::Module for IbcStorage<'_, '_> {
                         .into(),
                 ))?;
             let memo = ix_data[1..].join(",");
-            let mut instruction_data = instruction_discriminant;
-            instruction_data.extend_from_slice(intent_id.as_bytes());
-            instruction_data.extend_from_slice(memo.as_bytes());
+            let instruction_data = [
+                &INSTRUCTION_DISCRIMINANT[..],
+                intent_id.as_bytes(),
+                memo.as_bytes(),
+            ]
+            .concat();
 
             let account_metas = accounts
                 .iter()
