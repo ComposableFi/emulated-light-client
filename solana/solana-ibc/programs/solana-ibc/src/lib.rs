@@ -25,6 +25,7 @@ pub const TRIE_SEED: &[u8] = b"trie";
 pub const WITNESS_SEED: &[u8] = b"witness";
 pub const MINT_ESCROW_SEED: &[u8] = b"mint_escrow";
 pub const MINT: &[u8] = b"mint";
+pub const MINT_EXTRA: &[u8] = b"mint_extra";
 pub const ESCROW: &[u8] = b"escrow";
 pub const METADATA: &[u8] = b"metadata";
 
@@ -99,13 +100,13 @@ solana_program::custom_panic_default!();
 #[anchor_lang::program]
 pub mod solana_ibc {
     use std::time::Duration;
-
     use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
     use anchor_spl::metadata::{
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
     use spl_token::solana_program::program::invoke_signed;
-
+    use spl_token::state::MintWithRebase;
+    use crate::solana_program::program_pack::Pack;
     use super::*;
     use crate::ibc::{ExecutionContext, ValidationContext};
 
@@ -447,13 +448,13 @@ pub mod solana_ibc {
 
         // initialize the account
         let rent = Rent::get()?;
-        let lamports = rent.minimum_balance(94);
+        let lamports = rent.minimum_balance(<MintWithRebase as Pack>::LEN);
         let ix =
-            anchor_lang::solana_program::system_instruction::create_account(
+            solana_program::system_instruction::create_account(
                 &ctx.accounts.sender.key,
                 &ctx.accounts.token_mint.key,
                 lamports,
-                94,
+                <MintWithRebase as Pack>::LEN as _,
                 &spl_token::ID,
             );
         let accounts = [
@@ -473,7 +474,7 @@ pub mod solana_ibc {
 
         let accounts = [ctx.accounts.token_mint.to_account_info()];
 
-        anchor_lang::solana_program::program::invoke_signed(
+        invoke_signed(
             &ix,
             accounts.as_slice(),
             seeds,
@@ -1007,7 +1008,7 @@ pub struct InitRebasingMint<'info> {
 #[derive(Accounts)]
 pub struct MintTokens<'info> {
     #[account(mut)]
-    pub token_mint: Account<'info, Mint>, // Mint account
+    pub token_mint: UncheckedAccount<'info>, // Mint account
     #[account(mut)]
     pub token_account: Account<'info, TokenAccount>, // Destination token account
     #[account(

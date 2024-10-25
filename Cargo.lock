@@ -921,7 +921,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -2345,6 +2345,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.7",
+]
 
 [[package]]
 name = "hashbrown"
@@ -6945,7 +6948,7 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#7988bfffb57d17f57ec4078a15b13b25c009ebcf"
+source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#c7105eda5c3c87b6da981282e8c5a3be3f3de573"
 dependencies = [
  "arrayref",
  "bytemuck",
