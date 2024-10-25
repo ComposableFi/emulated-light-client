@@ -149,12 +149,12 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 self,
                 &maybe_ft_packet,
             );
-        let cloned_ack = ack.clone();
-        let ack_status = str::from_utf8(cloned_ack.as_bytes())
+        let ack_status = str::from_utf8(ack.as_bytes())
             .expect("Invalid acknowledgement string");
-        let status = serde_json::from_slice::<ibc::AcknowledgementStatus>(
-            ack.as_bytes(),
-        );
+        msg!("ibc::Packet acknowledgement: {}", ack_status);
+
+        let status =
+            serde_json::from_str::<ibc::AcknowledgementStatus>(ack_status);
         let success = if let Ok(status) = status {
             status.is_successful()
         } else {
@@ -247,7 +247,7 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 ack = status.into();
             }
         }
-        msg!("ibc::Packet acknowledgement: {}", ack_status);
+
         (extras, ack)
     }
 
