@@ -418,7 +418,7 @@ fn call_bridge_escrow(
     // The relayer would parse the memo and pass the relevant accounts The
     // intent_id and memo needs to be stripped
     let (intent_id, memo) =
-        parse_bridge_memo(&data.memo.as_ref()).ok_or_else(|| {
+        parse_bridge_memo(data.memo.as_ref()).ok_or_else(|| {
             let err = ibc::TokenTransferError::Other("Invalid memo".into());
             ibc::AcknowledgementStatus::error(err.into())
         })?;
