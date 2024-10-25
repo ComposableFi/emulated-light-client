@@ -35,8 +35,8 @@ pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;
 
-pub const BRIDGE_ESCROW_PROGRAM_ID: &str =
-    "AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj";
+pub const BRIDGE_ESCROW_PROGRAM_ID: Pubkey =
+    solana_program::pubkey!("AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj");
 pub const HOOK_TOKEN_ADDRESS: &str =
     "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
 

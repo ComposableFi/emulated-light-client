@@ -35,6 +35,11 @@ primitive-types.workspace = true
 prost.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# We normally access solana_program via anchor_lang but to support
+# pubkey! macro we need to have solana_program as direct dependency.
+# TODO(mina86): Remove this once we upgrade Anchor to version with its
+# own pubkey! macro.
+solana-program.workspace = true
 spl-associated-token-account.workspace = true
 spl-token.workspace = true
 strum.workspace = true

@@ -1,5 +1,5 @@
 use std::result::Result;
-use std::str::{self, FromStr};
+use std::str;
 
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -215,9 +215,6 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 instruction_data.extend_from_slice(intent_id.as_bytes());
                 instruction_data.extend_from_slice(memo.as_bytes());
 
-                let bridge_escrow_program_id =
-                    Pubkey::from_str(BRIDGE_ESCROW_PROGRAM_ID).unwrap();
-
                 let account_metas = accounts
                     .iter()
                     .map(|account| AccountMeta {
@@ -227,7 +224,7 @@ impl ibc::Module for IbcStorage<'_, '_> {
                     })
                     .collect::<Vec<AccountMeta>>();
                 let instruction = Instruction::new_with_bytes(
-                    bridge_escrow_program_id,
+                    BRIDGE_ESCROW_PROGRAM_ID,
                     &instruction_data,
                     account_metas,
                 );
