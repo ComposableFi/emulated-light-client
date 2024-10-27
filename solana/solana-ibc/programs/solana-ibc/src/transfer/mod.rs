@@ -415,8 +415,10 @@ fn call_bridge_escrow(
     // The memo is a string and the structure is as follow:
     // "<accounts count>,<AccountKey1> ..... <AccountKeyN>,<intent_id>,<memo>"
     //
-    // The relayer would parse the memo and pass the relevant accounts The
-    // intent_id and memo needs to be stripped
+    // The relayer would parse the memo and pass the relevant accounts.
+    //
+    // The intent_id and memo needs to be stripped so that it can be sent to the
+    // bridge escrow contract.
     let (intent_id, memo) =
         parse_bridge_memo(data.memo.as_ref()).ok_or_else(|| {
             let err = ibc::TokenTransferError::Other("Invalid memo".into());
@@ -425,7 +427,7 @@ fn call_bridge_escrow(
 
     // This is the 8 byte discriminant since the program is written in
     // anchor. it is hash of "<namespace>:<function_name>" which is
-    // "global:on_receive_transfer" respectively.
+    // "global:on_receive_transfer" in our case.
     const INSTRUCTION_DISCRIMINANT: [u8; 8] =
         [149, 112, 68, 208, 4, 206, 248, 125];
 
