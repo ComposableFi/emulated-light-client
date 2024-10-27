@@ -102,12 +102,19 @@ pub mod bridge_escrow {
             current_timestamp < new_intent.timeout_timestamp_in_sec,
             ErrorCode::InvalidTimeout
         );
+
+        let mut amount_in = new_intent.amount_in;
+        if new_intent.single_domain {
+            amount_in -= new_intent.amount_in / 100;
+        } else {
+            amount_in -= (new_intent.amount_in * 25) / 100;
+        }
     
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.key();
         intent.user_out = new_intent.user_out.clone();
         intent.token_in = new_intent.token_in.key();
-        intent.amount_in = new_intent.amount_in;
+        intent.amount_in = amount_in;
         intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
@@ -120,7 +127,7 @@ pub mod bridge_escrow {
                 user_in: new_intent.user_in,
                 user_out: new_intent.user_out,
                 token_in: new_intent.token_in,
-                amount_in: new_intent.amount_in,
+                amount_in: amount_in,
                 token_out: new_intent.token_out,
                 amount_out: new_intent.amount_out,
                 winner_solver: String::default(),
@@ -195,15 +202,14 @@ pub mod bridge_escrow {
     ) -> Result<()> {
         // Split and extract memo fields
         let parts: Vec<&str> = memo.split(',').collect();
-        require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 7 parts
+        require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 5 parts
     
-        // Memo format: <withdraw_user_flag>, <intent_id>, <from>, <token>, <to>, <amount>, <solver_out>
+        // Memo format: <withdraw_user_flag>, <from>, <token>, <to>, <amount>
         let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
         let from = parts[1];
         let token = parts[2];
         let to = parts[3];
         let amount: u64 = parts[4].parse().map_err(|_| ErrorCode::InvalidAmount)?;
-        // let solver_out = Pubkey::from_str(parts[6]).map_err(|_| ErrorCode::BadPublickey)?;
     
         // Retrieve the intent from the provided context
         let intent = &mut ctx.accounts.intent;
@@ -609,10 +615,7 @@ pub struct Initialize<'info> {
 #[derive(Accounts)]
 #[instruction(intent_id: String, memo: String)]
 pub struct ReceiveTransferContext<'info> {
-    #[account(mut)]
-    pub authority: Signer<'info>,
-
-    #[account(seeds = [AUCTIONEER_SEED], bump, has_one = authority)]
+    #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer_state: Account<'info, Auctioneer>,
 
     pub token_mint: Account<'info, Mint>,
@@ -631,10 +634,14 @@ pub struct ReceiveTransferContext<'info> {
     // New Intent account addition
     #[account(
         mut, 
+        close = intent_owner,
         seeds = [b"intent", intent_id.as_bytes()], 
         bump
     )]
     pub intent: Account<'info, Intent>,
+    #[account(address = intent.user_in)]
+    /// CHECK: checked above
+    pub intent_owner: UncheckedAccount<'info>
 }
 
 #[derive(Accounts)]
@@ -730,8 +737,11 @@ pub struct SplTokenTransferCrossChain<'info> {
 #[instruction(intent_id: String)]
 pub struct SplTokenTransfer<'info> {
     // Intent reading
-    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    #[account(mut, close = intent_owner, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
     pub intent: Option<Box<Account<'info, Intent>>>,
+    #[account(mut, address = intent.clone().unwrap().user_in)]
+    /// CHECK:
+    pub intent_owner: UncheckedAccount<'info>,
     #[account(seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer_state: Box<Account<'info, Auctioneer>>,
     #[account(mut)]
@@ -845,7 +855,7 @@ pub struct OnTimeout<'info> {
     #[account(mut)]
     /// CHECK:
     pub auctioneer: UncheckedAccount<'info>,
-    #[account(mut, close = auctioneer, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    #[account(mut, close = user, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
     pub intent: Option<Box<Account<'info, Intent>>>,
 
     // Single domain transfer accounts
