@@ -232,10 +232,10 @@ pub mod bridge_escrow {
                 ErrorCode::IntentNotTimedOut
             );
 
-            require!(
-                intent.user_out == from,
-                ErrorCode::IntentMismatchFromUser
-            );
+            // require!(
+            //     intent.user_out == from,
+            //     ErrorCode::IntentMismatchFromUser
+            // );
     
             // Transfer tokens from the escrow account to the user's token account
             let cpi_accounts = SplTransfer {
@@ -502,15 +502,21 @@ pub mod bridge_escrow {
 
         require!(intent.intent_id == intent_id, ErrorCode::IntentDoesNotExist);
 
+        let current_time = Clock::get()?.unix_timestamp as u64;
+        require!(
+            current_time >= intent.timeout_timestamp_in_sec,
+            ErrorCode::IntentNotTimedOut
+        );
+
         require!(
             intent.token_in == accounts.user_token_account.clone().unwrap().mint,
             ErrorCode::TokenInNotMint
         );
 
-        require!(
-            &intent.user_in == accounts.user.key,
-            ErrorCode::UserInNotIntentUserIn
-        );
+        // require!(
+        //     &intent.user_in == accounts.user.key,
+        //     ErrorCode::UserInNotIntentUserIn
+        // );
 
         // Transfer tokens from Auctioneer to User
         let auctioneer_token_in_account = accounts
