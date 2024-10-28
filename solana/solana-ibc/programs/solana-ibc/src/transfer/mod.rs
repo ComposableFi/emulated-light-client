@@ -389,7 +389,6 @@ impl From<FtPacketData> for FungibleTokenPacketData {
     }
 }
 
-
 /// Calls bridge escrow after receiving packet if necessary.
 ///
 /// If the packet is for a [`HOOK_TOKEN_ADDRESS`] token, parses the transfer
@@ -431,9 +430,13 @@ fn call_bridge_escrow(
     const INSTRUCTION_DISCRIMINANT: [u8; 8] =
         [149, 112, 68, 208, 4, 206, 248, 125];
 
+    // Serialize the intent id and memo with borsh since the destination contract
+    // is written with anchor and expects the data to be in borsh encoded.
     let instruction_data =
-        [&INSTRUCTION_DISCRIMINANT[..], intent_id.as_bytes(), memo.as_bytes()]
-            .concat();
+        [&INSTRUCTION_DISCRIMINANT[..],
+        &intent_id.try_to_vec().unwrap(),
+        &memo.try_to_vec().unwrap()]
+        .concat();
 
     let account_metas = accounts
         .iter()
@@ -457,7 +460,6 @@ fn call_bridge_escrow(
     msg!("Hook: Bridge escrow call successful");
     Ok(())
 }
-
 
 /// Parses memo of a transaction directed at the bridge escrow.
 ///
@@ -503,4 +505,14 @@ fn test_parse_bridge_memo() {
     ] {
         assert!(parse_bridge_memo(data).is_none(), "memo: {data}");
     }
+}
+
+#[test]
+fn test_memo() {
+    let memo = "8,WdFwv2TiGksf6x5CCwC6Svrz6JYzgCw4P1MC4Kcn3UE,7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3,XSUoLRkKahnVkrVteuJuLcPuhn2uPecFHM3zCcgsAQs,8q4qp8hMSfUZZcetiJrW7jD9n4pWmSA8ua19CcdT6p3H,Sysvar1nstructions1111111111111111111111111,TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA,H77KMAJhXEq82LmCNckaUHmXXU1RTUh5FePLVD9UAHUh,FFFhqkq4DKhdeGeLqsi72u7g8GqdgQyrqu4mdRo9kKDt,100000,false,0x0362110922F923B57b7EfF68eE7A51827b2dF4b4,0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,0xd41fb9e1dA5255dD994b029bC3C7e06ea8105BF3,1000000";
+    let (intent_id, memo) = parse_bridge_memo(memo).unwrap();
+    println!("intent_id: {intent_id}");
+    println!("memo: {memo}");
+    let parts: Vec<&str> = memo.split(',').collect();
+    println!("parts: {:?}", parts.len());
 }
