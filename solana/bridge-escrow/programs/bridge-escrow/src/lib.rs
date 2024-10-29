@@ -171,19 +171,19 @@ pub mod bridge_escrow {
         );
 
         // Update the auction data
-        intent.amount_out = amount_out;
-        intent.winner_solver = winner_solver;
+        intent.amount_out = amount_out.clone();
+        intent.winner_solver = winner_solver.clone();
 
         // Emit an event for the auction data update (optional)
-        // events::emit(events::Event::UpdateAuctionData {
-        //     intent_id,
-        //     amount_out,
-        //     winner_solver: winner_solver.to_string(),
-        // })
-        // .map_err(|err| {
-        //     msg!("{}", err);
-        //     ErrorCode::InvalidEventFormat
-        // })?;
+        events::emit(events::Event::UpdateAuctionData(events::UpdateAuctionData {
+            intent_id,
+            amount_out,
+            winner_solver,
+        }))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -281,22 +281,6 @@ pub mod bridge_escrow {
             token::transfer(cpi_ctx, amount)?;
         }
     
-        // Emit event based on the action performed
-        // events::emit(events::Event::OnReceiveTransfer(
-        //     events::OnReceiveTransfer {
-        //         amount,
-        //         solver: if withdraw_user_flag {
-        //             ctx.accounts.solver_token_account.owner
-        //         } else {
-        //             ctx.accounts.solver_token_account.owner
-        //         },
-        //     },
-        // ))
-        // .map_err(|err| {
-        //     msg!("{}", err);
-        //     ErrorCode::InvalidEventFormat
-        // })?;
-    
         Ok(())
     }
     
@@ -382,19 +366,27 @@ pub mod bridge_escrow {
             intent.amount_in,
         )?;
 
-        // events::emit(events::Event::SendFundsToUser(
-        //     events::SendFundsToUser {
-        //         amount: amount_out,
-        //         receiver: intent.user_out,
-        //         token_mint: accounts.token_out.key(),
-        //         intent_id,
-        //         solver_out,
-        //     },
-        // ))
-        // .map_err(|err| {
-        //     msg!("{}", err);
-        //     ErrorCode::InvalidEventFormat
-        // })?;
+        events::emit(events::Event::SendFundsToUser(
+            events::SendFundsToUser {
+                intent: Intent {
+                    intent_id: intent.intent_id.clone(),
+                    user_in: intent.user_in,
+                    user_out: intent.user_out.clone(),
+                    token_in: intent.token_in,
+                    amount_in: intent.amount_in,
+                    token_out: intent.token_out.clone(),
+                    amount_out: intent.amount_out.clone(),
+                    winner_solver: intent.winner_solver.clone(),
+                    creation_timestamp_in_sec: intent.creation_timestamp_in_sec,
+                    timeout_timestamp_in_sec: intent.timeout_timestamp_in_sec,
+                    single_domain: intent.single_domain,
+                }
+            },
+        ))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -445,7 +437,6 @@ pub mod bridge_escrow {
         let hashed_full_denom =
             CryptoHash::digest(token_mint.to_string().as_bytes());
 
-        // bool withdraw_user,
         // string intentId,
         // string from,
         // string token,
@@ -464,24 +455,20 @@ pub mod bridge_escrow {
         );
         bridge::bridge_transfer(
             accounts.try_into()?,
-            my_custom_memo,
+            my_custom_memo.clone(),
             hashed_full_denom,
             signer_seeds,
         )?;
 
-        // events::emit(events::Event::SendFundsToUser(
-        //     events::SendFundsToUser {
-        //         amount: amount_out,
-        //         receiver: accounts.user_token_out_account.owner,
-        //         token_mint: accounts.token_out.key(),
-        //         intent_id,
-        //         solver_out: Some(solver_out),
-        //     },
-        // ))
-        // .map_err(|err| {
-        //     msg!("{}", err);
-        //     ErrorCode::InvalidEventFormat
-        // })?;
+        events::emit(events::Event::SendFundsToUserCrossChain(
+            events::SendFundsToUserCrossChain {
+                memo: my_custom_memo,
+            },
+        ))
+        .map_err(|err| {
+            msg!("{}", err);
+            ErrorCode::InvalidEventFormat
+        })?;
 
         Ok(())
     }
@@ -513,10 +500,7 @@ pub mod bridge_escrow {
             ErrorCode::TokenInNotMint
         );
 
-        // require!(
-        //     &intent.user_in == accounts.user.key,
-        //     ErrorCode::UserInNotIntentUserIn
-        // );
+        // require singleDomain
 
         // Transfer tokens from Auctioneer to User
         let auctioneer_token_in_account = accounts

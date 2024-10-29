@@ -22,9 +22,11 @@ use crate::Intent;
 
 pub enum Event {
     EscrowFunds(EscrowFunds),
+    UpdateAuctionData(UpdateAuctionData),
     StoreIntent(StoreIntent),
     OnReceiveTransfer(OnReceiveTransfer),
     SendFundsToUser(SendFundsToUser),
+    SendFundsToUserCrossChain(SendFundsToUserCrossChain),
     OnTimeout(OnTimeout),
 }
 
@@ -41,6 +43,34 @@ pub struct EscrowFunds {
     pub amount: u64,
     pub sender: Pubkey,
     pub token_mint: Pubkey,
+}
+
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    derive_more::From,
+)]
+pub struct SendFundsToUserCrossChain {
+    pub memo: String
+}
+
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    derive_more::From,
+)]
+pub struct UpdateAuctionData {
+    pub intent_id: String,
+    pub amount_out: String,
+    pub winner_solver: String,
 }
 
 #[derive(
@@ -80,15 +110,7 @@ pub struct OnReceiveTransfer {
     derive_more::From,
 )]
 pub struct SendFundsToUser {
-    pub amount: u64,
-    pub receiver: String,
-    pub token_mint: Pubkey,
-    pub intent_id: String,
-    /// The solver on source chain who would receive
-    /// the escrowed amount when the intent is acknowledged.
-    ///
-    /// Would be `None` in case of single domain transfer.
-    pub solver_out: Option<String>,
+    pub intent: Intent
 }
 
 #[derive(
