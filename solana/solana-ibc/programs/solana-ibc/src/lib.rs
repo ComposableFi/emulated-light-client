@@ -1055,7 +1055,7 @@ pub struct Deliver<'info> {
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
-    token_mint: Option<Box<Account<'info, Mint>>>,
+    token_mint: Option<UncheckedAccount<'info>>,
     #[account(mut)]
     escrow_account: Option<UncheckedAccount<'info>>,
     #[account(init_if_needed, payer = sender,
@@ -1138,7 +1138,7 @@ pub struct SendTransfer<'info> {
     /// CHECK:
     mint_authority: Option<UncheckedAccount<'info>>,
     #[account(mut)]
-    token_mint: Option<Box<Account<'info, Mint>>>,
+    token_mint: Option<UncheckedAccount<'info>>,
     #[account(init_if_needed, payer = sender, seeds = [
         ESCROW, hashed_full_denom.as_ref()
     ], bump, token::mint = token_mint, token::authority = mint_authority)]
