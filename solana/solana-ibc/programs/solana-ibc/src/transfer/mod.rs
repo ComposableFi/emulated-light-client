@@ -1,13 +1,15 @@
 use std::result::Result;
-use std::str;
+use std::str::{self, FromStr};
 
 use anchor_lang::prelude::*;
 use serde::{Deserialize, Serialize};
+use spl_token::solana_program::instruction::Instruction;
+use spl_token::solana_program::program::invoke;
 
-use crate::ibc;
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
 use crate::storage::IbcStorage;
+use crate::{ibc, BRIDGE_ESCROW_PROGRAM_ID, HOOK_TOKEN_ADDRESS};
 
 pub(crate) mod impls;
 
@@ -142,13 +144,34 @@ impl ibc::Module for IbcStorage<'_, '_> {
             .into_bytes(),
             ..packet.clone()
         };
-        let (extras, ack) = ibc::apps::transfer::module::on_recv_packet_execute(
-            self,
-            &maybe_ft_packet,
-        );
+        let (extras, mut ack) =
+            ibc::apps::transfer::module::on_recv_packet_execute(
+                self,
+                &maybe_ft_packet,
+            );
         let ack_status = str::from_utf8(ack.as_bytes())
             .expect("Invalid acknowledgement string");
         msg!("ibc::Packet acknowledgement: {}", ack_status);
+
+        let status =
+            serde_json::from_str::<ibc::AcknowledgementStatus>(ack_status);
+        let success = if let Ok(status) = status {
+            status.is_successful()
+        } else {
+            let status = ibc::TokenTransferError::AckDeserialization.into();
+            ack = ibc::AcknowledgementStatus::error(status).into();
+            false
+        };
+
+        if success {
+            let store = self.borrow();
+            let accounts = &store.accounts.remaining_accounts;
+            let result = call_bridge_escrow(accounts, &maybe_ft_packet.data);
+            if let Err(status) = result {
+                ack = status.into();
+            }
+        }
+
         (extras, ack)
     }
 
@@ -364,4 +387,143 @@ impl From<FtPacketData> for FungibleTokenPacketData {
             memo: value.memo,
         }
     }
+}
+
+/// Calls bridge escrow after receiving packet if necessary.
+///
+/// If the packet is for a [`HOOK_TOKEN_ADDRESS`] token, parses the transfer
+/// memo and invokes bridge escrow contract with instruction encoded in it.
+/// (see [`parse_bridge_memo`] for format of the memo).
+fn call_bridge_escrow(
+    accounts: &[AccountInfo],
+    data: &[u8],
+) -> Result<(), ibc::AcknowledgementStatus> {
+    // Perform hooks
+    let data = serde_json::from_slice::<PacketData>(data).map_err(|_| {
+        ibc::AcknowledgementStatus::error(
+            ibc::TokenTransferError::PacketDataDeserialization.into(),
+        )
+    })?;
+
+    // The hook would only be called if the transferred token is the one we are
+    // interested in
+    if data.token.denom.base_denom.as_str() != HOOK_TOKEN_ADDRESS {
+        return Ok(());
+    }
+
+    // The memo is a string and the structure is as follow:
+    // "<accounts count>,<AccountKey1> ..... <AccountKeyN>,<intent_id>,<memo>"
+    //
+    // The relayer would parse the memo and pass the relevant accounts.
+    //
+    // The intent_id and memo needs to be stripped so that it can be sent to the
+    // bridge escrow contract.
+    let (intent_id, memo) =
+        parse_bridge_memo(data.memo.as_ref()).ok_or_else(|| {
+            let err = ibc::TokenTransferError::Other("Invalid memo".into());
+            ibc::AcknowledgementStatus::error(err.into())
+        })?;
+
+    // This is the 8 byte discriminant since the program is written in
+    // anchor. it is hash of "<namespace>:<function_name>" which is
+    // "global:on_receive_transfer" in our case.
+    const INSTRUCTION_DISCRIMINANT: [u8; 8] =
+        [149, 112, 68, 208, 4, 206, 248, 125];
+
+    // Serialize the intent id and memo with borsh since the destination contract
+    // is written with anchor and expects the data to be in borsh encoded.
+    let instruction_data = [
+        &INSTRUCTION_DISCRIMINANT[..],
+        &intent_id.try_to_vec().unwrap(),
+        &memo.try_to_vec().unwrap(),
+    ]
+    .concat();
+
+    let account_metas = accounts
+        .iter()
+        .map(|account| AccountMeta {
+            pubkey: *account.key,
+            is_signer: account.is_signer,
+            is_writable: account.is_writable,
+        })
+        .collect();
+    let instruction = Instruction::new_with_bytes(
+        BRIDGE_ESCROW_PROGRAM_ID,
+        &instruction_data,
+        account_metas,
+    );
+
+    invoke(&instruction, accounts).map_err(|err| {
+        ibc::AcknowledgementStatus::error(
+            ibc::TokenTransferError::Other(err.to_string()).into(),
+        )
+    })?;
+    msg!("Hook: Bridge escrow call successful");
+    Ok(())
+}
+
+/// Parses memo of a transaction directed at the bridge escrow.
+///
+/// Memo is comma separated list of the form
+/// `N,account-0,account-1,...,account-N-1,intent-id,embedded-memo`.  Embedded
+/// memo can contain commas.  Returns `intent-id` and `embedded-memo` or `None`
+/// if the memo does not conform to this format.  Note that no validation on
+/// accounts is performed.
+fn parse_bridge_memo(memo: &str) -> Option<(&str, &str)> {
+    let (count, mut memo) = memo.split_once(',')?;
+    // Skip accounts
+    for _ in 0..usize::from_str(count).ok()? {
+        let (_, rest) = memo.split_once(',')?;
+        memo = rest
+    }
+    memo.split_once(',')
+}
+
+#[test]
+fn test_parse_bridge_memo() {
+    for (intent, memo, data) in [
+        ("intent", "memo", "0,intent,memo"),
+        ("intent", "memo,with,comma", "0,intent,memo,with,comma"),
+        ("intent", "memo", "1,account0,intent,memo"),
+        ("intent", "memo", "3,account0,account1,account2,intent,memo"),
+        ("intent", "memo,comma", "1,account0,intent,memo,comma"),
+        ("intent", "", "1,account0,intent,"),
+        ("", "memo", "1,account0,,memo"),
+        ("", "", "1,account0,,"),
+    ] {
+        assert_eq!(
+            Some((intent, memo)),
+            parse_bridge_memo(data),
+            "memo: {data}"
+        );
+    }
+
+    for data in [
+        "-1,intent,memo",
+        "foo,intent,memo",
+        ",intent,memo",
+        "1,account0,intent",
+    ] {
+        assert!(parse_bridge_memo(data).is_none(), "memo: {data}");
+    }
+}
+
+#[test]
+fn test_memo() {
+    let memo = "8,WdFwv2TiGksf6x5CCwC6Svrz6JYzgCw4P1MC4Kcn3UE,\
+                7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3,\
+                XSUoLRkKahnVkrVteuJuLcPuhn2uPecFHM3zCcgsAQs,\
+                8q4qp8hMSfUZZcetiJrW7jD9n4pWmSA8ua19CcdT6p3H,\
+                Sysvar1nstructions1111111111111111111111111,\
+                TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA,\
+                H77KMAJhXEq82LmCNckaUHmXXU1RTUh5FePLVD9UAHUh,\
+                FFFhqkq4DKhdeGeLqsi72u7g8GqdgQyrqu4mdRo9kKDt,100000,false,\
+                0x0362110922F923B57b7EfF68eE7A51827b2dF4b4,\
+                0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,\
+                0xd41fb9e1dA5255dD994b029bC3C7e06ea8105BF3,1000000";
+    let (intent_id, memo) = parse_bridge_memo(memo).unwrap();
+    println!("intent_id: {intent_id}");
+    println!("memo: {memo}");
+    let parts: Vec<&str> = memo.split(',').collect();
+    println!("parts: {:?}", parts.len());
 }
