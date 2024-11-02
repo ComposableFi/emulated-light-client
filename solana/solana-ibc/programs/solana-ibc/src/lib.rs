@@ -520,10 +520,10 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
         amount: u64,
     ) -> Result<()> {
-        // if cfg!(not(feature = "mocks")) {
-        //     msg!("Mint tokens is disabled");
-        //     return Ok(());
-        // }
+        if cfg!(not(feature = "mocks")) {
+            msg!("Mint tokens is disabled");
+            return Ok(());
+        }
 
         // CPI Context for minting tokens
         let cpi_accounts = anchor_spl::token::MintTo {
@@ -552,11 +552,11 @@ pub mod solana_ibc {
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
         message: ibc::MsgEnvelope,
     ) -> Result<()> {
-        // #[cfg(not(feature = "mocks"))]
-        // if !relayer::check_id(ctx.accounts.sender.key) {
-        //     msg!("Only {} can call this method", relayer::ID);
-        //     return Err(error!(error::Error::InvalidSigner));
-        // }
+        #[cfg(not(feature = "mocks"))]
+        if !relayer::check_id(ctx.accounts.sender.key) {
+            msg!("Only {} can call this method", relayer::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
 
         let sig_verify_program_id =
             ctx.accounts.chain.sig_verify_program_id()?;
