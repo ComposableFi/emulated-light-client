@@ -151,7 +151,6 @@ impl ibc::Module for IbcStorage<'_, '_> {
             );
         let ack_status = str::from_utf8(ack.as_bytes())
             .expect("Invalid acknowledgement string");
-        msg!("ibc::Packet acknowledgement: {}", ack_status);
 
         let status =
             serde_json::from_str::<ibc::AcknowledgementStatus>(ack_status);
@@ -171,6 +170,13 @@ impl ibc::Module for IbcStorage<'_, '_> {
                 ack = status.into();
             }
         }
+
+        // Since the ack status can change based on the hook above, log it.
+        msg!(
+            "ibc::Packet acknowledgement: {:?}",
+            str::from_utf8(ack.as_bytes())
+                .expect("Invalid acknowledgement string")
+        );
 
         (extras, ack)
     }
@@ -464,45 +470,57 @@ fn call_bridge_escrow(
 
 /// Parses memo of a transaction directed at the bridge escrow.
 ///
-/// Memo is comma separated list of the form
-/// `N,account-0,account-1,...,account-N-1,intent-id,embedded-memo`.  Embedded
-/// memo can contain commas.  Returns `intent-id` and `embedded-memo` or `None`
-/// if the memo does not conform to this format.  Note that no validation on
-/// accounts is performed.
-fn parse_bridge_memo(memo: &str) -> Option<(&str, &str)> {
-    let (count, mut memo) = memo.split_once(',')?;
+/// Memo is a JSON object with a `memo` field of the form
+/// `{ memo: "N,account-0,account-1,...,account-N-1,intent-id,embedded-memo" }`.
+/// Embedded memo can contain commas.  Returns `intent-id` and `embedded-memo`
+/// or `None` if the memo does not conform to this format.  Note that no
+/// validation on accounts is performed.
+fn parse_bridge_memo(memo: &str) -> Option<(String, String)> {
+    let parsed = serde_json::from_str::<serde_json::Value>(memo).ok()?;
+    let memo_str = parsed.get("memo")?.as_str()?.to_string();
+    let (count, rest) = memo_str.split_once(',')?;
+    let mut current = rest;
     // Skip accounts
     for _ in 0..usize::from_str(count).ok()? {
-        let (_, rest) = memo.split_once(',')?;
-        memo = rest
+        let (_, rest) = current.split_once(',')?;
+        current = rest;
     }
-    memo.split_once(',')
+    let (intent, memo) = current.split_once(',')?;
+    Some((intent.to_string(), memo.to_string()))
 }
 
 #[test]
 fn test_parse_bridge_memo() {
     for (intent, memo, data) in [
-        ("intent", "memo", "0,intent,memo"),
-        ("intent", "memo,with,comma", "0,intent,memo,with,comma"),
-        ("intent", "memo", "1,account0,intent,memo"),
-        ("intent", "memo", "3,account0,account1,account2,intent,memo"),
-        ("intent", "memo,comma", "1,account0,intent,memo,comma"),
-        ("intent", "", "1,account0,intent,"),
-        ("", "memo", "1,account0,,memo"),
-        ("", "", "1,account0,,"),
+        ("intent", "memo", "{\"memo\":\"0,intent,memo\"}"),
+        (
+            "intent",
+            "memo,with,comma",
+            "{\"memo\":\"0,intent,memo,with,comma\"}",
+        ),
+        ("intent", "memo", "{\"memo\":\"1,account0,intent,memo\"}"),
+        (
+            "intent",
+            "memo",
+            "{\"memo\":\"3,account0,account1,account2,intent,memo\"}",
+        ),
+        ("intent", "memo,comma", "{\"memo\":\"1,account0,intent,memo,comma\"}"),
+        ("intent", "", "{\"memo\":\"1,account0,intent,\"}"),
+        ("", "memo", "{\"memo\":\"1,account0,,memo\"}"),
+        ("", "", "{\"memo\":\"1,account0,,\"}"),
     ] {
         assert_eq!(
-            Some((intent, memo)),
+            Some((intent.to_string(), memo.to_string())),
             parse_bridge_memo(data),
             "memo: {data}"
         );
     }
 
     for data in [
-        "-1,intent,memo",
-        "foo,intent,memo",
-        ",intent,memo",
-        "1,account0,intent",
+        "{\"memo\":\"-1,intent,memo\"}",
+        "{\"memo\":\"foo,intent,memo\"}",
+        "{\"memo\":\",intent,memo\"}",
+        "{\"memo\":\"1,account0,intent\"}",
     ] {
         assert!(parse_bridge_memo(data).is_none(), "memo: {data}");
     }
@@ -510,17 +528,17 @@ fn test_parse_bridge_memo() {
 
 #[test]
 fn test_memo() {
-    let memo = "8,WdFwv2TiGksf6x5CCwC6Svrz6JYzgCw4P1MC4Kcn3UE,\
+    let memo = "{\"memo\":\"8,WdFwv2TiGksf6x5CCwC6Svrz6JYzgCw4P1MC4Kcn3UE,\
                 7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3,\
                 XSUoLRkKahnVkrVteuJuLcPuhn2uPecFHM3zCcgsAQs,\
                 8q4qp8hMSfUZZcetiJrW7jD9n4pWmSA8ua19CcdT6p3H,\
                 Sysvar1nstructions1111111111111111111111111,\
                 TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA,\
-                H77KMAJhXEq82LmCNckaUHmXXU1RTUh5FePLVD9UAHUh,\
-                FFFhqkq4DKhdeGeLqsi72u7g8GqdgQyrqu4mdRo9kKDt,100000,false,\
-                0x0362110922F923B57b7EfF68eE7A51827b2dF4b4,\
-                0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48,\
-                0xd41fb9e1dA5255dD994b029bC3C7e06ea8105BF3,1000000";
+                Hhe21KK8Zs6QB8nwDqF2b59yUSKDWmF6t8c2yzodgiqg,\
+                FFFhqkq4DKhdeGeLqsi72u7g8GqdgQyrqu4mdRo9kKDt,0,false,\
+                0x0362110922f923b57b7eff68ee7a51827b2df4b4,\
+                0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48,\
+                0xd41fb9e1da5255dd994b029bc3c7e06ea8105bf3,10\"}";
     let (intent_id, memo) = parse_bridge_memo(memo).unwrap();
     println!("intent_id: {intent_id}");
     println!("memo: {memo}");
