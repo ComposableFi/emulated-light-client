@@ -477,7 +477,7 @@ fn call_bridge_escrow(
 /// validation on accounts is performed.
 fn parse_bridge_memo(memo: &str) -> Option<(String, String)> {
     let parsed = serde_json::from_str::<serde_json::Value>(memo).ok()?;
-    let memo_str = parsed.get("memo")?.as_str()?.to_string();
+    let memo_str = parsed.get("memo")?.as_str()?;
     let (count, rest) = memo_str.split_once(',')?;
     let mut current = rest;
     // Skip accounts
