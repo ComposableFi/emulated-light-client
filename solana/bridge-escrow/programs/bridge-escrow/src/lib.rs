@@ -215,7 +215,7 @@ pub mod bridge_escrow {
         let intent = &mut ctx.accounts.intent;
         
         // Validate the intent
-        require!(intent.intent_id == intent_id, ErrorCode::IntentDoesNotExist);
+        require!(intent.intent_id.eq_ignore_ascii_case(&intent_id), ErrorCode::IntentDoesNotExist);
 
         let seeds = &[
             AUCTIONEER_SEED,
@@ -252,15 +252,15 @@ pub mod bridge_escrow {
         } else {
             // Case 2: Solver transaction
             require!(
-                intent.winner_solver == from,
+                intent.winner_solver.eq_ignore_ascii_case(from),
                 ErrorCode::IntentMismatchFromSolver
             );
             require!(
-                intent.token_out == token,
+                intent.token_out.eq_ignore_ascii_case(token),
                 ErrorCode::InvalidTokenOut
             );
             require!(
-                intent.user_out == to,
+                intent.user_out.eq_ignore_ascii_case(to),
                 ErrorCode::IntentMismatchToUser
             );
             require!(
