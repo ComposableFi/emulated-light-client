@@ -18,6 +18,16 @@ def process_log_message(msg):
         return msg
 
 
+def collect_account_keys(tx):
+        for key in tx['accountKeys']:
+                yield key
+        for lookup in tx.pop('addressTableLookups', ()):
+                alt = common.ALT_ACCOUNTS[lookup['accountKey']]
+                for key in ('readonlyIndexes', 'writableIndexes'):
+                        for idx in lookup.get(key, ()):
+                                yield alt[idx]
+
+
 def handle_instructions(instructions, account_keys):
         for ix in instructions:
                 if not ix.get('stackHeight'):
@@ -49,18 +59,12 @@ def process_raw_tx(path):
         tx = tx['message']
         meta = data['meta']
 
-        # TODO(mina86): Handle versioned transactions
-        if 'addressTableLookups' in tx:
-                print(f'{path.name}: skipping versioned transaction',
-                      file=sys.stderr)
-                return
-
         if not data['meta'].get('err'):
                 data['meta'].pop('err')
 
         account_keys = [
                 common.KNOWN_ACCOUNTS.get(account, account)
-                for account in tx['accountKeys']
+                for account in collect_account_keys(tx)
         ]
         tx['accountKeys'] = account_keys
         handle_instructions(tx['instructions'], account_keys)

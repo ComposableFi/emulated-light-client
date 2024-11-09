@@ -55,6 +55,41 @@ KNOWN_ACCOUNTS = {
         'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm': 'solana-ibc/Trie',
 }
 
+# Known Address Lookup Table accounts
+ALT_ACCOUNTS = {
+        'G6njJnzUuYECcuNvCevAcZp2P3kfhXrFmohy2FXtPwTM': (
+                '2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB',
+                'Gnt27xtC473ZT2Mw5u8wZ68Z3gULkSTb5DuxJy7eJotD',
+                'Bohoc1ikHLD7xKJuzTyiTyCwzaL5N7ggJQu75A8mKYM8',
+                '7yyaeuJ1GGtVBLT2z2xub5ZWYKaNhF28mj1RdV4VDFVk',
+                '6hS9i46WyTq1KXcoa2Chas2Txh9TJAVr6n1t3tnrE23K',
+                'AFrYBhb5wKQtxRS9UA9YRS4V3dwFm7SqmS6DHKq6YVgo',
+                'DMoqjmsuoru986HgfjqrKEvPv8YBufvBGADHUonkadC5',
+                '2H6gWKxJuoFjBS4REqNm4XRa7uVFf9n9yKEowpwh7LML',
+                '5oNLkC42jSSrLER4tYjax99zkaGJegV1FjAtEbw81Xs6',
+                '4dusJxxxiYrMTLGYS6cCAyu3gPn2xXLBjS7orMToZHi1',
+                '7TZABdVVzqtGwgtqHM6VS8E34LtFq4dogNvTWEH9QaaM',
+                '8LaUZadNqtzuCG7iCvZd7d5cbquuYfv19KjAg6GPuuCb',
+                'FdUyXNThsQxX4QKytZgR6J671GffdgLVntutzg1NJpbK',
+                'GJCi1uj3kYPZ64puA5sLUiCQfFapxT2xnREzrbDzFkYY',
+                'JBLjg2Q94FFjovuEjsDtmsDyKYFePqsqKQdi5HwcrL5D',
+                '22DcjMZrMwC5Bpa5AGBsmjc5V9VuQrXG6N9ZtdUNyYGE',
+                'E4v1BBgoso9s64TQvmyownAVJbhbEPGyzA3qn4n46qj9',
+                'HmpMfL8942u22htC4EMiWgLX931g3sacXFR6KjuLgKLV',
+                '3vxLXJqLqF3JG5TCbYycbKWRBbCJQLxQmBGCkyqEEefL',
+                '8UEiPmgZHXXEDrqLS3oiTxQxTbeYTtPbeMBxAd2XGbpu',
+                'E3iagrg2kXyNJ9Ad2R2pNUsRmXutyQScu3m1FcQmBsAH',
+                'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
+                'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+                '11111111111111111111111111111111',
+                '7Ycduy9p1fWeZmxYVLQTBBQCLtT5m7rTzQED5Jjok131',
+                '4qp6Fx6tnZkY5Wropq9wUYgtFxXKwE6viZxFHg3rdAG8',
+                'HfCyGERXHq5azhit6uVrx3HAaZugXpyadFrVAjCofoWa',
+                'MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA',
+                'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm',
+        ),
+}
+
 KNOWN_ACCOUNTS.update(OWN_PROGRAMS_BY_ADDRESS)
 KNOWN_ACCOUNTS.update((acc, f'Validator<{acc[:8]}...>') for acc in VALIDATORS)
 
