@@ -53,7 +53,7 @@ def cost(basename, title, column, log=False):
         return (f'{basename}-cost.pdf', title, 'Cost (USD cents)', f'{basename}.csv', value, log)
 
 for entry in (
-        ('block-fin.pdf', 'Blocks Throughput', 'Blocks per minute', 'block-fin.csv', (lambda row: 60 / int(row[3])), True),
+        delay('block-fin', 'Block Finalisation Time', 4, True),
         delay('send-transfer', 'Send Transfer Delay', 5),
         delay('client-update', 'Client Update Delay', 2),
         delay('receive-transfer', 'Receive Transfer Delay', 2),

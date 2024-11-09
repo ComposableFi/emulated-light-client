@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
+import hashlib
 import json
-import sys
 import re
+import sys
 
 import common
 
@@ -64,9 +65,37 @@ class BlockMixin:
                 if prog != 'solana-ibc':
                         return
                 if msg.startswith('Program data: 02'):
-                        self._block_generated(tx['blockTime'])
+                        self.__process_new_block(tx, msg)
                 elif msg.startswith('Program data: 04'):
-                        self._block_finalised(tx['blockTime'])
+                        self.__process_finalised_block(tx, msg)
+
+        def __process_new_block(self, tx, msg):
+                data = bytes.fromhex(msg[len('Program data: 02'):])
+                # Decode NewBlock event.  Specifically, extract block header to
+                # calculate block hash and block height.
+                assert data[0] == 0  # version 0
+
+                # Check if next_epoch_commitment field is present and adjust
+                # length of the serialised block accordingly.
+                if data[121] == 0:
+                        data = data[:122]
+                else:
+                        data = data[:122 + 32]
+                block_hash = hashlib.sha256(data).hexdigest()
+                block_height = int.from_bytes(data[33:33+8], 'little')
+
+                self._block_generated(block_hash, block_height, tx['blockTime'])
+
+        def __process_finalised_block(self, tx, msg):
+                data = msg[len('Program data: 02'):]
+                # Decode BlockFinalisationStats event.  It’s 32-byte block hash
+                # followed by 8-byte block height.
+                block_hash = data[:64]
+                block_height = int.from_bytes(
+                        bytes.fromhex(data[64:]),
+                        'little',
+                )
+                self._block_finalised(block_hash, block_height, tx['blockTime'])
 
 
 class SendTransferStats(BlockMixin, StatsBase):
@@ -92,18 +121,18 @@ class SendTransferStats(BlockMixin, StatsBase):
                                 None,
                         ])
 
-        def _block_generated(self, block_time):
+        def _block_generated(self, block_hash, block_height, block_time):
                 for transfer in self._transfers:
                         if transfer[3] is None:
                                 transfer[3] = block_time
 
-        def _block_finalised(self, block_time):
+        def _block_finalised(self, block_hash, block_height, time):
                 count = 0
                 for transfer in self._transfers:
                         if transfer[3] is None:
                                 break
                         tm = transfer[0]
-                        self._entry(*transfer, block_time, block_time - tm)
+                        self._entry(*transfer, time, time - tm)
                         count += 1
                 self._transfers[:count] = []
 
@@ -111,27 +140,42 @@ class SendTransferStats(BlockMixin, StatsBase):
 class BlockFinalisationStats(BlockMixin, StatsBase):
         def __init__(self):
                 hdr = (
+                        'Block Hash',
+                        'Block Height',
                         'Block Generated',
                         'Block Finalised',
-                        'Next Block Finalised',
                         'Finalisation Time',
-                        'Two Finalisation Time',
                 )
                 super().__init__('block-fin.csv', hdr)
-                self._blocks = []
+                self._blocks = {}
 
-        def _block_generated(self, block_time):
-                assert not self._blocks or self._blocks[-1][1] is not None
-                self._blocks.append([block_time, None])
+        def _block_generated(self, block_hash, block_height, block_time):
+                block = self._blocks.setdefault(
+                        block_hash, [block_height, None, None])
+                assert block[0] == block_height and block[1] is None
+                block[1] = block_time
 
-        def _block_finalised(self, block_time):
-                if self._blocks:
-                        assert self._blocks[-1][1] is None
-                        self._blocks[-1][1] = block_time
-                while len(self._blocks) > 2:
-                        gen, fin = self._blocks.pop(0)
-                        fin2 = self._blocks[0][1]
-                        self._entry(gen, fin, fin2, fin - gen, fin2 - gen)
+        def _block_finalised(self, block_hash, block_height, block_time):
+                block = self._blocks.setdefault(
+                        block_hash, [block_height, None, None])
+                assert block[0] == block_height and block[2] is None
+                block[2] = block_time
+
+        def done(self):
+                items = sorted(self._blocks.items(),
+                               key=lambda item: item[1][0])
+                for (block_hash, (block_height, generated, finalised)) in items:
+                        if generated is None:
+                                print(f'{block_hash}: finalised block never generated', file=sys.stderr)
+                        elif finalised is None:
+                                print(f'{block_hash}: generated block never finalised', file=sys.stderr)
+                        else:
+                                delay = finalised - generated
+                                self._entry(block_hash, block_height,
+                                            generated, finalised, delay)
+                                if delay > 30:
+                                        print(f'{block_hash}: took {delay} s to finalise', file=sys.stderr)
+                self._done()
 
 
 class DeliverStats:
@@ -205,3 +249,5 @@ for tx in txs:
         for prog, msg in common.parse_logs(tx['meta']['logMessages']):
                 for stat in stats:
                         stat.process_log(tx, prog, msg)
+for stat in stats:
+        stat.done()
