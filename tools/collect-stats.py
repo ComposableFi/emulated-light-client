@@ -95,7 +95,13 @@ class BlockMixin:
                         bytes.fromhex(data[64:]),
                         'little',
                 )
-                self._block_finalised(block_hash, block_height, tx['blockTime'])
+                validator = next(
+                        ix['accounts'][0]
+                        for ix in tx['instructions']
+                        if (isinstance(ix, dict) and
+                            ix['data'][0] == 'SignBlock'))
+                self._block_finalised(
+                        block_hash, block_height, tx['blockTime'], validator)
 
 
 class SendTransferStats(BlockMixin, StatsBase):
@@ -121,12 +127,12 @@ class SendTransferStats(BlockMixin, StatsBase):
                                 None,
                         ])
 
-        def _block_generated(self, block_hash, block_height, block_time):
+        def _block_generated(self, block_hash, block_height, time):
                 for transfer in self._transfers:
                         if transfer[3] is None:
-                                transfer[3] = block_time
+                                transfer[3] = time
 
-        def _block_finalised(self, block_hash, block_height, time):
+        def _block_finalised(self, block_hash, block_height, time, validator):
                 count = 0
                 for transfer in self._transfers:
                         if transfer[3] is None:
@@ -145,26 +151,30 @@ class BlockFinalisationStats(BlockMixin, StatsBase):
                         'Block Generated',
                         'Block Finalised',
                         'Finalisation Time',
+                        'Last Validator',
                 )
                 super().__init__('block-fin.csv', hdr)
                 self._blocks = {}
 
-        def _block_generated(self, block_hash, block_height, block_time):
+        def _block_generated(self, block_hash, block_height, time):
                 block = self._blocks.setdefault(
-                        block_hash, [block_height, None, None])
+                        block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[1] is None
-                block[1] = block_time
+                block[1] = time
 
-        def _block_finalised(self, block_hash, block_height, block_time):
+        def _block_finalised(self, block_hash, block_height, time, validator):
                 block = self._blocks.setdefault(
-                        block_hash, [block_height, None, None])
+                        block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[2] is None
-                block[2] = block_time
+                block[2] = time
+                block[3] = validator
 
         def done(self):
                 items = sorted(self._blocks.items(),
                                key=lambda item: item[1][0])
-                for (block_hash, (block_height, generated, finalised)) in items:
+                for item in items:
+                        block_hash, block = item
+                        block_height, generated, finalised, validator = block
                         if generated is None:
                                 print(f'{block_hash}: finalised block never generated', file=sys.stderr)
                         elif finalised is None:
@@ -174,7 +184,7 @@ class BlockFinalisationStats(BlockMixin, StatsBase):
                                 self._entry(block_hash, block_height,
                                             generated, finalised, delay)
                                 if delay > 30:
-                                        print(f'{block_hash}: took {delay} s to finalise', file=sys.stderr)
+                                        print(f'{block_hash}: took {delay} s to finalise; last validator: {validator}', file=sys.stderr)
                 self._done()
 
 
