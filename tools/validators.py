@@ -6,7 +6,6 @@ import re
 
 import common
 
-
 with open(common.TXS_FILE) as rd:
         txs = json.load(rd)
 
@@ -16,7 +15,8 @@ for tx in txs:
                 if not isinstance(ix, dict):
                         continue
                 data = ix['data']
-                if not isinstance(data, list) or not data or data[0] != 'SignBlock':
+                if not isinstance(data,
+                                  list) or not data or data[0] != 'SignBlock':
                         continue
                 validators.add(ix['accounts'][0])
 

@@ -12,7 +12,8 @@ def process_log_message(msg):
         if msg.startswith('Program data: '):
                 return 'Program data: ' + base64.b64decode(msg[14:]).hex()
         parts = msg.split(None, 2)
-        if parts[0] == 'Program' and (acc := common.KNOWN_ACCOUNTS.get(parts[1])):
+        if parts[0] == 'Program' and (acc := common.KNOWN_ACCOUNTS.get(
+            parts[1])):
                 parts[1] = f'`{acc}`'
                 msg = ' '.join(parts)
         return msg
@@ -49,7 +50,7 @@ def process_raw_tx(path):
                 data = data['result']
 
         data['meta']['logMessages'] = [
-                process_log_message(msg) for msg in data['meta']['logMessages']
+            process_log_message(msg) for msg in data['meta']['logMessages']
         ]
 
         tx = data.pop('transaction')
@@ -63,8 +64,8 @@ def process_raw_tx(path):
                 data['meta'].pop('err')
 
         account_keys = [
-                common.KNOWN_ACCOUNTS.get(account, account)
-                for account in collect_account_keys(tx)
+            common.KNOWN_ACCOUNTS.get(account, account)
+            for account in collect_account_keys(tx)
         ]
         tx['accountKeys'] = account_keys
         handle_instructions(tx['instructions'], account_keys)

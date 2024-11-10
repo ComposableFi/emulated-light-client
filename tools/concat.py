@@ -50,11 +50,11 @@ def process_instruction(ix, tx):
                 num = data[0]
                 entries = [prog]
                 for i in range(num):
-                        entry = data[2 + i*14:]
-                        num = lambda o: from_le_bytes(entry[o*2:o*2+2])
+                        entry = data[2 + i * 14:]
+                        num = lambda o: from_le_bytes(entry[o * 2:o * 2 + 2])
 
                         def get(o, l):
-                                d = data[o:o+l]
+                                d = data[o:o + l]
                                 assert len(d) == l
                                 return d
 
@@ -82,7 +82,6 @@ def process_instruction(ix, tx):
         return ix
 
 
-
 txs = []
 
 for path in common.TX_DIR.iterdir():
@@ -108,9 +107,7 @@ for path in common.TX_DIR.iterdir():
         tx.pop('accountKeys')
 
         tx['instructions'] = [
-                ix
-                for i in tx['instructions']
-                if (ix := process_instruction(i, tx))
+            ix for i in tx['instructions'] if (ix := process_instruction(i, tx))
         ]
 
         txs.append(tx)
@@ -154,8 +151,8 @@ for idx, tx in enumerate(txs):
                         nx['tip'] += tx['tip']
 txs = list(filter(None, txs))
 
-
 accounts = {}
+
 
 def acc_write(acc, offset, data):
         orig = accounts.get(acc, bytes())
@@ -212,7 +209,6 @@ def handle_instruction(ix, tx):
 for tx in txs:
         for ix in tx['instructions']:
                 handle_instruction(ix, tx)
-
 
 with open(common.TXS_FILE, 'w') as wr:
         json.dump(txs, wr, indent=2)

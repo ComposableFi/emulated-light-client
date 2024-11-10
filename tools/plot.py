@@ -45,22 +45,26 @@ def plot_cdf(*, output, title, label, data, log=False):
 
 def delay(basename, title, column, log=False):
         value = lambda row: int(row[column])
-        return (f'{basename}-delay.pdf', title, 'Delay (s)', f'{basename}.csv', value, log)
+        return (f'{basename}-delay.pdf', title, 'Delay (s)', f'{basename}.csv',
+                value, log)
+
 
 def cost(basename, title, column, log=False):
         # 1 SOL = 200 USD
         value = lambda row: int(row[column]) * 2 / 100000
-        return (f'{basename}-cost.pdf', title, 'Cost (USD cents)', f'{basename}.csv', value, log)
+        return (f'{basename}-cost.pdf', title, 'Cost (USD cents)',
+                f'{basename}.csv', value, log)
+
 
 for entry in (
-        delay('block-fin', 'Block Finalisation Time', 4, True),
-        delay('send-transfer', 'Send Transfer Delay', 5),
-        delay('client-update', 'Client Update Delay', 2),
-        delay('receive-transfer', 'Receive Transfer Delay', 2),
-        cost('send-transfer', 'Send Transfer Cost', 1, True),
-        cost('client-update', 'Client Update Cost', 3),
-        cost('receive-transfer', 'Receive Transfer Cost', 3),
-        cost('sign-block', 'Sign Cost', 2),
+    delay('block-fin', 'Block Finalisation Time', 4, True),
+    delay('send-transfer', 'Send Transfer Delay', 5),
+    delay('client-update', 'Client Update Delay', 2),
+    delay('receive-transfer', 'Receive Transfer Delay', 2),
+    cost('send-transfer', 'Send Transfer Cost', 1, True),
+    cost('client-update', 'Client Update Cost', 3),
+    cost('receive-transfer', 'Receive Transfer Cost', 3),
+    cost('sign-block', 'Sign Cost', 2),
 ):
         output, title, label, fname, value = entry[:5]
         output = common.OUTPUT_DIR / output

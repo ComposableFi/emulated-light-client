@@ -10,7 +10,6 @@ import requests
 
 import common
 
-
 slot_start = 0
 slot_end = 999999999999999
 signatures = []
@@ -33,10 +32,9 @@ def check_signature(sig, seen=set()):
         seen.add(sig['signature'])
         return True
 
-signatures = sorted(
-        (sig for sig in signatures if check_signature(sig)),
-        key=lambda item: -item['slot'])
 
+signatures = sorted((sig for sig in signatures if check_signature(sig)),
+                    key=lambda item: -item['slot'])
 
 API = common.API()
 common.RAW_TX_DIR.mkdir(parents=True, exist_ok=True)

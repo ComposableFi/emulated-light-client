@@ -8,14 +8,15 @@ import requests
 
 import common
 
-
 API = common.API('mainnet-beta')
 
+
 def get_signatures_for_address(address, before=None):
-        cfg = { 'commitment': 'finalized' }
+        cfg = {'commitment': 'finalized'}
         if before:
                 cfg['before'] = before
-        print(f'getSignaturesForAddress({address}, before={before})', file=sys.stderr)
+        print(f'getSignaturesForAddress({address}, before={before})',
+              file=sys.stderr)
         return API.call('getSignaturesForAddress', [address, cfg])
 
 

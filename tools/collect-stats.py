@@ -9,6 +9,7 @@ import common
 
 
 class StatsBase:
+
         def __init__(self, filename, header):
                 common.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
                 self.__filename = filename
@@ -35,6 +36,7 @@ class StatsBase:
 
 
 class SimpleStatsBase(StatsBase):
+
         def __init__(self, filename):
                 super().__init__(filename, ('Timestamp', 'Fee', 'Consumed CU'))
 
@@ -42,9 +44,9 @@ class SimpleStatsBase(StatsBase):
                 op, _ = ident
                 if op and self._is_interesting(tx, op):
                         self._entry(
-                                tx['blockTime'],
-                                tx['meta']['fee'],
-                                tx['meta']['computeUnitsConsumed'],
+                            tx['blockTime'],
+                            tx['meta']['fee'],
+                            tx['meta']['computeUnitsConsumed'],
                         )
 
         def _is_interesting(self, tx, op):
@@ -52,6 +54,7 @@ class SimpleStatsBase(StatsBase):
 
 
 class SimpleOperationStats(SimpleStatsBase):
+
         def __init__(self, filename, op):
                 super().__init__(filename)
                 self.__op = op
@@ -61,6 +64,7 @@ class SimpleOperationStats(SimpleStatsBase):
 
 
 class BlockMixin:
+
         def process_log(self, tx, prog, msg):
                 if prog != 'solana-ibc':
                         return
@@ -82,7 +86,7 @@ class BlockMixin:
                 else:
                         data = data[:122 + 32]
                 block_hash = hashlib.sha256(data).hexdigest()
-                block_height = int.from_bytes(data[33:33+8], 'little')
+                block_height = int.from_bytes(data[33:33 + 8], 'little')
 
                 self._block_generated(block_hash, block_height, tx['blockTime'])
 
@@ -92,27 +96,27 @@ class BlockMixin:
                 # followed by 8-byte block height.
                 block_hash = data[:64]
                 block_height = int.from_bytes(
-                        bytes.fromhex(data[64:]),
-                        'little',
+                    bytes.fromhex(data[64:]),
+                    'little',
                 )
                 validator = next(
-                        ix['accounts'][0]
-                        for ix in tx['instructions']
-                        if (isinstance(ix, dict) and
-                            ix['data'][0] == 'SignBlock'))
-                self._block_finalised(
-                        block_hash, block_height, tx['blockTime'], validator)
+                    ix['accounts'][0]
+                    for ix in tx['instructions']
+                    if (isinstance(ix, dict) and ix['data'][0] == 'SignBlock'))
+                self._block_finalised(block_hash, block_height, tx['blockTime'],
+                                      validator)
 
 
 class SendTransferStats(BlockMixin, StatsBase):
+
         def __init__(self):
                 hdr = (
-                        'Transfer Sent',
-                        'Fee',
-                        'Consumed CU',
-                        'Block Generated',
-                        'Block Finalised',
-                        'Send Delay',
+                    'Transfer Sent',
+                    'Fee',
+                    'Consumed CU',
+                    'Block Generated',
+                    'Block Finalised',
+                    'Send Delay',
                 )
                 super().__init__('send-transfer.csv', hdr)
                 self._transfers = []
@@ -121,10 +125,10 @@ class SendTransferStats(BlockMixin, StatsBase):
                 op, _ = ident
                 if op == 'SendTransfer':
                         self._transfers.append([
-                                tx['blockTime'],
-                                tx['meta']['fee'],
-                                tx['meta']['computeUnitsConsumed'],
-                                None,
+                            tx['blockTime'],
+                            tx['meta']['fee'],
+                            tx['meta']['computeUnitsConsumed'],
+                            None,
                         ])
 
         def _block_generated(self, block_hash, block_height, time):
@@ -144,27 +148,28 @@ class SendTransferStats(BlockMixin, StatsBase):
 
 
 class BlockFinalisationStats(BlockMixin, StatsBase):
+
         def __init__(self):
                 hdr = (
-                        'Block Hash',
-                        'Block Height',
-                        'Block Generated',
-                        'Block Finalised',
-                        'Finalisation Time',
-                        'Last Validator',
+                    'Block Hash',
+                    'Block Height',
+                    'Block Generated',
+                    'Block Finalised',
+                    'Finalisation Time',
+                    'Last Validator',
                 )
                 super().__init__('block-fin.csv', hdr)
                 self._blocks = {}
 
         def _block_generated(self, block_hash, block_height, time):
                 block = self._blocks.setdefault(
-                        block_hash, [block_height, None, None, None])
+                    block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[1] is None
                 block[1] = time
 
         def _block_finalised(self, block_hash, block_height, time, validator):
                 block = self._blocks.setdefault(
-                        block_hash, [block_height, None, None, None])
+                    block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[2] is None
                 block[2] = time
                 block[3] = validator
@@ -176,25 +181,29 @@ class BlockFinalisationStats(BlockMixin, StatsBase):
                         block_hash, block = item
                         block_height, generated, finalised, validator = block
                         if generated is None:
-                                print(f'{block_hash}: finalised block never generated', file=sys.stderr)
+                                print(
+                                    f'{block_hash}: finalised block never generated',
+                                    file=sys.stderr)
                         elif finalised is None:
-                                print(f'{block_hash}: generated block never finalised', file=sys.stderr)
+                                print(
+                                    f'{block_hash}: generated block never finalised',
+                                    file=sys.stderr)
                         else:
                                 delay = finalised - generated
-                                self._entry(block_hash, block_height,
-                                            generated, finalised, delay)
+                                self._entry(block_hash, block_height, generated,
+                                            finalised, delay)
                                 if delay > 30:
-                                        print(f'{block_hash}: took {delay} s to finalise; last validator: {validator}', file=sys.stderr)
+                                        print(
+                                            f'{block_hash}: took {delay} s to finalise; last validator: {validator}',
+                                            file=sys.stderr)
                 self._done()
 
 
 class DeliverStats:
+
         def __init__(self):
-                hdr = (
-                        'Timestamp Started', 'Timestamp Done', 'Delay',
-                        'Fee', 'Consumed CU', 'Total Transactions',
-                        'Total Signatures'
-                )
+                hdr = ('Timestamp Started', 'Timestamp Done', 'Delay', 'Fee',
+                       'Consumed CU', 'Total Transactions', 'Total Signatures')
                 self._client_update = StatsBase('client-update.csv', hdr)
                 self._deliver = StatsBase('receive-transfer.csv', hdr[:-1])
                 self._costs = [None, 0, 0, 0, 0]
@@ -226,13 +235,11 @@ class DeliverStats:
                         self._costs = [None, 0, 0, 0, 0]
                         if op == 'Deliver/Update':
                                 self._client_update._entry(
-                                        start, end, end - start,
-                                        fee, cu, transactions,
-                                        sigs)
+                                    start, end, end - start, fee, cu,
+                                    transactions, sigs)
                         elif op == 'Deliver/Token':
-                                self._deliver._entry(
-                                        start, end, end - start,
-                                        fee, cu, transactions)
+                                self._deliver._entry(start, end, end - start,
+                                                     fee, cu, transactions)
 
         def process_log(self, tx, prog, msg):
                 pass
@@ -242,15 +249,14 @@ class DeliverStats:
                 self._deliver.done()
 
 
-
 with open(common.TXS_FILE) as rd:
         txs = json.load(rd)
 
 stats = [
-        SimpleOperationStats('sign-block.csv', 'SignBlock'),
-        SendTransferStats(),
-        BlockFinalisationStats(),
-        DeliverStats(),
+    SimpleOperationStats('sign-block.csv', 'SignBlock'),
+    SendTransferStats(),
+    BlockFinalisationStats(),
+    DeliverStats(),
 ]
 
 for tx in txs:
