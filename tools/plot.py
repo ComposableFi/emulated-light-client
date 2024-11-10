@@ -43,9 +43,14 @@ def plot_cdf(*, output, title, label, data, log=False):
         plt.savefig(output, transparent=True)
 
 
-def delay(basename, title, column, log=False):
-        value = lambda row: int(row[column])
-        return (f'{basename}-delay.pdf', title, 'Delay (s)', f'{basename}.csv',
+def delay(basename, title, column, log=False, label='Delay (s)'):
+        if isinstance(column, int):
+                value = lambda row: int(row[column])
+        elif isinstance(column, tuple) and len(column) == 2:
+                value = lambda row: int(row[column[0]]) - int(row[column[1]])
+        else:
+                assert False
+        return (f'{basename}-delay.pdf', title, label, f'{basename}.csv',
                 value, log)
 
 
@@ -57,8 +62,8 @@ def cost(basename, title, column, log=False):
 
 
 for entry in (
-    delay('block-fin', 'Block Finalisation Time', 4, True),
-    delay('send-transfer', 'Send Transfer Delay', 5),
+    delay('block-int', 'Time Between Blocks', (2, 4), True, 'Interval (s)'),
+    delay('send-transfer', 'Send Transfer Delay', 5, True),
     delay('client-update', 'Client Update Delay', 2),
     delay('receive-transfer', 'Receive Transfer Delay', 2),
     cost('send-transfer', 'Send Transfer Cost', 1, True),
