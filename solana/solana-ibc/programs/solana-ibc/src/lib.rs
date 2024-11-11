@@ -43,6 +43,11 @@ mod relayer {
     anchor_lang::declare_id!("Ao2wBFe6VzG5B1kQKkNw4grnPRQZNpP4wwQW86vXGxpY");
 }
 
+#[cfg(not(feature = "mocks"))]
+mod authority {
+    anchor_lang::declare_id!("FvFSYWGVKMq4oGA9PRk9uRpbUR1R1GyDjQC2DFn9uJaF");
+}
+
 mod allocator;
 pub mod chain;
 pub mod client_state;
@@ -765,6 +770,68 @@ pub mod solana_ibc {
 
         Ok(())
     }
+
+    #[allow(unused_variables)]
+    pub fn set_l1_supply<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, UpdateL1Supply<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !authority::check_id(ctx.accounts.sender.key) {
+            msg!("Only authority {} can call this method", authority::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+
+        let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
+        let signer_seeds = &[&seeds[..]];
+
+        let ix = spl_token::instruction::set_l1_token_supply(
+            &ctx.accounts.token_program.key(),
+            ctx.accounts.token_mint.key,
+            &[&ctx.accounts.mint_authority.key()],
+            amount,
+        )?;
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.token_mint.to_account_info(),
+                ctx.accounts.mint_authority.to_account_info(),
+            ],
+            signer_seeds,
+        )?;
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    pub fn increase_l1_supply<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, UpdateL1Supply<'info>>,
+        increase_by: u64,
+    ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !authority::check_id(ctx.accounts.sender.key) {
+            msg!("Only authority {} can call this method", authority::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+
+        let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
+        let signer_seeds = &[&seeds[..]];
+
+        let ix = spl_token::instruction::increase_l1_token_supply(
+            &ctx.accounts.token_program.key(),
+            ctx.accounts.token_mint.key,
+            &[&ctx.accounts.mint_authority.key()],
+            increase_by,
+        )?;
+        invoke_signed(
+            &ix,
+            &[
+                ctx.accounts.token_mint.to_account_info(),
+                ctx.accounts.mint_authority.to_account_info(),
+            ],
+            signer_seeds,
+        )?;
+        Ok(())
+    }
 }
 
 /// All the storage accounts are initialized here since it is only called once
@@ -1011,6 +1078,21 @@ pub struct MintTokens<'info> {
     pub token_mint: UncheckedAccount<'info>, // Mint account
     #[account(mut)]
     pub token_account: Account<'info, TokenAccount>, // Destination token account
+    #[account(
+        seeds = [MINT_ESCROW_SEED],  // Replace this with your seed for mint authority
+        bump
+    )]
+    /// CHECK: This is the mint authority
+    pub mint_authority: UncheckedAccount<'info>, // Mint authority (from the program)
+    pub token_program: Program<'info, Token>, // Token program
+}
+
+#[derive(Accounts)]
+pub struct UpdateL1Supply<'info> {
+    sender: Signer<'info>,
+
+    #[account(mut)]
+    pub token_mint: UncheckedAccount<'info>, // Mint account
     #[account(
         seeds = [MINT_ESCROW_SEED],  // Replace this with your seed for mint authority
         bump
