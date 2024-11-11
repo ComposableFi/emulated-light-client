@@ -107,7 +107,7 @@ pub mod bridge_escrow {
         if new_intent.single_domain {
             amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
         } else {
-            amount_in -= (new_intent.amount_in * 25) / 10000; // 0.25% deduction
+            amount_in -= (new_intent.amount_in * 29) / 10000; // 0.29% deduction
         }
         
     
