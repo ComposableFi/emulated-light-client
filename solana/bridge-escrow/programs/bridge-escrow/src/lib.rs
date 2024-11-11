@@ -105,10 +105,11 @@ pub mod bridge_escrow {
 
         let mut amount_in = new_intent.amount_in;
         if new_intent.single_domain {
-            amount_in -= new_intent.amount_in / 100;
+            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
         } else {
-            amount_in -= (new_intent.amount_in * 25) / 100;
+            amount_in -= (new_intent.amount_in * 25) / 10000; // 0.25% deduction
         }
+        
     
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.key();
