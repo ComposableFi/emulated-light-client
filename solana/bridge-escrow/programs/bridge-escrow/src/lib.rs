@@ -573,7 +573,7 @@ pub struct Intent {
     pub single_domain: bool,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
 pub struct IntentPayload {
     pub intent_id: String,
     pub user_in: Pubkey,
