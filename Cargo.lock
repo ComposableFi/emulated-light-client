@@ -6948,7 +6948,7 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#c7105eda5c3c87b6da981282e8c5a3be3f3de573"
+source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#410ba59e0376acbc13aca573bb7652e864bdbec9"
 dependencies = [
  "arrayref",
  "bytemuck",
