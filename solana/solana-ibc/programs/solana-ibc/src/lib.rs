@@ -45,7 +45,7 @@ mod relayer {
 
 #[cfg(not(feature = "mocks"))]
 mod authority {
-    anchor_lang::declare_id!("FvFSYWGVKMq4oGA9PRk9uRpbUR1R1GyDjQC2DFn9uJaF");
+    anchor_lang::declare_id!("3nA8J7SUqG7DQ7RRGqjZq2J4PgsD5PAJzFftTMUEPRvw");
 }
 
 mod allocator;
@@ -525,10 +525,17 @@ pub mod solana_ibc {
         ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
         amount: u64,
     ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !authority::check_id(ctx.accounts.sender.key) {
+            msg!("Only authority {} can call this method", authority::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+        /*
         if cfg!(not(feature = "mocks")) {
             msg!("Mint tokens is disabled");
             return Ok(());
         }
+         */
 
         // CPI Context for minting tokens
         let cpi_accounts = anchor_spl::token::MintTo {
@@ -1074,6 +1081,7 @@ pub struct InitRebasingMint<'info> {
 
 #[derive(Accounts)]
 pub struct MintTokens<'info> {
+    sender: Signer<'info>,
     #[account(mut)]
     pub token_mint: UncheckedAccount<'info>, // Mint account
     #[account(mut)]
