@@ -390,7 +390,7 @@ pub mod solana_ibc {
         create_metadata_accounts_v3(
             metadata_ctx,
             token_data,
-            false,
+            true,
             true,
             None,
         )?;
@@ -512,7 +512,7 @@ pub mod solana_ibc {
         create_metadata_accounts_v3(
             metadata_ctx,
             token_data,
-            false,
+            true,
             true,
             None,
         )?;
