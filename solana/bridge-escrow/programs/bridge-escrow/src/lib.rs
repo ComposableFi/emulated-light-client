@@ -501,8 +501,6 @@ pub mod bridge_escrow {
             ErrorCode::TokenInNotMint
         );
 
-        // require singleDomain
-
         // Transfer tokens from Auctioneer to User
         let auctioneer_token_in_account = accounts
             .escrow_token_account
@@ -512,6 +510,11 @@ pub mod bridge_escrow {
             .user_token_account
             .as_ref()
             .ok_or(ErrorCode::AccountsNotPresent)?;
+
+        require!(
+            user_token_in_account.owner == intent.user_in,
+            ErrorCode::MismatchTokenIn
+        );
 
         require!(
             intent.token_in == auctioneer_token_in_account.mint,
