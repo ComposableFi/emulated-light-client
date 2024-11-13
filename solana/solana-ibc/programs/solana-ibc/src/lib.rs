@@ -559,6 +559,43 @@ pub mod solana_ibc {
         Ok(())
     }
 
+    /// Burn the given token to an account with the given amount
+    pub fn burn_tokens<'a, 'info>(
+        ctx: Context<'a, 'a, 'a, 'info, MintTokens<'info>>,
+        amount: u64,
+    ) -> Result<()> {
+        #[cfg(not(feature = "mocks"))]
+        if !authority::check_id(ctx.accounts.sender.key) {
+            msg!("Only authority {} can call this method", authority::ID);
+            return Err(error!(error::Error::InvalidSigner));
+        }
+        /*
+        if cfg!(not(feature = "mocks")) {
+            msg!("Burn tokens is disabled");
+            return Ok(());
+        }
+        */
+
+        let cpi_accounts = anchor_spl::token::Burn {
+            mint: ctx.accounts.token_mint.to_account_info(),
+            from: ctx.accounts.token_account.to_account_info(),
+            authority: ctx.accounts.mint_authority.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
+        let signer_seeds = &[&seeds[..]];
+
+        let cpi_ctx = CpiContext::new_with_signer(
+            cpi_program,
+            cpi_accounts,
+            signer_seeds,
+        );
+
+        anchor_spl::token::burn(cpi_ctx, amount)?;
+
+        Ok(())
+    }
+
     #[allow(unused_variables)]
     pub fn deliver<'a, 'info>(
         mut ctx: Context<'a, 'a, 'a, 'info, Deliver<'info>>,
