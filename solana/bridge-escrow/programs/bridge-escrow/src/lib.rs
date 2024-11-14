@@ -849,9 +849,11 @@ pub struct OnTimeout<'info> {
     #[account(mut)]
     /// CHECK:
     pub auctioneer: UncheckedAccount<'info>,
-    #[account(mut, close = user, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
+    #[account(mut, close = intent_owner, seeds = [INTENT_SEED, intent_id.as_bytes()], bump)]
     pub intent: Option<Box<Account<'info, Intent>>>,
-
+    #[account(mut, address = intent.clone().unwrap().user_in)]
+    /// CHECK:
+    pub intent_owner: UncheckedAccount<'info>,
     // Single domain transfer accounts
     pub token_in: Option<Account<'info, Mint>>,
     #[account(mut, token::mint = token_in)]
