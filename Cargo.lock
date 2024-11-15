@@ -921,7 +921,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -2354,6 +2354,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.7",
+]
 
 [[package]]
 name = "hashbrown"
@@ -4462,10 +4465,10 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "937c8595148fb2a9a90439daf6a371a5b3c9fcd9b636f26d36ae31d6846d4339"
 dependencies = [
- "anchor-lang",
- "hex",
+ "anchor-lang 0.29.0",
+ "hex 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "pythnet-sdk",
- "solana-program",
+ "solana-program 2.0.2",
 ]
 
 [[package]]
@@ -4475,11 +4478,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3bbbc0456f9f27c9ad16b6c3bf1b2a7fea61eebf900f4d024a0468b9a84fe0c1"
 dependencies = [
  "bincode",
- "borsh 0.10.3",
+ "borsh 0.10.4",
  "bytemuck",
  "byteorder",
  "fast-math",
- "hex",
+ "hex 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version",
  "serde",
  "sha3 0.10.8",
@@ -4856,15 +4859,15 @@ name = "restaking_v2"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
- "anchor-lang",
+ "anchor-lang 0.29.0",
  "anchor-spl",
  "anyhow",
  "pyth-solana-receiver-sdk",
  "solana-ibc",
- "solana-program",
+ "solana-program 1.17.31",
  "solana-signature-verifier",
  "spl-associated-token-account",
- "spl-token",
+ "spl-token 3.5.0",
 ]
 
 [[package]]
@@ -7019,7 +7022,7 @@ dependencies = [
 [[package]]
 name = "spl-token"
 version = "3.5.0"
-source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#92b4d9831856ae7d6fd2811d498bfe52482c365d"
+source = "git+https://github.com/ComposableFi/solana-program-library?branch=mantis#358083dc38664adebf818f59c780b6e9b354ba17"
 dependencies = [
  "arrayref",
  "bytemuck",

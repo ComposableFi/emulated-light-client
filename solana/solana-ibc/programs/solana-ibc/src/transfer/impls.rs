@@ -235,7 +235,9 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             seeds, //signer PDA
         );
 
+        msg!("impls: {}", line!());
         anchor_spl::token::burn(cpi_ctx, amount_to_burn).unwrap();
+        msg!("impls: {}", line!());
         Ok(())
     }
 }
@@ -485,6 +487,7 @@ impl IbcStorage<'_, '_> {
         op: EscrowOp,
         coin: &PrefixedCoin,
     ) -> Result<(), TokenTransferError> {
+        msg!("impls: {}", line!());
         let amount = check_amount_overflow(coin.amount)?;
 
         let (_mint_auth_key, mint_auth_bump) =
@@ -510,6 +513,7 @@ impl IbcStorage<'_, '_> {
         let escrow_account_rent =
             rent.minimum_balance(escrow_account.data_len());
 
+        msg!("impls: {}", line!());
         let (sender, receiver, authority) = match op {
             EscrowOp::Escrow => {
                 let auth = accounts
@@ -561,7 +565,9 @@ impl IbcStorage<'_, '_> {
             transfer_instruction,
             seeds, //signer PDA
         );
+        msg!("impls: {}", line!());
         anchor_spl::token::transfer(cpi_ctx, amount).unwrap();
+        msg!("impls: {}", line!());
 
         // Closing the wsol account after transferring the amount to the escrow
         // so that the escrow account holds the wsol deposits in native SOL which
@@ -593,6 +599,7 @@ impl IbcStorage<'_, '_> {
                 sender.key,
                 escrow_account_rent
             );
+            msg!("impls: {}", line!());
             anchor_spl::token::close_account(cpi_ctx).unwrap();
             // Closing the account transfers all the lamports to the
             // destination account including the initial rent paid
@@ -602,6 +609,7 @@ impl IbcStorage<'_, '_> {
                 escrow_account_rent;
             **sender.try_borrow_mut_lamports().unwrap() += escrow_account_rent;
         }
+        msg!("impls: {}", line!());
 
         Ok(())
     }
