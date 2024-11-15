@@ -816,7 +816,7 @@ pub mod solana_ibc {
     }
 
     #[allow(unused_variables)]
-    pub fn set_l1_rewards<'a, 'info>(
+    pub fn set_l1_supply<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, UpdateL1Supply<'info>>,
         amount: u64,
     ) -> Result<()> {
@@ -829,7 +829,7 @@ pub mod solana_ibc {
         let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
         let signer_seeds = &[&seeds[..]];
 
-        let ix = spl_token::instruction::increase_l1_token_rewards(
+        let ix = spl_token::instruction::increase_l1_token_supply(
             &ctx.accounts.token_program.key(),
             ctx.accounts.token_mint.key,
             &[&ctx.accounts.mint_authority.key()],
@@ -847,7 +847,7 @@ pub mod solana_ibc {
     }
 
     #[allow(unused_variables)]
-    pub fn increase_l1_rewards<'a, 'info>(
+    pub fn increase_l1_supply<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, UpdateL1Supply<'info>>,
         increase_by: u64,
     ) -> Result<()> {
@@ -860,7 +860,7 @@ pub mod solana_ibc {
         let seeds = &[MINT_ESCROW_SEED, &[ctx.bumps.mint_authority]];
         let signer_seeds = &[&seeds[..]];
 
-        let ix = spl_token::instruction::increase_l1_token_rewards(
+        let ix = spl_token::instruction::increase_l1_token_supply(
             &ctx.accounts.token_program.key(),
             ctx.accounts.token_mint.key,
             &[&ctx.accounts.mint_authority.key()],
