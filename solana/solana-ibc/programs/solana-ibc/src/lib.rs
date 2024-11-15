@@ -1398,6 +1398,9 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
         Pubkey::new_from_array(hex_literal::hex!(
             "79890dbcf24e48972b57e5094e5889be2742ed560c8e8d4842a6fea84b5e9c37"
         )),
+        Pubkey::new_from_array(hex_literal::hex!(
+            "d52008b8539f6fcf99629e0bc4c7b240123b3dd1e6f195c200f95758204934e4"
+        )),
     ];
     match expected_program_ids.contains(program_id) {
         false => Err(error::Error::InvalidCPICall.into()),
@@ -1409,8 +1412,10 @@ fn check_staking_program(program_id: &Pubkey) -> Result<()> {
 fn test_staking_program() {
     const GOOD_ONE: &str = "8n3FHwYxFgQCQc2FNFkwDUf9mcqupxXcCvgfHbApMLv3";
     const GOOD_TWO: &str = "9BRYTakYsrFkSNr5VPYWnM1bQV5yZnX5uM8Ny2q5Nixv";
+    const GOOD_THREE: &str = "FLxAuGfjKZFFBjxYSTYcgJ1W5LJSUU1NrAViRNAskRfq";
     const BAD: &str = "75pAU4CJcp8Z9eoXcL6pSU8sRK5vn3NEpgvV9VJtc5hy";
     check_staking_program(&GOOD_ONE.parse().unwrap()).unwrap();
     check_staking_program(&GOOD_TWO.parse().unwrap()).unwrap();
+    check_staking_program(&GOOD_THREE.parse().unwrap()).unwrap();
     check_staking_program(&BAD.parse().unwrap()).unwrap_err();
 }
