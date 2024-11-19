@@ -32,7 +32,7 @@ pub const METADATA: &[u8] = b"metadata";
 pub const FEE_SEED: &[u8] = b"fee";
 
 pub const WSOL_ADDRESS: &str = "So11111111111111111111111111111111111111112";
-pub const MANTIS_WSOL_DENOM: &str = "transfer/channel-0/So11111111111111111111111111111111111111112";
+pub const MANTIS_WSOL_DENOM: &str = "transfer/channel-0/j5dcBzWZu2KD5x6xvcig9K9xtUVrN95e1GJHRXoRTYL"; // Bridged Rebased JitoSOL
 
 pub const MINIMUM_FEE_ACCOUNT_BALANCE: u64 =
     solana_program::native_token::LAMPORTS_PER_SOL;

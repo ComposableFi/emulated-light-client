@@ -7,6 +7,7 @@ use anchor_lang::solana_program::msg;
 use anchor_spl::token::{Burn, CloseAccount, MintTo, Transfer};
 use lib::hash::CryptoHash;
 use primitive_types::U256;
+use spl_associated_token_account::instruction::create_associated_token_account;
 use spl_token::solana_program::rent::Rent;
 use spl_token::solana_program::sysvar::Sysvar;
 
@@ -112,8 +113,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         if amt.denom.to_string() == MANTIS_WSOL_DENOM {
             let amount_to_mint = check_amount_overflow(amt.amount)?;
-            msg!("Minting {amount_to_mint} of WSOL (Mantis) for account {}", account);
-
+            msg!("Sending {amount_to_mint} of WSOL (Mantis) to account {}", account);
             **mint_auth.try_borrow_mut_lamports().unwrap() -= amount_to_mint;
             **receiver.try_borrow_mut_lamports().unwrap() += amount_to_mint;
             return Ok(());
@@ -177,6 +177,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         );
 
         anchor_spl::token::mint_to(cpi_ctx, amount_to_mint).unwrap();
+
         Ok(())
     }
 
@@ -192,6 +193,13 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             amt.denom.trace_path,
             amt.denom.base_denom
         );
+        if amt.denom.to_string() == MANTIS_WSOL_DENOM {
+            return self.escrow_coins_execute_impl(
+                EscrowOp::Escrow,
+                amt,
+            );
+        }
+
         let store = self.borrow();
         let private_storage = &store.private;
 
@@ -376,6 +384,17 @@ impl TokenTransferValidationContext for IbcStorage<'_, '_> {
            The token mint should be a PDA with seeds as ``
         */
         msg!("This is coin while burning {:?}", coin);
+
+        if coin.denom.to_string() == MANTIS_WSOL_DENOM {
+            return self.escrow_coins_validate_impl(
+                EscrowOp::Escrow,
+                account,
+                &PortId::transfer(),
+                &ChannelId::new(0),
+                coin,
+            );
+        }
+
         let token_mint = get_token_mint(&coin.denom)?;
         let store = self.borrow();
         let accounts = &store.accounts;
