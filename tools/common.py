@@ -27,9 +27,11 @@ VALIDATORS = frozenset((
     '9osBexxQzfxvMCLknqB9pYDoLPoM1wqHy2FhCBw68qPQ',
     'AUa3iN7h4c3oSrtP5pmbRcXJv8QSo4HGHPqXT4WnHDnp',
     'AcrA5Qn3DsptVjyVF4PK8hQxXNALinjAP2rGQ5YR6zYT',
+    'BDNG8WBHSMz3gj8YDAt5EapgouFzPx1kAazWHa4HLrhS',
     'BPKAfGkkzF5u1QRjjB1nWYYbPMUCMPJe1xZPmwEMNMCT',
     'BT9ZFvsDfX6WpLFqmWEYuLuE5i3SxzdSJ1Vzm9arbRub',
     'Bb4BP3EvsPyBuqSAABx7KmYAp3mRqAZUYN1vChWsbjDc',
+    'DB7DNWMVQASMFxcjkwdr4w4eg3NmfjWTk2rqFMMbrPLA',
     'EAaijviraKWCWsVZtiZ5thhXoyoB5RP3HH1ZiLeLDcuv',
     'EKh5R4HFSfRG7oj4apXFFaDn1eVJcyB9n8rE6gBSFSLj',
     'EXCMwETx5Txcvxt6YYqxFmhSpQKH5BVjdat3NE5eJJ6a',
@@ -220,7 +222,8 @@ def identify_tx(tx):
                               ix[0] not in SYSTEM_INSTRUCITONS_OPS):
                                 return ix[0], None
                 elif ix['programId'] == 'solana-ibc':
-                        return ix['data'][0], None
+                        acc = ix['accounts'][0] if ix['accounts'] else None
+                        return ix['data'][0], acc
         return None, None
 
 

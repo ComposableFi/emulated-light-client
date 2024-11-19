@@ -35,32 +35,26 @@ class StatsBase:
                 pass
 
 
-class SimpleStatsBase(StatsBase):
+class SignStats(StatsBase):
 
-        def __init__(self, filename):
-                super().__init__(filename, ('Timestamp', 'Fee', 'Consumed CU'))
+        def __init__(self):
+                super().__init__('sign-block.csv', ('Timestamp', 'Fee', 'Consumed CU', 'Validator'))
 
         def process_tx(self, tx, ident):
-                op, _ = ident
-                if op and self._is_interesting(tx, op):
+                op, validator = ident
+                if op == 'SignBlock':
+                        assert (validator.startswith('Validator<') and
+                                validator.endswith('...>')), validator
+                        validator = validator[10:-4]
                         self._entry(
                             tx['blockTime'],
                             tx['meta']['fee'],
                             tx['meta']['computeUnitsConsumed'],
+                            validator
                         )
 
         def _is_interesting(self, tx, op):
                 raise NotImplementedError
-
-
-class SimpleOperationStats(SimpleStatsBase):
-
-        def __init__(self, filename, op):
-                super().__init__(filename)
-                self.__op = op
-
-        def _is_interesting(self, tx, op):
-                return op == self.__op
 
 
 class BlockMixin:
@@ -272,7 +266,7 @@ with open(common.TXS_FILE) as rd:
         txs = json.load(rd)
 
 stats = [
-    SimpleOperationStats('sign-block.csv', 'SignBlock'),
+    SignStats(),
     SendTransferStats(),
     BlockStats(),
     DeliverStats(),
