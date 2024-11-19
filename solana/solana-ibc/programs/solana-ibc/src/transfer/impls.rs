@@ -16,7 +16,7 @@ use crate::ibc::apps::transfer::context::{
 use crate::ibc::apps::transfer::types::{Amount, Memo, PrefixedCoin};
 use crate::ibc::{ChannelId, PortId, TokenTransferError};
 use crate::storage::IbcStorage;
-use crate::{ibc, MINT_ESCROW_SEED};
+use crate::{ibc, MANTIS_WSOL_DENOM, MINT_ESCROW_SEED};
 
 /// Account identifier on Solana, i.e. account’s public key.
 #[derive(
@@ -100,6 +100,25 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
         );
         let store = self.borrow();
 
+        let accounts = &store.accounts;
+        let receiver = accounts
+            .token_account
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+        let mint_auth = accounts
+            .mint_authority
+            .clone()
+            .ok_or(TokenTransferError::ParseAccountFailure)?;
+
+        if amt.denom.to_string() == MANTIS_WSOL_DENOM {
+            let amount_to_mint = check_amount_overflow(amt.amount)?;
+            msg!("Minting {amount_to_mint} of WSOL (Mantis) for account {}", account);
+
+            **mint_auth.try_borrow_mut_lamports().unwrap() -= amount_to_mint;
+            **receiver.try_borrow_mut_lamports().unwrap() += amount_to_mint;
+            return Ok(());
+        }
+
         let private_storage = &store.private;
 
         let hashed_full_denom =
@@ -132,21 +151,12 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
 
         let (_mint_auth_key, mint_auth_bump) =
             Pubkey::find_program_address(&[MINT_ESCROW_SEED], &crate::ID);
-        let accounts = &store.accounts;
-        let receiver = accounts
-            .token_account
-            .clone()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_program = accounts
             .token_program
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
         let token_mint = accounts
             .token_mint
-            .clone()
-            .ok_or(TokenTransferError::ParseAccountFailure)?;
-        let mint_auth = accounts
-            .mint_authority
             .clone()
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
