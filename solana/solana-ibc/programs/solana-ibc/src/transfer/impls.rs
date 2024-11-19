@@ -564,7 +564,7 @@ impl IbcStorage<'_, '_> {
         // instead of wrapped SOL which is unusable if the wallet doesnt have any
         // SOL to pay for the fees.
         if matches!(op, EscrowOp::Unescrow) &&
-            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+            (coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS || coin.denom.to_string() == MANTIS_WSOL_DENOM)
         {
             let receiver = accounts
                 .receiver
@@ -596,7 +596,7 @@ impl IbcStorage<'_, '_> {
         // so that the escrow account holds the wsol deposits in native SOL which
         // can be transferred to the receiver instead of sending wrapped sol.
         if matches!(op, EscrowOp::Escrow) &&
-            coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS
+            (coin.denom.base_denom.as_str() == crate::WSOL_ADDRESS || coin.denom.to_string() == MANTIS_WSOL_DENOM)
         {
             let mint_authority = accounts
                 .mint_authority
