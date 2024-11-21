@@ -115,7 +115,7 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             let amount_to_mint = check_amount_overflow(amt.amount)?;
             msg!("Sending {amount_to_mint} of WSOL (Mantis) to account {}", account);
             **mint_auth.try_borrow_mut_lamports().unwrap() -= amount_to_mint;
-            **receiver.try_borrow_mut_lamports().unwrap() += amount_to_mint;
+            **account.try_borrow_mut_lamports().unwrap() += amount_to_mint;
             return Ok(());
         }
 
