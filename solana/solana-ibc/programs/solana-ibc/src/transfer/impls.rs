@@ -112,10 +112,17 @@ impl TokenTransferExecutionContext for IbcStorage<'_, '_> {
             .ok_or(TokenTransferError::ParseAccountFailure)?;
 
         if amt.denom.to_string() == MANTIS_WSOL_DENOM {
+            let native_receiver = accounts
+                .receiver
+                .clone()
+                .ok_or(TokenTransferError::ParseAccountFailure)?;
+
             let amount_to_mint = check_amount_overflow(amt.amount)?;
             msg!("Sending {amount_to_mint} of WSOL (Mantis) to account {}", account);
+            assert_eq!(account.0, *native_receiver.key, "Receiver account mismatch");
+
             **mint_auth.try_borrow_mut_lamports().unwrap() -= amount_to_mint;
-            **account.try_borrow_mut_lamports().unwrap() += amount_to_mint;
+            **native_receiver.try_borrow_mut_lamports().unwrap() += amount_to_mint;
             return Ok(());
         }
 
