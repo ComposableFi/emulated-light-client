@@ -78,8 +78,9 @@ def plot_cdf(*, output, title, label, data, log=False):
 
 
 def delay(basename, title, getter, log=False, label='Delay (s)'):
+        getter = make_getter(getter)
         return (f'{basename}-delay.pdf', title, label, f'{basename}.csv',
-                getter, log)
+                lambda header, row: getter(header, row) / 1000, log)
 
 
 def cost(basename, title, getter, log=False):

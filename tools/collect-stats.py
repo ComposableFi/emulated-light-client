@@ -8,6 +8,11 @@ import sys
 import common
 
 
+def tx_time(tx):
+        # return tx['blockTime']
+        return tx['slot'] * 400
+
+
 class StatsBase:
 
         def __init__(self, filename, header):
@@ -48,7 +53,7 @@ class SignStats(StatsBase):
                         assert (validator.startswith('Validator<') and
                                 validator.endswith('...>')), validator
                         validator = validator[10:-4]
-                        self._entry(tx['blockTime'], tx['meta']['fee'],
+                        self._entry(tx_time(tx), tx['meta']['fee'],
                                     tx['meta']['computeUnitsConsumed'],
                                     validator)
 
@@ -81,7 +86,7 @@ class BlockMixin:
                 block_hash = hashlib.sha256(data).hexdigest()
                 block_height = int.from_bytes(data[33:33 + 8], 'little')
 
-                self._block_generated(block_hash, block_height, tx['blockTime'])
+                self._block_generated(block_hash, block_height, tx_time(tx))
 
         def __process_finalised_block(self, tx, msg):
                 data = msg[len('Program data: 02'):]
@@ -96,7 +101,7 @@ class BlockMixin:
                     ix['accounts'][0]
                     for ix in tx['instructions']
                     if (isinstance(ix, dict) and ix['data'][0] == 'SignBlock'))
-                self._block_finalised(block_hash, block_height, tx['blockTime'],
+                self._block_finalised(block_hash, block_height, tx_time(tx),
                                       validator)
 
 
@@ -118,7 +123,7 @@ class SendTransferStats(BlockMixin, StatsBase):
                 op, _ = ident
                 if op == 'SendTransfer':
                         self._transfers.append([
-                            tx['blockTime'],
+                            tx_time(tx),
                             tx['meta']['fee'],
                             tx['meta']['computeUnitsConsumed'],
                             None,
@@ -196,9 +201,9 @@ class BlockStats(BlockMixin):
                         delay = finalised - generated
                         self.__fin._entry(block_hash, block_height, generated,
                                           finalised, delay)
-                        if delay > 30:
+                        if delay > 30_000:
                                 print(
-                                    f'{block_hash}: took {delay} s to finalise; last validator: {validator}',
+                                    f'{block_hash}: took {delay / 1000} s to finalise; last validator: {validator}',
                                     file=sys.stderr)
 
                         if prev is not None and prev[0] == block_height - 1:
@@ -232,7 +237,7 @@ class DeliverStats:
                 if not op:
                         return
 
-                now = tx['blockTime']
+                now = tx_time(tx)
                 fee = tx['meta']['fee']
                 cu = tx['meta']['computeUnitsConsumed']
 
