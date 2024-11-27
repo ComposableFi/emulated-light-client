@@ -38,7 +38,9 @@ class StatsBase:
 class SignStats(StatsBase):
 
         def __init__(self):
-                super().__init__('sign-block.csv', ('Timestamp', 'Fee', 'Consumed CU', 'Validator'))
+                super().__init__(
+                    'sign-block.csv',
+                    ('Timestamp', 'Fee', 'Consumed CU', 'Validator'))
 
         def process_tx(self, tx, ident):
                 op, validator = ident
@@ -46,12 +48,9 @@ class SignStats(StatsBase):
                         assert (validator.startswith('Validator<') and
                                 validator.endswith('...>')), validator
                         validator = validator[10:-4]
-                        self._entry(
-                            tx['blockTime'],
-                            tx['meta']['fee'],
-                            tx['meta']['computeUnitsConsumed'],
-                            validator
-                        )
+                        self._entry(tx['blockTime'], tx['meta']['fee'],
+                                    tx['meta']['computeUnitsConsumed'],
+                                    validator)
 
         def _is_interesting(self, tx, op):
                 raise NotImplementedError
@@ -219,7 +218,14 @@ class DeliverStats:
                        'Consumed CU', 'Total Transactions', 'Total Signatures')
                 self._client_update = StatsBase('client-update.csv', hdr)
                 self._deliver = StatsBase('receive-transfer.csv', hdr[:-1])
-                self._costs = [None, 0, 0, 0, 0]
+
+                hdr = ('Timestamp', 'Fee', 'Consumed CU', 'Total Signatures')
+                self._all_client_update = StatsBase('client-update-all.csv',
+                                                    hdr)
+                self._all_deliver = StatsBase('receive-transfer-all.csv',
+                                              hdr[:-1])
+
+                self._all = []
 
         def process_tx(self, tx, ident):
                 op, arg = ident
@@ -231,28 +237,31 @@ class DeliverStats:
                 cu = tx['meta']['computeUnitsConsumed']
 
                 if op in ('Write', 'FreeWrite', 'SigVerify', 'FreeSigs'):
-                        if self._costs[0] is None and not op.startswith('Free'):
-                                self._costs[0] = now
-                        self._costs[1] += fee
-                        self._costs[2] += cu
+                        sigs = 0
                         if op == 'SigVerify':
-                                self._costs[3] += arg
-                        self._costs[4] += 1
+                                sigs = arg
+                        self._all.append(
+                            (not op.startswith('Free'), now, fee, cu, sigs))
                 elif op.startswith('Deliver/'):
-                        start = self._costs[0] or now
+                        self._all.append((True, now, fee, cu, 0))
+                        start = next(item[1] for item in self._all if item[0])
                         end = now
-                        fee += self._costs[1]
-                        cu += self._costs[2]
-                        sigs = self._costs[3]
-                        transactions = self._costs[4] + 1
-                        self._costs = [None, 0, 0, 0, 0]
+                        delay = end - start
+                        fee = sum(item[2] for item in self._all)
+                        cu = sum(item[3] for item in self._all)
+                        sigs = sum(item[4] for item in self._all)
+                        transactions = len(self._all)
+                        item = (start, end, delay, fee, cu, transactions, sigs)
                         if op == 'Deliver/Update':
-                                self._client_update._entry(
-                                    start, end, end - start, fee, cu,
-                                    transactions, sigs)
+                                self._client_update._entry(*item)
+                                for item in self._all:
+                                        self._all_client_update._entry(
+                                            *item[1:])
                         elif op == 'Deliver/Token':
-                                self._deliver._entry(start, end, end - start,
-                                                     fee, cu, transactions)
+                                self._deliver._entry(*item[:-1])
+                                for item in self._all:
+                                        self._all_deliver._entry(*item[1:-1])
+                        self._all = []
 
         def process_log(self, tx, prog, msg):
                 pass
@@ -260,7 +269,8 @@ class DeliverStats:
         def done(self):
                 self._client_update.done()
                 self._deliver.done()
-
+                self._all_client_update.done()
+                self._all_deliver.done()
 
 with open(common.TXS_FILE) as rd:
         txs = json.load(rd)

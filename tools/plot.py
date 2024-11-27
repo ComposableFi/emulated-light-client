@@ -37,6 +37,7 @@ def load_data(fname, getter):
 def cents_from_fee(fee):
         #             1 SOL = 200 USD ⇒
         # 1_000_000_000 lamports = 20_000 cents ⇒
+        #     1_000_000 lamports =     20 cents ⇒
         #       100_000 lamports =      2 cents ⇒
         #        50_000 lamports =      1 cent
         return fee / 50000
@@ -46,23 +47,23 @@ def plot_cdf(*, output, title, label, data, log=False):
         count = len(data)
         data = numpy.sort(data)
 
-        low = data[0]
-        mean = numpy.mean(data)
-        high = data[1]
-
         count = len(data)
         amin = numpy.amin(data)
         mean = numpy.mean(data)
+        stdd = numpy.std(data)
         amax = numpy.amax(data)
-        print(','.join(str(v) for v in (title, count, amin, mean, amax)))
+        print(','.join(
+            str(v) for v in (title, count, '%.4f' % amin, '%.4f' % mean,
+                             '%.4f' % stdd, '%.4f' % amax)))
 
         cdf = numpy.arange(count) / (count - 1)
 
-        plt.rcParams['font.family'] = 'Linux Libertine O'
+        #        plt.rcParams['font.family'] = 'Linux Libertine O'
+        plt.rcParams['font.family'] = 'Liberation Serif'
         plt.rcParams['font.size'] = 24
         plt.clf()
-        plt.figure(figsize=(9, 4))
-        plt.subplots_adjust(bottom=.2, left=.15, right=.95)
+        plt.figure(figsize=(10, 4))
+        plt.subplots_adjust(top=1, bottom=.2, left=.12, right=.98)
         plt.plot(data, cdf, linewidth='4')
         plt.xlabel(label)
         plt.xscale('log' if log else 'linear')
@@ -70,7 +71,7 @@ def plot_cdf(*, output, title, label, data, log=False):
         plt.ylabel('CDF')
         if log:
                 plt.gca().xaxis.set_major_formatter(ScalarFormatter())
-        plt.title(title)
+        #plt.title(title)
 
         plt.grid(True)
         plt.savefig(output, transparent=True)
@@ -90,10 +91,11 @@ def cost(basename, title, getter, log=False):
 
 
 # Generate CDFs
+print('Statistic,Count,Min,Mean,StdDev,Max')
 for entry in (
     delay('block-int', 'Time Between Blocks', (2, 4), True, 'Interval (s)'),
-    delay('send-transfer', 'Send Transfer Delay', 5, True),
-    delay('client-update', 'Client Update Delay', 2, True),
+    delay('send-transfer', 'SendPacket Latency', 5, True),
+    delay('client-update', 'Light Client Update Latency', 2, True),
     delay('receive-transfer', 'Receive Transfer Delay', 2),
     cost('client-update', 'Client Update Cost', 3),
     cost('receive-transfer', 'Receive Transfer Cost', 3),
@@ -104,32 +106,18 @@ for entry in (
         data = load_data(fname, getter)
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
 
-
-# Generate stats for transfer cost.  Because there are two distinct groups
-# (costs at around one dollar and costs around 3 dollars), rather than
-# representing them together on graph, separate them and present statistics for
-# the costs.
-def gen_cost_stats(wr, cluster, data, cond):
-        data = [cost for cost in data if cond(cost)]
+print()
+for title, fname in (
+    ('Send Transfer Cost', 'send-transfer.csv'),
+    ('Client Update Tx Cost', 'client-update-all.csv'),
+    ('Receive Transfer Tx Cost', 'receive-transfer-all.csv'),
+):
+        data = [cents_from_fee(fee) for fee in load_data(fname, 'Fee')]
         count = len(data)
         data = numpy.sort(data)
         amin = numpy.amin(data)
         mean = numpy.mean(data)
         stddev = numpy.std(data)
         amax = numpy.amax(data)
-        line = ','.join(
-            str(x) for x in (cluster, count, amin, mean, stddev, amax))
-        print(line)
-        print(line, file=wr)
-
-
-data = [
-    cents_from_fee(fee) / 100 for fee in load_data('send-transfer.csv', 'Fee')
-]
-with open(common.OUTPUT_DIR / 'send-transfer-costs.csv', 'w') as wr:
-        print('Cluster,Count,Min,Mean,StdDev,Max', file=wr)
-        for cluster, cond in (
-            ('Cost 1.40 USD', lambda cost: cost < 2),
-            ('Cost ~3 USD', lambda cost: cost >= 2),
-        ):
-                gen_cost_stats(wr, cluster, data, cond)
+        line = (title, count, amin, mean, stddev, amax)
+        print(','.join(str(x) for x in line))
