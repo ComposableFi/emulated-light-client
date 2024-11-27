@@ -94,7 +94,7 @@ def cost(basename, title, getter, log=False):
 # Generate CDFs
 print('Statistic,Count,Min,Mean,StdDev,Max')
 for entry in (
-    delay('block-int', 'Time Between Blocks', (2, 4), True, 'Interval (s)'),
+    delay('block-int', 'Time Between Blocks', ('Block Generated', 'Prev Generated'), True, 'Interval (s)'),
     delay('send-transfer', 'SendPacket Latency', 5, True),
     delay('client-update', 'Light Client Update Latency', 2, True),
     delay('receive-transfer', 'Receive Transfer Delay', 2),

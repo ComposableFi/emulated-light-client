@@ -153,14 +153,16 @@ class BlockStats(BlockMixin):
                     'Block Height',
                     'Block Generated',
                     'Block Finalised',
+                    'Delay',
                     'Last Validator',
                 ))
                 self.__int = StatsBase('block-int.csv', (
                     'Block Hash',
                     'Block Height',
                     'Block Generated',
-                    'Prev Block Generated',
-                    'Prev Block Finalised',
+                    'Block Finalised',
+                    'Prev Generated',
+                    'Prev Finalised',
                 ))
                 self.__blocks = {}
 
@@ -200,7 +202,7 @@ class BlockStats(BlockMixin):
 
                         delay = finalised - generated
                         self.__fin._entry(block_hash, block_height, generated,
-                                          finalised, delay)
+                                          finalised, delay, validator)
                         if delay > 30_000:
                                 print(
                                     f'{block_hash}: took {delay / 1000} s to finalise; last validator: {validator}',
@@ -208,7 +210,8 @@ class BlockStats(BlockMixin):
 
                         if prev is not None and prev[0] == block_height - 1:
                                 self.__int._entry(block_hash, block_height,
-                                                  generated, prev[1], prev[2])
+                                                  generated, finalised,
+                                                  prev[1], prev[2])
 
                         prev = (block_height, generated, finalised)
 
