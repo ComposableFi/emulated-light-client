@@ -75,31 +75,38 @@ def plot_cdf(*, output, title, label, data, log=False):
         plt.savefig(output, transparent=True)
 
 
-def delay(basename, title, getter, log=False, label='Delay (s)'):
+def delay(basename, title, getter='Delay', log=True, label='Delay'):
         getter = make_getter(getter)
-        return (f'{basename}-delay.pdf', title, label, f'{basename}.csv',
+        return (f'{basename}-delay.pdf', title, f'{label} (s)',
+                f'{basename}.csv',
                 lambda header, row: getter(header, row) / 1000, log)
 
 
-def cost(basename, title, getter, log=False):
+def cost(basename, title, getter='Fee', log=False, label='Cost'):
         getter_lamp = make_getter(getter)
         getter_cents = lambda header, row: cents_from_fee(
             getter_lamp(header, row))
-        return (f'{basename}-cost.pdf', title, 'Cost (USD cents)',
+        return (f'{basename}-cost.pdf', title, f'{label} (USD cents)',
                 f'{basename}.csv', getter_cents, log)
 
 
 # Generate graphs
 print('Statistic,Count,Min,Mean,StdDev,Max')
 for entry in (
-    delay('block-int', 'Time Between Blocks',
-          ('Block Generated', 'Prev Generated'), True, 'Interval (s)'),
-    delay('send-transfer', 'SendPacket Latency', 5, True),
-    delay('client-update', 'Light Client Update Latency', 2, True),
-    delay('receive-transfer', 'Receive Transfer Delay', 2),
-    cost('client-update', 'Client Update Cost', 3),
-    cost('receive-transfer', 'Receive Transfer Cost', 3),
-    cost('sign-block', 'Sign Cost', 2),
+    delay('block-int',
+          'Time Between Blocks', ('Block Generated', 'Prev Generated'),
+          label='Time between guest block generation'),
+    delay('send-transfer', 'SendPacket Latency'),
+    delay('client-update', 'Light Client Update Latency',
+          label='Light client update execution time'),
+    delay('receive-transfer', 'ReceivePacket Delay', log=False),
+    cost('client-update',
+         'Client Update Cost',
+         label='Cost per counterparty block'),
+    cost('receive-transfer',
+         'ReceivePacket Cost',
+         label='Cost per incoming packet'),
+    cost('sign-block', 'Sign Cost', label='Cost per guest block'),
 ):
         output, title, label, fname, getter, log = entry
         output = common.OUTPUT_DIR / output
@@ -107,11 +114,10 @@ for entry in (
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
 
 # Print statistics for a few more metrics
-print()
 for title, fname in (
-    ('Send Transfer Cost', 'send-transfer.csv'),
-    ('Client Update Tx Cost', 'client-update-all.csv'),
-    ('Receive Transfer Tx Cost', 'receive-transfer-all.csv'),
+    ('SendPacket Cost', 'send-transfer.csv'),
+    ('Light Client Update Tx Cost', 'client-update-all.csv'),
+    ('ReceivePacket Tx Cost', 'receive-transfer-all.csv'),
 ):
         data = [cents_from_fee(fee) for fee in load_data(fname, 'Fee')]
         count = len(data)

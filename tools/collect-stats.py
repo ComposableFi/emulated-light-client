@@ -109,12 +109,12 @@ class SendTransferStats(BlockMixin, StatsBase):
 
         def __init__(self):
                 hdr = (
-                    'Transfer Sent',
+                    'Timestamp',
                     'Fee',
                     'Consumed CU',
                     'Block Generated',
                     'Block Finalised',
-                    'Send Delay',
+                    'Delay',
                 )
                 super().__init__('send-transfer.csv', hdr)
                 self._transfers = []
