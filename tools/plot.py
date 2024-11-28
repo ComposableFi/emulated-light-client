@@ -8,6 +8,22 @@ from matplotlib.ticker import ScalarFormatter
 
 import common
 
+STATS_HDR = ('Label', 'Count', 'Minimum', 'Q1', 'Median', 'Q3', 'Maximum',
+             'Mean', 'StdDev')
+
+
+def prn_stats(title, data):
+        data = numpy.sort(data)
+        count = len(data)
+        q = data[0], data[count // 4], data[count // 2], data[3 * count //
+                                                              4], data[count -
+                                                                       1]
+        mean = numpy.mean(data)
+        stddev = numpy.std(data)
+        line = (title, count) + q + (mean, stddev)
+        print(','.join(str(x) for x in line))
+        return data
+
 
 def make_getter(spec):
         if isinstance(spec, int):
@@ -44,17 +60,7 @@ def cents_from_fee(fee):
 
 
 def plot_cdf(*, output, title, label, data, log=False):
-        count = len(data)
-        data = numpy.sort(data)
-
-        count = len(data)
-        amin = numpy.amin(data)
-        mean = numpy.mean(data)
-        stdd = numpy.std(data)
-        amax = numpy.amax(data)
-        print(','.join(
-            str(v) for v in (title, count, '%.4f' % amin, '%.4f' % mean,
-                             '%.4f' % stdd, '%.4f' % amax)))
+        data = prn_stats(title, data)
 
         #        plt.rcParams['font.family'] = 'Linux Libertine O'
         plt.rcParams['font.family'] = 'Liberation Serif'
@@ -95,7 +101,7 @@ def cost(basename, title, getter='Fee', log=False, label='Cost'):
 
 
 # Generate graphs
-print('Statistic,Count,Min,Mean,StdDev,Max')
+print(','.join(STATS_HDR))
 for entry in (
     delay('block-int',
           'Time Between Blocks', ('Block Generated', 'Prev Generated'),
