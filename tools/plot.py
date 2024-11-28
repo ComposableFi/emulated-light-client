@@ -56,15 +56,13 @@ def plot_cdf(*, output, title, label, data, log=False):
             str(v) for v in (title, count, '%.4f' % amin, '%.4f' % mean,
                              '%.4f' % stdd, '%.4f' % amax)))
 
-        cdf = numpy.arange(count) / (count - 1)
-
         #        plt.rcParams['font.family'] = 'Linux Libertine O'
         plt.rcParams['font.family'] = 'Liberation Serif'
         plt.rcParams['font.size'] = 24
         plt.clf()
         plt.figure(figsize=(10, 4))
-        plt.subplots_adjust(top=1, bottom=.2, left=.12, right=.98)
-        plt.plot(data, cdf, linewidth='4')
+        plt.subplots_adjust(top=.97, bottom=.2, left=.12, right=.98)
+        plt.ecdf(data, linewidth='4')
         plt.xlabel(label)
         plt.xscale('log' if log else 'linear')
         plt.yticks([x / 4 for x in range(5)])
@@ -91,10 +89,11 @@ def cost(basename, title, getter, log=False):
                 f'{basename}.csv', getter_cents, log)
 
 
-# Generate CDFs
+# Generate graphs
 print('Statistic,Count,Min,Mean,StdDev,Max')
 for entry in (
-    delay('block-int', 'Time Between Blocks', ('Block Generated', 'Prev Generated'), True, 'Interval (s)'),
+    delay('block-int', 'Time Between Blocks',
+          ('Block Generated', 'Prev Generated'), True, 'Interval (s)'),
     delay('send-transfer', 'SendPacket Latency', 5, True),
     delay('client-update', 'Light Client Update Latency', 2, True),
     delay('receive-transfer', 'Receive Transfer Delay', 2),
@@ -107,6 +106,7 @@ for entry in (
         data = load_data(fname, getter)
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
 
+# Print statistics for a few more metrics
 print()
 for title, fname in (
     ('Send Transfer Cost', 'send-transfer.csv'),

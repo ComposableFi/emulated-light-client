@@ -210,8 +210,8 @@ class BlockStats(BlockMixin):
 
                         if prev is not None and prev[0] == block_height - 1:
                                 self.__int._entry(block_hash, block_height,
-                                                  generated, finalised,
-                                                  prev[1], prev[2])
+                                                  generated, finalised, prev[1],
+                                                  prev[2])
 
                         prev = (block_height, generated, finalised)
 
@@ -279,6 +279,7 @@ class DeliverStats:
                 self._deliver.done()
                 self._all_client_update.done()
                 self._all_deliver.done()
+
 
 with open(common.TXS_FILE) as rd:
         txs = json.load(rd)
