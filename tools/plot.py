@@ -60,9 +60,13 @@ def plot_cdf(*, output, title, label, data, log=False):
         plt.rcParams['font.family'] = 'Liberation Serif'
         plt.rcParams['font.size'] = 24
         plt.clf()
+
         plt.figure(figsize=(10, 4))
         plt.subplots_adjust(top=.97, bottom=.2, left=.12, right=.98)
+
         plt.ecdf(data, linewidth='4')
+        plt.boxplot(data, positions=[0.5], vert=False, manage_ticks=False)
+
         plt.xlabel(label)
         plt.xscale('log' if log else 'linear')
         plt.yticks([x / 4 for x in range(5)])
