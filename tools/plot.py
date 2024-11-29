@@ -109,13 +109,9 @@ for entry in (
     delay('send-transfer', 'SendPacket Latency'),
     delay('client-update', 'Light Client Update Latency',
           label='Light client update execution time'),
-    delay('receive-transfer', 'ReceivePacket Delay', log=False),
     cost('client-update',
          'Client Update Cost',
          label='Cost per counterparty block'),
-    cost('receive-transfer',
-         'ReceivePacket Cost',
-         label='Cost per incoming packet'),
     cost('sign-block', 'Sign Cost', label='Cost per guest block'),
 ):
         output, title, label, fname, getter, log = entry

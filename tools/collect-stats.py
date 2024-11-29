@@ -226,6 +226,7 @@ class DeliverStats:
                        'Consumed CU', 'Total Transactions', 'Total Signatures')
                 self._client_update = StatsBase('client-update.csv', hdr)
                 self._deliver = StatsBase('receive-transfer.csv', hdr[:-1])
+                self._timeouts = StatsBase('deliver-timeout.csv', hdr[:-1])
 
                 hdr = ('Timestamp', 'Fee', 'Consumed CU', 'Total Signatures')
                 self._all_client_update = StatsBase('client-update-all.csv',
@@ -269,6 +270,8 @@ class DeliverStats:
                                 self._deliver._entry(*item[:-1])
                                 for item in self._all:
                                         self._all_deliver._entry(*item[1:-1])
+                        elif op == 'Deliver/Timeout':
+                                self._timeouts._entry(*item[:-1])
                         self._all = []
 
         def process_log(self, tx, prog, msg):

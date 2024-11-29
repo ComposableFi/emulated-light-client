@@ -87,6 +87,9 @@ txs = []
 for path in common.TX_DIR.iterdir():
         if path.name[0] == '.':
                 continue
+        if path.name == '4zhB1NjangyNoFoX8BYPyPc1BwNBHM6V6zwsCaLTYPwSRDsLUoFn3gsj9bC8QLXBdy6LH5rw2u2u1Jq35CBip2TP.json':
+                # TODO: Investigate this transaction further.
+                continue
         with open(path) as rd:
                 tx = json.load(rd)
 
@@ -198,7 +201,9 @@ def handle_instruction(ix, tx):
                                 return
                 disc = common.DISCRIMINATOR[data[:8]]
                 if disc == 'Deliver':
-                        if 'Associated Token' in ix['accounts']:
+                        if 'Program log: success: packet timeout' in tx['meta']['logMessages']:
+                                disc = 'Deliver/Timeout'
+                        elif 'Associated Token' in ix['accounts']:
                                 disc = 'Deliver/Token'
                         else:
                                 disc = 'Deliver/Update'
