@@ -144,14 +144,13 @@ txs.sort(key=tx_key)
 # Merge Jito tips transactions with the following transaction
 for idx, tx in enumerate(txs):
         if not tx['instructions']:
-                tm = tx['blockTime']
                 txs[idx] = None
                 nx = txs[idx + 1]
-                if nx['blockTime'] == tx['blockTime']:
-                        tx, nx = tx['meta'], nx['meta']
-                        nx.setdefault('tip', 0)
-                        nx['fee'] += tx['fee']
-                        nx['tip'] += tx['tip']
+                assert nx['slot'] == tx['slot']
+                tx, nx = tx['meta'], nx['meta']
+                nx.setdefault('tip', 0)
+                nx['fee'] += tx['fee']
+                nx['tip'] += tx['tip']
 txs = list(filter(None, txs))
 
 accounts = {}
