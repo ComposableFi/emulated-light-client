@@ -199,16 +199,16 @@ def handle_instruction(ix, tx):
                                 else:
                                         ix['data'] = '(unknown)'
                                 return
-                disc = common.DISCRIMINATOR[data[:8]]
+                disc, data = common.DISCRIMINATOR[data[:8]], data[8:].hex()
                 if disc == 'Deliver':
-                        if 'Program log: success: packet timeout' in tx['meta']['logMessages']:
+                        if 'Program log: success: packet timeout' in tx['meta'][
+                            'logMessages']:
                                 disc = 'Deliver/Timeout'
                         elif 'Associated Token' in ix['accounts']:
                                 disc = 'Deliver/Token'
                         else:
                                 disc = 'Deliver/Update'
-                data = data[8:]
-                ix['data'] = [disc, data.hex()]
+                ix['data'] = [disc, data]
 
 
 for tx in txs:

@@ -15,11 +15,9 @@ STATS_HDR = ('Label', 'Count', 'Minimum', 'Q1', 'Median', 'Q3', 'Maximum',
 def prn_stats(title, data):
         data = numpy.sort(data)
         count = len(data)
-        q = data[0], data[count // 4], data[count // 2], data[3 * count //
-                                                              4], data[count -
-                                                                       1]
-        mean = numpy.mean(data)
-        stddev = numpy.std(data)
+        q = (data[0], data[count // 4], data[count // 2], data[3 * count // 4],
+             data[count - 1])
+        mean, stddev = numpy.mean(data), numpy.std(data)
         line = (title, count) + q + (mean, stddev)
         print(','.join(str(x) for x in line))
         return data
@@ -107,7 +105,8 @@ for entry in (
           'Time Between Blocks', ('Block Generated', 'Prev Generated'),
           label='Time between guest block generation'),
     delay('send-transfer', 'SendPacket Latency'),
-    delay('client-update', 'Light Client Update Latency',
+    delay('client-update',
+          'Light Client Update Latency',
           label='Light client update execution time'),
     cost('client-update',
          'Client Update Cost',
@@ -120,17 +119,11 @@ for entry in (
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
 
 # Print statistics for a few more metrics
+print()
 for title, fname in (
     ('SendPacket Cost', 'send-transfer.csv'),
     ('Light Client Update Tx Cost', 'client-update-all.csv'),
     ('ReceivePacket Tx Cost', 'receive-transfer-all.csv'),
 ):
         data = [cents_from_fee(fee) for fee in load_data(fname, 'Fee')]
-        count = len(data)
-        data = numpy.sort(data)
-        amin = numpy.amin(data)
-        mean = numpy.mean(data)
-        stddev = numpy.std(data)
-        amax = numpy.amax(data)
-        line = (title, count, amin, mean, stddev, amax)
-        print(','.join(str(x) for x in line))
+        prn_stats(title, data)
