@@ -17,8 +17,18 @@ def process_instruction(ix, tx):
 
         if prog == 'Compute Budget':
                 tag = common.COMPUTE_BUGDEGT_TAGS.get(data[0])
-                if tag:
-                        return [tag, from_le_bytes(data[1:])]
+                arg = from_le_bytes(data[1:])
+                if tag == 'RequestHeapFrame':
+                        tx['meta']['heapFrame'] = arg
+                elif tag == 'SetComputeUnitLimit':
+                        tx['meta']['computeUnitsLimit'] = arg
+                elif tag == 'SetComputeUnitPrice':
+                        tx['meta']['computeUnitsPrice'] = arg
+                elif tag == 'SetLoadedAccountsDataSizeLimit':
+                        tx['meta']['loadedAccountsDataSizeLimit'] = arg
+                else:
+                        assert False, tag
+                return None
 
         if prog == 'write-account':
                 assert data[0] == 0
