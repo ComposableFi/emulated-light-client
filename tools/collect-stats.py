@@ -290,7 +290,7 @@ stats = [
 for tx in txs:
         for stat in stats:
                 stat.process_tx(tx, common.identify_tx(tx))
-        for prog, msg in common.parse_logs(tx['meta']['logMessages']):
+        for prog, msg in common.parse_logs(tx['logMessages']):
                 for stat in stats:
                         stat.process_log(tx, prog, msg)
 for stat in stats:

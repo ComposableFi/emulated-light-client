@@ -178,7 +178,7 @@ def acc_write(acc, offset, data):
 
 
 def is_deliver(tx):
-        for prog, msg in common.parse_logs(tx['meta']['logMessages']):
+        for prog, msg in common.parse_logs(tx['logMessages']):
                 if (prog == 'solana-ibc' and
                     msg == 'Program log: Instruction: Deliver'):
                         return True
@@ -212,7 +212,7 @@ def handle_instruction(ix, tx):
                                 return
                 disc, data = common.DISCRIMINATOR[data[:8]], data[8:].hex()
                 if disc == 'Deliver':
-                        if 'Program log: success: packet timeout' in tx['meta'][
+                        if 'Program log: success: packet timeout' in tx[
                             'logMessages']:
                                 disc = 'Deliver/Timeout'
                         elif 'Associated Token' in ix['accounts']:
@@ -220,6 +220,13 @@ def handle_instruction(ix, tx):
                         else:
                                 disc = 'Deliver/Update'
                 ix['data'] = [disc, data]
+
+
+def filter_log_messages(messages):
+        return [
+            message for program, message in common.parse_logs(messages)
+            if program not in ('`System`', '`Compute Budget`')
+        ]
 
 
 for tx in txs:

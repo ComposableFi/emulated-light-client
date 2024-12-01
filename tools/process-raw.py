@@ -3,20 +3,40 @@
 import json
 import base64
 import base58
+import re
 import sys
 
 import common
 
+INVOKE_RE = re.compile('^Program ([0-9a-zA-Z]*) invoke')
 
-def process_log_message(msg):
-        if msg.startswith('Program data: '):
-                return 'Program data: ' + base64.b64decode(msg[14:]).hex()
-        parts = msg.split(None, 2)
-        if parts[0] == 'Program' and (acc := common.KNOWN_ACCOUNTS.get(
-            parts[1])):
-                parts[1] = f'`{acc}`'
-                msg = ' '.join(parts)
-        return msg
+
+def process_log_messages(messages):
+        raw_program = program = None
+        boring = True
+
+        for msg in messages:
+                assert msg.startswith('Program ')
+
+                if m := INVOKE_RE.search(msg):
+                        raw_program = program = m.group(1)
+                        if known := common.KNOWN_ACCOUNTS.get(program):
+                                program = f'`{known}`'
+                        boring = raw_program in common.BORING_PROGRAMS
+
+                if boring:
+                        continue
+
+                if msg.startswith('Program data: '):
+                        data = base64.b64decode(msg[14:]).hex()
+                        msg = 'Program data: ' + data
+                elif raw_program != program:
+                        parts = msg.split(None, 2)
+                        if parts[0] == 'Program' and parts[1] == raw_program:
+                                parts[1] = program
+                                msg = ' '.join(parts)
+
+                yield msg
 
 
 def collect_account_keys(tx):
@@ -49,9 +69,8 @@ def process_raw_tx(path):
                 assert data['id'] == 1
                 data = data['result']
 
-        data['meta']['logMessages'] = [
-            process_log_message(msg) for msg in data['meta']['logMessages']
-        ]
+        data['logMessages'] = list(
+            process_log_messages(data['meta'].pop('logMessages')))
 
         tx = data.pop('transaction')
         if len(tx['signatures']) != 1:

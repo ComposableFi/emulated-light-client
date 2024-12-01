@@ -54,6 +54,11 @@ KNOWN_ACCOUNTS = {
     'A4H1QgWU1YbgmZ5mr9zm31ss6TaVyyBqqhSnYW3xgdYm': 'solana-ibc/Trie',
 }
 
+BORING_PROGRAMS = (
+    '11111111111111111111111111111111',
+    'ComputeBudget111111111111111111111111111111',
+)
+
 # Known Address Lookup Table accounts
 ALT_ACCOUNTS = {
     'G6njJnzUuYECcuNvCevAcZp2P3kfhXrFmohy2FXtPwTM': (
