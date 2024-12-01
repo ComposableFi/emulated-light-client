@@ -112,11 +112,21 @@ for entry in (
          'Client Update Cost',
          label='Cost per counterparty block'),
     cost('sign-block', 'Sign Cost', label='Cost per guest block'),
+    cost('send-transfer', 'SendPacket Cost'),
 ):
         output, title, label, fname, getter, log = entry
         output = common.OUTPUT_DIR / output
         data = load_data(fname, getter)
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
+
+# Print statistics for different clusters of send-packet costs
+data = load_data('send-transfer.csv',
+                 lambda header, row: cents_from_fee(int(row[header['Fee']])))
+for title, cond in (
+    ('SendPacket Cost; 1st Cluster', lambda fee: fee < 150),
+    ('SendPacket Cost; 2nd Cluster', lambda fee: fee >= 150),
+):
+        prn_stats(title, [fee for fee in data if cond(fee)])
 
 # Print statistics for a few more metrics
 print()
