@@ -143,6 +143,8 @@ txs.sort(key=tx_key)
 
 # Merge Jito tips transactions with the following transaction
 for idx, tx in enumerate(txs):
+        tx.pop('blockTime')
+        tx.pop('version', None)
         if not tx['instructions']:
                 txs[idx] = None
                 nx = txs[idx + 1]

@@ -8,11 +8,6 @@ import sys
 import common
 
 
-def tx_time(tx):
-        # return tx['blockTime']
-        return tx['slot'] * 400
-
-
 class StatsBase:
 
         def __init__(self, filename, header):
@@ -43,9 +38,8 @@ class StatsBase:
 class SignStats(StatsBase):
 
         def __init__(self):
-                super().__init__(
-                    'sign-block.csv',
-                    ('Timestamp', 'Fee', 'Consumed CU', 'Validator'))
+                super().__init__('sign-block.csv',
+                                 ('Slot', 'Fee', 'Consumed CU', 'Validator'))
 
         def process_tx(self, tx, ident):
                 op, validator = ident
@@ -53,7 +47,7 @@ class SignStats(StatsBase):
                         assert (validator.startswith('Validator<') and
                                 validator.endswith('...>')), validator
                         validator = validator[10:-4]
-                        self._entry(tx_time(tx), tx['meta']['fee'],
+                        self._entry(tx['slot'], tx['meta']['fee'],
                                     tx['meta']['computeUnitsConsumed'],
                                     validator)
 
@@ -86,7 +80,7 @@ class BlockMixin:
                 block_hash = hashlib.sha256(data).hexdigest()
                 block_height = int.from_bytes(data[33:33 + 8], 'little')
 
-                self._block_generated(block_hash, block_height, tx_time(tx))
+                self._block_generated(block_hash, block_height, tx['slot'])
 
         def __process_finalised_block(self, tx, msg):
                 data = msg[len('Program data: 02'):]
@@ -101,7 +95,7 @@ class BlockMixin:
                     ix['accounts'][0]
                     for ix in tx['instructions']
                     if (isinstance(ix, dict) and ix['data'][0] == 'SignBlock'))
-                self._block_finalised(block_hash, block_height, tx_time(tx),
+                self._block_finalised(block_hash, block_height, tx['slot'],
                                       validator)
 
 
@@ -109,7 +103,7 @@ class SendTransferStats(BlockMixin, StatsBase):
 
         def __init__(self):
                 hdr = (
-                    'Timestamp',
+                    'Slot',
                     'Fee',
                     'Consumed CU',
                     'Block Generated',
@@ -123,24 +117,23 @@ class SendTransferStats(BlockMixin, StatsBase):
                 op, _ = ident
                 if op == 'SendTransfer':
                         self._transfers.append([
-                            tx_time(tx),
+                            tx['slot'],
                             tx['meta']['fee'],
                             tx['meta']['computeUnitsConsumed'],
                             None,
                         ])
 
-        def _block_generated(self, block_hash, block_height, time):
+        def _block_generated(self, block_hash, block_height, slot):
                 for transfer in self._transfers:
                         if transfer[3] is None:
-                                transfer[3] = time
+                                transfer[3] = slot
 
-        def _block_finalised(self, block_hash, block_height, time, validator):
+        def _block_finalised(self, block_hash, block_height, slot, validator):
                 count = 0
                 for transfer in self._transfers:
                         if transfer[3] is None:
                                 break
-                        tm = transfer[0]
-                        self._entry(*transfer, time, time - tm)
+                        self._entry(*transfer, slot, slot - transfer[0])
                         count += 1
                 self._transfers[:count] = []
 
@@ -169,17 +162,17 @@ class BlockStats(BlockMixin):
         def process_tx(self, tx, ident):
                 pass
 
-        def _block_generated(self, block_hash, block_height, time):
+        def _block_generated(self, block_hash, block_height, slot):
                 block = self.__blocks.setdefault(
                     block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[1] is None
-                block[1] = time
+                block[1] = slot
 
-        def _block_finalised(self, block_hash, block_height, time, validator):
+        def _block_finalised(self, block_hash, block_height, slot, validator):
                 block = self.__blocks.setdefault(
                     block_hash, [block_height, None, None, None])
                 assert block[0] == block_height and block[2] is None
-                block[2] = time
+                block[2] = slot
                 block[3] = validator
 
         def done(self):
@@ -222,13 +215,13 @@ class BlockStats(BlockMixin):
 class DeliverStats:
 
         def __init__(self):
-                hdr = ('Timestamp Started', 'Timestamp Done', 'Delay', 'Fee',
+                hdr = ('Slot Started', 'Slot Done', 'Delay', 'Fee',
                        'Consumed CU', 'Total Transactions', 'Total Signatures')
                 self._client_update = StatsBase('client-update.csv', hdr)
                 self._deliver = StatsBase('receive-transfer.csv', hdr[:-1])
                 self._timeouts = StatsBase('deliver-timeout.csv', hdr[:-1])
 
-                hdr = ('Timestamp', 'Fee', 'Consumed CU', 'Total Signatures')
+                hdr = ('Slot', 'Fee', 'Consumed CU', 'Total Signatures')
                 self._all_client_update = StatsBase('client-update-all.csv',
                                                     hdr)
                 self._all_deliver = StatsBase('receive-transfer-all.csv',
@@ -241,7 +234,7 @@ class DeliverStats:
                 if not op:
                         return
 
-                now = tx_time(tx)
+                now = tx['slot']
                 fee = tx['meta']['fee']
                 cu = tx['meta']['computeUnitsConsumed']
 

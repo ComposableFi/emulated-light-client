@@ -23,19 +23,24 @@ def prn_stats(title, data):
         return data
 
 
-def make_getter(spec):
+def make_getter(spec, convert=None):
         if isinstance(spec, int):
-                return lambda _, row: int(row[spec])
-        if isinstance(spec, str):
-                return lambda header, row: int(row[header[spec]])
-        if isinstance(spec, tuple) and len(spec) == 2:
+                getter = lambda _, row: int(row[spec])
+        elif isinstance(spec, str):
+                getter = lambda header, row: int(row[header[spec]])
+        elif isinstance(spec, tuple):
                 if isinstance(spec[0], int):
-                        return lambda _, row: int(row[spec[0]]) - int(row[spec[
-                            1]])
+                        getter = lambda _, row: tuple(
+                            int(row[col]) for col in spec)
                 else:
-                        return lambda header, row: int(row[header[spec[
-                            0]]]) - int(row[header[spec[1]]])
-        return spec
+                        getter = lambda header, row: tuple(
+                            int(row[header[col]]) for col in spec)
+        else:
+                getter = spec
+        if convert:
+                return lambda header, row: convert(getter(header, row))
+        else:
+                return getter
 
 
 def load_data(fname, getter):
@@ -46,6 +51,13 @@ def load_data(fname, getter):
                     for idx, key in enumerate(rd.readline().strip().split(','))
                 }
                 return [getter(header, row.split(',')) for row in rd]
+
+
+def time_from_slot(slot):
+        if isinstance(slot, tuple):
+                assert len(slot) == 2
+                slot = slot[0] - slot[1]
+        return slot * 2 / 5
 
 
 def cents_from_fee(fee):
@@ -84,18 +96,15 @@ def plot_cdf(*, output, title, label, data, log=False):
 
 
 def delay(basename, title, getter='Delay', log=True, label='Delay'):
-        getter = make_getter(getter)
+        getter = make_getter(getter, time_from_slot)
         return (f'{basename}-delay.pdf', title, f'{label} (s)',
-                f'{basename}.csv',
-                lambda header, row: getter(header, row) / 1000, log)
+                f'{basename}.csv', getter, log)
 
 
 def cost(basename, title, getter='Fee', log=False, label='Cost'):
-        getter_lamp = make_getter(getter)
-        getter_cents = lambda header, row: cents_from_fee(
-            getter_lamp(header, row))
+        getter = make_getter(getter, cents_from_fee)
         return (f'{basename}-cost.pdf', title, f'{label} (USD cents)',
-                f'{basename}.csv', getter_cents, log)
+                f'{basename}.csv', getter, log)
 
 
 # Generate graphs
@@ -120,8 +129,7 @@ for entry in (
         plot_cdf(output=output, title=title, label=label, data=data, log=log)
 
 # Print statistics for different clusters of send-packet costs
-data = load_data('send-transfer.csv',
-                 lambda header, row: cents_from_fee(int(row[header['Fee']])))
+data = load_data('send-transfer.csv', make_getter('Fee', cents_from_fee))
 for title, cond in (
     ('SendPacket Cost; 1st Cluster', lambda fee: fee < 150),
     ('SendPacket Cost; 2nd Cluster', lambda fee: fee >= 150),
@@ -131,9 +139,7 @@ for title, cond in (
 # Print statistics for a few more metrics
 print()
 for title, fname in (
-    ('SendPacket Cost', 'send-transfer.csv'),
     ('Light Client Update Tx Cost', 'client-update-all.csv'),
     ('ReceivePacket Tx Cost', 'receive-transfer-all.csv'),
 ):
-        data = [cents_from_fee(fee) for fee in load_data(fname, 'Fee')]
-        prn_stats(title, data)
+        prn_stats(title, load_data(fname, make_getter('Fee', cents_from_fee)))
