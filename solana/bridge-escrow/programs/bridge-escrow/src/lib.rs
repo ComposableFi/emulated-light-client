@@ -318,9 +318,10 @@ pub mod bridge_escrow {
         // Handle Native SOL Transfer
         if intent.token_out == System::id().to_string() {    
             // Perform SOL transfer from Solver to User
+            let out_user_account = accounts.user_account.clone().unwrap();
             let ix = solana_program::system_instruction::transfer(
                 solver.key,
-                &intent.user_in,
+                &out_user_account.key(),
                 amount_out,
             );
     
@@ -328,7 +329,7 @@ pub mod bridge_escrow {
                 &ix,
                 &[
                     solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
+                    accounts.user_account.clone().unwrap(),
                     accounts.system_program.to_account_info(),
                 ],
             )?;
@@ -430,9 +431,10 @@ pub mod bridge_escrow {
         // Check if token_out is native SOL or SPL token
         if accounts.token_out.key() == System::id() {
             // Handle Native SOL Transfer
+            let out_user_account = accounts.user_account.clone().unwrap();
             let ix = solana_program::system_instruction::transfer(
                 solver.key,
-                &accounts.user_token_out_account.key(),
+                &out_user_account.key(),
                 amount_out,
             );
     
@@ -440,7 +442,7 @@ pub mod bridge_escrow {
                 &ix,
                 &[
                     solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
+                    accounts.user_account.clone().unwrap(),
                     accounts.system_program.to_account_info(),
                 ],
             )?;
@@ -713,6 +715,10 @@ pub struct SplTokenTransferCrossChain<'info> {
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
 
+    // Solver -> User Account in case of SOL transfer
+    #[account(mut, address = user_token_out_account.owner)]
+    pub user_account: Option<AccountInfo<'info>>,
+    
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -790,6 +796,10 @@ pub struct SplTokenTransfer<'info> {
     pub solver_token_out_account: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
+
+    // Solver -> User Account in case of SOL transfer
+    #[account(mut, address = user_token_out_account.owner)]
+    pub user_account: Option<AccountInfo<'info>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
