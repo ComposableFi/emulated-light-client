@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::str::FromStr;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -10,6 +11,7 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::{
     read_keypair_file, Keypair, Signature, Signer as SolanaSigner,
 };
+use anchor_client::solana_sdk::transaction::Transaction;
 use anchor_client::{Client, Cluster};
 use anchor_lang::system_program;
 use anchor_spl::associated_token::{self, get_associated_token_address};
@@ -35,15 +37,35 @@ fn airdrop(client: &RpcClient, account: Pubkey, lamports: u64) -> Signature {
     airdrop_signature
 }
 
+fn simulate_tx(client: RpcClient, transaction: Transaction) {
+    // Simulate the transaction
+    let simulation_result = client
+        .simulate_transaction(
+            &transaction,
+        )
+        .expect("Failed to simulate transaction");
+    println!("Simulation logs: {:?}", simulation_result);
+    
+    // Print the result
+    if let Some(logs) = simulation_result.value.logs {
+        println!("Simulation logs:");
+        for log in logs {
+            println!("{}", log);
+        }
+    } else {
+        println!("No logs returned from simulation.");
+    }
+}
+
 #[test]
-#[ignore = "Requires local validator to run"]
-fn escrow_bridge_program() -> Result<()> {
+//#[ignore = "Requires local validator to run"]
+fn test_native_mint_transfer() -> Result<()> {
     // Setup the client and wallet
     let auctioneer =
         Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
-        Cluster::Localnet,
+        Cluster::from_str("http://127.0.0.1:8899").unwrap(),//Cluster::Localnet,
         auctioneer.clone(),
         CommitmentConfig::processed(),
     );
@@ -51,7 +73,7 @@ fn escrow_bridge_program() -> Result<()> {
     let program = client.program(crate::ID)?;
     let sol_rpc_client = program.rpc();
 
-    let lamports = 2_000_000_000;
+    let lamports = 20_000_000_000;
 
     let solver = Rc::new(Keypair::new());
     let user = Rc::new(Keypair::new());
@@ -64,8 +86,332 @@ fn escrow_bridge_program() -> Result<()> {
 
     // Below is for Devnet/Mainnet
 
-    // println!("User {:?}", user.to_bytes());
-    // println!("Solver {:?}", solver.to_bytes());
+    println!("User {:?}", user.to_bytes());
+    println!("Solver {:?}", solver.to_bytes());
+
+    airdrop(&program_rpc, auctioneer.pubkey(), lamports);
+    airdrop(&program_rpc, user.pubkey(), lamports);
+    airdrop(&program_rpc, solver.pubkey(), lamports);
+
+    let auctioneer_state =
+        Pubkey::find_program_address(&[crate::AUCTIONEER_SEED], &crate::ID).0;
+
+    /*
+     * Creating Token In Mint
+     */
+    println!("\nCreating a token in mint");
+
+    let create_token_in_account_ix = create_account(
+        &auctioneer.pubkey(),
+        &token_in,
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+        82,
+        &anchor_spl::token::ID,
+    );
+
+    let create_token_in_mint_ix = initialize_mint2(
+        &anchor_spl::token::ID,
+        &token_in,
+        &auctioneer.pubkey(),
+        Some(&auctioneer.pubkey()),
+        6,
+    )
+    .expect("invalid mint instruction");
+
+    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&auctioneer.pubkey(), &solver.pubkey(), &token_in, &anchor_spl::token::ID);
+    let create_token_acc_ix_2 = spl_associated_token_account::instruction::create_associated_token_account(&auctioneer.pubkey(), &user.pubkey(), &token_in, &anchor_spl::token::ID);
+    let user_token_in_addr =
+        get_associated_token_address(&user.pubkey(), &token_in);
+    let mint_ix = spl_token::instruction::mint_to(
+        &anchor_spl::token::ID,
+        &token_in,
+        &user_token_in_addr,
+        &auctioneer.pubkey(),
+        &[&auctioneer.pubkey()],
+        MINT_AMOUNT,
+    )
+    .unwrap();
+
+    let tx = program
+        .request()
+        .instruction(create_token_in_account_ix)
+        .instruction(create_token_in_mint_ix)
+        .instruction(create_token_acc_ix)
+        .instruction(create_token_acc_ix_2)
+        .instruction(mint_ix)
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .signer(&token_in_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+
+    println!("  Signature: {}", tx);
+
+    /*
+     * Creating Token Out Mint
+     */
+    println!("\nCreating a token out mint");
+
+    let create_token_out_account_ix = create_account(
+        &auctioneer.pubkey(),
+        &token_out,
+        sol_rpc_client.get_minimum_balance_for_rent_exemption(82).unwrap(),
+        82,
+        &anchor_spl::token::ID,
+    );
+
+    let create_token_out_mint_ix = initialize_mint2(
+        &anchor_spl::token::ID,
+        &token_out,
+        &auctioneer.pubkey(),
+        Some(&auctioneer.pubkey()),
+        6,
+    )
+    .expect("invalid mint instruction");
+
+    let create_token_acc_ix = spl_associated_token_account::instruction::create_associated_token_account(&auctioneer.pubkey(), &solver.pubkey(), &token_out, &anchor_spl::token::ID);
+    let create_token_acc_ix_2 = spl_associated_token_account::instruction::create_associated_token_account(&auctioneer.pubkey(), &user.pubkey(), &token_out, &anchor_spl::token::ID);
+    let solver_token_out_addr =
+        get_associated_token_address(&solver.pubkey(), &token_out);
+    let mint_ix = spl_token::instruction::mint_to(
+        &anchor_spl::token::ID,
+        &token_out,
+        &solver_token_out_addr,
+        &auctioneer.pubkey(),
+        &[&auctioneer.pubkey()],
+        MINT_AMOUNT,
+    )
+    .unwrap();
+
+    let tx = program
+        .request()
+        .instruction(create_token_out_account_ix)
+        .instruction(create_token_out_mint_ix)
+        .instruction(create_token_acc_ix)
+        .instruction(create_token_acc_ix_2)
+        .instruction(mint_ix)
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .signer(&token_out_keypair)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })?;
+
+    println!("  Signature: {}", tx);
+
+    let dummy_token_mint =
+        Pubkey::find_program_address(&[crate::DUMMY_SEED], &crate::ID).0;
+
+    // Initialize the program to define the auctioneer
+    println!("\nInitializing the program");
+    
+    if !program_rpc.get_account(&auctioneer_state).is_ok() {
+        let sig = program
+        .request()
+        .accounts(crate::accounts::Initialize {
+            authority: auctioneer.pubkey(),
+            auctioneer: auctioneer_state,
+            token_mint: dummy_token_mint,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+        })
+        .args(crate::instruction::Initialize {})
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+        println!("Signature: {}", sig);
+    } else {
+        println!("Program already initialized. Skipping Initialization ...");
+    }
+    
+
+    let token_in_escrow_addr =
+        get_associated_token_address(&auctioneer_state, &token_in);
+
+    // Escrow user funds and store intent (combined)
+    println!("\nEscrow user funds and store intent for single domain");
+
+    let intent_id = "123456789".to_string();
+    // Define amount_out (this would typically come from the intent)
+    let amount_out = 10000; // This should match what’s expected in the intent
+
+    // Find the Program Derived Address (PDA) for the intent account
+    let intent_state = Pubkey::find_program_address(
+        &[crate::INTENT_SEED, intent_id.as_bytes()],
+        &crate::ID,
+    )
+    .0;
+
+    // Get the current timestamp
+    let current_timestamp =
+        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+    // Define the new intent payload
+    let new_intent = IntentPayload {
+        intent_id: intent_id.clone(),
+        user_in: user.pubkey(),  // Must match the ctx.accounts.user key in the contract
+        user_out: user.pubkey().to_string(),
+        token_in: Pubkey::default(), // token_in,
+        amount_in: TRANSFER_AMOUNT,
+        token_out: Pubkey::default().to_string(),// token_out.to_string(),
+        amount_out: amount_out.to_string(),  // Amount out as a string
+        timeout_timestamp_in_sec: current_timestamp + 10000,  // Arbitrary timeout
+        single_domain: true,
+    };
+    
+    // Call the escrow_and_store_intent() function
+    let sig = program
+        .request()
+        .accounts(crate::accounts::EscrowAndStoreIntent {
+            user: user.pubkey(),
+            user_token_account: Some(user_token_in_addr),
+            auctioneer_state,
+            token_mint: Some(token_in),
+            escrow_token_account: Some(token_in_escrow_addr),
+            intent: intent_state,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: associated_token::ID,
+            system_program: system_program::ID,
+        })
+        .args(crate::instruction::EscrowAndStoreIntent {
+            new_intent,
+        })
+        .payer(user.clone())
+        .signer(&*user)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+    println!("  Signature: {}", sig);
+
+    // Test for the update_auction_data function (only auctioneer can call this)
+    println!("\nTesting update_auction_data function");
+
+    // New auction data
+    let amount_out = 10_000; // This should match what’s expected in the intent
+    let winner_solver = solver.pubkey();  // A new winner solver public key
+
+    // Only auctioneer should be able to call this function
+    let sig = program
+        .request()
+        .accounts(crate::accounts::UpdateAuctionData {
+            authority: auctioneer.pubkey(),  // Must be auctioneer
+            auctioneer: auctioneer_state,
+            intent: intent_state,
+        })
+        .args(crate::instruction::UpdateAuctionData {
+            intent_id: intent_id.clone(),
+            amount_out: amount_out.clone().to_string(),
+            winner_solver: winner_solver.to_string(),
+        })
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })
+        .unwrap();
+
+    // println!("  Signature: {}", sig);
+
+    // Send funds to user (single domain)
+    println!("\nSend funds to user single domain");
+
+    // Get the associated token addresses for the solver and the user
+    let solver_token_in_addr = get_associated_token_address(&solver.pubkey(), &token_in);
+    let user_token_out_addr = get_associated_token_address(&user.pubkey(), &token_out);
+
+    // Call the `send_funds_to_user` function
+    let sig = program
+        .request()
+        .accounts(crate::accounts::SplTokenTransfer {
+            solver: solver.pubkey(),
+            intent: Some(intent_state),
+            intent_owner: user.pubkey(),
+            auctioneer_state,
+            auctioneer: auctioneer.pubkey(),
+            token_in: Some(token_in),
+            token_out,
+            auctioneer_token_in_account: Some(token_in_escrow_addr),
+            solver_token_in_account: Some(solver_token_in_addr),
+            solver_token_out_account: solver_token_out_addr,
+            user_token_out_account: user_token_out_addr,
+            user_account: Some(user.pubkey()),
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            system_program: anchor_lang::solana_program::system_program::ID,
+            // Cross-chain related fields, set to None since it's single domain
+            ibc_program: None,
+            receiver: None,
+            storage: None,
+            trie: None,
+            chain: None,
+            mint_authority: None,
+            token_mint: None,
+            escrow_account: None,
+            receiver_token_account: None,
+            fee_collector: None,
+        })
+        .args(crate::instruction::SendFundsToUser {
+            intent_id: intent_id.clone()
+        })
+        .payer(solver.clone())
+        .signer(&*solver)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..Default::default()
+        })
+        .unwrap();
+
+    println!("  Signature: {}", sig);
+
+    Ok(())
+}
+
+
+#[test]
+#[ignore]
+//#[ignore = "Requires local validator to run"]
+fn escrow_bridge_program() -> Result<()> {
+    // Setup the client and wallet
+    let auctioneer =
+        Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
+
+    let client = Client::new_with_options(
+        Cluster::from_str("http://127.0.0.1:8899").unwrap(),//Cluster::Localnet,
+        auctioneer.clone(),
+        CommitmentConfig::processed(),
+    );
+
+    let program = client.program(crate::ID)?;
+    let sol_rpc_client = program.rpc();
+
+    let lamports = 20_000_000_000;
+
+    let solver = Rc::new(Keypair::new());
+    let user = Rc::new(Keypair::new());
+    let token_in_keypair = Keypair::new();
+    let token_in = token_in_keypair.pubkey();
+    let token_out_keypair = Keypair::new();
+    let token_out = token_out_keypair.pubkey();
+
+    let program_rpc = program.rpc();
+
+    // Below is for Devnet/Mainnet
+
+    println!("User {:?}", user.to_bytes());
+    println!("Solver {:?}", solver.to_bytes());
 
     // let blockhash = program_rpc.get_latest_blockhash()?;
     // let user_transfer_ix =
@@ -203,7 +549,9 @@ fn escrow_bridge_program() -> Result<()> {
 
     // Initialize the program to define the auctioneer
     println!("\nInitializing the program");
-    let sig = program
+    
+    if !program_rpc.get_account(&auctioneer_state).is_ok() {
+        let sig = program
         .request()
         .accounts(crate::accounts::Initialize {
             authority: auctioneer.pubkey(),
@@ -221,7 +569,12 @@ fn escrow_bridge_program() -> Result<()> {
             ..Default::default()
         })
         .unwrap();
-    println!("  Signature: {}", sig);
+
+        println!("Signature: {}", sig);
+    } else {
+        println!("Program already initialized. Skipping Initialization ...");
+    }
+    
 
     let token_in_escrow_addr =
         get_associated_token_address(&auctioneer_state, &token_in);
@@ -256,23 +609,22 @@ fn escrow_bridge_program() -> Result<()> {
         timeout_timestamp_in_sec: current_timestamp + 10000,  // Arbitrary timeout
         single_domain: true,
     };
-
+    
     // Call the escrow_and_store_intent() function
     let sig = program
         .request()
         .accounts(crate::accounts::EscrowAndStoreIntent {
             user: user.pubkey(),
-            user_token_account: user_token_in_addr,
+            user_token_account: Some(user_token_in_addr),
             auctioneer_state,
-            token_mint: token_in,
-            escrow_token_account: token_in_escrow_addr,
+            token_mint: Some(token_in),
+            escrow_token_account: Some(token_in_escrow_addr),
             intent: intent_state,
             token_program: anchor_spl::token::ID,
             associated_token_program: associated_token::ID,
             system_program: system_program::ID,
         })
         .args(crate::instruction::EscrowAndStoreIntent {
-            amount: TRANSFER_AMOUNT,
             new_intent,
         })
         .payer(user.clone())
@@ -327,7 +679,8 @@ fn escrow_bridge_program() -> Result<()> {
         .request()
         .accounts(crate::accounts::SplTokenTransfer {
             solver: solver.pubkey(),
-            intent: intent_state,
+            intent: Some(intent_state),
+            intent_owner: user.pubkey(),
             auctioneer_state,
             auctioneer: auctioneer.pubkey(),
             token_in: Some(token_in),
@@ -336,6 +689,7 @@ fn escrow_bridge_program() -> Result<()> {
             solver_token_in_account: Some(solver_token_in_addr),
             solver_token_out_account: solver_token_out_addr,
             user_token_out_account: user_token_out_addr,
+            user_account: Some(user.pubkey()),
             token_program: anchor_spl::token::ID,
             associated_token_program: anchor_spl::associated_token::ID,
             system_program: anchor_lang::solana_program::system_program::ID,
@@ -352,18 +706,18 @@ fn escrow_bridge_program() -> Result<()> {
             fee_collector: None,
         })
         .args(crate::instruction::SendFundsToUser {
-            intent_id: intent_id.clone(),
-            amount_out,  // Pass the amount to transfer to the user
-            solver_out: None, // Set to None since this is a single domain transaction
-            single_domain: true, // Indicating that this is a single domain transaction
+            intent_id: intent_id.clone()
         })
         .payer(solver.clone())
         .signer(&*solver)
+        // .signed_transaction();
         .send_with_spinner_and_config(RpcSendTransactionConfig {
             skip_preflight: true,
             ..Default::default()
         })
         .unwrap();
+    
+    // simulate_tx(program_rpc, sig.unwrap());
 
     println!("  Signature: {}", sig);
 

@@ -23,7 +23,7 @@ pub mod events;
 #[cfg(test)]
 mod tests;
 
-declare_id!("AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj");
+declare_id!("H3jfQXtiC3DW4bwMafKiiW2xhYjwZDkV21SMaYqEtMM8");
 
 #[program]
 pub mod bridge_escrow {
@@ -63,32 +63,57 @@ pub mod bridge_escrow {
         );
 
         require!(
-            new_intent.token_in == ctx.accounts.user_token_account.mint,
+            new_intent.token_in == System::id() || new_intent.token_in == ctx.accounts.user_token_account.clone().unwrap().mint,
             ErrorCode::TokenInNotMint
         );
 
         require!(
-            new_intent.user_in == ctx.accounts.user_token_account.owner,
+            new_intent.user_in == ctx.accounts.user_token_account.clone().unwrap().owner,
             ErrorCode::SrcUserNotUserIn
         );
     
         // Step 2: Escrow the funds (same as before)
+        // Handle Native SOL Transfer
+        if new_intent.token_in == System::id() {    
+            // Perform SOL transfer from Solver to User
+            let src_user = ctx.accounts.user.clone();
+
+            let ix = solana_program::system_instruction::transfer(
+                src_user.key,
+                &ctx.accounts.auctioneer_state.key(),
+                new_intent.amount_in,
+            );
     
-        let cpi_accounts = SplTransfer {
-            from: ctx.accounts.user_token_account.to_account_info(),
-            to: ctx.accounts.escrow_token_account.to_account_info(),
-            authority: ctx.accounts.user.to_account_info(),
-        };
-    
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-    
-        token::transfer(cpi_ctx, new_intent.amount_in)?;
+            invoke(
+                &ix,
+                &[
+                    src_user.to_account_info(),
+                    ctx.accounts.auctioneer_state.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+
+            // **src_user.lamports.borrow_mut() -= new_intent.amount_in;
+            // **ctx.accounts.auctioneer_state.to_account_info().lamports.borrow_mut() += new_intent.amount_in;
+
+        } else {
+                
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.user_token_account.clone().unwrap().to_account_info(),
+                to: ctx.accounts.escrow_token_account.clone().unwrap().to_account_info(),
+                authority: ctx.accounts.user.to_account_info(),
+            };
+        
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        
+            token::transfer(cpi_ctx, new_intent.amount_in)?;
+        }
     
         events::emit(events::Event::EscrowFunds(events::EscrowFunds {
             amount: new_intent.amount_in,
             sender: ctx.accounts.user.key(),
-            token_mint: ctx.accounts.token_mint.key(),
+            token_mint: ctx.accounts.token_mint.clone().unwrap().key(),
         })).map_err(|err| {
             msg!("{}", err);
             ErrorCode::InvalidEventFormat
@@ -318,20 +343,11 @@ pub mod bridge_escrow {
         // Handle Native SOL Transfer
         if intent.token_out == System::id().to_string() {    
             // Perform SOL transfer from Solver to User
-            let ix = solana_program::system_instruction::transfer(
-                solver.key,
-                &intent.user_in,
-                amount_out,
-            );
-    
-            invoke(
-                &ix,
-                &[
-                    solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
-                    accounts.system_program.to_account_info(),
-                ],
-            )?;
+            let out_user_account = accounts.user_account.clone().unwrap();
+            
+            **solver.lamports.borrow_mut() -= amount_out;
+            **out_user_account.lamports.borrow_mut() += amount_out;
+
         } else {
             // Perform SPL transfer from Solver to User
             let cpi_accounts = SplTransfer {
@@ -368,26 +384,31 @@ pub mod bridge_escrow {
             .as_ref()
             .ok_or(ErrorCode::AccountsNotPresent)?;
     
-        require!(
-            intent.token_in == auctioneer_token_in_account.mint,
-            ErrorCode::MismatchTokenIn
-        );
-    
-        let cpi_accounts = SplTransfer {
-            from: auctioneer_token_in_account.to_account_info(),
-            to: solver_token_in_account.to_account_info(),
-            authority: accounts.auctioneer_state.to_account_info(),
-        };
-        let cpi_program = token_program.to_account_info();
-    
-        token::transfer(
-            CpiContext::new_with_signer(
-                cpi_program,
-                cpi_accounts,
-                signer_seeds,
-            ),
-            intent.amount_in,
-        )?;
+        if intent.token_in == System::id() {    
+            **accounts.auctioneer_state.to_account_info().lamports.borrow_mut() -= intent.amount_in;
+            **solver.lamports.borrow_mut() += intent.amount_in;
+        } else {
+            require!(
+                intent.token_in == auctioneer_token_in_account.mint,
+                ErrorCode::MismatchTokenIn
+            );
+        
+            let cpi_accounts = SplTransfer {
+                from: auctioneer_token_in_account.to_account_info(),
+                to: solver_token_in_account.to_account_info(),
+                authority: accounts.auctioneer_state.to_account_info(),
+            };
+            let cpi_program = token_program.to_account_info();
+        
+            token::transfer(
+                CpiContext::new_with_signer(
+                    cpi_program,
+                    cpi_accounts,
+                    signer_seeds,
+                ),
+                intent.amount_in,
+            )?;
+        }
     
         events::emit(events::Event::SendFundsToUser(
             events::SendFundsToUser {
@@ -430,20 +451,11 @@ pub mod bridge_escrow {
         // Check if token_out is native SOL or SPL token
         if accounts.token_out.key() == System::id() {
             // Handle Native SOL Transfer
-            let ix = solana_program::system_instruction::transfer(
-                solver.key,
-                &accounts.user_token_out_account.key(),
-                amount_out,
-            );
-    
-            invoke(
-                &ix,
-                &[
-                    solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
-                    accounts.system_program.to_account_info(),
-                ],
-            )?;
+            let out_user_account = accounts.user_account.clone().unwrap();
+
+            **solver.lamports.borrow_mut() -= amount_out;
+            **out_user_account.lamports.borrow_mut() += amount_out;
+            
         } else {
             // Perform SPL token transfer from Solver to User
             let cpi_accounts = SplTransfer {
@@ -713,6 +725,10 @@ pub struct SplTokenTransferCrossChain<'info> {
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
 
+    // Solver -> User Account in case of SOL transfer
+    #[account(mut, address = user_token_out_account.owner)]
+    pub user_account: Option<AccountInfo<'info>>,
+    
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -767,7 +783,7 @@ pub struct SplTokenTransfer<'info> {
     #[account(mut, address = intent.clone().unwrap().user_in)]
     /// CHECK:
     pub intent_owner: UncheckedAccount<'info>,
-    #[account(seeds = [AUCTIONEER_SEED], bump)]
+    #[account(mut, seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer_state: Box<Account<'info, Auctioneer>>,
     #[account(mut)]
     pub solver: Signer<'info>,
@@ -790,6 +806,10 @@ pub struct SplTokenTransfer<'info> {
     pub solver_token_out_account: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
+
+    // Solver -> User Account in case of SOL transfer
+    #[account(mut, address = user_token_out_account.owner)]
+    pub user_account: Option<AccountInfo<'info>>,
 
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -844,18 +864,18 @@ pub struct EscrowAndStoreIntent<'info> {
     
     // Box this account to avoid copying large account data
     #[account(mut, token::authority = user, token::mint = token_mint)]
-    pub user_token_account: Box<Account<'info, TokenAccount>>,
+    pub user_token_account: Option<Box<Account<'info, TokenAccount>>>,
     
     // Box this account as it holds state that might be large
-    #[account(seeds = [AUCTIONEER_SEED], bump)]
+    #[account(mut, seeds = [AUCTIONEER_SEED], bump)]
     pub auctioneer_state: Box<Account<'info, Auctioneer>>,
     
     // Box the token mint account if it's large or for performance reasons
-    pub token_mint: Box<Account<'info, Mint>>,
+    pub token_mint: Option<Box<Account<'info, Mint>>>,
 
     // Box the escrow token account as it's mutable and holds token data
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
-    pub escrow_token_account: Box<Account<'info, TokenAccount>>,
+    pub escrow_token_account: Option<Box<Account<'info, TokenAccount>>>,
     
     // From StoreIntent
     // Box the intent account, as it's a new account with considerable space allocated
