@@ -9,7 +9,7 @@ use spl_token::solana_program::program::invoke;
 use crate::ibc::apps::transfer::types::packet::PacketData;
 use crate::ibc::apps::transfer::types::proto::transfer::v2::FungibleTokenPacketData;
 use crate::storage::IbcStorage;
-use crate::{ibc, BRIDGE_ESCROW_PROGRAM_ID, HOOK_TOKEN_ADDRESS};
+use crate::{ibc, BRIDGE_ESCROW_PROGRAM_ID};
 
 pub(crate) mod impls;
 
@@ -165,9 +165,22 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if success {
             let store = self.borrow();
             let accounts = &store.accounts.remaining_accounts;
-            let result = call_bridge_escrow(accounts, &maybe_ft_packet.data);
-            if let Err(status) = result {
-                ack = status.into();
+            // Check if any account is not initialized and return the uninitialized account
+            if let Some(uninitialized_account) =
+                accounts.iter().find(|account| account.lamports() == 0)
+            {
+                let status = ibc::TokenTransferError::Other(format!(
+                    "Account {} not initialized",
+                    uninitialized_account.key
+                ))
+                .into();
+                ack = ibc::AcknowledgementStatus::error(status).into();
+            } else {
+                let result =
+                    call_bridge_escrow(accounts, &maybe_ft_packet.data);
+                if let Err(status) = result {
+                    ack = status.into();
+                }
             }
         }
 
@@ -413,7 +426,7 @@ fn call_bridge_escrow(
 
     // The hook would only be called if the transferred token is the one we are
     // interested in
-    if data.token.denom.base_denom.as_str() != HOOK_TOKEN_ADDRESS {
+    if !check_denom_is_hook_address(data.token.denom.base_denom.as_str()) {
         return Ok(());
     }
 
@@ -489,6 +502,21 @@ fn parse_bridge_memo(memo: &str) -> Option<(String, String)> {
     Some((intent.to_string(), memo.to_string()))
 }
 
+/// Checks whether the base denom matches the expected hook address.
+///
+/// The hooks are only performed if the base denom matches any of the
+/// whitelisted hook address.
+fn check_denom_is_hook_address(base_denom: &str) -> bool {
+    // solana_program::pubkey! doesn’t work so we’re using hex instead.  See
+    // https://github.com/coral-xyz/anchor/pull/3021 for more context.
+    // TODO(mina86): Use pubkey macro once we upgrade to anchor lang with it.
+    let expected_hook_addresses = [
+        "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6",
+        "3zT4Uzktt7Hyx6qitv2Fa1eqYyFtc3v7h3F9EHgDmVDR",
+    ];
+    expected_hook_addresses.contains(&base_denom)
+}
+
 #[test]
 fn test_parse_bridge_memo() {
     for (intent, memo, data) in [
@@ -544,4 +572,14 @@ fn test_memo() {
     println!("memo: {memo}");
     let parts: Vec<&str> = memo.split(',').collect();
     println!("parts: {:?}", parts.len());
+}
+
+#[test]
+fn test_denom_is_hook_address() {
+    const GOOD_ONE: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
+    const GOOD_TWO: &str = "3zT4Uzktt7Hyx6qitv2Fa1eqYyFtc3v7h3F9EHgDmVDR";
+    const BAD: &str = "0x36dd1bfe89d409";
+    assert_eq!(check_denom_is_hook_address(&GOOD_ONE), true);
+    assert_eq!(check_denom_is_hook_address(&GOOD_TWO), true);
+    assert_eq!(check_denom_is_hook_address(&BAD), false);
 }
