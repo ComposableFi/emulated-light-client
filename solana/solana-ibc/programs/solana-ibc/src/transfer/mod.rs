@@ -165,9 +165,22 @@ impl ibc::Module for IbcStorage<'_, '_> {
         if success {
             let store = self.borrow();
             let accounts = &store.accounts.remaining_accounts;
-            let result = call_bridge_escrow(accounts, &maybe_ft_packet.data);
-            if let Err(status) = result {
-                ack = status.into();
+            // Check if any account is not initialized and return the uninitialized account
+            if let Some(uninitialized_account) =
+                accounts.iter().find(|account| account.lamports() == 0)
+            {
+                let status = ibc::TokenTransferError::Other(format!(
+                    "Account {} not initialized",
+                    uninitialized_account.key
+                ))
+                .into();
+                ack = ibc::AcknowledgementStatus::error(status).into();
+            } else {
+                let result =
+                    call_bridge_escrow(accounts, &maybe_ft_packet.data);
+                if let Err(status) = result {
+                    ack = status.into();
+                }
             }
         }
 
