@@ -343,7 +343,7 @@ pub mod bridge_escrow {
         // Handle Native SOL Transfer
         if intent.token_out == System::id().to_string() {    
             // Perform SOL transfer from Solver to User
-            let out_user_account = accounts.user_account.clone().unwrap();
+            let out_user_account = accounts.receiver.clone().unwrap();
             
             **solver.lamports.borrow_mut() -= amount_out;
             **out_user_account.lamports.borrow_mut() += amount_out;
@@ -451,7 +451,7 @@ pub mod bridge_escrow {
         // Check if token_out is native SOL or SPL token
         if accounts.token_out.key() == System::id() {
             // Handle Native SOL Transfer
-            let out_user_account = accounts.user_account.clone().unwrap();
+            let out_user_account = accounts.receiver.clone().unwrap();
 
             **solver.lamports.borrow_mut() -= amount_out;
             **out_user_account.lamports.borrow_mut() += amount_out;
@@ -724,10 +724,6 @@ pub struct SplTokenTransferCrossChain<'info> {
     pub solver_token_out_account: Box<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
-
-    // Solver -> User Account in case of SOL transfer
-    #[account(mut, address = user_token_out_account.owner)]
-    pub user_account: Option<AccountInfo<'info>>,
     
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -739,7 +735,7 @@ pub struct SplTokenTransferCrossChain<'info> {
     #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
     /// CHECK:
     pub ibc_program: Option<UncheckedAccount<'info>>,
-    #[account(mut)]
+    #[account(mut, address = user_token_out_account.owner)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
     /// CHECK: validated by solana-ibc program
@@ -807,10 +803,6 @@ pub struct SplTokenTransfer<'info> {
     #[account(mut, token::mint = token_out)]
     pub user_token_out_account: Box<Account<'info, TokenAccount>>,
 
-    // Solver -> User Account in case of SOL transfer
-    #[account(mut, address = user_token_out_account.owner)]
-    pub user_account: Option<AccountInfo<'info>>,
-
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
@@ -821,7 +813,7 @@ pub struct SplTokenTransfer<'info> {
     #[account(address = Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap())]
     /// CHECK:
     pub ibc_program: Option<UncheckedAccount<'info>>,
-    #[account(mut)]
+    #[account(mut, address = user_token_out_account.owner)]
     /// CHECK:
     pub receiver: Option<AccountInfo<'info>>,
     /// CHECK: validated by solana-ibc program
