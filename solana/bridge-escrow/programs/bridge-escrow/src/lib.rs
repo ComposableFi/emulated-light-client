@@ -343,10 +343,27 @@ pub mod bridge_escrow {
         // Handle Native SOL Transfer
         if intent.token_out == System::id().to_string() {    
             // Perform SOL transfer from Solver to User
+            let solver = accounts.solver.clone();
             let out_user_account = accounts.receiver.clone().unwrap();
             
-            **solver.lamports.borrow_mut() -= amount_out;
-            **out_user_account.lamports.borrow_mut() += amount_out;
+            let ix = solana_program::system_instruction::transfer(
+                solver.key,
+                out_user_account.key,
+                amount_out,
+            );
+    
+            invoke(
+                &ix,
+                &[
+                    solver.to_account_info(),
+                    out_user_account.to_account_info(),
+                    accounts.system_program.to_account_info(),
+                ],
+            )?;
+
+
+            // **solver.lamports.borrow_mut() -= amount_out;
+            // **out_user_account.lamports.borrow_mut() += amount_out;
 
         } else {
             // Perform SPL transfer from Solver to User
