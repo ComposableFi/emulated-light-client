@@ -300,8 +300,8 @@ pub mod bridge_escrow {
     
         // Ensure intent token_out matches the mint of solver_token_out_account
         require!(
-            intent.token_out == accounts.solver_token_out_account.mint.to_string() || 
-            intent.token_out == System::id().to_string(),
+            intent.token_out == accounts.solver_token_out_account.mint.to_string()
+            || intent.token_out == System::id().to_string(),
             ErrorCode::TokenInNotMint
         );
     
@@ -311,11 +311,11 @@ pub mod bridge_escrow {
             .map_err(|_| ErrorCode::InvalidAmount)?;
     
         // Handle Native SOL Transfer
-        if intent.token_out == System::id().to_string() {    
-            // Perform SOL transfer from Solver to User
+        if intent.token_out == System::id().to_string() {
+            // Transfer SOL from Solver to User
             let ix = solana_program::system_instruction::transfer(
                 solver.key,
-                &intent.user_in,
+                &intent.user_in, // Send directly to user_in
                 amount_out,
             );
     
@@ -323,17 +323,16 @@ pub mod bridge_escrow {
                 &ix,
                 &[
                     solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
                     accounts.system_program.to_account_info(),
                 ],
             )?;
         } else {
+            // Perform SPL transfer
             require!(
                 accounts.user_token_out_account.owner.to_string() == intent.user_out,
                 ErrorCode::Unauthorized
             );
-            
-            // Perform SPL transfer from Solver to User
+    
             let cpi_accounts = SplTransfer {
                 from: accounts.solver_token_out_account.to_account_info().clone(),
                 to: accounts.user_token_out_account.to_account_info().clone(),
@@ -346,48 +345,6 @@ pub mod bridge_escrow {
                 amount_out,
             )?;
         }
-    
-        // Verify Solver's ownership and match auctioneer state
-        let bump = ctx.bumps.auctioneer_state;
-        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
-        let seeds = seeds.as_ref();
-        let signer_seeds = core::slice::from_ref(&seeds);
-    
-        require!(
-            *accounts.solver.key.to_string() == intent.winner_solver,
-            ErrorCode::Unauthorized
-        );
-    
-        // Transfer tokens from Auctioneer to Solver
-        let auctioneer_token_in_account = accounts
-            .auctioneer_token_in_account
-            .as_ref()
-            .ok_or(ErrorCode::AccountsNotPresent)?;
-        let solver_token_in_account = accounts
-            .solver_token_in_account
-            .as_ref()
-            .ok_or(ErrorCode::AccountsNotPresent)?;
-    
-        require!(
-            intent.token_in == auctioneer_token_in_account.mint,
-            ErrorCode::MismatchTokenIn
-        );
-    
-        let cpi_accounts = SplTransfer {
-            from: auctioneer_token_in_account.to_account_info(),
-            to: solver_token_in_account.to_account_info(),
-            authority: accounts.auctioneer_state.to_account_info(),
-        };
-        let cpi_program = token_program.to_account_info();
-    
-        token::transfer(
-            CpiContext::new_with_signer(
-                cpi_program,
-                cpi_accounts,
-                signer_seeds,
-            ),
-            intent.amount_in,
-        )?;
     
         events::emit(events::Event::SendFundsToUser(
             events::SendFundsToUser {
@@ -413,6 +370,7 @@ pub mod bridge_escrow {
     
         Ok(())
     }
+    
     
     // this function is called by Solver
     #[allow(unused_variables)]
