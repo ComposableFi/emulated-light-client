@@ -401,9 +401,25 @@ pub mod bridge_escrow {
             .as_ref()
             .ok_or(ErrorCode::AccountsNotPresent)?;
     
-        if intent.token_in == System::id() {    
-            **accounts.auctioneer_state.to_account_info().lamports.borrow_mut() -= intent.amount_in;
-            **solver.lamports.borrow_mut() += intent.amount_in;
+        if intent.token_in == System::id() { 
+
+            let solver = accounts.solver.clone();
+            
+            let ix = solana_program::system_instruction::transfer(
+                &accounts.auctioneer_state.key(),
+                solver.key,
+                amount_out,
+            );
+    
+            invoke(
+                &ix,
+                &[
+                    accounts.auctioneer_state.to_account_info(),
+                    solver.to_account_info(),
+                    accounts.system_program.to_account_info(),
+                ],
+            )?;
+
         } else {
             require!(
                 intent.token_in == auctioneer_token_in_account.mint,
@@ -470,8 +486,24 @@ pub mod bridge_escrow {
             // Handle Native SOL Transfer
             let out_user_account = accounts.receiver.clone().unwrap();
 
-            **solver.lamports.borrow_mut() -= amount_out;
-            **out_user_account.lamports.borrow_mut() += amount_out;
+            let solver = accounts.solver.clone();
+            let out_user_account = accounts.receiver.clone().unwrap();
+            
+            let ix = solana_program::system_instruction::transfer(
+                solver.key,
+                out_user_account.key,
+                amount_out,
+            );
+    
+            invoke(
+                &ix,
+                &[
+                    solver.to_account_info(),
+                    out_user_account.to_account_info(),
+                    accounts.system_program.to_account_info(),
+                ],
+            )?;
+
             
         } else {
             // Perform SPL token transfer from Solver to User
