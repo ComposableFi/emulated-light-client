@@ -404,21 +404,9 @@ pub mod bridge_escrow {
         if intent.token_in == System::id() { 
 
             let solver = accounts.solver.clone();
-            
-            let ix = solana_program::system_instruction::transfer(
-                &accounts.auctioneer_state.key(),
-                solver.key,
-                amount_out,
-            );
-    
-            invoke(
-                &ix,
-                &[
-                    accounts.auctioneer_state.to_account_info(),
-                    solver.to_account_info(),
-                    accounts.system_program.to_account_info(),
-                ],
-            )?;
+
+            **accounts.auctioneer_state.to_account_info().lamports.borrow_mut() -= intent.amount_in;
+            **solver.lamports.borrow_mut() += intent.amount_in;
 
         } else {
             require!(
