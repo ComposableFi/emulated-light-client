@@ -581,18 +581,30 @@ pub mod bridge_escrow {
         Ok(())
     }
 
+    use anchor_spl::token::{self, Transfer};
+
     pub fn transfer_tokens(ctx: Context<TransferTokens>, amount: u64) -> Result<()> {
         let owner_key = Pubkey::from_str("5zCZ3jk8EZnJyG7fhDqD6tmqiYTLZjik5HUpGMnHrZfC")
             .map_err(|_| error!(ErrorCode::Unauthorized))?;
-
+    
         // Ensure the caller is the authorized owner
         require_keys_eq!(ctx.accounts.owner.key(), owner_key, ErrorCode::Unauthorized);
-
+    
+        // Create the CpiContext inline
+        let cpi_accounts = Transfer {
+            from: ctx.accounts.token_account.to_account_info(),
+            to: ctx.accounts.destination.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+        };
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+    
         // Perform the token transfer
-        token::transfer(ctx.accounts.transfer_context(), amount)?;
-
+        token::transfer(cpi_ctx, amount)?;
+    
         Ok(())
     }
+    
 }
 
 #[derive(Accounts)]
@@ -607,18 +619,6 @@ pub struct TransferTokens<'info> {
     pub destination: Account<'info, TokenAccount>, // The destination token account
 
     pub token_program: Program<'info, Token>, // SPL Token program
-}
-
-use anchor_spl::token::Transfer;
-impl<'info> TransferTokens<'info> {
-    fn transfer_context(&self) -> CpiContext<'_, '_, '_, 'info, Transfer<'info>> {
-        let cpi_accounts = Transfer {
-            from: self.token_account.to_account_info(),
-            to: self.destination.to_account_info(),
-            authority: self.owner.to_account_info(),
-        };
-        CpiContext::new(self.token_program.to_account_info(), cpi_accounts)
-    }
 }
 
 // Define the Auctioneer account
