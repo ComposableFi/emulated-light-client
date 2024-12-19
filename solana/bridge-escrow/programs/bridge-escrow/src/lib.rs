@@ -313,9 +313,16 @@ pub mod bridge_escrow {
         // Handle Native SOL Transfer
         if intent.token_out == System::id().to_string() {    
             // Perform SOL transfer from Solver to User
+
+            let solver = accounts.solver.clone();
+            let out_user_account = accounts.receiver.clone().unwrap();
+
+            // check `receiver` address if it is same as `intent.user_out`
+            require!(intent.user_out == out_user_account.key.to_string(), ErrorCode::InvalidSolOut);
+
             let ix = solana_program::system_instruction::transfer(
                 solver.key,
-                &intent.user_in,
+                out_user_account.key,
                 amount_out,
             );
     
@@ -323,7 +330,7 @@ pub mod bridge_escrow {
                 &ix,
                 &[
                     solver.to_account_info(),
-                    accounts.user_token_out_account.to_account_info(),
+                    out_user_account.to_account_info(),
                     accounts.system_program.to_account_info(),
                 ],
             )?;
@@ -1007,6 +1014,8 @@ pub enum ErrorCode {
     InvalidMemoFormat,
     #[msg("Invalid token out")]
     InvalidTokenOut,
+    #[msg("Invalid Sol Receiver")]
+    InvalidSolOut,
     #[msg("Auctioneer cannot update an amountOut less than current amountOut")]
     InvalidAmountOut,
     #[msg("new_intent.token_in != ctx.accounts.user_token_account.mint")]
