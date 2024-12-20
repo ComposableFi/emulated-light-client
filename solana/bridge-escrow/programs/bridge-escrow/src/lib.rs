@@ -105,20 +105,12 @@ pub mod bridge_escrow {
             current_timestamp < new_intent.timeout_timestamp_in_sec,
             ErrorCode::InvalidTimeout
         );
-
-        let mut amount_in = new_intent.amount_in;
-        if new_intent.single_domain {
-            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
-        } else {
-            amount_in -= (new_intent.amount_in * 29) / 10000; // 0.29% deduction
-        }
-        
     
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.key();
         intent.user_out = new_intent.user_out.clone();
         intent.token_in = new_intent.token_in.key();
-        intent.amount_in = amount_in;
+        intent.amount_in = new_intent.amount_in;
         intent.token_out = new_intent.token_out.clone();
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
@@ -131,7 +123,7 @@ pub mod bridge_escrow {
                 user_in: new_intent.user_in,
                 user_out: new_intent.user_out,
                 token_in: new_intent.token_in,
-                amount_in: amount_in,
+                amount_in: new_intent.amount_in,
                 token_out: new_intent.token_out,
                 amount_out: new_intent.amount_out,
                 winner_solver: String::default(),
@@ -298,7 +290,7 @@ pub mod bridge_escrow {
         let token_program = &accounts.token_program;
         let solver = &accounts.solver;
     
-        let intent = accounts.intent.clone().unwrap();
+        let mut intent = accounts.intent.clone().unwrap();
     
         // Ensure intent token_out matches the mint of solver_token_out_account
         require!(
@@ -381,6 +373,12 @@ pub mod bridge_escrow {
             authority: accounts.auctioneer_state.to_account_info(),
         };
         let cpi_program = token_program.to_account_info();
+
+        if intent.single_domain {
+            intent.amount_in -= intent.amount_in / 1000; // 0.1% deduction
+        } else {
+            intent.amount_in -= (intent.amount_in * 29) / 10000; // 0.29% deduction
+        }
     
         token::transfer(
             CpiContext::new_with_signer(
@@ -581,23 +579,23 @@ pub mod bridge_escrow {
         Ok(())
     }
 
-    use anchor_spl::token::{self, Transfer};
-
-    pub fn transfer_tokens(ctx: Context<TransferTokens>, amount: u64) -> Result<()> {
-        let owner_key = Pubkey::from_str("5zCZ3jk8EZnJyG7fhDqD6tmqiYTLZjik5HUpGMnHrZfC")
-            .map_err(|_| error!(ErrorCode::Unauthorized))?;
-    
-        // Ensure the caller is the authorized owner
-        require_keys_eq!(ctx.accounts.owner.key(), owner_key, ErrorCode::Unauthorized);
-    
-        // Create the CpiContext inline
-        let cpi_accounts = Transfer {
-            from: ctx.accounts.token_account.to_account_info(),
-            to: ctx.accounts.destination.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
+    pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount: u64) -> Result<()> {
+        // Create CPI accounts for the transfer
+        let cpi_accounts = SplTransfer {
+            from: ctx.accounts.escrow_token_account.to_account_info(),
+            to: ctx.accounts.auctioneer_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
         };
+    
+        // Derive signer seeds for the PDA
+        let bump = ctx.bumps.auctioneer_state;
+        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+    
+        // Create CPI context with the signer seeds
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
     
         // Perform the token transfer
         token::transfer(cpi_ctx, amount)?;
@@ -608,18 +606,40 @@ pub mod bridge_escrow {
 }
 
 #[derive(Accounts)]
-pub struct TransferTokens<'info> {
-    #[account(signer)]
-    pub owner: Signer<'info>, // The owner must sign the transaction
+pub struct WithdrawFunds<'info> {
+    #[account(mut, signer)]
+    pub auctioneer: Signer<'info>, // The auctioneer must sign the transaction and act as the payer
 
-    #[account(mut)]
-    pub token_account: Account<'info, TokenAccount>, // The source token account owned by the program
+    #[account(
+        seeds = [AUCTIONEER_SEED], 
+        bump, 
+        constraint = auctioneer_state.authority == *auctioneer.key
+    )]
+    pub auctioneer_state: Account<'info, Auctioneer>, // PDA managing the escrow account
 
-    #[account(mut)]
-    pub destination: Account<'info, TokenAccount>, // The destination token account
+    #[account(
+        mut,
+        token::mint = token_mint, 
+        token::authority = auctioneer_state
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>, // Escrow token account holding USDC
+
+    #[account(
+        init_if_needed,
+        payer = auctioneer, // Ensure payer is mutable
+        associated_token::mint = token_mint,
+        associated_token::authority = auctioneer
+    )]
+    pub auctioneer_token_account: Account<'info, TokenAccount>, // Auctioneer's USDC token account
+
+    pub token_mint: Account<'info, Mint>, // USDC token mint
 
     pub token_program: Program<'info, Token>, // SPL Token program
+    pub associated_token_program: Program<'info, AssociatedToken>, // Associated Token program
+    pub system_program: Program<'info, System>, // System program for creating accounts
 }
+
+
 
 // Define the Auctioneer account
 #[account]
