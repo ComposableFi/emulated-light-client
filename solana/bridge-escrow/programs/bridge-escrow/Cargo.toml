@@ -53,6 +53,7 @@ trie-ids = { workspace = true, features = ["borsh"] }
 wasm = { workspace = true }
 itertools = "0.10.5"
 solana-ibc = { workspace = true, features = ["cpi"] }
+bs58.workspace = true
 
 [dev-dependencies]
 anchor-client.workspace = true
