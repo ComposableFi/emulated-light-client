@@ -112,9 +112,11 @@ jobs:
 
       - name: Install Anchor
         if: steps.cache-anchor.outputs.cache-hit != 'true'
+        # Since the latest avm version doesnt compile with the current rust version, we use the 
+        # old avm version.
         run: |
           set -eux
-          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.0 avm --locked --force
           avm install $ANCHOR_VERSION
           avm use $ANCHOR_VERSION
 
