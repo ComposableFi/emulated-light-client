@@ -239,7 +239,6 @@ impl<PK: PubKey> ibc::ClientStateCommon for ClientState<PK> {
     }
 }
 
-
 impl From<proof::VerifyError> for ibc::ClientError {
     fn from(err: proof::VerifyError) -> Self {
         use ibc::CommitmentError::EncodingFailure;
@@ -371,38 +370,43 @@ where
 
     fn status(
         &self,
-        ctx: &V,
-        client_id: &ibc::ClientId,
+        _ctx: &V,
+        _client_id: &ibc::ClientId,
     ) -> Result<ibc::Status> {
         if self.is_frozen {
             return Ok(ibc::Status::Frozen);
         }
 
-        let height = ibc::Height::new(1, self.latest_height.into())?;
-        let consensus = CommonContext::consensus_state(ctx, client_id, height)
-            .and_then(|state| state.try_into().map_err(error));
-        let consensus = match consensus {
-            Ok(consensus) => consensus,
-            Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
-                return Ok(ibc::Status::Expired)
-            }
-            // If the client state is not found, then a new client is going to be created and since its known from
-            // above that the client state is not frozen, we return the client state as active.
-            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
-                return Ok(ibc::Status::Active)
-            }
-            Err(err) => return Err(err),
-        };
+        // let height = ibc::Height::new(1, self.latest_height.into())?;
+        // let consensus = CommonContext::consensus_state(ctx, client_id, height)
+        //     .and_then(|state| state.try_into().map_err(error));
+        // let consensus = match consensus {
+        //     Ok(consensus) => consensus,
+        //     Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
+        //         return Ok(ibc::Status::Expired)
+        //     }
+        //     // If the client state is not found, then a new client is going to be created and since its known from
+        //     // above that the client state is not frozen, we return the client state as active.
+        //     Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+        //         return Ok(ibc::Status::Active)
+        //     }
+        //     Err(err) => return Err(err),
+        // };
 
-        let (host_timestamp, _) = CommonContext::host_metadata(ctx)?;
-        Ok(if self.consensus_has_expired(&consensus, host_timestamp) {
-            ibc::Status::Expired
-        } else {
-            ibc::Status::Active
-        })
+        // let (host_timestamp, _) = CommonContext::host_metadata(ctx)?;
+        // Ok(if self.consensus_has_expired(&consensus, host_timestamp) {
+        //     ibc::Status::Expired
+        // } else {
+        //     ibc::Status::Active
+        // })
+
+        // TODO: Since there is no way of reviving client once expired in the current version of ibc-rs,
+        // we will always return active.
+        //
+        // Once the ibc-rs is updated, client update to revive a client will be supported which should be used.
+        Ok(ibc::Status::Active)
     }
 }
-
 
 impl<PK: PubKey> ClientState<PK> {
     pub fn do_update_state(
@@ -648,11 +652,9 @@ impl<PK: PubKey> ClientState<PK> {
     }
 }
 
-
 fn error(msg: impl ToString) -> ibc::ClientError {
     ibc::ClientError::Other { description: msg.to_string() }
 }
-
 
 /// Checks client id’s client type is what’s expected and then parses the id as
 /// `ClientIdx`.
@@ -672,7 +674,6 @@ fn parse_client_id(client_id: &ibc::ClientId) -> Result<trie_ids::ClientIdx> {
     let description = alloc::format!("invalid client {what}: {value}");
     Err(ibc::ClientError::ClientSpecific { description })
 }
-
 
 #[test]
 fn test_verify_client_type() {

@@ -279,35 +279,41 @@ where
 
     fn status(
         &self,
-        ctx: &V,
-        client_id: &ibc::ClientId,
+        _ctx: &V,
+        _client_id: &ibc::ClientId,
     ) -> Result<ibc::Status> {
         if self.is_frozen {
             return Ok(ibc::Status::Frozen);
         }
 
-        let height = self.latest_height();
-        let consensus = CommonContext::consensus_state(ctx, client_id, height)
-            .and_then(|state| state.try_into().map_err(error));
-        let consensus = match consensus {
-            Ok(consensus) => consensus,
-            Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
-                return Ok(ibc::Status::Expired)
-            }
-            // If the client state is not found, then a new client is going to be created and since its known from
-            // above that the client state is not frozen, we return the client state as active.
-            Err(ibc::ClientError::ClientStateNotFound { .. }) => {
-                return Ok(ibc::Status::Active)
-            }
-            Err(err) => return Err(err),
-        };
+        // let height = self.latest_height();
+        // let consensus = CommonContext::consensus_state(ctx, client_id, height)
+        //     .and_then(|state| state.try_into().map_err(error));
+        // let consensus = match consensus {
+        //     Ok(consensus) => consensus,
+        //     Err(ibc::ClientError::ConsensusStateNotFound { .. }) => {
+        //         return Ok(ibc::Status::Expired)
+        //     }
+        //     // If the client state is not found, then a new client is going to be created and since its known from
+        //     // above that the client state is not frozen, we return the client state as active.
+        //     Err(ibc::ClientError::ClientStateNotFound { .. }) => {
+        //         return Ok(ibc::Status::Active)
+        //     }
+        //     Err(err) => return Err(err),
+        // };
 
-        let (host_timestamp, _) = CommonContext::host_metadata(ctx)?;
-        Ok(if self.consensus_has_expired(&consensus, host_timestamp) {
-            ibc::Status::Expired
-        } else {
-            ibc::Status::Active
-        })
+        // let (host_timestamp, _) = CommonContext::host_metadata(ctx)?;
+        // Ok(if self.consensus_has_expired(&consensus, host_timestamp) {
+        //     ibc::Status::Expired
+        // } else {
+        //     ibc::Status::Active
+        // })
+
+        // TODO: Since there is no way of reviving client once expired in the current version of ibc-rs,
+        // we will always return active.
+        //
+        // Once the ibc-rs is updated, client update to revive a client will be supported which should be used.
+        Ok(ibc::Status::Active)
     }
 }
 
