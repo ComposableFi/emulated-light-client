@@ -597,7 +597,7 @@ pub mod bridge_escrow {
         Ok(())
     }
 
-    pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount: u64) -> Result<()> {
+    pub fn collect_fees(ctx: Context<CollectFees>) -> Result<()> {
         // Create CPI accounts for the transfer
         let cpi_accounts: SplTransfer<'_> = SplTransfer {
             from: ctx.accounts.fee_token_account.to_account_info(),
@@ -616,7 +616,7 @@ pub mod bridge_escrow {
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
     
         // Perform the token transfer
-        token::transfer(cpi_ctx, amount)?;
+        token::transfer(cpi_ctx, ctx.accounts.fee_token_account.amount)?;
     
         Ok(())
     }
@@ -1004,7 +1004,7 @@ pub struct OnTimeoutCrossChain<'info> {
 }
 
 #[derive(Accounts)]
-pub struct WithdrawFunds<'info> {
+pub struct CollectFees<'info> {
     #[account(mut, signer)]
     pub auctioneer: Signer<'info>, // The auctioneer must sign the transaction and act as the payer
 
@@ -1014,13 +1014,6 @@ pub struct WithdrawFunds<'info> {
         constraint = auctioneer_state.authority == *auctioneer.key
     )]
     pub auctioneer_state: Account<'info, Auctioneer>, // PDA managing the escrow account
-
-    #[account(
-        mut,
-        token::mint = token_mint, 
-        token::authority = auctioneer_state
-    )]
-    pub escrow_token_account: Account<'info, TokenAccount>, // Escrow token account holding USDC
 
     #[account(mut, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
     pub fee_token_account: Box<Account<'info, TokenAccount>>,

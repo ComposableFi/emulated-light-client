@@ -63,30 +63,36 @@ fn simulate_tx(client: RpcClient, transaction: Transaction) {
 fn test_native_mint_transfer() -> Result<()> {
     // Setup the client and wallet
 
-    let private_key_bytes = bs58::decode("").into_vec()?;
-    let auctioneer = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+    // let private_key_bytes = bs58::decode("").into_vec()?;
+    // let auctioneer = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
 
-    let private_key_bytes = bs58::decode("").into_vec()?;
-    let solver = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+    // let private_key_bytes = bs58::decode("").into_vec()?;
+    // let solver = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
 
-    let private_key_bytes = bs58::decode("").into_vec()?;
-    let user = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+    // let private_key_bytes = bs58::decode("").into_vec()?;
+    // let user = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
 
-    // let auctioneer =
-    //     Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
+    let auctioneer =
+        Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
-        Cluster::from_str("https://late-bitter-panorama.solana-devnet.quiknode.pro/702f2ed5c8c7efeee31dd889a5653d0ec218ceb9/").unwrap(),//Cluster::Localnet,
+        Cluster::from_str("http://127.0.0.1:8899").unwrap(),//Cluster::Localnet,
         auctioneer.clone(),
         CommitmentConfig::processed(),
     );
 
+    // let client = Client::new_with_options(
+    //     Cluster::from_str("https://late-bitter-panorama.solana-devnet.quiknode.pro/702f2ed5c8c7efeee31dd889a5653d0ec218ceb9/").unwrap(),//Cluster::Localnet,
+    //     auctioneer.clone(),
+    //     CommitmentConfig::processed(),
+    // );
+
     let program = client.program(crate::ID)?;
     let sol_rpc_client = program.rpc();
 
-    // let lamports = 20_000_000_000;
-    // let solver = Rc::new(Keypair::new());
-    // let user = Rc::new(Keypair::new());
+    let lamports = 20_000_000_000;
+    let solver = Rc::new(Keypair::new());
+    let user = Rc::new(Keypair::new());
     let token_in_keypair = Keypair::new();
     let token_in = token_in_keypair.pubkey();
     let token_out_keypair = Keypair::new();
@@ -99,9 +105,9 @@ fn test_native_mint_transfer() -> Result<()> {
     println!("User {:?}", user.to_bytes());
     println!("Solver {:?}", solver.to_bytes());
 
-    // airdrop(&program_rpc, auctioneer.pubkey(), lamports);
-    // airdrop(&program_rpc, user.pubkey(), lamports);
-    // airdrop(&program_rpc, solver.pubkey(), lamports);
+    airdrop(&program_rpc, auctioneer.pubkey(), lamports);
+    airdrop(&program_rpc, user.pubkey(), lamports);
+    airdrop(&program_rpc, solver.pubkey(), lamports);
 
     let auctioneer_state =
         Pubkey::find_program_address(&[crate::AUCTIONEER_SEED], &crate::ID).0;
@@ -390,6 +396,36 @@ fn test_native_mint_transfer() -> Result<()> {
 
     println!("  Signature: {}", sig);
 
+    // Withdraw fees: Only Auctioneer can try this.
+    
+    let fee_token_account = Pubkey::find_program_address(
+        &[crate::FEE_VAULT_SEED, token_in.as_ref()],
+        &crate::ID,
+    )
+    .0;
+    let auctioneer_token_account = get_associated_token_address(&auctioneer.pubkey(), &token_in);
+    let sig = program
+        .request()
+        .accounts(crate::accounts::CollectFees {
+            auctioneer_state,
+            auctioneer: auctioneer.pubkey(),
+            fee_token_account,
+            auctioneer_token_account,
+            token_mint: token_in,
+            token_program: anchor_spl::token::ID,
+            associated_token_program: anchor_spl::associated_token::ID,
+            system_program: anchor_lang::solana_program::system_program::ID,
+        })
+        .args(crate::instruction::CollectFees {})
+        .payer(auctioneer.clone())
+        .signer(&*auctioneer)
+        .send_with_spinner_and_config(RpcSendTransactionConfig {
+            skip_preflight: true,
+            ..RpcSendTransactionConfig::default()
+        })
+        .unwrap();
+
+    println!("  Signature: {}", sig);
     Ok(())
 }
 
