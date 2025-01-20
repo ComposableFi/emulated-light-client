@@ -13,6 +13,7 @@ const BRIDGE_CONTRACT_PUBKEY: &str =
     "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
+const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 const INTENT_SEED: &[u8] = b"intent";
 const DUMMY_SEED: &[u8] = b"dummy";
 
@@ -72,8 +73,17 @@ pub mod bridge_escrow {
             ErrorCode::SrcUserNotUserIn
         );
     
-        // Step 2: Escrow the funds (same as before)
+
+        // Calculate the amount_in and fee_amount
+        let mut amount_in = new_intent.amount_in;
+        if new_intent.single_domain {
+            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
+        } else {
+            amount_in -= (new_intent.amount_in * 29) / 10000; // 0.29% deduction
+        }
+        let fee_amount = new_intent.amount_in - amount_in;
     
+        // Step 2: Escrow the funds (same as before) : `amount_in`
         let cpi_accounts = SplTransfer {
             from: ctx.accounts.user_token_account.to_account_info(),
             to: ctx.accounts.escrow_token_account.to_account_info(),
@@ -83,7 +93,19 @@ pub mod bridge_escrow {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     
-        token::transfer(cpi_ctx, new_intent.amount_in)?;
+        token::transfer(cpi_ctx, amount_in)?;
+
+        // Step 2.5: Store token fees (fee_amount) in the fee vault
+        token::transfer(
+            CpiContext::new(
+                ctx.accounts.token_program.to_account_info(), 
+                SplTransfer {
+                    from: ctx.accounts.user_token_account.to_account_info(),
+                    to: ctx.accounts.fee_token_account.to_account_info(),
+                    authority: ctx.accounts.user.to_account_info(),
+                }
+            ), fee_amount
+        )?;
     
         events::emit(events::Event::EscrowFunds(events::EscrowFunds {
             amount: new_intent.amount_in,
@@ -104,13 +126,6 @@ pub mod bridge_escrow {
             ErrorCode::InvalidTimeout
         );
 
-        let mut amount_in = new_intent.amount_in;
-        if new_intent.single_domain {
-            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
-        } else {
-            amount_in -= (new_intent.amount_in * 29) / 10000; // 0.29% deduction
-        }
-        
     
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.key();
@@ -581,6 +596,30 @@ pub mod bridge_escrow {
 
         Ok(())
     }
+
+    pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount: u64) -> Result<()> {
+        // Create CPI accounts for the transfer
+        let cpi_accounts: SplTransfer<'_> = SplTransfer {
+            from: ctx.accounts.fee_token_account.to_account_info(),
+            to: ctx.accounts.auctioneer_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
+        };
+    
+        // Derive signer seeds for the PDA
+        let bump = ctx.bumps.auctioneer_state;
+        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+    
+        // Create CPI context with the signer seeds
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+        // Perform the token transfer
+        token::transfer(cpi_ctx, amount)?;
+    
+        Ok(())
+    }
 }
 
 // Define the Auctioneer account
@@ -863,6 +902,9 @@ pub struct EscrowAndStoreIntent<'info> {
     // Box the escrow token account as it's mutable and holds token data
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
     pub escrow_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(init_if_needed, payer = user, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub fee_token_account: Box<Account<'info, TokenAccount>>,
     
     // From StoreIntent
     // Box the intent account, as it's a new account with considerable space allocated
@@ -959,6 +1001,43 @@ pub struct OnTimeoutCrossChain<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct WithdrawFunds<'info> {
+    #[account(mut, signer)]
+    pub auctioneer: Signer<'info>, // The auctioneer must sign the transaction and act as the payer
+
+    #[account(
+        seeds = [AUCTIONEER_SEED], 
+        bump, 
+        constraint = auctioneer_state.authority == *auctioneer.key
+    )]
+    pub auctioneer_state: Account<'info, Auctioneer>, // PDA managing the escrow account
+
+    #[account(
+        mut,
+        token::mint = token_mint, 
+        token::authority = auctioneer_state
+    )]
+    pub escrow_token_account: Account<'info, TokenAccount>, // Escrow token account holding USDC
+
+    #[account(mut, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub fee_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = auctioneer, // Ensure payer is mutable
+        associated_token::mint = token_mint,
+        associated_token::authority = auctioneer
+    )]
+    pub auctioneer_token_account: Account<'info, TokenAccount>, // Auctioneer's USDC token account
+
+    pub token_mint: Account<'info, Mint>, // USDC token mint
+
+    pub token_program: Program<'info, Token>, // SPL Token program
+    pub associated_token_program: Program<'info, AssociatedToken>, // Associated Token program
+    pub system_program: Program<'info, System>, // System program for creating accounts
 }
 
 // Define custom errors

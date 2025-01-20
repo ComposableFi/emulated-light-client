@@ -18,6 +18,7 @@ use anchor_spl::associated_token::{self, get_associated_token_address};
 use anyhow::Result;
 use spl_token::instruction::initialize_mint2;
 use spl_token::solana_program::system_instruction::create_account;
+use bs58;
 
 use crate::IntentPayload;
 
@@ -58,14 +59,24 @@ fn simulate_tx(client: RpcClient, transaction: Transaction) {
 }
 
 #[test]
-//#[ignore = "Requires local validator to run"]
+// test on devnet
 fn test_native_mint_transfer() -> Result<()> {
     // Setup the client and wallet
-    let auctioneer =
-        Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
+
+    let private_key_bytes = bs58::decode("").into_vec()?;
+    let auctioneer = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+
+    let private_key_bytes = bs58::decode("").into_vec()?;
+    let solver = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+
+    let private_key_bytes = bs58::decode("").into_vec()?;
+    let user = Rc::new(Keypair::from_bytes(&private_key_bytes)?);
+
+    // let auctioneer =
+    //     Rc::new(read_keypair_file("../../../solana-ibc/keypair.json").unwrap());
 
     let client = Client::new_with_options(
-        Cluster::from_str("http://127.0.0.1:8899").unwrap(),//Cluster::Localnet,
+        Cluster::from_str("https://late-bitter-panorama.solana-devnet.quiknode.pro/702f2ed5c8c7efeee31dd889a5653d0ec218ceb9/").unwrap(),//Cluster::Localnet,
         auctioneer.clone(),
         CommitmentConfig::processed(),
     );
@@ -73,10 +84,9 @@ fn test_native_mint_transfer() -> Result<()> {
     let program = client.program(crate::ID)?;
     let sol_rpc_client = program.rpc();
 
-    let lamports = 20_000_000_000;
-
-    let solver = Rc::new(Keypair::new());
-    let user = Rc::new(Keypair::new());
+    // let lamports = 20_000_000_000;
+    // let solver = Rc::new(Keypair::new());
+    // let user = Rc::new(Keypair::new());
     let token_in_keypair = Keypair::new();
     let token_in = token_in_keypair.pubkey();
     let token_out_keypair = Keypair::new();
@@ -89,9 +99,9 @@ fn test_native_mint_transfer() -> Result<()> {
     println!("User {:?}", user.to_bytes());
     println!("Solver {:?}", solver.to_bytes());
 
-    airdrop(&program_rpc, auctioneer.pubkey(), lamports);
-    airdrop(&program_rpc, user.pubkey(), lamports);
-    airdrop(&program_rpc, solver.pubkey(), lamports);
+    // airdrop(&program_rpc, auctioneer.pubkey(), lamports);
+    // airdrop(&program_rpc, user.pubkey(), lamports);
+    // airdrop(&program_rpc, solver.pubkey(), lamports);
 
     let auctioneer_state =
         Pubkey::find_program_address(&[crate::AUCTIONEER_SEED], &crate::ID).0;
@@ -208,8 +218,7 @@ fn test_native_mint_transfer() -> Result<()> {
     // Initialize the program to define the auctioneer
     println!("\nInitializing the program");
     
-    if !program_rpc.get_account(&auctioneer_state).is_ok() {
-        let sig = program
+    let sig = program
         .request()
         .accounts(crate::accounts::Initialize {
             authority: auctioneer.pubkey(),
@@ -226,12 +235,11 @@ fn test_native_mint_transfer() -> Result<()> {
             skip_preflight: true,
             ..Default::default()
         })
+        // .signed_transaction()
         .unwrap();
 
-        println!("Signature: {}", sig);
-    } else {
-        println!("Program already initialized. Skipping Initialization ...");
-    }
+    println!("Signature: {}", sig);
+
     
 
     let token_in_escrow_addr =
@@ -251,6 +259,12 @@ fn test_native_mint_transfer() -> Result<()> {
     )
     .0;
 
+    let fee_token_account = Pubkey::find_program_address(
+        &[crate::FEE_VAULT_SEED, token_in.as_ref()],
+        &crate::ID,
+    )
+    .0;
+
     // Get the current timestamp
     let current_timestamp =
         SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
@@ -260,7 +274,7 @@ fn test_native_mint_transfer() -> Result<()> {
         intent_id: intent_id.clone(),
         user_in: user.pubkey(),  // Must match the ctx.accounts.user key in the contract
         user_out: user.pubkey().to_string(),
-        token_in: Pubkey::default(), // token_in,
+        token_in: token_in,
         amount_in: TRANSFER_AMOUNT,
         token_out: Pubkey::default().to_string(),// token_out.to_string(),
         amount_out: amount_out.to_string(),  // Amount out as a string
@@ -273,10 +287,11 @@ fn test_native_mint_transfer() -> Result<()> {
         .request()
         .accounts(crate::accounts::EscrowAndStoreIntent {
             user: user.pubkey(),
-            user_token_account: Some(user_token_in_addr),
+            user_token_account: user_token_in_addr,
             auctioneer_state,
-            token_mint: Some(token_in),
-            escrow_token_account: Some(token_in_escrow_addr),
+            token_mint: token_in,
+            escrow_token_account: token_in_escrow_addr,
+            fee_token_account,
             intent: intent_state,
             token_program: anchor_spl::token::ID,
             associated_token_program: associated_token::ID,
@@ -347,13 +362,12 @@ fn test_native_mint_transfer() -> Result<()> {
             solver_token_in_account: Some(solver_token_in_addr),
             solver_token_out_account: solver_token_out_addr,
             user_token_out_account: user_token_out_addr,
-            user_account: Some(user.pubkey()),
             token_program: anchor_spl::token::ID,
             associated_token_program: anchor_spl::associated_token::ID,
             system_program: anchor_lang::solana_program::system_program::ID,
             // Cross-chain related fields, set to None since it's single domain
             ibc_program: None,
-            receiver: None,
+            receiver: Some(user.pubkey()),
             storage: None,
             trie: None,
             chain: None,
@@ -610,15 +624,22 @@ fn escrow_bridge_program() -> Result<()> {
         single_domain: true,
     };
     
+    let fee_token_account = Pubkey::find_program_address(
+        &[crate::FEE_VAULT_SEED, token_in.as_ref()],
+        &crate::ID,
+    )
+    .0;
+
     // Call the escrow_and_store_intent() function
     let sig = program
         .request()
         .accounts(crate::accounts::EscrowAndStoreIntent {
             user: user.pubkey(),
-            user_token_account: Some(user_token_in_addr),
+            user_token_account: user_token_in_addr,
             auctioneer_state,
-            token_mint: Some(token_in),
-            escrow_token_account: Some(token_in_escrow_addr),
+            token_mint: token_in,
+            escrow_token_account: token_in_escrow_addr,
+            fee_token_account,
             intent: intent_state,
             token_program: anchor_spl::token::ID,
             associated_token_program: associated_token::ID,
@@ -689,13 +710,12 @@ fn escrow_bridge_program() -> Result<()> {
             solver_token_in_account: Some(solver_token_in_addr),
             solver_token_out_account: solver_token_out_addr,
             user_token_out_account: user_token_out_addr,
-            user_account: Some(user.pubkey()),
             token_program: anchor_spl::token::ID,
             associated_token_program: anchor_spl::associated_token::ID,
             system_program: anchor_lang::solana_program::system_program::ID,
             // Cross-chain related fields, set to None since it's single domain
             ibc_program: None,
-            receiver: None,
+            receiver: Some(user.pubkey()),
             storage: None,
             trie: None,
             chain: None,
