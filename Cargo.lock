@@ -1027,6 +1027,7 @@ dependencies = [
  "anchor-spl",
  "anyhow",
  "base64 0.21.7",
+ "bs58 0.5.1",
  "bytemuck",
  "cf-guest",
  "derive_more",
