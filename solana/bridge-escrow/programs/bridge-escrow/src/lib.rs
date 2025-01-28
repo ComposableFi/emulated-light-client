@@ -25,7 +25,7 @@ mod tests;
 
 declare_id!("AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj");
 
-pub fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
+pub fn check_solana_ibc_caller(ix_sysvar: &AccountInfo) -> Result<()> {
     let caller_program_id =
         solana_program::sysvar::instructions::get_instruction_relative(
             0, ix_sysvar,
@@ -34,7 +34,7 @@ pub fn check_staking_caller(ix_sysvar: &AccountInfo) -> Result<()> {
     check_staking_program(&caller_program_id)
 }
 
-pub fn check_staking_program(
+pub fn check_solana_ibc_program(
     program_id: &Pubkey
 ) -> Result<()> {
     let expected_program_ids = [
