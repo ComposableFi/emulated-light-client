@@ -116,7 +116,7 @@ impl core::iter::Iterator for WriteIter<'_> {
             accounts: vec![
                 AccountMeta::new(self.payer, true),
                 AccountMeta::new(self.write_account, false),
-                AccountMeta::new(solana_program::system_program::ID, false),
+                AccountMeta::new_readonly(solana_program::system_program::ID, false),
             ],
             data,
         })
@@ -156,7 +156,7 @@ pub fn free(
         accounts: vec![
             AccountMeta::new(payer, true),
             AccountMeta::new(write_account, false),
-            AccountMeta::new(solana_program::system_program::ID, false),
+            AccountMeta::new_readonly(solana_program::system_program::ID, false),
         ],
         data: buf[..seed.len() + 3].to_vec(),
     })
