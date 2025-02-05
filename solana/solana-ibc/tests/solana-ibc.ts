@@ -11,7 +11,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { solanaIbcProgramId, rpcUrl, depositor } from "./constants";
-import { getInt64Bytes, hexToBytes, getGuestChainAccounts } from "./utils";
+import { hexToBytes, getGuestChainAccounts, numberTo32ByteBuffer } from "./utils";
 import { instructionSchema } from "./schema";
 
 describe("solana-ibc", () => {
@@ -19,7 +19,7 @@ describe("solana-ibc", () => {
     // Parameters
     const sender = depositor.publicKey; // solana account address
     const receiver = "centauri1c8jhgqsdzw5su4yeel93nrp9xmhlpapyd9k0ue"; // cosmos address
-    const amount = 10000000000000000; // amount to send
+    const amount = 10000000000000000n; // amount to send
     const channelIdOfSolana = "channel-0"; // example channel id
     const portId = "transfer"; // always the same
     const memo = "";
@@ -69,7 +69,7 @@ describe("solana-ibc", () => {
 const sendTransfer = async (
   sender: anchor.web3.PublicKey,
   receiver: string,
-  amount: number,
+  amount: bigint,
   channelIdOfSolana: string,
   portId: string,
   memo: string,
@@ -80,12 +80,7 @@ const sendTransfer = async (
 ) => {
   const senderPublicKey = new anchor.web3.PublicKey(sender);
 
-  const emptyArray = [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-  ];
-
-  const convertedAmount = getInt64Bytes(amount);
-  const finalAmount = convertedAmount.concat(emptyArray);
+  const convertedAmount = numberTo32ByteBuffer(amount);
 
   let tokenMint: anchor.web3.PublicKey;
 
@@ -116,7 +111,7 @@ const sendTransfer = async (
           trace_path: trace_path,
           base_denom: baseDenom,
         },
-        amount: finalAmount,
+        amount: convertedAmount,
       },
       sender: sender.toString(),
       receiver,
