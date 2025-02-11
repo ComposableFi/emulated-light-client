@@ -17,10 +17,13 @@ mocks = ["ibc-testkit"]
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
+metadata = [
+    "anchor-spl/metadata"
+]
 
 [dependencies]
 anchor-lang.workspace = true
-anchor-spl = { workspace = true, features = ["metadata"] }
+anchor-spl = { workspace = true, features = [] }
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true

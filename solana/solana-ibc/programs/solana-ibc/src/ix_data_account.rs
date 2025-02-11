@@ -114,8 +114,7 @@ pub(crate) fn get_ix_data<'a>(
 }
 
 impl anchor_lang::Discriminator for Instruction {
-    const DISCRIMINATOR: [u8; 8] = [0; 8];
-    fn discriminator() -> [u8; 8] { panic!() }
+    const DISCRIMINATOR: &'static [u8] = &[0; 8];
 }
 
 impl borsh::BorshSerialize for Instruction {

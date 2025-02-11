@@ -19,8 +19,8 @@ default = []
 
 [dependencies]
 anyhow.workspace = true
-anchor-lang.workspace = true
-anchor-spl = { workspace = true, features = ["metadata"] }
+anchor-lang = { workspace = true, features = ["init-if-needed"] }
+anchor-spl = { workspace = true, features = [] }
 base64.workspace = true
 bytemuck = { workspace = true, features = ["must_cast", "zeroable_atomics"] }
 derive_more.workspace = true

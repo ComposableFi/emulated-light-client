@@ -10,6 +10,7 @@ use alloc::boxed::Box;
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_spl::associated_token::AssociatedToken;
+#[cfg(feature = "metadata")]
 use anchor_spl::metadata::Metadata;
 use anchor_spl::token::{Mint, Token, TokenAccount};
 use borsh::BorshDeserialize;
@@ -98,8 +99,9 @@ solana_program::custom_panic_default!();
 pub mod solana_ibc {
     use std::time::Duration;
 
-    use anchor_spl::metadata::mpl_token_metadata::types::DataV2;
+    #[cfg(feature = "metadata")]
     use anchor_spl::metadata::{
+        mpl_token_metadata::types::DataV2,
         create_metadata_accounts_v3, CreateMetadataAccountsV3,
     };
 
@@ -153,6 +155,7 @@ pub mod solana_ibc {
     /// TODO(mina86): At the moment the call doesn’t provide rewards and doesn’t
     /// allow to submit signatures for finalised guest blocks.  Those features
     /// will be added at a later time.
+    #[cfg(feature = "metadata")]
     pub fn sign_block(
         ctx: Context<ChainWithVerifier>,
         // Note: 64 = ed25519::Signature::LENGTH.  `anchor build` doesn’t like
@@ -164,7 +167,7 @@ pub mod solana_ibc {
             &ctx.accounts.sender,
         )?;
         let mut verifier = sigverify::Verifier::default();
-        verifier.set_ix_sysvar(&ctx.accounts.ix_sysvar)?;
+        verifier.set_ix_sysvar(&ctx.accounts.ix_sysvar.key)?;
         if ctx.accounts.chain.sign_block(
             (*ctx.accounts.sender.key).into(),
             &signature.into(),
@@ -173,6 +176,16 @@ pub mod solana_ibc {
             ctx.accounts.chain.maybe_generate_block(&provable)?;
         }
         Ok(())
+    }
+
+    #[cfg(not(feature = "metadata"))]
+    pub fn sign_block(
+        ctx: Context<ChainWithVerifier>,
+        // Note: 64 = ed25519::Signature::LENGTH.  `anchor build` doesn’t like
+        // non-literals in array sizes.  Yeah, it’s dumb.
+        signature: [u8; 64],
+    ) -> Result<()> {
+        panic!("'metadata' feature is not enabled");
     }
 
     /// Changes stake of a guest validator.
@@ -305,6 +318,7 @@ pub mod solana_ibc {
     ///
     /// Note: The denom will always contain port and channel id
     /// of solana.
+    #[cfg(feature = "metadata")]
     pub fn init_mint<'a, 'info>(
         ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
         effective_decimals: u8,
@@ -367,6 +381,19 @@ pub mod solana_ibc {
         )?;
 
         Ok(())
+    }
+
+    #[cfg(not(feature = "metadata"))]
+    pub fn init_mint<'a, 'info>(
+        _ctx: Context<'a, 'a, 'a, 'info, InitMint<'info>>,
+        _effective_decimals: u8,
+        _hashed_full_denom: CryptoHash,
+        _original_decimals: u8,
+        _token_name: String,
+        _token_symbol: String,
+        _token_uri: String,
+    ) -> Result<()> {
+        panic!("'metadata' feature is not enabled");
     }
 
     #[allow(unused_variables)]
@@ -736,7 +763,10 @@ pub struct InitMint<'info> {
     system_program: Program<'info, System>,
 
     rent: Sysvar<'info, Rent>,
+    #[cfg(feature = "metadata")]
     token_metadata_program: Program<'info, Metadata>,
+    #[cfg(not(feature = "metadata"))]
+    token_metadata_program: Program<'info, System>,
 }
 
 #[derive(Accounts, Clone)]

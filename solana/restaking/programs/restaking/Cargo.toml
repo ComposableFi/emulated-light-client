@@ -19,7 +19,7 @@ default = []
 
 [dependencies]
 anchor-lang = { workspace = true, features = ["init-if-needed"] }
-anchor-spl = { workspace = true, features = ["metadata"] }
+anchor-spl = { workspace = true, features = [] }
 solana-ibc = { workspace = true, features = ["cpi"] }
 solana-program.workspace = true
 

@@ -1,5 +1,5 @@
 use rand::Rng;
-use solana_program_2::pubkey::Pubkey;
+use solana_program::pubkey::Pubkey;
 
 use super::*;
 

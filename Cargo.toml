@@ -30,8 +30,11 @@ incremental = false
 codegen-units = 1
 
 [workspace.dependencies]
-anchor-lang = { version = "0.29.0", features = ["init-if-needed"] }
-anchor-spl = "0.29.0"
+anchor-client = { git = "https://github.com/coral-xyz/anchor", rev = "55d74c6", features = [
+#    "async",
+] }
+anchor-lang = { git = "https://github.com/coral-xyz/anchor", rev = "55d74c6" }
+anchor-spl = { git = "https://github.com/coral-xyz/anchor", rev = "55d74c6" }
 arrayvec = "0.7.4"
 ascii = "1.1.0"
 base64 = { version = "0.21", default-features = false, features = ["alloc"] }
@@ -80,12 +83,11 @@ serde = "1.0"
 serde_json = "1"
 serde_bytes = "0.11.14"
 sha2 = { version = "0.10.7", default-features = false }
-solana-cli-config = "1.17.30"
-solana-client = "1.17.30"
-solana-program = "1.17.30"
-solana-program-2 = { package = "solana-program", version = "2" }
-solana-sdk = "1.17.30"
-solana-transaction-status = "1.17.30"
+solana-cli-config = "2.1.13"
+solana-client = "2.1.13"
+solana-program = "2.1.13"
+solana-sdk = "2.1.13"
+solana-transaction-status = "2.1.13"
 spl-associated-token-account = "2.2.0"
 spl-token = "4.0.0"
 strum = { version = "0.25.0", default-features = false, features = ["derive"] }
@@ -114,7 +116,6 @@ trie-ids = { path = "common/trie-ids" }
 wasm = { path = "common/wasm" }
 
 # dev-dependencies
-anchor-client = "0.29.0"
 anyhow = "1.0.32"
 
 [patch.crates-io]
@@ -128,7 +129,7 @@ anyhow = "1.0.32"
 #
 # For curve25519-dalek we’re using commit from a PR, see
 # https://github.com/dalek-cryptography/curve25519-dalek/pull/606
-aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "6105d7a5591aefa646a95d12b5e8d3f55a9214ef" }
+aes-gcm-siv = { git = "https://github.com/RustCrypto/AEADs", rev = "e1e35e0c4f4943da0a99ceb8477c421dcfae2c33" }
 curve25519-dalek = { git = "https://github.com/dalek-cryptography/curve25519-dalek", rev = "8274d5cbb6fc3f38cdc742b4798173895cd2a290" }
 
 # Uses solana sys call as default hashing
