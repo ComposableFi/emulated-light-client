@@ -14,7 +14,7 @@ use solana_ibc::cpi::accounts::SendTransfer;
 use solana_ibc::cpi::send_transfer;
 
 use crate::{
-    ErrorCode, OnTimeout, OnTimeoutCrossChain, SplTokenTransferCrossChain, DUMMY_TOKEN_TRANSFER_AMOUNT,
+    ErrorCode, OnTimeout, OnTimeoutCrossChain, DUMMY_TOKEN_TRANSFER_AMOUNT,
 };
 
 pub fn bridge_transfer(
@@ -114,71 +114,6 @@ pub struct BridgeTransferAccounts<'info> {
     pub ibc_program: AccountInfo<'info>,
     pub token_program: AccountInfo<'info>,
     pub system_program: AccountInfo<'info>,
-}
-
-impl<'info> TryFrom<&mut SplTokenTransferCrossChain<'info>>
-    for BridgeTransferAccounts<'info>
-{
-    type Error = anchor_lang::error::Error;
-
-    fn try_from(accounts: &mut SplTokenTransferCrossChain<'info>) -> Result<Self> {
-        Ok(Self {
-            sender: accounts.solver.to_account_info(),
-            auctioneer_state: accounts.auctioneer_state.to_account_info(),
-            receiver: accounts
-                .receiver
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            storage: accounts
-                .storage
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            trie: accounts
-                .trie
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            chain: accounts
-                .chain
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            mint_authority: accounts
-                .mint_authority
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            token_mint: accounts
-                .token_mint
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            escrow_account: accounts
-                .escrow_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            receiver_token_account: accounts
-                .receiver_token_account
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            fee_collector: accounts
-                .fee_collector
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            ibc_program: accounts
-                .ibc_program
-                .as_ref()
-                .ok_or(ErrorCode::AccountsNotPresent)?
-                .to_account_info(),
-            token_program: accounts.token_program.to_account_info(),
-            system_program: accounts.system_program.to_account_info(),
-        })
-    }
 }
 
 impl<'info> TryFrom<&mut OnTimeoutCrossChain<'info>> for BridgeTransferAccounts<'info> {
