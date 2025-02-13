@@ -99,9 +99,9 @@ pub mod bridge_escrow {
                 ],
             )?;
 
-            amount_in -= new_intent.amount_in; // 1% deduction
+            amount_in -= new_intent.amount_in / 100;  // 1% deduction
         } else {
-            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
+            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction;
         }
         let fee_amount = new_intent.amount_in - amount_in;
     
@@ -647,6 +647,7 @@ pub struct EscrowAndStoreIntent<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
     /// CHECK:
+    #[account(mut)]
     pub auctioneer: Option<AccountInfo<'info>>,
 }
 
