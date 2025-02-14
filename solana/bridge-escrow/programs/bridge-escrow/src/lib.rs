@@ -428,6 +428,26 @@ pub mod bridge_escrow {
             intent.amount_in,
         )?;
 
+        // Transfer fee back to user
+        let cpi_accounts: SplTransfer<'_> = SplTransfer {
+            from: accounts.fee_token_account.to_account_info(),
+            to: user_token_in_account.to_account_info(),
+            authority: accounts.auctioneer_state.to_account_info(),
+        };
+    
+        // Create CPI context with the signer seeds
+        let cpi_program = accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+        // Perform the token transfer
+        let fee_amount = if intent.ai_agent {
+            (intent.amount_in * 100) / 99 - intent.amount_in 
+        } else {
+            (intent.amount_in * 1000) / 999 - intent.amount_in
+        };
+
+        token::transfer(cpi_ctx, fee_amount)?;
+
         Ok(())
     }
 
@@ -646,8 +666,8 @@ pub struct EscrowAndStoreIntent<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    /// CHECK:
     #[account(mut)]
+    /// CHECK:
     pub auctioneer: Option<AccountInfo<'info>>,
 }
 
@@ -677,6 +697,10 @@ pub struct OnTimeout<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+
+    pub token_mint: Account<'info, Mint>,
+    #[account(mut, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub fee_token_account: Box<Account<'info, TokenAccount>>,
 }
 
 #[derive(Accounts)]
