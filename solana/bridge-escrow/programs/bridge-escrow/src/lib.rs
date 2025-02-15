@@ -639,9 +639,6 @@ pub struct EscrowAndStoreIntent<'info> {
     // Box the escrow token account as it's mutable and holds token data
     #[account(init_if_needed, payer = user, associated_token::mint = token_mint, associated_token::authority = auctioneer_state)]
     pub escrow_token_account: Box<Account<'info, TokenAccount>>,
-
-    #[account(init_if_needed, payer = user, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
-    pub fee_token_account: Box<Account<'info, TokenAccount>>,
     
     // From StoreIntent
     // Box the intent account, as it's a new account with considerable space allocated
@@ -652,11 +649,7 @@ pub struct EscrowAndStoreIntent<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    #[account(mut)]
-    /// CHECK:
-    pub auctioneer: Option<AccountInfo<'info>>,
 }
-
 
 #[derive(Accounts)]
 #[instruction(intent_id: String)]
