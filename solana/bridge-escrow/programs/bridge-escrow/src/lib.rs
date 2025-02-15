@@ -13,9 +13,9 @@ const BRIDGE_CONTRACT_PUBKEY: &str =
     "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
+const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 const INTENT_SEED: &[u8] = b"intent";
 const DUMMY_SEED: &[u8] = b"dummy";
-const FEE_VAULT_SEED: &[u8] = b"fee_vault";
 
 const DUMMY_TOKEN_TRANSFER_AMOUNT: u64 = 1_000_000_000;
 
@@ -25,27 +25,6 @@ pub mod events;
 mod tests;
 
 declare_id!("B95PfSFtjvPkFXV79oVCFEviatsrZQUMcA4ozGwzfnxb");
-
-pub fn check_ibc_caller(ix_sysvar: &AccountInfo) -> Result<()> {
-    let caller_program_id =
-        solana_program::sysvar::instructions::get_instruction_relative(
-            0, ix_sysvar,
-        )?
-        .program_id;
-    check_ibc_program(&caller_program_id)
-}
-
-pub fn check_ibc_program(
-    program_id: &Pubkey
-) -> Result<()> {
-    let expected_program_ids = [
-        Pubkey::from_str(BRIDGE_CONTRACT_PUBKEY).unwrap(),
-    ];
-    match expected_program_ids.contains(program_id) {
-        false => Err(ErrorCode::InvalidCPICall.into()),
-        true => Ok(()),
-    }
-}
 
 #[program]
 pub mod bridge_escrow {
@@ -223,6 +202,102 @@ pub mod bridge_escrow {
             ErrorCode::InvalidEventFormat
         })?;
 
+        Ok(())
+    }
+
+    /// The memo should contain the token mint address, amount and solver address
+    /// seperated by commas. Right now this method can only be called by the
+    /// auctioneer.
+    ///
+    /// TODO: Modify the method such that the method can only be called by
+    /// the solana-ibc bridge contract. This would then remove the trust factor
+    /// from the auctioneer.
+    pub fn on_receive_transfer(
+        ctx: Context<ReceiveTransferContext>,
+        intent_id: String,  
+        memo: String,
+    ) -> Result<()> {
+        // Split and extract memo fields
+        let parts: Vec<&str> = memo.split(',').collect();
+        require!(parts.len() == 5, ErrorCode::InvalidMemoFormat); // Ensure memo has 5 parts
+    
+        // Memo format: <withdraw_user_flag>, <from>, <token>, <to>, <amount>
+        let withdraw_user_flag: bool = parts[0].parse().map_err(|_| ErrorCode::InvalidWithdrawFlag)?;
+        let from = parts[1];
+        let token = parts[2];
+        let to = parts[3];
+        let amount: u64 = parts[4].parse().map_err(|_| ErrorCode::InvalidAmount)?;
+    
+        // Retrieve the intent from the provided context
+        let intent = &mut ctx.accounts.intent;
+        
+        // Validate the intent
+        require!(intent.intent_id.eq_ignore_ascii_case(&intent_id), ErrorCode::IntentDoesNotExist);
+
+        let seeds = &[
+            AUCTIONEER_SEED,
+            core::slice::from_ref(&ctx.bumps.auctioneer_state),
+        ];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+
+        if withdraw_user_flag {
+            // Case 1: User withdrawal
+            let current_time = Clock::get()?.unix_timestamp as u64;
+            require!(
+                current_time >= intent.timeout_timestamp_in_sec,
+                ErrorCode::IntentNotTimedOut
+            );
+
+            // require!(
+            //     intent.user_out == from,
+            //     ErrorCode::IntentMismatchFromUser
+            // );
+    
+            // Transfer tokens from the escrow account to the user's token account
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.solver_token_account.to_account_info(),
+                authority: ctx.accounts.auctioneer_state.to_account_info(),
+            };
+    
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+            token::transfer(cpi_ctx, amount)?;
+    
+        } else {
+            // Case 2: Solver transaction
+            require!(
+                intent.winner_solver.eq_ignore_ascii_case(from),
+                ErrorCode::IntentMismatchFromSolver
+            );
+            require!(
+                intent.token_out.eq_ignore_ascii_case(token),
+                ErrorCode::InvalidTokenOut
+            );
+            require!(
+                intent.user_out.eq_ignore_ascii_case(to),
+                ErrorCode::IntentMismatchToUser
+            );
+            require!(
+                intent.amount_out.parse::<u64>().unwrap() <= amount,
+                ErrorCode::InsufficientAmount
+            );
+    
+            // Transfer tokens from the escrow account to the solver's token account
+            let cpi_accounts = SplTransfer {
+                from: ctx.accounts.escrow_token_account.to_account_info(),
+                to: ctx.accounts.solver_token_account.to_account_info(),
+                authority: ctx.accounts.auctioneer_state.to_account_info(),
+            };
+    
+            let cpi_program = ctx.accounts.token_program.to_account_info();
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+            token::transfer(cpi_ctx, amount)?;
+        }
+    
         Ok(())
     }
 
@@ -429,6 +504,30 @@ pub mod bridge_escrow {
             intent.amount_in,
         )?;
 
+        Ok(())
+    }
+
+    pub fn collect_fees(ctx: Context<CollectFees>) -> Result<()> {
+        // Create CPI accounts for the transfer
+        let cpi_accounts: SplTransfer<'_> = SplTransfer {
+            from: ctx.accounts.fee_token_account.to_account_info(),
+            to: ctx.accounts.auctioneer_token_account.to_account_info(),
+            authority: ctx.accounts.auctioneer_state.to_account_info(),
+        };
+    
+        // Derive signer seeds for the PDA
+        let bump = ctx.bumps.auctioneer_state;
+        let seeds = &[AUCTIONEER_SEED, core::slice::from_ref(&bump)];
+        let seeds = seeds.as_ref();
+        let signer_seeds = core::slice::from_ref(&seeds);
+    
+        // Create CPI context with the signer seeds
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+        // Perform the token transfer
+        token::transfer(cpi_ctx, ctx.accounts.fee_token_account.amount)?;
+    
         Ok(())
     }
 }
@@ -728,6 +827,7 @@ pub struct EscrowAndStoreIntent<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
 #[derive(Accounts)]
 #[instruction(intent_id: String)]
 pub struct OnTimeout<'info> {
@@ -813,6 +913,36 @@ pub struct OnTimeoutCrossChain<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct CollectFees<'info> {
+    #[account(mut, signer)]
+    pub auctioneer: Signer<'info>, // The auctioneer must sign the transaction and act as the payer
+
+    #[account(
+        seeds = [AUCTIONEER_SEED], 
+        bump, 
+        constraint = auctioneer_state.authority == *auctioneer.key
+    )]
+    pub auctioneer_state: Account<'info, Auctioneer>, // PDA managing the escrow account
+
+    #[account(mut, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
+    pub fee_token_account: Box<Account<'info, TokenAccount>>,
+
+    #[account(
+        init_if_needed,
+        payer = auctioneer, // Ensure payer is mutable
+        associated_token::mint = token_mint,
+        associated_token::authority = auctioneer
+    )]
+    pub auctioneer_token_account: Account<'info, TokenAccount>, // Auctioneer's USDC token account
+
+    pub token_mint: Account<'info, Mint>, // USDC token mint
+
+    pub token_program: Program<'info, Token>, // SPL Token program
+    pub associated_token_program: Program<'info, AssociatedToken>, // Associated Token program
+    pub system_program: Program<'info, System>, // System program for creating accounts
+}
+
 // Define custom errors
 #[error_code]
 pub enum ErrorCode {
@@ -881,7 +1011,5 @@ pub enum ErrorCode {
     #[msg("fee_collector != accounts.fee_collector.as_ref().unwrap().key")]
     InvalidFeeCollector,
     #[msg("User in (signer) is not intent.user_in")]
-    UserInNotIntentUserIn,
-    #[msg("Invalid cpi call")]
-    InvalidCPICall
+    UserInNotIntentUserIn
 }
