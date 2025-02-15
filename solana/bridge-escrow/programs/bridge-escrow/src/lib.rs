@@ -35,6 +35,16 @@ pub mod bridge_escrow {
     /// Sets the authority and creates a token mint which would be used to
     /// send acknowledgements to the counterparty chain. The token doesnt have
     /// any value is just used to transfer messages.
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        // store the auctioneer
+        let auctioneer = &mut ctx.accounts.auctioneer;
+        auctioneer.authority = *ctx.accounts.authority.key;
+        Ok(())
+    }
+
+    /// Sets the authority and creates a token mint which would be used to
+    /// send acknowledgements to the counterparty chain. The token doesnt have
+    /// any value is just used to transfer messages.
     pub fn escrow_and_store_intent(
         ctx: Context<EscrowAndStoreIntent>, 
         new_intent: IntentPayload
@@ -513,9 +523,28 @@ pub mod bridge_escrow {
             intent.amount_in,
         )?;
 
+        // Transfer fee back to user
+        let cpi_accounts: SplTransfer<'_> = SplTransfer {
+            from: accounts.fee_token_account.to_account_info(),
+            to: user_token_in_account.to_account_info(),
+            authority: accounts.auctioneer_state.to_account_info(),
+        };
+    
+        // Create CPI context with the signer seeds
+        let cpi_program = accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, signer_seeds);
+    
+        // Perform the token transfer
+        let fee_amount = if intent.ai_agent {
+            (intent.amount_in * 100) / 99 - intent.amount_in 
+        } else {
+            (intent.amount_in * 1000) / 999 - intent.amount_in
+        };
+
+        token::transfer(cpi_ctx, fee_amount)?;
+
         Ok(())
     }
-
     pub fn collect_fees(ctx: Context<CollectFees>) -> Result<()> {
         // Create CPI accounts for the transfer
         let cpi_accounts: SplTransfer<'_> = SplTransfer {
@@ -839,7 +868,6 @@ pub struct EscrowAndStoreIntent<'info> {
     pub auctioneer: Option<AccountInfo<'info>>,
 }
 
-
 #[derive(Accounts)]
 #[instruction(intent_id: String)]
 pub struct OnTimeout<'info> {
@@ -857,7 +885,7 @@ pub struct OnTimeout<'info> {
     /// CHECK:
     pub intent_owner: UncheckedAccount<'info>,
     // Single domain transfer accounts
-    pub token_in: Option<Account<'info, Mint>>,
+    pub token_in: Account<'info, Mint>,
     #[account(mut, token::mint = token_in)]
     pub user_token_account: Option<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
@@ -865,6 +893,8 @@ pub struct OnTimeout<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+    #[account(mut, seeds = [FEE_VAULT_SEED, token_in.key().as_ref()], bump, token::mint = token_in, token::authority = auctioneer_state)]
+    pub fee_token_account: Box<Account<'info, TokenAccount>>,
 }
 
 #[derive(Accounts)]
