@@ -35,18 +35,6 @@ pub mod bridge_escrow {
     /// Sets the authority and creates a token mint which would be used to
     /// send acknowledgements to the counterparty chain. The token doesnt have
     /// any value is just used to transfer messages.
-    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-        // store the auctioneer
-        let auctioneer = &mut ctx.accounts.auctioneer;
-        auctioneer.authority = *ctx.accounts.authority.key;
-        Ok(())
-    }
-
-    /// Escrows the user funds on the source chain
-    ///
-    /// The funds are stored in token account owned by the auctioneer state PDA. Right now
-    /// all the deposits are present in a single pool. But we would want to deposit the funds
-    /// in seperate account so that we dont touch the funds of other users.
     pub fn escrow_and_store_intent(
         ctx: Context<EscrowAndStoreIntent>, 
         new_intent: IntentPayload
@@ -62,24 +50,46 @@ pub mod bridge_escrow {
             new_intent.user_in == ctx.accounts.user.key(),
             ErrorCode::SrcUserNotSender
         );
-
+    
         require!(
             new_intent.token_in == ctx.accounts.user_token_account.mint,
             ErrorCode::TokenInNotMint
         );
-
+    
         require!(
             new_intent.user_in == ctx.accounts.user_token_account.owner,
             ErrorCode::SrcUserNotUserIn
         );
     
-
         // Calculate the amount_in and fee_amount
         let mut amount_in = new_intent.amount_in;
-        if new_intent.single_domain {
-            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction
+        if new_intent.ai_agent {
+            let auctioneer = ctx.accounts.auctioneer.clone().unwrap();
+            let sol_fee = 1_500_000; // 0.0015 SOL
+    
+            require!(
+                auctioneer.key().to_string() == "9BFXt9gzomzuWaq6ArAneh8Rrwh4422TCzZjEadqZgJR",
+                ErrorCode::Unauthorized
+            );
+    
+            let ix = solana_program::system_instruction::transfer(
+                &ctx.accounts.user.key(),
+                &auctioneer.key(),
+                sol_fee,
+            );
+        
+            invoke(
+                &ix,
+                &[
+                    ctx.accounts.user.to_account_info(),
+                    auctioneer.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+
+            amount_in -= new_intent.amount_in / 100;  // 1% deduction
         } else {
-            amount_in -= (new_intent.amount_in * 29) / 10000; // 0.29% deduction
+            amount_in -= new_intent.amount_in / 1000; // 0.1% deduction;
         }
         let fee_amount = new_intent.amount_in - amount_in;
     
@@ -94,7 +104,7 @@ pub mod bridge_escrow {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
     
         token::transfer(cpi_ctx, amount_in)?;
-
+    
         // Step 2.5: Store token fees (fee_amount) in the fee vault
         token::transfer(
             CpiContext::new(
@@ -125,7 +135,6 @@ pub mod bridge_escrow {
             current_timestamp < new_intent.timeout_timestamp_in_sec,
             ErrorCode::InvalidTimeout
         );
-
     
         intent.intent_id = new_intent.intent_id.clone();
         intent.user_in = new_intent.user_in.key();
@@ -136,7 +145,7 @@ pub mod bridge_escrow {
         intent.timeout_timestamp_in_sec = new_intent.timeout_timestamp_in_sec;
         intent.creation_timestamp_in_sec = current_timestamp;
         intent.amount_out = new_intent.amount_out.clone();
-        intent.single_domain = new_intent.single_domain;
+        intent.ai_agent = new_intent.ai_agent;
     
         events::emit(events::Event::StoreIntent(events::StoreIntent {
             intent: Intent {
@@ -150,7 +159,7 @@ pub mod bridge_escrow {
                 winner_solver: String::default(),
                 creation_timestamp_in_sec: current_timestamp,
                 timeout_timestamp_in_sec: new_intent.timeout_timestamp_in_sec,
-                single_domain: new_intent.single_domain,
+                ai_agent: new_intent.ai_agent,
             },
         })).map_err(|err| {
             msg!("{}", err);
@@ -158,7 +167,7 @@ pub mod bridge_escrow {
         })?;
     
         Ok(())
-    }    
+    }      
 
     pub fn update_auction_data(
         ctx: Context<UpdateAuctionData>,
@@ -424,7 +433,7 @@ pub mod bridge_escrow {
                     winner_solver: intent.winner_solver.clone(),
                     creation_timestamp_in_sec: intent.creation_timestamp_in_sec,
                     timeout_timestamp_in_sec: intent.timeout_timestamp_in_sec,
-                    single_domain: intent.single_domain,
+                    ai_agent: intent.ai_agent,
                 }
             },
         ))
@@ -560,7 +569,7 @@ pub struct Intent {
     // Timestamp when the intent was created
     pub creation_timestamp_in_sec: u64,
     pub timeout_timestamp_in_sec: u64,
-    pub single_domain: bool,
+    pub ai_agent: bool,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Debug, Clone)]
@@ -573,7 +582,7 @@ pub struct IntentPayload {
     pub token_out: String,
     pub amount_out: String,
     pub timeout_timestamp_in_sec: u64,
-    pub single_domain: bool,
+    pub ai_agent: bool,
 }
 
 // Define the context for initializing the program
@@ -825,6 +834,9 @@ pub struct EscrowAndStoreIntent<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
+    #[account(mut)]
+    /// CHECK:
+    pub auctioneer: Option<AccountInfo<'info>>,
 }
 
 
