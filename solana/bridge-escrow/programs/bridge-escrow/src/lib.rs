@@ -689,7 +689,7 @@ pub struct OnTimeout<'info> {
     /// CHECK:
     pub intent_owner: UncheckedAccount<'info>,
     // Single domain transfer accounts
-    pub token_in: Option<Account<'info, Mint>>,
+    pub token_in: Account<'info, Mint>,
     #[account(mut, token::mint = token_in)]
     pub user_token_account: Option<Account<'info, TokenAccount>>,
     #[account(mut, token::mint = token_in, token::authority = auctioneer_state)]
@@ -697,9 +697,7 @@ pub struct OnTimeout<'info> {
     pub token_program: Program<'info, Token>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-
-    pub token_mint: Account<'info, Mint>,
-    #[account(mut, seeds = [FEE_VAULT_SEED, token_mint.key().as_ref()], bump, token::mint = token_mint, token::authority = auctioneer_state)]
+    #[account(mut, seeds = [FEE_VAULT_SEED, token_in.key().as_ref()], bump, token::mint = token_in, token::authority = auctioneer_state)]
     pub fee_token_account: Box<Account<'info, TokenAccount>>,
 }
 
