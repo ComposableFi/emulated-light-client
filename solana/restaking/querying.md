@@ -34,7 +34,7 @@ let stakeParameters =
 ## Account Structure
 
 We have 2 storage accounts
-1. **StakingParams**: `StakingParams` contains the paramters required
+1. **StakingParams**: `StakingParams` contains the parameters required
    for staking.  They are as follows.
 - Whitelisted Tokens: The tokens which can be staked.
 - Guest chain Program Id: If `None` or `null`, it means that the guest
