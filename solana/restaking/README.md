@@ -12,7 +12,7 @@ The high level flow of the program is given in the image below.
   has to go through the smart contract.
 
 - Receipt Token Mint: The receipt token mint is a NFT which is the
-  seed for the PDA storing information about stake amout, validator
+  seed for the PDA storing information about stake amount, validator
   and rewards. For more information, refer:
   https://docs.composable.finance/technology/solana-restaking/vaults/#receipt-token
 
@@ -28,7 +28,7 @@ The high level flow of the program is given in the image below.
 When the contract is deployed, the `initialize` method is called where
 the whitelisted tokens, admin key and the rewards
 token mint is set. Initially the `guest_chain_initialization` is set to
-false. Any update to the staking paramters can only be
+false. Any update to the staking parameters can only be
 done by the admin key. A token account is also created for the
 rewards token mint which would distribute the rewards. Since the
 authority is PDA, any debit from the account will happen only through
@@ -44,7 +44,7 @@ can start staking.
   unbonding period gets over, the tokens would be withdrawn. In this method,
   the receipt NFT would be transferred to an escrow account and the receipt
   NFT token account would be closed. All the pending rewards are transferred
-  in this method and users wont be eligible for rewards during the unbonding
+  in this method and users won't be eligible for rewards during the unbonding
   period.
 
 - `Cancel Withdrawal Request`: Withdrawal request set by the user can be 
@@ -64,7 +64,7 @@ can start staking.
 - `Set Service`: Once the bridge is live, users who had deposited before
   can call this method to delegate their stake to the validator. Users
   cannot withdraw or claim any rewards until they delegate their stake
-  to the validator. But this method wont be needed after the bridge is
+  to the validator. But this method won't be needed after the bridge is
   live and would panic if called otherwise.
 
 - `Update Guest chain Initialization`: The admin would call this method
@@ -82,10 +82,10 @@ can start staking.
 - `Change admin Proposal`: A proposal set by the current admin for 
   changing the admin. A new admin is proposed by the existing admin
   and the until the new admin approves it in `accept_admin_change`,
-  the admin wont be changed.
+  the admin won't be changed.
 
 - `Accept admin change`: The new admin set by the existing admin is
-  exepected to call this method. When the new admin calls this method,
+  expected to call this method. When the new admin calls this method,
   the admin is changed.
 
 - `Update Staking Cap`: Method which sets the staking cap which limits
