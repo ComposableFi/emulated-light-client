@@ -20,8 +20,8 @@ anchor test --skip-build
 anchor build -- --features mocks
 anchor deploy
 ```
-- If you want to retain the local state once the tests are run, you would have to run a local validator. A local validator should run in the background and while running the test `skip-local-validator` flag has to be passed so that the program doesnt spin up its only validator.
-Below is the command to run local validator ( run it in a seperate terminal).
+- If you want to retain the local state once the tests are run, you would have to run a local validator. A local validator should run in the background and while running the test `skip-local-validator` flag has to be passed so that the program doesn't, does not spin up its only validator.
+Below is the command to run local validator ( run it in a separate terminal).
 ```
 solana-test-validator -r
 ```
