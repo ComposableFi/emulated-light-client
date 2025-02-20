@@ -55,7 +55,12 @@ pub struct EscrowFunds {
     derive_more::From,
 )]
 pub struct SendFundsToUserCrossChain {
-    pub memo: String
+    pub intent_id: String,
+    pub solver: Pubkey,
+    pub token_out: Pubkey,
+    pub user: Pubkey,
+    pub amount_out: u64,
+    pub solver_out: Pubkey
 }
 
 #[derive(
