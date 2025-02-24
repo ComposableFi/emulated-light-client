@@ -243,3 +243,58 @@ impl<'info> TryFrom<&mut OnTimeoutCrossChain<'info>> for BridgeTransferAccounts<
         })
     }
 }
+
+#[cfg(feature = "mock-ibc")]
+pub fn send_transfer<'a>(
+    _ctx: CpiContext<'a, 'a, 'a, 'a, SendTransfer<'a>>,
+    _hashed_full_denom: CryptoHash,
+    msg: MsgTransfer,
+) -> Result<()> {
+    msg!("success: packet send");
+    let sequence = 1;
+    let port_id = PortId::transfer();
+    let chan_id = ChannelId::new(0);
+    let packet = {
+        let data = {
+            serde_json::to_vec(&msg.packet_data)
+                .expect("PacketData's infallible Serialize impl failed")
+        };
+
+        Packet {
+            seq_on_a: sequence.into(),
+            port_id_on_a: msg.port_id_on_a,
+            chan_id_on_a: msg.chan_id_on_a,
+            port_id_on_b: port_id,
+            chan_id_on_b: chan_id,
+            data,
+            timeout_height_on_b: msg.timeout_height_on_b,
+            timeout_timestamp_on_b: msg.timeout_timestamp_on_b,
+        }
+    };
+
+    let event = IbcEvent::SendPacket(SendPacket::new(
+        packet,
+        Order::Ordered,
+        ConnectionId::new(0),
+    ));
+
+    events::emit(IbcEvent::Message(MessageEvent::Channel)).expect("emit_ibc_event failed");
+    events::emit(event).expect("emit_ibc_event failed");
+
+    let token = &msg.packet_data.token;
+    msg!(
+        "IBC fungible token transfer: {} --({})--> {}",
+        msg.packet_data.sender, token, msg.packet_data.receiver
+    );
+
+    let transfer_event = TransferEvent {
+        sender: msg.packet_data.sender,
+        receiver: msg.packet_data.receiver,
+        amount: msg.packet_data.token.amount,
+        denom: msg.packet_data.token.denom,
+        memo: msg.packet_data.memo,
+    };
+    events::emit(IbcEvent::from(ModuleEvent::from(transfer_event))).expect("emit_ibc_event failed");
+    events::emit(IbcEvent::from(MessageEvent::Module(MODULE_ID_STR.to_string()))).expect("emit_ibc_event failed");
+    Ok(())
+}

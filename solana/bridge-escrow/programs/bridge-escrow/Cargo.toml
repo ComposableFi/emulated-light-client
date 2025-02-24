@@ -11,11 +11,12 @@ name = "bridge_escrow"
 [features]
 # added so that we can compile this along with `solana-ibc` with mocks features. Currently unused.
 mocks = []
+mock-ibc = []
 no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-default = []
+default = ["mock-ibc"]
 
 [dependencies]
 anyhow.workspace = true
