@@ -9,8 +9,13 @@ use lib::hash::CryptoHash;
 use crate::solana_program::program::invoke;
 
 // const DUMMY: &str = "0x36dd1bfe89d409f869fabbe72c3cf72ea8b460f6";
+#[cfg(not(feature = "mock-ibc"))]
 const BRIDGE_CONTRACT_PUBKEY: &str =
     "2HLLVco5HvwWriNbUhmVwA2pCetRkpgrqwnjcsZdyTKT";
+
+#[cfg(feature = "mock-ibc")]
+const BRIDGE_CONTRACT_PUBKEY: &str =
+    "Gpm8UtU4y2J9f4vb7Gb7ZuAEgnSQx6fpuiunb42AuhUX";
 
 const AUCTIONEER_SEED: &[u8] = b"auctioneer";
 const INTENT_SEED: &[u8] = b"intent";
@@ -23,7 +28,10 @@ pub mod events;
 #[cfg(test)]
 mod tests;
 
+#[cfg(not(feature = "mock-ibc"))]
 declare_id!("AhfoGVmS19tvkEG2hBuZJ1D6qYEjyFmXZ1qPoFD6H4Mj");
+#[cfg(feature = "mock-ibc")]
+declare_id!("54TyyV9KbeYamLmFFppLE1qZsi2rZgncrtRrU5y7DiTM");
 
 pub fn check_ibc_caller(ix_sysvar: &AccountInfo) -> Result<()> {
     let caller_program_id =
